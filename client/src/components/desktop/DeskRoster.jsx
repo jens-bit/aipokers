@@ -7,19 +7,29 @@
 // taken the room's place; DESK-3's law is that nothing here slides over
 // anything, so the roster is furniture now, on every desktop screen.
 //
-// It reuses PRosterRow — the same row StandupPanel already draws inside the
-// rail — rather than a second row component, so a man cannot look like two
-// different people depending on which column he is standing in.
-import { accentFor } from '../floor/atoms.jsx';
-import { moodOf, heatOf, stateOf, lastMomentOf } from '../floor/agentView.js';
-import { PRosterRow } from './panelParts.jsx';
-import { gainsWithin, grewWithin } from '../../lib/attributes.js';
+// C9 uses DkRosterRow's 38px identity and compact condition bars, with the
+// mobile roster's actual household location and current/last session result.
+import { moodOf, heatOf } from '../floor/agentView.js';
+import { MoodGhost } from '../system/MoodGhost.jsx';
+import { BodyBars } from '../system/FeltBodyBars.jsx';
+import { identityOf } from '../../lib/identity.js';
+import { whereLine, rosterLive, rosterResult, hasUnread } from '../RosterSheet.jsx';
+import { signedMoney } from '../../lib/wallet.js';
 
 const MAX_SEATS = 4;
 
-function fmtNet(net) {
-  if (!Number.isFinite(net) || net === 0) return '—';
-  return net < 0 ? `−$${Math.abs(net).toLocaleString()}` : `+$${net.toLocaleString()}`;
+function DeskRosterRow({agent,active,onClick}) {
+  const identity=identityOf(agent), heat=heatOf(agent), live=rosterLive(agent), result=rosterResult(agent);
+  const where=whereLine(agent);
+  const line=agent.want?.text || agent.routine?.label || where;
+  return <button type="button" className={`dsk-roster-row dsk-roster-row--home${active?' is-active':''}`} onClick={onClick}>
+    <span className="dsk-roster-face"><MoodGhost size={38} ring={false} mood={moodOf(agent)} heat={heat} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>{hasUnread(agent)&&<i/>}</span>
+    <span className="dsk-roster-row__text">
+      <span className="dsk-roster-row__name-line"><span className="dsk-roster-row__name">{agent.name}</span><span className={`dsk-roster-place${live?' is-live':''}`}>{where}</span></span>
+      <span className="dsk-roster-row__line">{line}{result.value!==null&&<span title={result.label}> · {signedMoney(result.value)}</span>}</span>
+      <BodyBars compact fatigue={agent.fatigue} heat={heat} className="dsk-roster-bars"/>
+    </span>
+  </button>;
 }
 
 export function DeskRoster({
@@ -33,19 +43,10 @@ export function DeskRoster({
         <span className="dsk3-roster__count">{agents.length} of {MAX_SEATS}</span>
       </div>
       <div className="dsk3-roster__rows">
-        {agents.map((agent, i) => (
-          <PRosterRow
+        {agents.map(agent => (
+          <DeskRosterRow
             key={agent.id}
-            name={agent.name}
-            accent={accentFor(agent, i)}
-            mood={moodOf(agent)}
-            heat={heatOf(agent)}
-            state={stateOf(agent)}
-            line={lastMomentOf(agent)}
-            pnl={fmtNet(agent.careerStats?.net)}
-            grew={grewWithin(agent.attrLog)
-              ? gainsWithin(agent.attrLog).reduce((n, g) => n + g.gain, 0)
-              : 0}
+            agent={agent}
             active={activeId === agent.id || watchedId === agent.id}
             onClick={() => onSelect?.(agent)}
           />

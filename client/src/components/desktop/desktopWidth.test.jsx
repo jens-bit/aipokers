@@ -58,24 +58,24 @@ const ROSTER = 250; // DESK-3: the permanent column, wide open
 const MIN_STAGE = 600; // below this the floor stops being a room
 
 describe('DESK-3: the desktop columns fit the viewport', () => {
-  it('1440x900 — roster + panel leave the stage 670px', () => {
+  it('C9 1440x900 — roster + 380px panel leave the stage 810px', () => {
     const panel = widthOf('.dsk-panel', wideBlock());
     const roster = widthOf('.dsk3-roster', wideBlock());
 
     expect(roster).toBe(ROSTER);
-    expect(panel).toBe(520);
+    expect(panel).toBe(380);
     expect(roster + panel).toBeLessThanOrEqual(1440);
-    expect(1440 - roster - panel).toBe(670);
+    expect(1440 - roster - panel).toBe(810);
   });
 
-  it('1280x800 — both columns narrow and the stage keeps 600', () => {
+  it('C9 1280x800 — the roster narrows and the stage keeps 680', () => {
     const panel = widthOf('.dsk-panel', narrowBlock());
     const roster = widthOf('.dsk3-roster', narrowBlock());
 
-    expect(panel).toBe(460);
+    expect(panel).toBe(380);
     expect(roster).toBe(220);
     expect(roster + panel).toBeLessThanOrEqual(1280);
-    expect(1280 - roster - panel).toBe(600);
+    expect(1280 - roster - panel).toBe(680);
   });
 
   it('leaves a usable stage at both sizes', () => {
@@ -145,7 +145,7 @@ describe('DESK-3: the roster never collapses', () => {
     await userEvent.click(rosterRow(restingAgent.name));
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /player card/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
     });
     expect(rosterRow(playingAgent.name)).toBeInTheDocument();
     expect(rosterRow(restingAgent.name)).toBeInTheDocument();

@@ -13,19 +13,16 @@
 // rail is a component that already shipped:
 //
 //   THE ROOM   RoomThread          THREAD-2's /api/home/thread, attributed
-//   HIS THREAD ThreadPanel         the desk's own agent thread, unchanged
+//   HIS THREAD ThreadPanel         board42 C9's companion and conversation
 //   THE SAFE   SafeSheet           SAFE-2's one money surface, second door
 //   THE FRIDGE FridgeSheet         HOME-1's, mounted inline instead of as glass
 //   THE TABLE  TableSheet          the chairs, priced from GET /api/slots
 //
-// TWO DELIBERATE DEPARTURES FROM THE REF, both stated rather than silent:
+// The latest board42 C9 column is 380px throughout the shell. Its wider
+// 560x700 room remains a separate gap; this component still shares the
+// functional phone room and its placement coordinates.
 //
-//   1. THE RAIL IS 520, not the ref's 360. Every other rail in this shell is
-//      520 (D_PANEL in mood-desktop.jsx, .dsk-panel in desktop.css) and the
-//      agent thread that opens in this rail IS that panel. A rail that changed
-//      width depending on which panel was in it would move the room sideways
-//      every time you touched a fixture.
-//   2. THE WANT TOAST rides the head of the room's thread, which is where the
+// THE WANT TOAST rides the head of the room's thread, which is where the
 //      ref puts it (P18) — but it is not drawn when a fixture panel is open,
 //      because a fixture panel is a decision and an unanswered ask on top of
 //      one is two questions at once.
@@ -106,7 +103,7 @@ export function DeskHome({
       onPanel={onPanel}
       focusId={focusId}
       onFocusId={onFocusId}
-      renderRail={({ panel: open, openPanel, setFocus, agents, home, game: homeGame, focus, toast, refresh }) => {
+      renderRail={({ panel: open, openPanel, setFocus, agents, home, game: homeGame, focus, toast, refresh, carryAgent }) => {
         const backToRoom = () => openPanel('thread');
 
         if (open === 'draft' && draft) {
@@ -199,6 +196,8 @@ export function DeskHome({
               onClose={backToRoom}
               onWatch={onWatch}
               onDeploy={onDeploy}
+              onCarry={carryAgent}
+              onReplay={onOpenFlagged}
               onFocusTable={onFocusTable ? () => onFocusTable(focus) : undefined}
             />
           );

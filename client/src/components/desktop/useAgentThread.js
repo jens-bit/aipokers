@@ -44,6 +44,8 @@ export function useAgentThread(agent) {
   const [accepting, setAccepting] = useState(false);
   const [mood, setMood] = useState(null);
   const [cause, setCause] = useState(null);
+  const [error, setError] = useState('');
+  const sendBusy = useRef(false);
   const msgIdRef = useRef(0);
   const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
 
@@ -55,12 +57,15 @@ export function useAgentThread(agent) {
     setChat([]);
     setMood(null);
     setCause(null);
+    setError('');
+    const startedAtId = msgIdRef.current;
 
     const seed = () => {
       if (cancelled) return;
-      const msgs = [mkMsg('assistant', openerFor(agent))];
+      const history = Array.isArray(agent.chatHistory) ? agent.chatHistory.filter(m => ['user','assistant'].includes(m.role) && typeof m.content === 'string') : [];
+      const msgs = history.length ? history.map(m => mkMsg(m.role,m.content)) : [mkMsg('assistant', openerFor(agent))];
       if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
-      setChat(msgs);
+      setChat(prev => [...msgs, ...prev.filter(m => m._id > startedAtId)]);
     };
 
     fetch(
@@ -77,7 +82,9 @@ export function useAgentThread(agent) {
 
   const send = useCallback(async (text) => {
     const content = text.trim();
-    if (!content || !agentId || sending) return;
+    if (!content || !agentId || sendBusy.current) return false;
+    sendBusy.current = true;
+    setError('');
     setSending(true);
     setChat((prev) => [...prev, mkMsg('user', content)]);
     try {
@@ -86,6 +93,7 @@ export function useAgentThread(agent) {
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
         body: JSON.stringify({ userId, content, existingAgentId: agentId }),
       });
+      if (!res.ok) throw new Error('Chat refused');
       const data = await res.json();
       const reply = (data.chat || []).filter((m) => m.role === 'assistant').pop();
       if (reply) setChat((prev) => [...prev, mkMsg('assistant', reply.content)]);
@@ -93,9 +101,12 @@ export function useAgentThread(agent) {
         setMood(data.pepTalk.newState);
         setCause('feeling better');
       }
+      return true;
     } catch {
-      setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — please try again.')]);
+      setError('Could not send your message. Please try again.');
+      return false;
     } finally {
+      sendBusy.current = false;
       setSending(false);
     }
   }, [agentId, userId, sending]);
@@ -125,5 +136,5 @@ export function useAgentThread(agent) {
     }
   }, [agentId, userId]);
 
-  return { chat, sending, accepting, send, acceptProposal, moodOverride: mood, causeOverride: cause };
+  return { chat, sending, accepting, send, acceptProposal, error, moodOverride: mood, causeOverride: cause };
 }

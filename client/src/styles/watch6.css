@@ -1025,6 +1025,7 @@
 }
 
 .felt-bars__track {
+  display: block;
   position: relative;
   height: 2px;
   border-radius: 1px;

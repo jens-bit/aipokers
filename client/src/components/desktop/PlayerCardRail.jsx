@@ -14,14 +14,16 @@ import { accentFor } from '../floor/atoms.jsx';
 import { moodOf, heatOf } from '../floor/agentView.js';
 import { normalizeAttrs, seriesFor, ATTR_META } from '../../lib/attributes.js';
 import { RailBody } from './panelParts.jsx';
+import { identityOf } from '../../lib/identity.js';
 
 function Identity({ agent, accent, mood, heat = 45, nature, size = 56, nameSize = 20, centred }) {
+  const identity = identityOf(agent);
   const hands = agent?.careerStats?.hands ?? 0;
   const born = hands > 0 ? `${hands.toLocaleString()} HANDS` : 'BORN TODAY · 0 HANDS';
   return (
     <div className="dsk-pcard__id" style={{ alignItems: centred ? 'center' : 'flex-start' }}>
       <div className="dsk-pcard__ghost" style={{ width: size, height: size, borderColor: `${accent}44` }}>
-        <MoodGhost mood={mood} heat={heat} accent={accent} size={size - 2} ring={false} />
+        <MoodGhost mood={mood} heat={heat} accent={identity.glow.c} hood={identity.hood} glow={identity.glow.c} size={size - 2} ring={false} />
       </div>
       <div className="dsk-pcard__id-text">
         <div className="dsk-pcard__name" style={{ fontSize: nameSize }}>{agent.name}</div>

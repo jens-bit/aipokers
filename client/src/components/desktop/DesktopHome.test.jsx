@@ -90,7 +90,7 @@ describe('DesktopHome roster', () => {
     renderHome();
     await waitFor(() => expect(screen.getByTestId('home-screen')).toBeInTheDocument());
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /player card/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
 
     await openStandup();
     expect(panelHead('Standup')).toBe(true);
@@ -116,7 +116,7 @@ describe('DesktopHome panel', () => {
     await openAgent(restingAgent.name);
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /player card/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
     });
   });
 
@@ -142,11 +142,11 @@ describe('DesktopHome panel', () => {
   it('closes the panel on Escape', async () => {
     renderHome();
     await openAgent(restingAgent.name);
-    await waitFor(() => expect(screen.getByRole('tab', { name: /player card/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument());
 
     await userEvent.keyboard('{Escape}');
     await waitFor(() => {
-      expect(screen.queryByRole('tab', { name: /player card/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
     });
     // ...and back to the resting panel, which on the HOME stage is the room.
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();

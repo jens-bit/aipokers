@@ -144,7 +144,7 @@
 /* ── Right rail ───────────────────────────────────────────────────────── */
 
 .dsk-right-rail {
-  width: 520px;
+  width: 380px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -527,7 +527,7 @@
  * Ported from mood-desktop.jsx Panel/PanelHead + mood-desktop3.jsx RailBody. */
 
 .dsk-panel {
-  width: 520px;
+  width: 380px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1422,10 +1422,8 @@
  * that holds text carries min-width:0, so the page never scrolls sideways. */
 
 @media (max-width: 1365px) {
-  /* 1280x800: roster 220, panel 460, stage takes the rest (600). The panel
-     gives up 60px at this width (520 → 460); the roster gives up 30 of its
-     own, so the stage still keeps most of what it had. */
-  .dsk-panel { width: 460px; }
+  /* C9 keeps the 380px column; at 1280 the roster narrows to leave 680px. */
+  .dsk-panel { width: 380px; }
   .dsk3-roster { width: 220px; }
   .dsk-roster { margin: 0 -14px; }
   .dtb__center { top: 150px; }
@@ -1703,7 +1701,7 @@
 .home1--desk .home-flat__tv,
 .home1--desk .home-flat__door,
 .home1--desk .home-flat__table {
-  position: relative;
+  position: absolute;
 }
 .home1--desk .home-flat__safe::after,
 .home1--desk .home-flat__fridge::after,
@@ -1876,6 +1874,8 @@
 
 .dsk-replay {
   flex: 1;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;

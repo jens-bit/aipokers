@@ -67,5 +67,39 @@
 .agent-view__fund .wal-sheet{position:static;flex:1}
 @media(max-height:480px){.agent-view__stage{height:140px}.agent-view__body{bottom:4px;gap:3px}.agent-view__breath,.agent-view__breath>svg{width:100px;height:100px}.agent-view__speech{left:calc(36.4% + 48px);top:12px}.agent-view__bubble{max-height:80px}.agent-view__actions{height:54px}}
 @media(prefers-reduced-motion:reduce){.agent-view__breath{animation:none}}
+/* Board 42 C9: 380px column, 132px body in its 268px stage. */
+.agent-view--desktop .agent-view__header{height:44px;padding:0 15px;gap:8px}
+.agent-view--desktop .agent-view__name{font-size:13px}
+.agent-view--desktop .agent-view__close{margin-left:auto;width:24px;height:32px;min-height:0;padding:0;border:0;background:none;color:#6B6B6B;font:20px Inter,sans-serif;flex-shrink:0}
+.agent-view--desktop .agent-view__live+.agent-view__close{margin-left:0}
+.agent-view--desktop .agent-view__stage{height:268px;background:radial-gradient(ellipse at 44% 66%,#1E2826 0%,#151D1C 60%,#101615 100%)}
+.agent-view--desktop .agent-view__body{left:32.1%;bottom:32px;gap:7px}
+.home1--desk .agent-view .home-pill{opacity:1}
+.agent-view--desktop .agent-view__breath{width:132px;height:132px}
+.agent-view--desktop .agent-view__shadow{left:32.1%;bottom:27px;width:96px;height:12px}
+.agent-view--desktop .agent-view__speech{left:50%;top:96px;right:12px}
+.agent-view--desktop .agent-view__bottle{left:calc(32.1% + 60px);bottom:34px}
+.agent-view--desktop .agent-view__actions{height:60px;border-bottom:1px solid #ffffff1f;background:#0E1413}
+.agent-view--desktop .agent-view__actions button{height:40px;min-height:40px;border-radius:9px;font-size:7px}
+.agent-view--desktop .agent-view__actions .agent-view__deploy{flex:1.7;padding:0 7px;gap:5px}
+.agent-view--desktop .agent-view__deploy b{font-size:9.5px}
+.agent-view--desktop .agent-view__thread{padding:12px 14px;gap:9px}
+.agent-view--desktop .agent-view__composer{padding:10px 14px 14px}
+.agent-view--desktop .agent-view__composer>div{height:40px}
+@media(min-width:1100px){.agent-view--desktop .agent-view__composer input{font-size:12.5px}}
+.agent-view--desktop .agent-view__composer button{width:28px;height:28px;min-height:28px}
+.dsk-agent-back{flex-shrink:0;border:0;border-top:1px solid #ffffff1f;background:#101A18;color:#00D4AA;padding:14px;font:12px Inter,sans-serif}
+.dsk-root .dsk3-roster{background:#232329}
+.dsk-roster-row--home{gap:10px;min-height:72px}
+.dsk-roster-row--home .dsk-roster-row__name-line{flex-wrap:wrap;gap:2px 7px;align-items:baseline}
+.dsk-roster-row--home .dsk-roster-row__name{font:600 12px Inter,sans-serif}
+.dsk-roster-row--home .dsk-roster-row__line{display:block;font:10px Inter,sans-serif;color:#8C8C8C;margin-top:2px}
+.dsk-roster-place{color:#A1A1A1;font:600 7.5px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+.dsk-roster-place.is-live{color:#00D4AA}
+.dsk-roster-face{position:relative;width:38px;height:38px;flex-shrink:0}
+.dsk-roster-face i{position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:#CDB380;border:1.5px solid #0E1413;box-shadow:0 0 6px #CDB380}
+.dsk-roster-bars.felt-bars{position:static;display:flex;flex-direction:column;width:120px;max-width:100%;gap:2.5px;margin-top:5px;transform:none}
+.dsk-roster-bars .felt-bars__track{height:2.5px}
+.agent-view__proposal-details{margin-top:6px;font-size:10px;line-height:1.6}
 .home-carry-help{position:absolute;z-index:12;left:12px;right:12px;top:50px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #cdb38044;border-radius:10px;background:#101a18f0;color:#CDB380;font:11px Inter,sans-serif}
 .home-carry-help span{flex:1}.home-carry-help button{min-height:44px;border:0;background:none;color:#A1A1A1;font:11px Inter,sans-serif}

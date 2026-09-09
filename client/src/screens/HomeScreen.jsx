@@ -520,10 +520,9 @@ export function HomeScreen({
 
   // ── HOME-2 job 5 · carrying him ───────────────────────────────────────────
   //
-  // Long-press lifts him, the finger carries him, and the fixture under the
-  // finger when it lets go is what happens next. Off on the desk: DESK-2's room
-  // is a picture beside a rail rather than a thing you put your hand into, and
-  // a drag there is a mouse selecting text.
+  // Long-press lifts him on the phone. Desktop C9 uses the explicit Carry
+  // button, followed by a fresh placement gesture; normal mouse clicks still
+  // open the column. Both use the same scaled room coordinates and route.
   const onDrop = useCallback(async (agentId, fixture) => {
     // Nowhere is a real answer. He goes back where he was, and the room says
     // nothing — a drop on the floor is not a mistake to be reported.
@@ -554,7 +553,7 @@ export function HomeScreen({
   const { carry, bind: bindCarry, pick, cancel: cancelCarry } = useCarry({
     roomEl: flatEl,
     onDrop,
-    enabled: !desktop,
+    enabled: true,
   });
 
   useEffect(() => {
@@ -794,7 +793,7 @@ export function HomeScreen({
             dealt={seated && !held}
             walking={walking.has(id)}
             carried={held}
-            carryHandlers={bindCarry(id, { size })}
+            carryHandlers={desktop ? undefined : bindCarry(id, { size })}
             // The queue's answer, or nothing — and the pill still says he has
             // news while his turn is coming.
             bubble={bubble}
@@ -824,6 +823,7 @@ export function HomeScreen({
       <div className="home1__scale" style={{ width: F_W, height: F_H, ...(!desktop ? { transform: `scale(${deskScale})`, marginBottom: F_H * (deskScale - 1) } : {}) }} ref={setFlatEl}>
         {flat}
       </div>
+      {desktop && carry && <div className="home-carry-help"><span>Place him on the couch, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
     </div>
   );
 
@@ -850,6 +850,7 @@ export function HomeScreen({
             focus,
             wanting,
             refresh,
+            carryAgent: agent => { if (home.some(a => a.id === agent.id) && pick(agent.id)) setRail('thread'); },
             toast: visitor ? (
               <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />
             ) : wanting ? (

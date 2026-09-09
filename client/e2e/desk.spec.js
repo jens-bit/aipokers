@@ -30,6 +30,7 @@
 // Look: client/e2e/__screenshots__/desk3-*.png
 
 import { test, expect } from '@playwright/test';
+import { bigBluffHand } from '../src/test/fixtures/flagged.js';
 
 const HOME = 'http://127.0.0.1:5199/';
 
@@ -159,6 +160,8 @@ async function stub(page, { agents = AGENTS, game = GAME, slots = null } = {}) {
   await page.route('**/api/agents/*/study**', (route) => route.fulfill({ json: { study: null, book: [], count: 0 } }));
   await page.route('**/api/agents/*/thread**', (route) => route.fulfill({ json: { sessionId: 's1', lines: [], count: 0 } }));
   await page.route('**/api/agents/*/hands**', (route) => route.fulfill({ json: { recentHands: [] } }));
+  await page.route('**/api/agents/*/flagged**', (route) => route.fulfill({ json: { flaggedHands: [] } }));
+  await page.route('**/api/agents/*/memory**', (route) => route.fulfill({ json: { memory: [] } }));
   await page.route('**/api/home/thread**', (route) => route.fulfill({ json: ROOM_THREAD }));
   await page.route('**/api/fridge?**', route => route.fulfill({ json: { items: [{ id: 'beer', count: 4, price: 12 }, { id: 'snack', count: 2, price: 8 }] } }));
   await page.route('**/api/slots**', (route) => route.fulfill({
@@ -226,7 +229,7 @@ async function stub(page, { agents = AGENTS, game = GAME, slots = null } = {}) {
     ScriptedSocket.OPEN = 1;
     ScriptedSocket.prototype.OPEN = 1;
     window.WebSocket = ScriptedSocket;
-  }, [AGENTS, GAME]);
+  }, [agents, game]);
 }
 
 async function desk(page, { width = 1440, height = 900 } = {}, opts = {}) {
@@ -318,7 +321,7 @@ test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)',
     await desk(page, SIZES[0]);
     await page.locator('.home-one[data-agent="a2"]').click();
 
-    await expect(page.getByRole('tab', { name: /player card/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
     await expect(page.locator('.home-flat')).toHaveCount(1);
     for (const a of AGENTS) await expect(rosterRow(page, a.name)).toBeVisible();
     await page.waitForTimeout(400);
@@ -328,15 +331,82 @@ test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)',
   test('the roster switches threads on its own, with no strip ever appearing', async ({ page }) => {
     await desk(page, SIZES[0]);
     await rosterRow(page, GRANITE.name).click();
-    await expect(page.getByRole('tab', { name: /player card/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
 
     await rosterRow(page, BALANCE.name).click();
-    await expect(page.getByRole('tab', { name: /player card/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
     await expect(page.locator('.dsk-strip')).toHaveCount(0);
   });
 });
 
 test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => {
+  test('BUG-86: condition tracks have a visible width and height',async({page})=>{
+    await desk(page,SIZES[0]);
+    const track=await page.locator('.dsk-roster-bars .felt-bars__track').first().boundingBox();
+    expect(track.width).toBeGreaterThan(80);
+    expect(track.height).toBeGreaterThanOrEqual(2);
+  });
+  for (const size of [{width:1280,height:800},...SIZES]) {
+    test(`C9: conversation, identity and Carry work beside the room at ${size.width}`,async({page})=>{
+      const errors=[];page.on('pageerror',e=>errors.push(e.message));
+      const agents=AGENTS.map(a=>a.id==='a2'?{...a,identity:{hood:'sand',glow:'gold'},chatHistory:[{role:'user',content:'Why did you call there?'},{role:'assistant',content:'It was the sizing. He never bets that big with a hand.'},{role:'user',content:'Stay off him for a bit.'},{role:'assistant',content:'Fine. I will wait for the button.'}]}:a);
+      await desk(page,size,{agents});
+      await page.route('**/api/agents/a2/flagged**',route=>route.fulfill({json:{flaggedHands:[bigBluffHand]}}));
+      await page.route('**/api/agents/chat',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
+      await rosterRow(page,'Granite').click();
+      const roomBefore=await page.locator('.home-flat').boundingBox();
+      const column=page.locator('.dsk-panel--agent');
+      expect((await column.boundingBox()).width).toBe(380);
+      await expect(column.locator('.agent-view__breath')).toHaveCSS('width','132px');
+      await expect(column.locator('.home-pill')).toHaveCSS('opacity','1');
+      await expect(column.locator('.agent-view__speech')).toContainText('Fine. I will wait for the button.');
+      await expect(column.locator('.agent-view__thread')).toContainText('Why did you call there?');
+      const composer=page.getByPlaceholder('Whisper to him…');
+      expect((await composer.boundingBox()).y).toBeLessThan(size.height-20);
+      if(size.width===1440) {
+        await page.screenshot({path:'../artifacts/desktop-c9.png'});
+        await column.screenshot({path:'../artifacts/desktop-column-c9.png'});
+      }
+      await column.getByRole('button',{name:/Replay .*hand/}).click();
+      await expect(page.locator('.dsk-replay')).toBeVisible();
+      // BUG-85: the replay stage used to collapse to zero height, leaving its
+      // back button under the scrubber/top bar despite all unit tests passing.
+      expect((await page.locator('.dsk-replay__stage').boundingBox()).height).toBeGreaterThan(300);
+      await expect(page.getByTestId('desk-roster')).toBeVisible();
+      await page.locator('.dtb__back').click();
+      await expect(column).toBeVisible();
+      await composer.fill('Wait for me.');
+      await column.getByRole('button',{name:'Send',exact:true}).click();
+      await expect(column.getByRole('alert')).toContainText('try again');
+      await expect(composer).toHaveValue('Wait for me.');
+      await column.getByRole('button',{name:'Profile',exact:true}).click();
+      await expect(column.locator('.dsk-pcard__ghost stop[stop-color="#6E5836"]')).toHaveCount(1);
+      await column.getByRole('button',{name:'Back to conversation'}).click();
+      expect(await page.locator('.home-flat').boundingBox()).toEqual(roomBefore);
+      const requests=[];
+      await page.route('**/api/agents/a2/place?**',route=>{requests.push(route.request().postDataJSON());return route.fulfill({json:{ok:true,line:'I will rest here.'}});});
+      await column.getByRole('button',{name:'Carry',exact:true}).click();
+      await expect(page.locator('.home-carry-help')).toBeVisible();
+      await page.locator('.home-flat__couch').click();
+      await expect.poll(()=>requests.length).toBe(1);
+      expect(requests[0]).toMatchObject({fixture:'couch'});
+      await expect(page.locator('.home-carry-help')).toHaveCount(0);
+      expect(errors).toEqual([]);
+    });
+  }
+  test('BUG-82: hover labels do not move fixtures out of their room coordinates',async({page})=>{
+    await desk(page,SIZES[0]);
+    const flat=await page.locator('.home-flat').boundingBox();
+    const k=flat.width/390;
+    for(const [selector,x,y] of [['.home-flat__safe',16,94],['.home-flat__fridge',250,94],['.home-flat__tv',260,486],['.home-flat__door',356,152]]) {
+      const fixture=page.locator(selector);
+      await expect(fixture).toHaveCSS('position','absolute');
+      const box=await fixture.boundingBox();
+      expect(Math.abs(box.x-flat.x-x*k)).toBeLessThan(2);
+      expect(Math.abs(box.y-flat.y-y*k)).toBeLessThan(2);
+      expect(box.y+box.height).toBeLessThanOrEqual(flat.y+flat.height+1);
+    }
+  });
   test('a body is quiet at rest; hovering shows his pill', async ({ page }) => {
     await desk(page, SIZES[0]);
     const pill = page.locator('.home-one[data-agent="a2"] .home-pill');

@@ -259,7 +259,7 @@ describe('DESK-2 · the man in the room', () => {
     await userEvent.click(body);
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /player card/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
     });
     expect(screen.queryByTestId('room-thread')).not.toBeInTheDocument();
     expect(document.querySelectorAll('.home-flat')).toHaveLength(1);

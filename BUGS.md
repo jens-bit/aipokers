@@ -1,6 +1,27 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
 
+### BUG-86 — condition tracks collapse as empty inline spans — FIXED on overnight branch
+The C9 screenshot exposed missing condition lines. The shared BodyBars track is a span with height and an absolutely positioned fill but no block display; the browser regression measured a zero-width track. Making the track block-level restores its intended dimensions. Desktop and Watch browser checks cover the shared fix.
+
+### BUG-80 — desktop conversation reopens without its saved history — FIXED on overnight branch
+useAgentThread seeded only the opener, replacing even messages sent while the initial hands request was pending. Both cases failed before repair. It now restores the served private history and preserves subsequent messages. C9 uses that hook with the existing per-agent draft map.
+
+### BUG-81 — desktop chat treats a refused HTTP response as success — FIXED on overnight branch
+A 503 was parsed without checking res.ok, so no error appeared after the draft cleared. The regression failed before repair. Sends now return success/failure; the column and desktop Watch restore failed drafts, and the column displays a retryable error. A ref prevents duplicate concurrent sends.
+
+### BUG-82 — desktop hover labels move furniture and hide the television — FIXED on overnight branch
+The hover rule changed the safe, fridge, television, door and table to position:relative, overriding their absolute room coordinates. The actual browser reproduced the misplaced safe; the same geometry test now checks all four fixtures at their scaled plan positions. Hover labels still work.
+
+### BUG-83 — the desktop profile discards the saved hood and glow — FIXED on overnight branch
+PlayerCardRail's shared Identity passed only a roster accent into MoodGhost. A saved sand/gold profile test failed first, then passed after the same persisted identity used in Home/agent was applied. The birth rail shares this identity component.
+
+### BUG-84 — desktop roster shows lifetime profit beside the wrong location — FIXED on overnight branch
+The old standup row labelled a home-table player RESTING and printed careerStats.net without its lifetime context. The regression reproduced both. C9 now uses whereLine/rosterResult from the mobile roster, real wants/routines, saved 38px identity and condition bars. Missing session results are not replaced with career earnings.
+
+### BUG-85 — desktop replay collapses and its Back button is covered — FIXED on overnight branch
+The replay's flex children had no parent height inside the block stage. The C9 browser flow reproduced a Back button intercepted by the scrubber and top bar at three widths. Giving the replay its stage height restores the felt and the actual Back click; the browser now measures a usable stage as well as completing the return.
+
 ### BUG-79 — a split-pot winner is shown as losing when listed second — FIXED on overnight branch
 Watch determined heroWon only from result.winners[0]. A named regression reproduced “lost at showdown” with the hero second in a split pot. It now checks every winner and says “shared the pot”; C8 uses the hero's actual summed payout. New integration tests also enforce ordinary-win hands, big-win effects and the actual busted seat name.
 
