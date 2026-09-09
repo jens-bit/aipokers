@@ -1,5 +1,8 @@
 # Bug Report — Agentic Poker
-Last updated: 2026-09-08 (Railbird playtest follow-up); statuses and evidence below.
+Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
+
+### BUG-104 — desktop casino Floor still repeats the shell header — OPEN
+The populated batch23 screenshot shows The casino and its Home return in the 54px shell, then another room title and THE CASINO return in FloorView. Board's duplicate heading was removed in batch19; the early floorView return still bypasses that shellHeader handling. The approved desktop floor has one top row. Consolidate real room context and Floor/Board controls into the existing shell without losing room selection or return actions.
 
 ### BUG-99 — desktop kitchen table exposes neither Watch nor Sit — OPEN
 The marketing capture opened the desktop table panel but found no home-table-sit. DeskHome passes only slots/seated/onDraft to TableSheet, while the phone passes onWatch/onSit from its running home game. App routes every desktop state through DesktopHome before its phone-only seated branch. This needs actual desktop action wiring and a verified human stage, not a button opening an unseen socket. The welcome seating example is explicitly the phone experience.
@@ -13,8 +16,8 @@ At 375px, the room remained 32px below the viewport after the old 320ms focus ti
 ### BUG-102 — invite unit test exceeds five seconds in a full local gate — OPEN, mitigated setup
 The first batch22 full client gate timed out in the new-visitor invite case; a focused run took about 1.8 seconds. Its newly minted guest incorrectly had a returning owner's household. The fixture now gives it an empty roster, and the exact-heading assertion is scoped to the mounted hero. Referral/heading assertions remain, without a timeout increase or skip. The subsequent full gate and final client run passed all 2199 checks. Resource contention is possible but unproven. Evidence: artifacts/batch22-test-all.log and batch22-test-all-final.log.
 
-### BUG-103 — desktop casino floor leaves much of its stage unused — OPEN
-The paired design-batch22-casino-1280.png shows its six felts and bar using much less space than the approved DkCasinoFloor. FloorView caps a shared 390×470 plan; its one-time measurement effect can encounter a ref not mounted until ROOM_TABLES arrives. Reproduce late-frame sizing, then port the approved desktop geometry and recheck phone layout before closing this item.
+### BUG-103 — late casino tables keep a fixed-width floor — FIXED on design branch
+The measurement effect ran before conditional ROOM_TABLES content existed and never attached when it arrived. Red unit cases measured 390px instead of 362 on phone or 663.83 on desktop; three real-browser regressions also stayed at 390. Measurement now attaches on content appearance and observes both axes. DkFloorStage's 390×470 coordinate space fits available desktop width/height with 30px horizontal and 20px vertical gutters, replacing the stale 520px cap; phone remains width-led. All six felt centers stay reachable through desktop resizes. The permanent 380px board and real room data are retained. Evidence: batch23-unit-red/green and browser-red/green logs, plus design-batch23-casino pairs.
 
 ### BUG-97 — desktop equity number disagrees with its own rope — FIXED on design branch
 The rope read snapshot equity first but the number read only a spoken decision. A silent recorded beat showed 81% on the rope and a dash in the strip; a newer snapshot could also disagree with an older decision. Red regressions are in artifacts/batch21-red.log. Both now use the same snapshot/seat/decision precedence, including recorded completion. Browser checks verify 4% at the first recorded beat and 100% at its won ending.

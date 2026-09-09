@@ -30,6 +30,7 @@
 // Look: client/e2e/__screenshots__/desk3-*.png
 
 import { test, expect } from '@playwright/test';
+import { felts as floorFelts } from '../src/test/fixtures/rooms.js';
 import { bigBluffHand } from '../src/test/fixtures/flagged.js';
 
 const HOME = 'http://127.0.0.1:5199/';
@@ -192,9 +193,10 @@ async function stub(page, { agents = AGENTS, game = GAME, slots = null } = {}) {
       WebApp: {
         initData: 'user=%7B%22id%22%3A4242%7D&auth_date=1756900000&hash=deadbeef',
         initDataUnsafe: { user: { id: 4242, first_name: 'Jens' } },
-        viewportHeight: 900,
+        get viewportHeight() { return window.innerHeight; },
         ready() {}, expand() {}, disableVerticalSwipes() {},
-        onEvent() {}, offEvent() {},
+        onEvent(type, fn) { if (type === 'viewportChanged') window.addEventListener('resize', fn); },
+        offEvent(type, fn) { if (type === 'viewportChanged') window.removeEventListener('resize', fn); },
       },
     };
   });
@@ -651,4 +653,44 @@ test('BUG-100: desktop condition labels stay below the stack and equity',async({
     barsTop:el.querySelector('.felt-bars').getBoundingClientRect().top,
   }));
   expect(bounds.barsTop).toBeGreaterThanOrEqual(bounds.numbersBottom+4);
+});
+
+
+test.describe('BUG-103 · populated casino floor uses its stage', () => {
+  for (const size of [{width:1280,height:720}, ...SIZES]) {
+    test('late tables fit both axes at '+size.width+'×'+size.height, async ({page}) => {
+      await desk(page,size);
+      await page.addInitScript(() => {
+        const Base=window.WebSocket;
+        window.__floorSockets=[];
+        window.WebSocket=class extends Base { constructor(...args) { super(...args); window.__floorSockets.push(this); } };
+      });
+      await page.route('**/api/rooms',r=>r.fulfill({json:{rooms:ROOMS.map(r=>({...r,tables:6}))}}));
+      await page.reload();
+      await page.getByTestId('home-door').click();
+      await expect(page.getByTestId('floor-view')).toBeVisible();
+      await expect(page.getByTestId('the-floor')).toHaveCount(0);
+      const roomId=await page.getByTestId('floor-view').getAttribute('data-room');
+      const tables=Array.from({length:6},(_,i)=>({...floorFelts[i%2],tableId:'tbl-geometry-'+i,room:roomId}));
+      await page.evaluate(tables=>window.__floorSockets.forEach(socket=>socket.dispatch('message',{data:JSON.stringify({type:'room_tables',tables,rooms:Object.fromEntries(tables.map(t=>[t.tableId,t.room]))})})),tables);
+      await expect(page.locator('.csn-felt58')).toHaveCount(6);
+      async function fits() {
+        const available=await page.locator('.csn-floor__room').boundingBox();
+        const plan=await page.getByTestId('the-floor').boundingBox();
+        const maxWidth=Math.min(available.width-60,(available.height-40)*390/470);
+        expect(plan.width).toBeCloseTo(maxWidth,0);
+        expect(plan.width/plan.height).toBeCloseTo(390/470,3);
+        expect(plan.x+plan.width/2).toBeCloseTo(available.x+available.width/2,0);
+        expect(plan.y).toBeGreaterThanOrEqual(available.y+19);
+        expect(plan.y+plan.height).toBeLessThanOrEqual(available.y+available.height-19);
+        expect(await page.locator('.csn-felt58').evaluateAll(els=>els.every(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}))).toBe(true);
+      }
+      await expect.poll(async()=>await page.getByTestId('the-floor').evaluate(el=>el.clientWidth)).toBeGreaterThan(390);
+      await fits();
+      await page.screenshot({path:'../artifacts/casino23-'+size.width+'.png'});
+      await page.setViewportSize({width:size.width,height:600});
+      await expect.poll(async()=> (await page.getByTestId('the-floor').boundingBox()).height).toBeLessThan(540);
+      await fits();
+    });
+  }
 });

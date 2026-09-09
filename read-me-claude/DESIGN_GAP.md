@@ -1,5 +1,11 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 23
+
+BUG-103 is resolved: the casino plan measures when live tables arrive and fits DkFloorStage's 390×470 coordinate space into both desktop axes. The former 520px cap is gone; short windows keep all six felt centers and the bar visible. The existing 380px permanent board is retained. Phone plans now measure late content to their actual inner width. Reviewed pairs: client/e2e/shots/design-batch23-casino-{390,1280}.png. The phone marketing fixture now reports the real viewport, so its composer is no longer cropped; both captures have geometry guards.
+
+Remaining casino differences are explicit: the desktop Floor still repeats the shell heading (BUG-104), the phone Board has its existing doorway order and combined live/tonight panel, and actual occupants/results replace authored examples. Empty bar space has no invented crowd. Full gate: 105 server / 2201 client / 7 e2e; final browser 27 desktop + 2 welcome; preserved phone BUG-55 passed both heights; build, all 5 built smoke and 20 Home2 checks passed. The full design goal remains open.
+
 ## Design completion — 2026-09-09, batch 22
 
 The long /welcome page now uses L2's shared hero, actual room and nine approved subjects. Sections, typography, padding and responsive product captures are ported; both routes serve the current bundle. Four unclipped reference/actual pairs were inspected: design-batch22-{home,casino}-{390,1280}.png. Actual screens retain their real table, fixtures, actors and session data; they omit the decorative iPhone status-bar bezel. Section 07 uses the functioning phone seating experience at either width while desktop seating remains unbuilt (BUG-99). The floor pair reveals a remaining desktop sizing gap (BUG-103). L2 is implemented with these explicit product/illustration differences; the overall specification remains incomplete.

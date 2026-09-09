@@ -11,7 +11,7 @@
 // becomes a place.
 
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { FloorView, liveTablesIn, unnamedCount, tableIdOf, feltsForRoom } from './FloorView.jsx';
@@ -314,5 +314,29 @@ describe('CASINO-2 job 5 · when the floor has not said', () => {
   it('a genuinely empty room says THAT instead', () => {
     render(<FloorView room={room({ tables: 0, seated: 0 })} felts={[]} onClose={() => {}} />);
     expect(screen.getByText('Nothing is running in here right now.')).toBeInTheDocument();
+  });
+});
+
+
+describe('BUG-103 · a floor that arrives after the room opens', () => {
+  it.each([false, true])('measures late tables and subsequent resizes (desktop=%s)', desktop => {
+    let width = desktop ? 800 : 362, height = 800, observer;
+    const widthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function () { return this.classList.contains('csn-floor__plan') ? width : 0; });
+    const heightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function () { return this.classList.contains('csn-floor__plan') ? height : 0; });
+    const disconnect = vi.fn();
+    vi.stubGlobal('ResizeObserver', class { constructor(fn) { observer = fn; } observe() {} disconnect() { disconnect(); } });
+    const view = render(<FloorView room={room()} desktop={desktop} />);
+    const expected = () => desktop ? Math.min(width, height * 390 / 470) : width;
+    try {
+      view.rerender(<FloorView room={room()} desktop={desktop} felts={[felt()]} />);
+      expect(parseFloat(screen.getByTestId('the-floor').style.width)).toBeCloseTo(expected(), 4);
+      width = desktop ? 480 : 300; height = 420;
+      act(() => observer());
+      expect(parseFloat(screen.getByTestId('the-floor').style.width)).toBeCloseTo(expected(), 4);
+      view.rerender(<FloorView room={room()} desktop={desktop} />);
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      view.rerender(<FloorView room={room()} desktop={desktop} felts={[felt()]} />);
+      expect(parseFloat(screen.getByTestId('the-floor').style.width)).toBeCloseTo(expected(), 4);
+    } finally { view.unmount(); widthSpy.mockRestore(); heightSpy.mockRestore(); vi.unstubAllGlobals(); }
   });
 });

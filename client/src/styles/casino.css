@@ -803,7 +803,7 @@
    beside, and it brings the board along so the ticker is not lost on the way
    in. */
 .csn-floor--desk .csn-floor__body { flex-direction: row; }
-.csn-floor--desk .csn-floor__room { padding: 16px 20px; }
+.csn-floor--desk .csn-floor__room { min-width: 0; padding: 20px 30px; }
 .csn-floor--desk .csn-floor__felts {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 14px;
@@ -838,6 +838,16 @@
   min-width: 0;
 }
 
-/* On the desk the plan is capped well under the column's width, so it is
-   centred in what is left rather than pinned to one edge of it. */
-.csn-floor--desk .csn-floor__plan { display: flex; justify-content: center; }
+/* DkFloorStage's 30px horizontal/20px vertical breathing room surrounds a
+   uniformly scaled plan. Notes reserve their own space below it. */
+.csn-floor--desk .csn-floor__plan {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.csn-floor--desk .csn-floor58 {
+  border-radius: 5px;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.6);
+}

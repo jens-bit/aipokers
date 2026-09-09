@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented here.
 
+- Design completion batch 23: casino floor attaches its measurement when live tables arrive and fits both desktop axes using the reference's proportions (BUG-103). Late phone plans also fit their actual width. Updated welcome examples include the complete phone composer; the exporter checks floor and composer bounds. Duplicate desktop Floor heading remains tracked as BUG-104.
+
 - Design completion batch 22: /welcome shares the current app entry, real guest room and nine L2 sections. Responsive captures of the running product replace the old hand-drawn illustrations. Guest-off deployments keep the real sign-in path; no external setting changed. BUG-100 clears desktop condition labels and BUG-101 waits for actual scrolling before focusing. Built welcome is now in the deployment smoke suite. Desktop table actions and floor sizing remain open (BUG-99/103).
 
 - Design completion batch 21: desktop equity number and rope now share the same source, including silent replay beats and the recorded ending (BUG-97). Unrecorded heat is absent instead of an invented 45% bar (BUG-98). Phone and desktop reuse the same replay snapshot adapter. Watch layout and gameplay are unchanged.

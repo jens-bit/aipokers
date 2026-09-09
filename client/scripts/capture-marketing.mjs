@@ -31,6 +31,17 @@ async function pageAt(width, height) {
 async function shot(page, scene, kind) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(700);
+  if (scene === 'casino' && kind === 'phone') {
+    const composer = await page.getByTestId('home-thread-input').boundingBox();
+    if (!composer || composer.y + composer.height > page.viewportSize().height) throw Error('Phone casino composer is outside the captured viewport: '+JSON.stringify(composer));
+  }
+  if (scene === 'casino' && kind === 'desktop') {
+    const fit = await page.locator('.csn-floor__plan').evaluate(el => {
+      const floor = el.querySelector('.csn-floor58').getBoundingClientRect();
+      return { width: floor.width, expected: Math.min(el.clientWidth, el.clientHeight * 390 / 470) };
+    });
+    if (Math.abs(fit.width - fit.expected) > 1) throw Error('BUG-103: casino did not fit its stage: '+JSON.stringify(fit));
+  }
   if (scene === 'watch' && kind === 'desktop') {
     const bounds = await page.locator('.dtb__strip').evaluate(el => ({
       numbersBottom: Math.max(...[...el.querySelectorAll('.dtb__hero-stack, .dtb__hero-num, .dtb__equity-val')].map(n => n.getBoundingClientRect().bottom)),

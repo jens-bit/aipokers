@@ -52,7 +52,7 @@
 // bottom wall, the board bolted beside the stairs. This file is the screen
 // around it — the way in, the way out, the fallback, and the real board.
 
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 import { RosterButton } from '../Header.jsx';
@@ -242,36 +242,29 @@ export function FloorView({
     else standing.push(agent);
   }
 
-  // The plan is drawn in 390 units and scaled, so the room needs a width. It
-  // is measured rather than assumed: the desk's room column is whatever the
-  // stage leaves it, and a hard-coded 390 in the middle of a 1,000px column is
-  // the phone's layout with air poured down one side.
-  //
-  // Measured off a wrapper with NO PADDING of its own. The first version
-  // measured the scrolling column, whose clientWidth includes its 14px gutters
-  // — so at 390 it reported 390, the plan scaled by 1.0 into a 362px box, and
-  // the stairs and the bar hung off the right edge of the phone.
+  // DkFloorStage: fit the 390×470 plan into both available axes. The phone
+  // stays width-led and scrolls; the desktop keeps the bar inside the stage.
+  // Tables arrive asynchronously, so attach measurement when this conditional
+  // wrapper appears, and reconnect if the list disappears/reappears.
   const roomRef = useRef(null);
   const [floorW, setFloorW] = useState(FLOOR_W);
-  useEffect(() => {
+  const hasFelts = ranked.length > 0;
+  useLayoutEffect(() => {
     const el = roomRef.current;
     if (!el) return undefined;
     const measure = () => {
       const w = el.clientWidth;
-      // Capped, and not at the column's width. The plan is drawn at 390 and a
-      // 1,000px column would blow it up to 2.5x — the felts become lakes, the
-      // bodies stay specks on them, and the room reads as a magnified phone,
-      // which is exactly what FIX-6 fixed about the desk casino. 520 is about
-      // a third bigger than drawn: enough that the desk is using its width,
-      // not so much that the room stops being a room.
-      if (w > 0) setFloorW(Math.min(520, w));
+      const h = el.clientHeight;
+      if (w > 0 && (!desktop || h > 0)) {
+        setFloorW(desktop ? Math.min(w, h * FLOOR_W / FLOOR_H) : w);
+      }
     };
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [hasFelts, desktop]);
 
   return (
     <div
