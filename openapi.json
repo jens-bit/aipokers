@@ -800,6 +800,155 @@
         }
       }
     },
+    "/api/admin/stats": {
+      "get": {
+        "summary": "The whole game as one JSON (admin only)",
+        "operationId": "getAdminStats",
+        "description": "ADMIN-1. ADMIN ONLY — the operator's dashboard, not part of the agent surface. Requires ADMIN_KEY in an x-admin-key HEADER, never in a URL. With ADMIN_KEY unset the route answers 404 rather than 403: a deployment that never configured a dashboard does not advertise that it has one. Read-only, never cached (Cache-Control: no-store), no model call, and limited to six requests a minute per key per endpoint. See read-me-claude/ADMIN.md. Owners, agents, play, money, model spend, notifications, system and a 14-day retention cohort table, plus a 7-day daily series per metric for the sparklines and a server-computed `problems` list. Every leaf is an AdminStat. The hourly windows are exact: `1h` is the CURRENT UTC hour bucket so far, `24h` is that bucket and the 23 before it, `7d` that bucket and the 167 before it.",
+        "security": [{ "adminKey": [] }],
+        "responses": {
+          "200": {
+            "description": "The dashboard payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "at": { "type": "integer", "example": 1788970424281, "description": "When it was read, epoch ms" },
+                    "owners": { "type": "object", "description": "total, new 24h/7d, active 24h/7d/30d, guests total/claimed/active — each an AdminStat" },
+                    "agents": { "type": "object", "description": "total, born 24h/7d, per owner avg/max, retired, fallbackBirths (the BUG-46 alarm) — each an AdminStat" },
+                    "play": { "type": "object", "description": "hands 1h/24h/7d, casino tables live, home games running, agents seated, agents visiting, knocks and accepts — each an AdminStat" },
+                    "money": { "type": "object", "description": "chips in wallets and pockets, biggest pocket, chips won 24h, seats unlocked — each an AdminStat" },
+                    "model": { "type": "object", "description": "calls and USD 1h/24h/7d, USD per 100 hands watched vs unwatched, policy share, cached tokens, last successful call, and 401/429/5xx counts — each an AdminStat" },
+                    "notifications": { "type": "object", "description": "sent 24h by type, refused by budget, and NOTIFY_ENABLED / GUEST_ENABLED / TICKER_ENABLED / UNWATCHED_POLICY as BOOLEANS ONLY — the value of an env switch never leaves the process" },
+                    "system": { "type": "object", "description": "git sha, boot time, uptime, Node version, database and WAL size, free disk — each an AdminStat" },
+                    "retention": { "$ref": "#/components/schemas/AdminStat" },
+                    "series": { "$ref": "#/components/schemas/AdminStat" },
+                    "problems": {
+                      "type": "array",
+                      "description": "Anything red, computed on the server so \"is anything wrong\" has one definition wherever it is read",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": { "type": "string", "example": "Key unhealthy — 3 provider 401/403 in 24h" },
+                          "detail": { "type": "string", "example": "A revoked, wrong or missing ANTHROPIC_API_KEY." }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "The key was wrong or absent" },
+          "404": { "description": "ADMIN_KEY is not configured on this deployment" },
+          "429": { "description": "More than six requests in a minute for this key on this endpoint" }
+        }
+      }
+    },
+    "/api/admin/owners": {
+      "get": {
+        "summary": "A row per owner (admin only)",
+        "operationId": "getAdminOwners",
+        "description": "ADMIN-1. ADMIN ONLY — the operator's dashboard, not part of the agent surface. Requires ADMIN_KEY in an x-admin-key HEADER, never in a URL. With ADMIN_KEY unset the route answers 404 rather than 403: a deployment that never configured a dashboard does not advertise that it has one. Read-only, never cached (Cache-Control: no-store), no model call, and limited to six requests a minute per key per endpoint. See read-me-claude/ADMIN.md. Owner ids are MASKED to their last four characters in the query result, so no version of this response carries a whole one. Nothing private travels: no creation chat, no strategy text, no hand history, no hole cards. `name` is the owner's OLDEST AGENT's name — the database holds no human name for an owner anywhere.",
+        "security": [{ "adminKey": [] }],
+        "parameters": [
+          { "name": "sort", "in": "query", "required": false, "description": "Column to sort by. From a fixed map, never interpolated into SQL; an unknown value falls back to lastSeen.", "schema": { "type": "string", "default": "lastSeen", "enum": ["lastSeen", "agents", "hands7d", "usd7d", "chips", "guest", "name", "id"] } },
+          { "name": "limit", "in": "query", "required": false, "description": "Rows to return. Clamped at both ends.", "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The owners table",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sort": { "type": "string", "example": "usd7d", "description": "The sort actually used" },
+                    "sorts": { "type": "array", "items": { "type": "string" }, "description": "Every column this endpoint can sort by" },
+                    "definition": { "type": "string", "description": "What every column in a row means" },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "example": "…7890", "description": "Masked to the last four characters" },
+                          "name": { "type": "string", "nullable": true, "example": "Granite", "description": "His OLDEST agent's name, not his own" },
+                          "agents": { "type": "integer", "example": 3 },
+                          "lastSeen": { "type": "integer", "nullable": true, "description": "The later of his presence row and his guest cookie, epoch ms" },
+                          "hands7d": { "type": "integer", "description": "SUM(watch_hands.hands) over the last 7 UTC days" },
+                          "usd7d": { "type": "number", "description": "SUM(model_calls.usd) over the same days" },
+                          "chips": { "type": "integer", "description": "His wallet balance plus every pocket on his roster" },
+                          "guest": { "type": "boolean", "description": "He has an UNCLAIMED row in guests" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "The key was wrong or absent" },
+          "404": { "description": "ADMIN_KEY is not configured on this deployment" },
+          "429": { "description": "More than six requests in a minute for this key on this endpoint" }
+        }
+      }
+    },
+    "/api/admin/agents/recent": {
+      "get": {
+        "summary": "The last 50 agent births (admin only)",
+        "operationId": "getAdminRecentBirths",
+        "description": "ADMIN-1. ADMIN ONLY — the operator's dashboard, not part of the agent surface. Requires ADMIN_KEY in an x-admin-key HEADER, never in a URL. With ADMIN_KEY unset the route answers 404 rather than 403: a deployment that never configured a dashboard does not advertise that it has one. Read-only, never cached (Cache-Control: no-store), no model call, and limited to six requests a minute per key per endpoint. See read-me-claude/ADMIN.md. `fallback` flags an agent whose strategy is EXACTLY one of inferFallback()'s three canned strings (BUG-46) — on a deployment with a key it is always false. `where` is asked of the LIVE table registry, not of the stored status: a record that still says \"playing\" after a restart is exactly what this surface exists to show.",
+        "security": [{ "adminKey": [] }],
+        "parameters": [
+          { "name": "limit", "in": "query", "required": false, "description": "Births to return. Clamped at both ends.", "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The most recent births, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "definition": { "type": "string", "description": "What every column in a row means" },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "owner": { "type": "string", "example": "…7890", "description": "Masked to the last four characters" },
+                          "id": { "type": "string", "example": "agent_m1k2j3" },
+                          "name": { "type": "string", "nullable": true, "example": "Granite" },
+                          "bornAt": { "type": "integer", "nullable": true, "description": "agents.created_at, epoch ms" },
+                          "fallback": { "type": "boolean", "description": "The BUG-46 alarm" },
+                          "hands": { "type": "integer", "description": "agent.stats.handsPlayed, his lifetime count" },
+                          "where": { "type": "string", "enum": ["retired", "visiting", "casino", "home game", "home", "unknown"], "description": "Asked of the live table registry, never of the stored status" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "The key was wrong or absent" },
+          "404": { "description": "ADMIN_KEY is not configured on this deployment" },
+          "429": { "description": "More than six requests in a minute for this key on this endpoint" }
+        }
+      }
+    },
+    "/admin": {
+      "get": {
+        "summary": "The operator's dashboard page (admin only)",
+        "operationId": "getAdminPage",
+        "description": "ADMIN-1. ADMIN ONLY. One static HTML page — inline CSS and JS, no build step — that reads the three admin JSON endpoints and renders them. It is NOT behind the key check, because it is the login form and a form that needs the key to render cannot ask for it; it carries no data of its own. It 404s with ADMIN_KEY unset like every other admin route, and is never cached. See read-me-claude/ADMIN.md.",
+        "responses": {
+          "200": { "description": "The dashboard page", "content": { "text/html": { "schema": { "type": "string" } } } },
+          "404": { "description": "ADMIN_KEY is not configured on this deployment" }
+        }
+      }
+    },
     "/openapi.json": {
       "get": {
         "summary": "This OpenAPI 3.0 specification",
@@ -814,7 +963,23 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "adminKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-admin-key",
+        "description": "ADMIN-1. The operator's ADMIN_KEY. Header only — a key in a query string lands in every access log, proxy log and browser history there is. Unset on the deployment means every admin route 404s rather than 403s."
+      }
+    },
     "schemas": {
+      "AdminStat": {
+        "type": "object",
+        "description": "ADMIN-1. One number and the definition that produced it. Every leaf of /api/admin/stats is this shape, and the definition is the actual SQL or the actual source — so nothing on the dashboard is a mystery. A test walks the payload and fails on any bare number.",
+        "properties": {
+          "value": { "description": "The number, or null where a rate has nothing behind it — a rate with no hands behind it is not a rate", "example": 1284 },
+          "definition": { "type": "string", "example": "COUNT(*) FROM agents WHERE created_at >= now-24h." }
+        }
+      },
       "GuestLimits": {
         "type": "object",
         "description": "GUEST-1. What a guest may do, sent on creation and on /me so a client never hard-codes the numbers. Every one of them is decided in src/server/guest.js and enforced where the action is.",

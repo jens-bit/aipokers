@@ -123,6 +123,8 @@ The full list of variables and what each one does lives in `CLAUDE.md`; this sec
 
 **Known debt.** Nothing to do on the VPS for COST-2. `UNWATCHED_POLICY` defaults on, so a casino table nobody has watched for 60 seconds straight routes its decisions to the compiled policy the moment the merge deploys, with no line added to `.bashrc`. Setting it to `0` is the way back, and it is the only reason to add the line at all: the revert needs no code change, just the variable and a restart. The two exceptions — a stack in the middle of a hand and a big pot — reach the model either way, on or off (`src/server/router.js`).
 
+**ADMIN-1 — the one thing to check on the VPS.** The dashboard at `https://agenticpoker.app/admin` exists only if `ADMIN_KEY` is set in `.bashrc`. Unset, `/admin` and its three JSON routes answer 404 rather than 403, on purpose — a deployment that never configured a dashboard does not advertise that it has one. If the page 404s after the deploy, that is the reason and not a bug. Nothing else is needed: the presence write and the hourly counters start on their own, and they only ever count forward, so `active 30d` and the retention cohorts read low for the first weeks and are not wrong. `read-me-claude/ADMIN.md` is how to open it and what each number means.
+
 `GET /api/meter` (an owner's own bill, behind auth) and `GET /api/admin/meter?key=…` (everybody's, behind `ADMIN_KEY`) now both carry a `watch` block that splits hands, calls and dollars into `watched` and `unwatched`, each with a per-100-hands rate. That is where you look to find out whether the dial is earning its keep before deciding to turn it off — the unwatched line should be the cheap one, and if it is not, the gate is not firing.
 
 ## Brand art
