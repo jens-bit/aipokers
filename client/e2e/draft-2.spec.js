@@ -54,7 +54,10 @@ const TURN = {
   ready: false,
 };
 
-async function stub(page, cast = EMPTY) {
+async function stub(page, cast = EMPTY, draftSession = null) {
+  // Old protocol cases stay explicit; a roster GET must never stand in for
+  // the new draft-session POST. Modern BUG-145 cases supply its real contract.
+  await page.route('**/api/agents/draft', r => r.fulfill(draftSession ? { json: draftSession } : { status: 404, json: {} }));
   await page.route('**/api/agents?**', (route) => route.fulfill({ json: cast }));
   await page.route('**/api/agents/*/thread**', (route) => route.fulfill({ json: { lines: [] } }));
   await page.route('**/api/agents/*/study**', (route) => route.fulfill({ json: { study: null, book: [], count: 0 } }));
@@ -110,8 +113,8 @@ async function stub(page, cast = EMPTY) {
 }
 
 /** Open the draft from the empty room's own invitation. */
-async function openDraft(page, viewport, cast = EMPTY) {
-  await stub(page, cast);
+async function openDraft(page, viewport, cast = EMPTY, draftSession = null) {
+  await stub(page, cast, draftSession);
   await page.setViewportSize(viewport);
   await page.goto(HOME);
 
@@ -214,6 +217,113 @@ test.describe('DRAFT-2 · the draft on glass at 390×844', () => {
     await expectDoorTagClear(page);
 
     await page.screenshot({ path: 'e2e/__screenshots__/draft-2-phone-forming.png' });
+  });
+});
+
+const SESSION = { draftId: 'draft-browser', draftStep: 'briefing', ready: false, draftName: null,
+  chat: [{ role: 'assistant', content: 'Tell me how he should play.' }] };
+const NAMING = { ...SESSION, draftStep: 'naming', ready: true, natureHint: 'Rock', chat: [
+  ...SESSION.chat, { role: 'user', content: 'Tight and patient' },
+  { role: 'assistant', content: 'Patient it is. What do you call him?' },
+] };
+const NAMED = { ...NAMING, draftStep: 'ready', draftName: 'Go', chat: [
+  ...NAMING.chat, { role: 'user', content: 'Go' }, { role: 'assistant', content: 'Go. Ready to meet him?' },
+] };
+
+test.describe('BUG-145 · an honest four-stage draft and recoverable birth', () => {
+  test('draft controls retain the authored type over the app button reset', async ({ page }) => {
+    await openDraft(page, PHONE, EMPTY, SESSION);
+    const chip=page.getByRole('button',{name:'Tight and patient',exact:true});
+    await expect(chip).toHaveCSS('font-size','12.5px');
+    await expect(chip).toHaveCSS('color','rgb(0, 212, 170)');
+    await page.route('**/api/agents/chat',route=>route.fulfill({json:NAMING}));
+    await chip.click();
+    const choose=page.getByRole('button',{name:'Choose a name for me',exact:true});
+    await expect(choose).toHaveCSS('font-family',/Oswald/);
+    await expect(choose).toHaveCSS('font-size','9.5px');
+    await expect(choose).toHaveCSS('text-transform','uppercase');
+    await page.route('**/api/agents/chat',route=>route.fulfill({json:NAMED}));
+    await page.getByPlaceholder('His name…').fill('Go');
+    await page.getByRole('button',{name:'Send',exact:true}).click();
+    const deal=page.getByRole('button',{name:'Deal him in',exact:true});
+    await expect(deal).toHaveCSS('font-family',/Oswald/);
+    await expect(deal).toHaveCSS('font-size','12.5px');
+    await expect(deal).toHaveCSS('font-weight','600');
+    await expect(deal).toHaveCSS('text-transform','uppercase');
+    await expect(deal).toHaveCSS('letter-spacing','1.5px');
+    await expect(deal).toHaveCSS('color','rgb(18, 12, 4)');
+    await expect(page.getByRole('button',{name:'or keep describing him'})).toHaveCSS('font-size','12px');
+  });
+
+  for (const viewport of [PHONE, { width: 390, height: 590 }, DESK]) {
+    test(`name handoff, four authored appearances, and one birth at ${viewport.width}×${viewport.height}`, async ({ page }) => {
+      await openDraft(page, viewport, EMPTY, SESSION);
+      const size = `${viewport.width}x${viewport.height}`;
+      const ghost = page.getByTestId('draft-forming');
+      await expect(ghost).toHaveAttribute('data-stage', '1');
+      await page.screenshot({ path: `../artifacts/batch45-draft-stage1-${size}.png`, scale: 'css', animations: 'disabled' });
+      await page.evaluate(() => {
+        window.draftStages = ['1'];
+        new MutationObserver(() => {
+          const stage = document.querySelector('[data-testid="draft-forming"]')?.dataset.stage;
+          if (stage && window.draftStages.at(-1) !== stage) window.draftStages.push(stage);
+        // Desktop portals the ghost from the rail into the room; observe both.
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+      const sent = [];
+      let reply = NAMING;
+      await page.route('**/api/agents/chat', async route => {
+        sent.push(route.request().postDataJSON());
+        await route.fulfill({ json: reply });
+      });
+      await page.getByRole('button', { name: 'Tight and patient', exact: true }).click();
+      await expect(ghost).toHaveAttribute('data-stage', '2');
+      await page.screenshot({ path: `../artifacts/batch45-draft-stage2-${size}.png`, scale: 'css', animations: 'disabled' });
+      await expect(ghost).toHaveAttribute('data-stage', '3');
+      await expect(page.getByPlaceholder('His name…')).toBeEnabled();
+      await expect(page.getByRole('button', { name: 'Deal him in', exact: true })).toHaveCount(0);
+      await page.screenshot({ path: `../artifacts/batch45-draft-stage3-${size}.png`, scale: 'css', animations: 'disabled' });
+      reply = NAMED;
+      await page.getByPlaceholder('His name…').fill('Go');
+      await page.getByRole('button', { name: 'Send', exact: true }).click();
+      await expect(ghost).toHaveAttribute('data-stage', '4');
+      expect(sent.at(-1)).toMatchObject({ draftIntent: 'name', content: 'Go', draftId: SESSION.draftId });
+      await expect(page.getByRole('button', { name: 'Deal him in', exact: true })).toBeEnabled();
+      await page.screenshot({ path: `../artifacts/batch45-draft-stage4-${size}.png`, scale: 'css', animations: 'disabled' });
+      expect(await page.evaluate(() => window.draftStages)).toEqual(['1', '2', '3', '4']);
+      const born = { ...ONE.agents[0], id: 'born-browser', name: 'Go', identity: { hood: 'moss', glow: 'ice' },
+        nature: { name: 'Rock', line: 'He waits.', builtFor: 'Not losing money. He is very hard to bluff.' },
+        firstWords: 'I pick my spot.' };
+      reply = { ...NAMED, draftStep: 'created', agentId: born.id, agentName: born.name, createdAgent: born, firstAgent: true };
+      await page.getByRole('button', { name: 'Deal him in', exact: true }).dblclick();
+      await expect(page.locator('.birth-card3')).toContainText(born.firstWords);
+      await expect(page.locator('.birth-card3 .mood-ghost')).toHaveAttribute('data-hood', 'moss');
+      expect(sent.filter(body => body.draftIntent === 'create')).toHaveLength(1);
+      await page.screenshot({ path: `../artifacts/batch45-draft-birth-${size}.png`, scale: 'css', animations: 'disabled' });
+      await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
+      await expect(page.getByTestId('home-screen')).toBeVisible();
+      expect(await page.evaluate(() => sessionStorage.getItem('railbird:draft:4242'))).toBeNull();
+    });
+  }
+
+  test('a lost creation response survives reload with the same draft and attempt', async ({ page }) => {
+    await openDraft(page, PHONE, EMPTY, NAMED);
+    const requests = [];
+    await page.route('**/api/agents/chat', async route => {
+      requests.push(route.request().postDataJSON());
+      await route.fulfill({ status: 503, json: { error: 'temporary backend detail' } });
+    });
+    await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Try again');
+    await expect(page.getByRole('alert')).not.toContainText('backend detail');
+    const first = requests.at(-1);
+    expect(first.attemptId).toBeTruthy();
+    await page.screenshot({ path: '../artifacts/batch45-draft-retry-390x844.png', scale: 'css', animations: 'disabled' });
+    await page.reload();
+    await page.getByRole('button', { name: /draft your first agent/i }).first().click();
+    await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Try again');
+    expect(requests.at(-1)).toMatchObject({ draftId: first.draftId, attemptId: first.attemptId });
   });
 });
 

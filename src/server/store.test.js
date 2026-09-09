@@ -98,6 +98,17 @@ test('agent store round-trips through save and load', () => {
   assert.deepEqual(loaded['owner-1'], profile, 'the record survives verbatim');
 });
 
+test('BUG-145: an active draft and completed birth receipt survive a real store reopen with their household', () => {
+  freshCwd();
+  const draft = { active: { id: 'draft-two', brief: 'Patient', name: 'Stone', revision: 2 }, receipts: [{ draftId: 'draft-one', attemptId: 'attempt-one', agentId: 'a1' }] };
+  saveProfile('draft-owner', { userId: 'draft-owner', chat: [{ role: 'user', content: 'Patient' }], agents: [{ id: 'a1', name: 'One' }], draft });
+  _closeForTests();
+  const profile = loadAgentStore()['draft-owner'];
+  assert.deepEqual(profile.draft, draft);
+  assert.equal(profile.agents[0].id, profile.draft.receipts[0].agentId);
+  assert.equal(profile.chat[0].content, 'Patient');
+});
+
 // SERVER-4: an owner who has never had anything unread, and one who has been
 // caught up. Both are "nothing waiting", and both must read back as null
 // rather than as the 0 the column stores — a client testing truthiness on a

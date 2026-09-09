@@ -139,7 +139,7 @@ describe('FIX-1a mobile horizontal overflow', () => {
   });
 
   it('FIX-1a: the roster has nothing that can scroll sideways', async () => {
-    fetchMock.route('/api/agents', {
+    fetchMock.route('/api/agents?', {
       agents: [{
         id: 'a1', name: 'Aggressive v1.3', status: 'resting',
         stats: { netWon: 210, handsPlayed: 140 },

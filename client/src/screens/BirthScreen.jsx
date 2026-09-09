@@ -131,6 +131,23 @@ function FormingGhost({ size = 40, phase = 0.5, accent = M_TEAL, drift = true })
 // wire word behind it.
 const GO_SIGNAL = "Let's go";
 
+const DRAFT_STEPS = new Set(['briefing', 'naming', 'ready', 'created']);
+const draftStorageKey = userId => `railbird:draft:${userId}`;
+function readDraftSession(userId) {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(draftStorageKey(userId)) || 'null');
+    return typeof saved?.draftId === 'string' ? saved : {};
+  } catch { return {}; }
+}
+function writeDraftSession(userId, value) {
+  try {
+    if (value?.draftId) sessionStorage.setItem(draftStorageKey(userId), JSON.stringify(value));
+    else sessionStorage.removeItem(draftStorageKey(userId));
+  } catch { /* A private browser can still finish this mounted draft. */ }
+}
+const creationAttempt = () => globalThis.crypto?.randomUUID?.() ?? `birth-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const chatLines = value => Array.isArray(value) ? value.filter(m => ['user', 'assistant'].includes(m?.role) && typeof m.content === 'string') : [];
+
 // ── DiffCard ─────────────────────────────────────────────────────────────
 // Proposal-diff pattern from mood-birth.jsx BirthEditScreenM.
 // Shown when the agent proposes a strategy rebuild.
@@ -434,6 +451,7 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
 export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus = true, formingTarget = null }) {
   const userId  = getUserId();
   const isEdit  = !!agent;
+  const [visitorAtDoor] = useState(() => !isEdit ? pendingVisitorName() : null);
 
   const [chat, setChat]       = useState([]);
   const [draft, setDraft]     = useState('');
@@ -459,6 +477,23 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
   // the button. The fold itself starts closed for everyone.
   const [firstAgent, setFirstAgent] = useState(true);
   const [beat, setBeat] = useState(null);
+  const [draftStep, setDraftStep] = useState('briefing');
+  const [sessionReady, setSessionReady] = useState(isEdit);
+  const [modernDraft, setModernDraft] = useState(false);
+  const [acceptedTurns, setAcceptedTurns] = useState(0);
+  const [problem, setProblem] = useState(null);
+  const [createdPending, setCreatedPending] = useState(false);
+  const [formingStage, setFormingStage] = useState(1);
+  const sessionRef = useRef(readDraftSession(userId));
+  const sendingRef = useRef(false);
+  const openingRef = useRef(!isEdit);
+  const alive = useRef(true);
+  const operation = useRef(0);
+  const createdRef = useRef(null);
+  const handedOff = useRef(false);
+  const timers = useRef(new Set());
+  const birthCallback = useRef(onBirth);
+  birthCallback.current = onBirth;
 
   const feedRef   = useRef(null);
   const inputRef  = useRef(null);
@@ -468,6 +503,76 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
 
   // Count of AI responses drives phase (each response = +0.25, cap at 0.98 until born)
   const aiCount = useRef(0);
+  const targetStage = modernDraft
+    ? draftStep === 'ready' || draftStep === 'created' ? 4 : draftStep === 'naming' ? 3 : acceptedTurns ? 2 : 1
+    : draftStage(aiCount.current);
+  useEffect(() => {
+    if (!modernDraft || formingStage === targetStage) return;
+    if (formingStage > targetStage) { setFormingStage(targetStage); return; }
+    // A concise brief may satisfy several recruiter questions. Still show the
+    // authored hood and eyes in order, without making up extra questions.
+    const timer = setTimeout(() => setFormingStage(value => Math.min(targetStage, value + 1)), formingStage === 1 ? 0 : 650);
+    return () => clearTimeout(timer);
+  }, [modernDraft, targetStage, formingStage]);
+
+  function later(fn, delay) {
+    const id = setTimeout(() => { timers.current.delete(id); if (alive.current) fn(); }, delay);
+    timers.current.add(id);
+  }
+  function finishBirth(newborn) {
+    if (!alive.current || handedOff.current) return;
+    handedOff.current = true;
+    if (!isEdit) writeDraftSession(userId, null);
+    birthCallback.current?.(newborn);
+  }
+  function absorbDraft(data, replaceChat = false) {
+    if (data.draftId) {
+      sessionRef.current = { ...(sessionRef.current.draftId === data.draftId ? sessionRef.current : {}), draftId: data.draftId };
+      writeDraftSession(userId, sessionRef.current);
+    }
+    if (DRAFT_STEPS.has(data.draftStep)) { setModernDraft(true); setDraftStep(data.draftStep); }
+    if (Object.hasOwn(data, 'draftName')) setAgentName(data.draftName || null);
+    if (Object.hasOwn(data, 'natureHint')) setNatureHint(data.natureHint || null);
+    if (typeof data.ready === 'boolean') setReady(data.ready);
+    if (replaceChat) {
+      const lines = chatLines(data.chat);
+      setChat(lines.map(m => mkMsg(m.role, m.content)));
+      setAcceptedTurns(lines.filter(m => m.role === 'user').length);
+    }
+  }
+  async function openSession(fresh = false) {
+    const token = ++operation.current;
+    openingRef.current = true; setSessionReady(false); setProblem(null);
+    if (fresh) { sessionRef.current = {}; writeDraftSession(userId, null); }
+    try {
+      const res = await fetch('/api/agents/draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+        body: JSON.stringify({ userId, ...(sessionRef.current.draftId ? { draftId: sessionRef.current.draftId } : {}) }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!alive.current || operation.current !== token) return;
+      // Existing deployments can still speak the original creation protocol.
+      if (res.status === 404) { openingRef.current = false; setSessionReady(true); return; }
+      if (res.status === 409 && data?.error === 'draftExpired') {
+        setProblem({ kind: 'expired', text: 'This draft is no longer available. Start a new draft when you are ready.' }); return;
+      }
+      if (!res.ok || typeof data?.draftId !== 'string' || !DRAFT_STEPS.has(data.draftStep)) throw new Error('Draft unavailable');
+      absorbDraft(data, true);
+      if (data.agentId || data.createdAgent?.id) await revealOrDeal(data);
+      if (!alive.current || operation.current !== token) return;
+      openingRef.current = false; setSessionReady(true);
+    } catch {
+      if (alive.current && operation.current === token) setProblem({ kind: 'open', text: 'Could not open your draft. Please try again.' });
+    }
+  }
+  useEffect(() => {
+    alive.current = true;
+    if (!isEdit) openSession();
+    return () => {
+      alive.current = false; operation.current += 1;
+      timers.current.forEach(clearTimeout); timers.current.clear();
+    };
+  }, []);
 
 
   // FIX-1c: no focus() on mount. Stealing focus opens the iOS keyboard the
@@ -507,26 +612,32 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
   // when the owner deals him in. If it did not, the nature is still forming and
   // there is nothing to announce: go straight to the floor, as before. A nature
   // is never invented here.
-  async function revealOrDeal(newborn) {
-    let record = null;
-    try {
+  async function revealOrDeal(data) {
+    if (createdRef.current) return;
+    const newborn = { id: data.agentId ?? data.createdAgent?.id ?? data.id, name: data.agentName ?? data.createdAgent?.name ?? data.name ?? 'New agent', strategy: data.strategy ?? data.createdAgent?.strategy ?? '' };
+    createdRef.current = newborn;
+    setCreatedPending(true); setAgentName(newborn.name); setPhase(1);
+    let record = data.createdAgent?.id === newborn.id ? data.createdAgent : null;
+    if (typeof data.firstAgent === 'boolean') setFirstAgent(data.firstAgent);
+    if (!record) try {
       const res = await fetch(`/api/agents?userId=${encodeURIComponent(userId)}`, {
         headers: { 'x-telegram-init-data': getTelegramInitData() },
       });
-      const data = await res.json();
-      const roster = data.agents || [];
+      if (!res.ok) throw new Error('Record unavailable');
+      const payload = await res.json();
+      const roster = payload.agents || [];
       record = roster.find((a) => a.id === newborn.id) ?? null;
-      setFirstAgent(roster.length <= 1);
+      if (alive.current) setFirstAgent(roster.length <= 1);
     } catch { /* no record — treat him as still forming */ }
-
+    if (!alive.current) return;
     const character = normalizeAttrs(record);
     if (!character.nature) {
-      setTimeout(() => onBirth(newborn), 1200);
+      later(() => finishBirth(newborn), 1200);
       return;
     }
     // normalizeAttrs keeps only {name, up, down, line}; ATTR-3's builtFor and
     // firstWords live on the record, so the raw nature rides along too.
-    setBorn({
+    const revealed = {
       ...newborn,
       identity: identityOf(record ?? newborn),
       // BIRTH-4: his face on the card is the served face. A newborn's mood is
@@ -536,9 +647,15 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
       first: record?.firstWords ?? character.nature.line,
       nature: { ...character.nature, builtFor: record?.nature?.builtFor ?? null },
       character,
-    });
-    setBeat('reveal');
-    setTimeout(() => setBeat('card'), 2200);
+    };
+    const showReveal = () => {
+      setBorn(revealed); setBeat('reveal');
+      later(() => setBeat('card'), 2200);
+    };
+    // Choosing a name for him can create directly from the naming question.
+    // Let his last authored forming beat land before replacing it with him.
+    if (modernDraft && formingStage < 4) later(showReveal, (4 - formingStage) * 650 + 100);
+    else showReveal();
   }
 
   // AGENTS-2: four is the roster, and the way past it is to retire someone —
@@ -565,21 +682,41 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
     return `${line[0].toUpperCase()}${line.slice(1)}. Win the rest at the casino and I'll finish him — your draft keeps.`;
   }
 
-  async function send(content = draft) {
+  async function send(content = draft, requestedIntent) {
     const text = content.trim();
-    if (!text || loading) return;
+    if (!text || sendingRef.current || openingRef.current || createdRef.current) return;
+    const intent = requestedIntent ?? (modernDraft && draftStep === 'naming' && !talking ? 'name' : 'brief');
+    const token = ++operation.current;
+    const ownerLine = mkMsg('user', text);
+    sendingRef.current = true;
+    if (modernDraft && intent === 'create' && !sessionRef.current.attemptId) {
+      sessionRef.current = { ...sessionRef.current, attemptId: creationAttempt() };
+      writeDraftSession(userId, sessionRef.current);
+    }
     setDraft('');
     setLoading(true);
+    setProblem(null);
     setPendingDiff(null);
-    setChat((prev) => [...prev, mkMsg('user', text)]);
+    setChat((prev) => [...prev, ownerLine]);
 
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-        body: JSON.stringify({ userId, content: text, ...(isEdit ? { agentId: agent.id } : {}) }),
+        body: JSON.stringify({ userId, content: text, ...(isEdit ? { agentId: agent.id } : {}),
+          ...(modernDraft ? { draftId: sessionRef.current.draftId, draftIntent: intent,
+            ...(intent === 'create' ? { attemptId: sessionRef.current.attemptId } : {}) } : {}),
+        }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!alive.current || operation.current !== token) return;
+
+      if (res.status === 409 && data?.error === 'draftExpired') {
+        openingRef.current = true; setSessionReady(false);
+        setChat(prev => prev.filter(m => m._id !== ownerLine._id));
+        setProblem({ kind: 'expired', text: 'This draft is no longer available. Start a new draft when you are ready.' });
+        return;
+      }
 
       // AGENTS-2: the roster is full. The draft is untouched on the server, so
       // this is the whole message — make room and say "lets go" again.
@@ -593,6 +730,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
       // there is, which is to go and look at the table.
       if (res.status === 409 && data?.error === 'slotLocked') {
         const line = await slotLockedLine(data);
+        if (!alive.current || operation.current !== token) return;
         setChat((prev) => [...prev, {
           // A refusal with no readable price still has to say SOMETHING, and
           // what it says is the true part: the seat is not open yet.
@@ -603,11 +741,20 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
         return;
       }
 
+      if (!res.ok || !data || (modernDraft && !DRAFT_STEPS.has(data.draftStep))) throw new Error('Draft request failed');
+
       // Pick up the AI reply
-      const allAi = (data.chat || []).filter((m) => m.role === 'assistant');
+      const allAi = chatLines(data.chat).filter((m) => m.role === 'assistant');
       const reply = allAi[allAi.length - 1];
       const diff = data.diff || null;
-      if (reply) {
+      if (modernDraft) {
+        absorbDraft(data, true);
+        if (intent !== 'create') {
+          sessionRef.current = { draftId: sessionRef.current.draftId };
+          writeDraftSession(userId, sessionRef.current);
+        }
+        setTalking(false);
+      } else if (reply) {
         setChat((prev) => [...prev, mkMsg('assistant', reply.content, diff)]);
       }
 
@@ -626,15 +773,19 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
       const newPhase = data.agentId ? 1.0 : Math.min(0.98, isEdit ? 0.72 + aiCount.current * 0.09 : aiCount.current * 0.28);
       setPhase(newPhase);
 
-      if (data.agentId) {
-        const name = data.agentName || agentName || 'New agent';
-        setAgentName(name);
-        revealOrDeal({ id: data.agentId, name, strategy: data.strategy || '' });
+      if (data.agentId || data.createdAgent?.id) {
+        await revealOrDeal(data);
       }
     } catch {
-      setChat((prev) => [...prev, mkMsg('assistant', 'Something went wrong — try again.')]);
+      if (!alive.current || operation.current !== token) return;
+      setChat(prev => prev.filter(m => m._id !== ownerLine._id));
+      if (intent !== 'create') setDraft(text);
+      setProblem({ kind: 'send', text: intent === 'create'
+        ? 'Could not confirm his arrival. Try again — your draft is saved.'
+        : 'Could not send that. Your words are still here — try again.' });
     } finally {
-      setLoading(false);
+      sendingRef.current = false;
+      if (alive.current && operation.current === token) setLoading(false);
     }
   }
 
@@ -642,8 +793,11 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
   // Only once the server says he can be built, only while the owner has not
   // asked to keep talking, and never once he exists. Read by the create shell
   // alone — a rebuild has no birth to press towards.
-  const showNextAction = ready && !talking && !born;
-  const hasTalked = chat.length > 0;
+  // Board 29's gold action follows the name, not merely a usable playing style.
+  // Old servers retain their original ready contract during a rolling deploy.
+  const showNextAction = (modernDraft ? draftStep === 'ready' : ready) && !talking && !born;
+  const naming = modernDraft && draftStep === 'naming' && !talking;
+  const hasTalked = chat.some(m => m.role === 'user');
 
   const suggestions = phase < 0.3
     ? ['Tight and patient', 'Aggressive bluffer', 'Solver-strict']
@@ -660,7 +814,6 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
   // first line says so rather than repeating the hero a beat later. Cleared
   // immediately: a rebuild reached from anywhere else in the app must never
   // pick up a stale knock from an earlier tab.
-  const visitorAtDoor = !isEdit ? pendingVisitorName() : null;
   useEffect(() => { if (visitorAtDoor) clearPendingVisitor(); }, [visitorAtDoor]);
   const openingLine = isEdit
     ? 'Tell me what to change.'
@@ -701,7 +854,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
                 character={born.character}
                 identity={born.identity}
                 first={firstAgent}
-                onDealIn={() => onBirth({ id: born.id, name: born.name, strategy: born.strategy })}
+                onDealIn={() => finishBirth({ id: born.id, name: born.name, strategy: born.strategy })}
               />
             )}
           </div>
@@ -717,13 +870,14 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
     // recruiter's first question, so it is a row like any other rather than a
     // header — the sheet is a conversation from its first frame.
     const rows = [
-      { id: 'open', who: 'sys', text: openingLine },
-      ...chat.map((m) => ({ id: m._id, who: m.role === 'user' ? 'you' : 'sys', text: m.content })),
+      ...(visitorAtDoor || !chat.length || chat[0].role === 'user' ? [{ id: 'open', who: 'sys', text: openingLine }] : []),
+      ...chat.filter((m, i) => !(visitorAtDoor && i === 0 && m.role === 'assistant' && m.content === 'Tell me how he should play.'))
+        .map((m) => ({ id: m._id, who: m.role === 'user' ? 'you' : 'sys', text: m.content })),
     ];
 
-    // He forms on ANSWERS LANDED, not on a percentage: the ref's four stages are
-    // four questions answered, and `aiCount` is exactly that count.
-    const stage = draftStage(aiCount.current);
+    // The four authored appearances track accepted draft milestones. Repeated
+    // off-topic answers or an HTTP failure cannot finish him by counting up.
+    const stage = modernDraft ? formingStage : targetStage;
     const named = !!agentName;
     // ≤6 characters is not this client's rule to invent — names.js owns how a
     // name is written on a small surface and gives its reasoning (BUGS-A job 1:
@@ -739,7 +893,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
     const locked = chat.length ? chat[chat.length - 1]?.seeTable : false;
     const forming = (
       <div className={`draft2__forming${formingTarget ? ' draft2__forming--in-room' : ''}`}>
-        <StageGhost stage={stage} size={formingTarget ? 150 : 104} />
+        <StageGhost key={stage} stage={stage} size={formingTarget ? 150 : 104} />
         <span className="draft2__cap" data-named={named ? 'true' : 'false'} data-testid="draft-cap">{cap}</span>
       </div>
     );
@@ -791,18 +945,35 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
           <DraftSheet
             rows={rows}
             stage={stage}
+            stageLabel={modernDraft ? naming ? 'Name' : draftStep === 'ready' ? 'Ready' : 'Style' : null}
             pending={loading}
             draft={draft}
             onDraft={setDraft}
             onSend={(text) => send(text)}
-            busy={loading}
+            busy={loading || createdPending}
+            sendDisabled={!sessionReady}
             inputRef={inputRef}
             // The shipped copy, at every stage. The ref's frames change it
             // per question ("answer him…", "his name…"), but the placeholder is
             // also the only thing naming what this box is FOR, and two refusals
             // (AGENTS-2's cap, BIRTH-5's locked seat) are tested by finding the
             // composer still standing with the draft intact after them.
-            placeholder="Describe how it should play…"
+            placeholder={naming ? 'His name…' : 'Describe how it should play…'}
+            feedback={problem ? (
+              <div className="draft-row draft-row--sys" role="alert">
+                <div className="draft-row__bubble">
+                  {problem.text}
+                  {problem.kind === 'open' || problem.kind === 'expired' ? <button
+                    type="button" className="draft-sheet__price-act"
+                    onClick={() => openSession(problem.kind === 'expired')}
+                  >{problem.kind === 'expired' ? 'Start a new draft' : 'Try again'}</button> : null}
+                </div>
+              </div>
+            ) : !sessionReady || createdPending ? (
+              <div className="draft-row draft-row--sys" role="status"><div className="draft-row__bubble">
+                {createdPending ? 'Opening his card…' : 'Opening your draft…'}
+              </div></div>
+            ) : null}
             /* NOTHING RIDES BETWEEN THE ROWS AND THE COMPOSER once the draft
                is under way. Board 29's sheet is a conversation and a way to
                answer it, and the ref's density is the rule: F02 and F03 draw
@@ -827,20 +998,22 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
                     key={sug}
                     type="button"
                     className="draft-sheet__chip"
-                    onClick={() => send(sug)}
+                    disabled={loading || !sessionReady || createdPending}
+                    onClick={() => send(sug, 'brief')}
                   >{sug}</button>
                 ))}
               </div>
             ) : null}
             action={showNextAction ? (
               <NextAction
-                label="Deal him in"
+                label={createdPending ? 'Opening his card…' : loading ? 'Creating…' : 'Deal him in'}
                 sub={natureHint ? 'STRATEGY SET · NATURE FORMED' : 'STRATEGY SET'}
-                busy={loading}
-                onAct={() => send(GO_SIGNAL)}
+                busy={loading || !sessionReady || createdPending || (modernDraft && stage < 4)}
+                onAct={() => send(GO_SIGNAL, 'create')}
                 onLink={() => {
+                  if (sendingRef.current || createdRef.current) return;
                   setTalking(true);
-                  setTimeout(() => inputRef.current?.focus(), 0);
+                  later(() => inputRef.current?.focus(), 0);
                 }}
               />
             ) : null}
@@ -853,7 +1026,9 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
               >
                 See the table
               </button>
-            ) : null}
+            ) : naming ? <button type="button" className="draft-sheet__price-act"
+              disabled={loading || !sessionReady || createdPending}
+              onClick={() => send(GO_SIGNAL, 'create')}>Choose a name for me</button> : null}
           />
           </>}
         </div>
@@ -1012,6 +1187,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
           no birth to press towards, so there is nothing here to give the
           composer's place to. */}
       <div style={{ flexShrink: 0 }}>
+        {problem && <div role="alert"><AgentBubble>{problem.text}</AgentBubble></div>}
         {/* Suggestion chips */}
         {!hasTalked && (
           <div style={{ display: 'flex', gap: 6, padding: '8px 14px 0', flexWrap: 'wrap' }}>

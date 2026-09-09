@@ -17,7 +17,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BirthScreen } from './BirthScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
-// Exactly what the server sends on a chip turn (draftGuard.draftProfile).
+// Legacy deployments without /api/agents/draft still use ready alone. The
+// founder's Board29 named-stage correction supersedes that rule for modern
+// draft sessions; draftSession.test.jsx pins naming-before-Deal explicitly.
 const READY_TURN = {
   chat: [
     { role: 'user', content: 'Aggressive bluffer' },
@@ -49,9 +51,8 @@ async function tapChip() {
 describe('F-1: the draft offers something to press', () => {
   beforeEach(() => {
     telegram.signIn();
-    // Routes are matched newest-first, so the broad one is registered first or
-    // it would shadow /api/agents/chat.
-    fetchMock.route('/api/agents', { agents: [] });
+    // This is the roster GET, not the modern draft-session POST.
+    fetchMock.route('/api/agents?', { agents: [] });
     fetchMock.route('/api/agents/chat', READY_TURN, { method: 'POST' });
   });
 

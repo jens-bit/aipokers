@@ -7,8 +7,8 @@
 // and the reason it is four numbers rather than four drawings:
 //
 //   1  a near-black hood with a near-black glow ....... a silhouette
-//   2  the real hood with a dead glow ................. the hood, a body with no eyes
-//   3  the real hood with a dim glow .................. the eyes
+//   2  the neutral hood with a dead glow .............. the hood, a body with no eyes
+//   3  the neutral hood with a dim glow ............... the eyes
 //   4  the real hood with his real glow, and a halo ... his colour
 //
 // Every one of them is `MoodGhost`. Nothing here is a second drawing of the
@@ -18,7 +18,8 @@
 // he looked like, so the thing you watched take shape was never the thing that
 // then walked into the room.
 //
-// The stage is a COUNT OF ANSWERS, not a percentage. See draftStage() below.
+// Modern drafts advance through accepted milestones and the authored forming
+// beats. draftStage() remains the reply-count adapter for legacy servers.
 
 import { MoodGhost } from './MoodGhost.jsx';
 import { HOODS, GLOWS } from '../../lib/identity.js';
@@ -26,16 +27,17 @@ import { HOODS, GLOWS } from '../../lib/identity.js';
 /**
  * The four stages, verbatim from the ref.
  *
- * The hood and glow he forms in are HOODS[1] / GLOWS[1] — the ref's own choice,
- * and a fixed one, because the draft cannot know his real pair: identity is
+ * His final forming hood/glow use HOODS[1] / GLOWS[1], the ref's own choice.
+ * Earlier beats keep the current reference's neutral hood. The draft cannot
+ * know his real pair: identity is
  * rolled at birth, on the server, from a seed that does not exist until he does.
  * What the owner watches assemble is a man taking shape, not a preview of the
  * exact cloth he will wear.
  */
 export const DRAFT_STAGES = [
   { n: 1, hood: { top: '#0C0F12', bot: '#05070A' }, glow: '#0B0E11',   halo: 0,    cap: 'a silhouette' },
-  { n: 2, hood: HOODS[1],                           glow: '#191C20',   halo: 0,    cap: 'the hood' },
-  { n: 3, hood: HOODS[1],                           glow: '#7E6420',   halo: 0.35, cap: 'the eyes' },
+  { n: 2, hood: { top: '#2A2E33', bot: '#171A1E' }, glow: '#191C20',   halo: 0,    cap: 'the hood' },
+  { n: 3, hood: { top: '#2A2E33', bot: '#171A1E' }, glow: '#7E6420',   halo: 0.3,  cap: 'the eyes' },
   { n: 4, hood: HOODS[1],                           glow: GLOWS[1].c,  halo: 1,    cap: 'his colour' },
 ];
 
@@ -64,7 +66,7 @@ export function draftStage(answers = 0) {
  */
 export function FormingGhost({ stage = 1, size = 104 }) {
   const s = DRAFT_STAGES[Math.max(0, Math.min(DRAFT_STAGE_COUNT - 1, stage - 1))];
-  const halo = s.halo ? (s.halo > 0.6 ? '26' : '12') : '00';
+  const halo = s.halo ? (s.halo > 0.6 ? '26' : s.halo > 0.4 ? '18' : '10') : '00';
   return (
     <div className="draft-forming" data-stage={s.n} data-testid="draft-forming">
       <span

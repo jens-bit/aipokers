@@ -48,7 +48,7 @@ describe('F-4: one primary action per screen, naming the next one', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     telegram.signIn();
-    fetchMock.route('/api/agents', { agents: [BORN] });
+    fetchMock.route('/api/agents?', { agents: [BORN] });
   });
 
   it('the draft screen offers exactly one, and it names the birth card', async () => {

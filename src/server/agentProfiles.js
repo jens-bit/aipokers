@@ -116,6 +116,9 @@ import {
   // answer back out of the transcript.
   withNameQuestion,
   nameAnswerFrom,
+  hasAskedName,
+  asksForName,
+  DRAFT_FALLBACK_LINE,
 } from './draftGuard.js';
 // BUGS-B/4: whatever the owner types becomes a name that fits on a seat plate
 // — never empty, never a bare article.
@@ -560,8 +563,9 @@ function commitAgent(profile, existingAgentId, agentData) {
       console.log(`[agentProfiles] updated agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})`);
       return agent;
     }
+    throw new Error('Agent not found');
   }
-  agent.id = 'agent_' + Date.now().toString(36);
+  agent.id = 'agent_' + randomUUID();
   agent.status = 'idle';
   agent.activeTableId = null;
   agent.profile = numericProfile;
@@ -655,11 +659,6 @@ function commitAgent(profile, existingAgentId, agentData) {
   ensureRosterIdentities(profile.agents);
   console.log(`[agentProfiles] created agent "${agent.name}" (${agent.style}/${agent.risk}, T${numericProfile.tightness}/A${numericProfile.aggression})` +
               ` — born a ${born.nature.name} (+${born.nature.up} −${born.nature.down})`);
-  // VISIT-1 job 6: a birth is the one moment a guest owner FIRST has a
-  // household to receive a visitor into. Fired for every new agent, not only
-  // a guest's — the listener itself is what asks whether there is a referral
-  // on record — because this module must not know what a guest is.
-  try { birthListener?.(profile.userId, agent); } catch (err) { console.error('[agents] birth listener failed:', err.message); }
   return agent;
 }
 
@@ -3104,13 +3103,26 @@ export function sessionDipsOf(agentId, userId) {
  * Seated, he finishes the hand he is in: benchCutSeat is the wallet's bench,
  * not a fold, so no chips are forfeited to a decision he did not make.
  */
+// BUG-142: the acknowledgement describes a rest, never an invented venue.
+// Cadence follows the existing nature voices; firstWords stay birth-only.
+const REST_ACKNOWLEDGEMENTS = Object.freeze({
+  Grinder: 'Pacing myself. There are more hands ahead.',
+  Hothead: 'Fine. Give me a minute.',
+  Professor: 'A short break. Then back to the numbers.',
+  Rock: 'Sitting out. No need to force it.',
+  Gambler: 'Even I can pass on one.',
+  Shark: 'A break. Then I look again.',
+  Sphinx: 'A pause. Then we continue.',
+  Showman: 'Intermission. I will be back.',
+});
+
 function benchForRest(agent, userId) {
   agent.restBench = { since: Date.now(), until: 'fresh' };
   const table = agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null;
   if (table) benchCutSeat(table, agent.id);
   const stillSeated = !!agent.activeTableId && !!liveTables?.hasTable?.(agent.activeTableId);
   agent.lastMoment = {
-    text: stillSeated ? 'One more hand and I am out.' : 'Right. I am at the bar.',
+    text: stillSeated ? 'One more hand and I am out.' : (REST_ACKNOWLEDGEMENTS[agent.nature?.name] ?? 'Taking a short break.'),
     mood: agent.mood?.state ?? 'neutral',
     at: Date.now(),
   };
@@ -3372,6 +3384,144 @@ function inferFallback(text) {
   return { name: 'The Grinder', style: 'Balanced', risk: 'Medium', strategy: 'You are a calculated, adaptive player who blends solid fundamentals with well-timed aggression. You value bet strong hands, pick precise bluff spots, and adjust your range based on how your opponent plays.' };
 }
 
+// BUG-145: drafting is one saved conversation, with at most eight completed
+// receipts. Neither control state nor request ids are sent to the model.
+const DRAFT_OPENING = 'Tell me how he should play.';
+const DRAFT_RECEIPT_CAP = 8;
+const draftBuilds = new Map();
+const validDraftAttempt = value => value == null || (typeof value === 'string' && value.length > 0 && value.length <= 128);
+const draftFailure = (error = 'draftExpired', message = 'That draft is no longer active. Open the draft again to continue.') =>
+  ({ status: 409, body: { error, message } });
+
+function draftReceipts(profile) {
+  return Array.isArray(profile.draft?.receipts) ? profile.draft.receipts : [];
+}
+
+function startDraft(profile, { adoptLegacy = false } = {}) {
+  const previous = adoptLegacy && profile.chat?.some(turn => turn.role === 'user') ? profile.chat : [];
+  const brief = [];
+  let expectingName = false, name = null;
+  for (const turn of previous) {
+    if (turn.role === 'assistant' && asksForName(turn.content) && draftProfile(brief.join(' ')).ready) {
+      expectingName = true;
+    } else if (turn.role === 'user') {
+      if (expectingName) {
+        name = isGoSignal(turn.content) ? null : coinName(turn.content, { fallback: null });
+        expectingName = false;
+      } else if (!isGoSignal(turn.content)) brief.push(String(turn.content ?? ''));
+    }
+  }
+  profile.draft = {
+    active: { id: randomUUID(), brief: brief.join(' ').slice(-12_000), name, revision: 0 },
+    receipts: draftReceipts(profile).slice(-DRAFT_RECEIPT_CAP),
+  };
+  profile.chat = previous.length ? previous : [{ role: 'assistant', content: DRAFT_OPENING }];
+  return profile.draft.active;
+}
+
+function resolveDraft(profile, draftId = null, { begin = false, legacyNew = false } = {}) {
+  if (draftId) {
+    const receipt = draftReceipts(profile).find(item => item.draftId === draftId);
+    if (receipt) return { receipt };
+    if (profile.draft?.active?.id !== draftId) return { failure: draftFailure() };
+  }
+  let active = profile.draft?.active;
+  if (!active) {
+    // A modern first opening must not adopt the history of a previous agent.
+    // Legacy callers can still finish a real, already-started draft.
+    active = startDraft(profile, { adoptLegacy: profile.agents.length === 0 });
+  } else if (!draftId && active.createdAgentId) {
+    if (begin || legacyNew) active = startDraft(profile);
+    else return { receipt: draftReceipts(profile).find(item => item.draftId === active.id), failure: draftReceipts(profile).some(item => item.draftId === active.id) ? null : draftFailure() };
+  }
+  return { active };
+}
+
+function draftProjection(profile, receipt = null) {
+  const active = profile.draft?.active;
+  const done = receipt ?? draftReceipts(profile).find(item => item.draftId === active?.id);
+  if (done) {
+    const agent = profile.agents.find(item => item.id === done.agentId);
+    if (!agent) return draftFailure();
+    return { status: 200, body: {
+      draftId: done.draftId, draftStep: 'created', ready: true,
+      chat: active?.id === done.draftId ? profile.chat : [{ role: 'assistant', content: done.line }],
+      draftName: agent.name, natureHint: agent.nature?.name ?? null, profile: agent.profile ?? null,
+      agentId: agent.id, agentName: agent.name, strategy: agent.strategy,
+      createdAgent: presentAgent(agent, { owner: true }), firstAgent: done.firstAgent,
+    } };
+  }
+  const state = draftProfile(active?.brief ?? '');
+  return { status: 200, body: {
+    draftId: active?.id, draftStep: !state.ready ? 'briefing' : active.name ? 'ready' : 'naming',
+    ready: state.ready, chat: profile.chat, draftName: active?.name ?? null,
+    natureHint: state.nature, profile: state.profile,
+  } };
+}
+
+function appendDraftTurn(profile, role, content) {
+  profile.chat.push({ role, content });
+  // The original brief/name have their own bounded fields; a long conversation
+  // cannot remove them when the model context is trimmed.
+  if (profile.chat.length > 80) profile.chat = [profile.chat[0], ...profile.chat.slice(-79)];
+}
+
+async function createDraftAgent(profile, active, userId, { attemptId = null, allowEmptyLegacy = false } = {}) {
+  const receipt = draftReceipts(profile).find(item => item.draftId === active.id);
+  if (receipt) return draftProjection(profile, receipt);
+  if (attemptId && draftReceipts(profile).some(item => item.attemptId === attemptId && item.draftId !== active.id)) {
+    return draftFailure('attemptUsed', 'That creation request belongs to an earlier draft.');
+  }
+  const underway = draftBuilds.get(userId);
+  if (underway) return underway.draftId === active.id ? underway.promise : draftFailure('draftBusy', 'Your other draft is still finishing.');
+  if (!draftProfile(active.brief).ready && !allowEmptyLegacy) {
+    appendDraftTurn(profile, 'assistant', DRAFT_FALLBACK_LINE);
+    saveStore(userId);
+    return draftProjection(profile);
+  }
+  const refusal = slotRefusal(userId, profile);
+  if (refusal) return { status: 409, body: refusal };
+  const revision = active.revision;
+  // Only actual play instructions enter strategy generation. A chosen name
+  // such as “Wild Card” is applied afterwards and cannot become a style hint.
+  const snapshot = { chat: [{ role: 'user', content: active.brief || 'A balanced poker player.' }] };
+  const promise = (async () => {
+    let built;
+    try { built = await buildFromDraft(snapshot, active.brief, userId, active.name); }
+    catch (err) {
+      console.error('[agentProfiles] draft not committed:', err.message);
+      return { status: 503, body: { error: 'Could not finish your agent. Your draft is saved — please try again.' } };
+    }
+    // A reset, owner claim/reload, or later revision invalidates the snapshot.
+    // No late generation may resurrect a discarded draft or spend its chips.
+    if (getOrCreate(userId) !== profile || profile.draft?.active !== active || active.revision !== revision) return draftFailure();
+    const finalRefusal = slotRefusal(userId, profile);
+    if (finalRefusal) return { status: 409, body: finalRefusal };
+    try {
+      const agent = commitAgent(profile, null, built.agent);
+      const done = { draftId: active.id, attemptId: attemptId ?? randomUUID(), agentId: agent.id,
+        firstAgent: activeAgents(profile).length === 1, line: built.line };
+      active.createdAgentId = agent.id;
+      profile.draft.receipts = [...draftReceipts(profile), done].slice(-DRAFT_RECEIPT_CAP);
+      appendDraftTurn(profile, 'assistant', built.line);
+      // Receipt, agent, safe, pocket and one-time grant marker share one SQL
+      // transaction. A lost HTTP response can only replay this same birth.
+      saveStore(userId);
+      // VISIT-1: announce the existing birth event only after its household is
+      // durable. A failed save must not announce an agent that does not exist.
+      try { birthListener?.(profile.userId, agent); } catch (err) { console.error('[agents] birth listener failed:', err.message); }
+      return draftProjection(profile, done);
+    } catch (err) {
+      reloadOwners(userId);
+      console.error('[agentProfiles] draft save failed:', err.message);
+      return { status: 503, body: { error: 'Could not save your agent. Your draft is saved — please try again.' } };
+    }
+  })();
+  draftBuilds.set(userId, { draftId: active.id, promise });
+  try { return await promise; }
+  finally { if (draftBuilds.get(userId)?.promise === promise) draftBuilds.delete(userId); }
+}
+
 // Turn a finished draft into an agent payload plus the one line the recruiter
 // says when he hands him over.
 //
@@ -3379,12 +3529,14 @@ function inferFallback(text) {
 // timeout, or output that will not parse — the sliders still have to come from
 // what the owner actually said: a chaotic brief that quietly produces a
 // balanced agent is the same bug as a code fence, just harder to see.
-async function buildFromDraft(profile, brief, ownerId = null) {
+async function buildFromDraft(profile, brief, ownerId = null, chosenName = undefined) {
   const vague = slidersFromBrief(brief);
   // BUGS-B/4: what the owner typed when he was asked what to call him. Read
   // deterministically out of the transcript, so a build with no model behind
   // it still uses HIS answer rather than a canned archetype name.
-  const chosen = coinName(nameAnswerFrom(profile.chat), { fallback: null });
+  const chosen = chosenName === undefined
+    ? coinName(nameAnswerFrom(profile.chat), { fallback: null })
+    : coinName(chosenName, { fallback: null });
   let agent = null;
   try {
     const raw = await callClaude(profile.chat, SYSTEM_GEN, 200, { ownerId, kind: MeterKind.CHAT });
@@ -3396,7 +3548,7 @@ async function buildFromDraft(profile, brief, ownerId = null) {
     if (process.env.ANTHROPIC_API_KEY) throw err;
   }
 
-  if (!agent || typeof agent !== 'object' || !agent.strategy) {
+  if (!agent || typeof agent !== 'object' || Array.isArray(agent) || typeof agent.strategy !== 'string' || !agent.strategy.trim()) {
     if (process.env.ANTHROPIC_API_KEY) throw new Error('The draft could not be built. Please try again.');
     agent = { ...inferFallback(brief), ...(vague ? vague.profile : {}) };
     if (vague) {
@@ -5057,13 +5209,24 @@ export function installAgentProfileRoutes(app) {
     res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
   });
 
-  // POST /api/agents/chat/reset — clear chat history to opening message
+  // BUG-145: begin/resume is owner-gated by the /api/agents middleware above.
+  // A supplied old token only resumes its receipt; it never starts a new draft.
+  app.post('/api/agents/draft', (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const profile = getOrCreate(userId);
+    const resolved = resolveDraft(profile, req.body?.draftId ?? null, { begin: true });
+    const result = resolved.failure ?? draftProjection(profile, resolved.receipt);
+    if (result.status === 200) saveStore(userId);
+    return res.status(result.status).json(result.body);
+  });
+
+  // POST /api/agents/chat/reset — explicitly begin a fresh draft.
   app.post('/api/agents/chat/reset', (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const profile = getOrCreate(userId);
-    profile.chat = [{ role: 'assistant', content: OPENING_MSG }];
+    startDraft(profile);
     saveStore(userId);
-    res.json({ ok: true });
+    res.json({ ok: true, ...draftProjection(profile).body });
   });
 
   // POST /api/agents/chat — pure conversational reply, never generates an agent
@@ -5093,113 +5256,79 @@ export function installAgentProfileRoutes(app) {
       const body = await ownerChatTurn(existingAgent, userId, content);
       return res.json(body);
     }
+    if (existingAgentId) return res.status(404).json({ error: 'Agent not found' });
 
     // ── Creation-flow chat ───────────────────────────────────────────────────
-    profile.chat.push({ role: 'user', content });
-
-    // The whole brief so far, in the owner's own words. Used for the nature
-    // hint, for reading a vague brief into sliders, and for the build.
-    const ownerSaid = () => profile.chat.filter((m) => m.role === 'user').map((m) => m.content).join(' ');
-
-    // ATTR-3a / PACE-1d: everything the birth screen shows about a draft in
-    // progress, derived from ONE profile so the strip, the temperament chip and
-    // the primary action can never disagree. Only the owner's own words count —
-    // the recruiter's questions would otherwise vote for a temperament nobody
-    // asked for.
-    const draftState = () => draftProfile(ownerSaid());
-
-    // ── "lets go" ────────────────────────────────────────────────────────────
-    // The owner saying he is done briefing is the build trigger. Nothing else
-    // was calling /api/agents/build — the birth screen only ever posts here and
-    // waits for an agentId — so a draft could be perfect and still never become
-    // anyone. That is the "and no profile" half of the reported bug.
-    const briefSoFar = ownerSaid();
-    const hasBrief = profile.chat.some((m) => m.role === 'user' && !isGoSignal(m.content));
-    if (isGoSignal(content) && hasBrief) {
-      // AGENTS-2: the cap is checked BEFORE the build, so a full roster costs no
-      // model call — and the draft is left intact, ready to finish the moment
-      // the owner makes room.
-      // SLOTS-1: and the same check now also answers "the slot is not earned
-      // yet", for the same reason and in the same place. The draft survives
-      // either refusal untouched: a locked slot is a thing that opens by
-      // itself the next time one of his agents has a winning night.
-      const refusal = slotRefusal(userId, profile);
-      if (refusal) {
-        saveStore(userId);
-        return res.status(409).json(refusal);
-      }
-      let built;
-      try {
-        built = await buildFromDraft(profile, briefSoFar, userId);
-      } catch (err) {
-        console.error('[agentProfiles] draft not committed:', err.message);
-        saveStore(userId);
-        return res.status(503).json({ error: 'Could not finish your agent. Your draft is saved — please try again.' });
-      }
-      const agent = commitAgent(profile, null, built.agent);
-      const line = built.line;
-      profile.chat.push({ role: 'assistant', content: line });
-      saveStore(userId);
-      return res.json({
-        chat: profile.chat,
-        natureHint: agent.nature?.name ?? draftState().nature,
-        // PACE-1d: a reply that ends the draft always says so, and always
-        // carries the dials it ended on.
-        ready: true,
-        profile: agent.profile ?? null,
-        agentId: agent.id,
-        agentName: agent.name,
-        strategy: agent.strategy,
-        createdAgent: presentAgent(agent, { owner: true }),
-      });
+    const intent = req.body?.draftIntent ?? null;
+    if (intent && !['brief', 'name', 'create'].includes(intent)) return res.status(400).json({ error: 'Invalid draft intent' });
+    if (content.length > 6000) return res.status(400).json({ error: 'Please keep each draft message under 6000 characters.' });
+    if (!validDraftAttempt(req.body?.attemptId)) return res.status(400).json({ error: 'Invalid creation request id' });
+    const creating = intent === 'create' || (!intent && isGoSignal(content));
+    const resolved = resolveDraft(profile, req.body?.draftId ?? null, { legacyNew: !creating });
+    if (resolved.failure) return res.status(resolved.failure.status).json(resolved.failure.body);
+    if (resolved.receipt) {
+      const result = draftProjection(profile, resolved.receipt);
+      return res.status(result.status).json(result.body);
     }
-
-    // ── An ordinary turn, guarded ────────────────────────────────────────────
-    // The model's reply never reaches the owner unchecked: a fence, a class
-    // definition or a wall of text is dropped and replaced, in order of
-    // preference, by the mapping for a vague brief, the last good thing the
-    // recruiter said, or a plain question about play.
+    const active = resolved.active;
+    if (creating) {
+      if (!draftBuilds.has(userId)) {
+        appendDraftTurn(profile, 'user', content);
+        saveStore(userId);
+      }
+      const result = await createDraftAgent(profile, active, userId, { attemptId: req.body?.attemptId ?? null });
+      return res.status(result.status).json(result.body);
+    }
+    if (draftBuilds.has(userId)) {
+      const result = draftFailure('draftBusy', 'Your agent is still finishing.');
+      return res.status(result.status).json(result.body);
+    }
+    const naming = intent === 'name' || (!intent && !active.name && draftProfile(active.brief).ready && hasAskedName(profile.chat));
+    appendDraftTurn(profile, 'user', content);
+    active.revision++;
+    const revision = active.revision;
+    if (naming) {
+      active.name = coinName(content, { fallback: null });
+      appendDraftTurn(profile, 'assistant', active.name
+        ? `${active.name} it is. Ready when you are.`
+        : 'Choose a name, or let me pick one.');
+      saveStore(userId);
+      return res.json(draftProjection(profile).body);
+    }
+    active.brief = `${active.brief} ${content}`.trim().slice(-12_000);
+    saveStore(userId);
+    const state = draftProfile(active.brief);
+    // With no recognizable play instruction there is nothing to build yet.
+    // A confirmation after unrelated chatter must not invent a character.
+    if (!state.ready) {
+      appendDraftTurn(profile, 'assistant', DRAFT_FALLBACK_LINE);
+      saveStore(userId);
+      return res.json(draftProjection(profile).body);
+    }
     let raw = null;
     try {
       raw = await callClaude(profile.chat, SYSTEM_CONV, 150, { ownerId: userId, kind: MeterKind.CHAT });
     } catch (err) {
       console.error('[agentProfiles] chat error:', err.message);
     }
-    const guarded = draftReply({ raw, brief: briefSoFar, chat: profile.chat });
+    if (getOrCreate(userId) !== profile || profile.draft?.active !== active || active.revision !== revision) {
+      const result = draftFailure();
+      return res.status(result.status).json(result.body);
+    }
+    if (active.createdAgentId) return res.json(draftProjection(profile).body);
+    const guarded = draftReply({ raw, brief: active.brief, chat: profile.chat });
     if (guarded.guarded) {
       console.warn(`[agentProfiles] draft reply rejected (${guarded.guarded}) — sent ${guarded.source}`);
     }
-    const draft = draftState();
     // BUGS-B/4: the draft always asks what he is called, exactly once, the
     // moment there is enough of a character to hang a name on. Folded in here
     // rather than left to the system prompt because a model that ignores an
     // instruction has to be caught, not forwarded — the same reason the reply
     // above is guarded rather than trusted.
-    const reply = withNameQuestion(guarded.text, { chat: profile.chat, ready: draft.ready });
-    profile.chat.push({ role: 'assistant', content: reply });
+    const reply = withNameQuestion(guarded.text, { chat: profile.chat, ready: state.ready && !active.name });
+    appendDraftTurn(profile, 'assistant', reply);
     saveStore(userId);
-    return res.json({
-      chat: profile.chat,
-      natureHint: draft.nature,
-      // PACE-1d: the dials the draft has produced so far, all four of them or
-      // none — a strip with two of four filled in is a strip that looks broken.
-      profile: draft.profile,
-      // DRAFT-2: what he is called, the turn the owner says it — not at birth.
-      // The draft asks the name question exactly once (BUGS-B/4) and the pill
-      // over the room is where the answer lands, so the answer has to be on
-      // the wire before there is an agent to carry it.
-      //
-      // It is coined HERE, by the same call buildFromDraft makes, rather than
-      // read off `chat` by the client: coinName is what turns "call him the
-      // grinder" into "The Grinder", and a second implementation of that on
-      // the client is how the pill and the seat plate start disagreeing about
-      // what a man is called. Null until he is asked and answers.
-      draftName: coinName(nameAnswerFrom(profile.chat), { fallback: null }),
-      // Enough to build him. The screen shows the primary action on this, so a
-      // chip pick moves the draft forward on the very first turn instead of
-      // dead-ending on a reply that reads like a closing line.
-      ready: draft.ready,
-    });
+    return res.json(draftProjection(profile).body);
   });
 
   // POST /api/agents/build — generate agent from current chat, commit it
@@ -5208,21 +5337,28 @@ export function installAgentProfileRoutes(app) {
     const existingAgentId = req.body?.existingAgentId ?? null;
 
     const profile = getOrCreate(userId);
-
-    // AGENTS-2: same cap, same 409, on the other door into commitAgent. A
-    // REBUILD of an agent who already exists is not a new agent and is never
-    // capped — otherwise a full roster could not edit its own agents.
-    // SLOTS-1: `agentCap` past four, `slotLocked` before the slot is earned.
-    // A REBUILD is neither — it takes no new slot, so it is never refused for
-    // one, exactly as AGENTS-2 wrote it.
-    if (!existingAgentId) {
-      const refusal = slotRefusal(userId, profile);
-      if (refusal) return res.status(409).json(refusal);
-    }
-
     const existingAgentForCtx = existingAgentId
       ? profile.agents.find((a) => a.id === existingAgentId)
       : null;
+    if (existingAgentId && !existingAgentForCtx) return res.status(404).json({ error: 'Agent not found' });
+    if (!existingAgentId) {
+      if (!validDraftAttempt(req.body?.attemptId)) return res.status(400).json({ error: 'Invalid creation request id' });
+      const resolved = resolveDraft(profile, req.body?.draftId ?? null, { legacyNew: !req.body?.draftId });
+      if (resolved.failure) return res.status(resolved.failure.status).json(resolved.failure.body);
+      if (resolved.receipt) {
+        const result = draftProjection(profile, resolved.receipt);
+        return res.status(result.status).json(result.body);
+      }
+      saveStore(userId);
+      const result = await createDraftAgent(profile, resolved.active, userId, {
+        attemptId: req.body?.attemptId ?? null,
+        // Existing keyless fixtures and old API callers explicitly invoke
+        // /build without a draft token. Preserve that direct-build contract.
+        allowEmptyLegacy: !req.body?.draftId,
+      });
+      return res.status(result.status).json(result.body);
+    }
+
     const editNote = existingAgentForCtx
       ? `\n\nNote: you are updating the existing agent "${existingAgentForCtx.name}" (${existingAgentForCtx.style}/${existingAgentForCtx.risk}). Output the complete updated agent profile.`
       : '';
@@ -5239,6 +5375,9 @@ export function installAgentProfileRoutes(app) {
         const combined = profile.chat.map((m) => m.content).join(' ');
         agent = inferFallback(combined);
       }
+      const currentProfile = getOrCreate(userId);
+      if (!currentProfile.agents.some(item => item.id === existingAgentId)) return res.status(404).json({ error: 'Agent not found' });
+      if (currentProfile !== profile) return res.status(409).json({ error: 'Agent changed. Open it again before rebuilding.' });
       agent = commitAgent(profile, existingAgentId, agent);
       saveStore(userId);
       return res.json({ createdAgent: agent });

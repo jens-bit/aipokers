@@ -154,6 +154,10 @@ test('BUG-136: draft, retire and redraft through the real phone conserve househo
   for (let cycle = 0; cycle < 2; cycle++) {
     await page.getByRole('button', { name: 'DRAFT YOUR FIRST AGENT', exact: true }).click();
     await page.getByRole('button', { name: 'Aggressive bluffer', exact: true }).click();
+    // BUG-145 / Board29: a usable brief now hands off to the actual name
+    // question. Answer it before creating; keep the same conservation checks.
+    await page.getByPlaceholder('His name…').fill('Smoke Ember');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
     await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
     await expect(page.locator('.birth-card3')).toBeVisible();
     await page.getByRole('button', { name: 'Deal him in', exact: true }).click();

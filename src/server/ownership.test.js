@@ -78,6 +78,37 @@ for (const [method, route] of [
   assert.equal(response.status, 403);
 });
 
+test('BUG-145: authenticated draft begin, resume and completion remain scoped to the actual owner', async () => {
+  const owner = '9101', stranger = '9102';
+  assert.equal((await request('/api/agents/draft', 'POST', { userId: owner })).status, 401);
+  assert.equal((await request('/api/agents/draft', 'POST', { userId: owner }, stranger)).status, 403);
+  const opened = await request('/api/agents/draft', 'POST', { userId: owner }, owner);
+  assert.equal(opened.status, 200);
+  const { draftId } = await opened.json();
+  const privateTurn = await request('/api/agents/chat', 'POST', { userId: owner, draftId, draftIntent: 'brief', content: 'Patient and careful. Private instruction 9101.' }, owner);
+  assert.equal(privateTurn.status, 200);
+  await request('/api/agents/chat', 'POST', { userId: owner, draftId, draftIntent: 'name', content: 'Private Stone' }, owner);
+  for (const route of ['/api/agents/draft', '/api/agents/chat', '/api/agents/build']) {
+    const content = { userId: stranger, draftId, draftIntent: 'create', content: 'lets go', attemptId: 'stolen-attempt' };
+    const stolen = await request(route, 'POST', content, stranger);
+    assert.equal(stolen.status, 409);
+    assert.equal((await stolen.json()).error, 'draftExpired');
+  }
+  const created = await request('/api/agents/chat', 'POST', { userId: owner, draftId, draftIntent: 'create', content: 'lets go', attemptId: 'owner-attempt' }, owner);
+  assert.equal(created.status, 200);
+  const agent = await created.json();
+  assert.ok(agent.agentId);
+  const stolenReceipt = await request('/api/agents/draft', 'POST', { userId: stranger, draftId }, stranger);
+  assert.equal(stolenReceipt.status, 409);
+  const body = await stolenReceipt.json();
+  assert.equal(body.error, 'draftExpired');
+  assert.doesNotMatch(JSON.stringify(body), /Private|Stone|9101/);
+  assert.equal((await request('/api/agents/build', 'POST', { userId: stranger, existingAgentId: agent.agentId }, stranger)).status, 404);
+  assert.equal((await request('/api/agents/chat', 'POST', { userId: stranger, existingAgentId: agent.agentId, content: 'hello' }, stranger)).status, 404);
+  const untouched = await request('/api/agent-profile?userId=9102', 'GET', undefined, stranger);
+  assert.equal((await untouched.json()).agents.length, 0);
+});
+
 test('BUG-48: anonymous deploy is rejected and the true owner can rename', async () => {
   assert.equal((await request('/api/agents/agent-9001/deploy', 'POST', { userId: '9001' })).status, 401);
   const response = await request('/api/agents/agent-9001', 'PATCH', { userId: '9001', name: 'Owned' }, '9001');

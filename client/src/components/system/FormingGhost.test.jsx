@@ -38,12 +38,14 @@ describe('DRAFT-2: he forms out of one atom', () => {
     }
   });
 
-  it('puts him in a real hood before it lights his eyes', () => {
-    // Stage 2 is the hood with a dead glow — a body, no eyes. Stage 3 lights them.
-    expect(DRAFT_STAGES[1].hood).toBe(HOODS[1]);
+  it('BUG-145: keeps the hood neutral until colour arrives in the final authored stage', () => {
+    // Jens's four-stage correction in current Board29 mood-sit.jsx supersedes
+    // the old burgundy-at-stage2 expectation. Colour belongs to the last beat.
+    expect(DRAFT_STAGES[1].hood).toEqual({ top: '#2A2E33', bot: '#171A1E' });
     expect(DRAFT_STAGES[1].halo).toBe(0);
-    expect(DRAFT_STAGES[2].hood).toBe(HOODS[1]);
-    expect(DRAFT_STAGES[2].halo).toBeGreaterThan(0);
+    expect(DRAFT_STAGES[2].hood).toEqual({ top: '#2A2E33', bot: '#171A1E' });
+    expect(DRAFT_STAGES[2].halo).toBe(0.3);
+    expect(DRAFT_STAGES[3].hood).toBe(HOODS[1]);
   });
 
   it('carries the stage on the element, so the room above the sheet is readable', () => {

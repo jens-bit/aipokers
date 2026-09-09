@@ -10,7 +10,7 @@ import express from 'express';
 import { NATURES } from '../agent/attributes.js';
 import { deriveRoles } from '../agent/bio.js';
 import { saveProfile, loadProfile, _closeForTests } from './store.js';
-import { buildAgentChatSystem, installAgentProfileRoutes, setLiveTableProvider, reloadOwners } from './agentProfiles.js';
+import { buildAgentChatSystem, installAgentProfileRoutes, setLiveTableProvider, reloadOwners, restAgent } from './agentProfiles.js';
 
 function character(nature = 'Rock', extra = {}) {
   return {
@@ -24,6 +24,35 @@ function character(nature = 'Rock', extra = {}) {
 
 const emptyRegistry = { hasTable: () => false, getTable: () => null, homeTableOf: () => null };
 after(() => { setLiveTableProvider(null); _closeForTests(); });
+
+test('BUG-142: couch rest acknowledgements have each nature’s cadence without inventing a bar', () => {
+  setLiveTableProvider(emptyRegistry);
+  const lines = NATURES.map(nature => {
+    const agent = character(nature.name);
+    assert.equal(restAgent(agent, 'rest-voice').pending, false);
+    assert.doesNotMatch(agent.lastMoment.text, /\bbar\b|casino|one more hand/i);
+    return agent.lastMoment.text;
+  });
+  assert.equal(new Set(lines).size, NATURES.length, 'eight authored natures do not share one stock line');
+  const visitor = character('Professor', { visiting: { hostOwnerId: 'friend' } });
+  restAgent(visitor, 'rest-voice');
+  assert.doesNotMatch(visitor.lastMoment.text, /\bbar\b|casino|at home/i);
+  const unknown = character(null, { nature: null });
+  restAgent(unknown, 'rest-voice');
+  assert.match(unknown.lastMoment.text, /rest|break|sit/i);
+  setLiveTableProvider(null);
+});
+
+test('BUG-142: resting a seated agent still explains that the current hand finishes first', () => {
+  const cuts = [];
+  const table = { agentIds: ['stone'], pending: [{}], sitOutSeat: (...args) => cuts.push(args) };
+  setLiveTableProvider({ ...emptyRegistry, hasTable: () => true, getTable: () => table });
+  const agent = character('Rock', { activeTableId: 'casino-table' });
+  assert.equal(restAgent(agent, 'rest-voice').pending, true);
+  assert.deepEqual(cuts, [[0, { afterHand: true }]]);
+  assert.match(agent.lastMoment.text, /hand.*out|finish.*hand/i);
+  setLiveTableProvider(null);
+});
 
 test('BUG-142: owner chat carries every authored birth nature and voice without rerolling it', () => {
   for (const nature of NATURES) {
@@ -97,6 +126,7 @@ test('BUG-142: missing nature stays unknown and recent replies remain in the pro
 
 test('BUG-142: keyless owner chat saves honest replies and reaches the home-game seat', async () => {
   saveProfile('voice-owner', { userId: 'voice-owner', chat: [], agents: [character()] });
+  reloadOwners('voice-owner');
   setLiveTableProvider(emptyRegistry);
   const app = express();
   app.use(express.json());

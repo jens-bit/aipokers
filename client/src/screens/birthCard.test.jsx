@@ -50,7 +50,7 @@ const BUILT_TURN = {
 
 // Drive the draft all the way to the card: chip -> Deal him in -> reveal -> card.
 async function reachCard(roster = [BORN]) {
-  fetchMock.route('/api/agents', { agents: roster });
+  fetchMock.route('/api/agents?', { agents: roster });
   fetchMock.route('/api/agents/chat', BUILT_TURN, { method: 'POST' });
 
   const onBirth = vi.fn();

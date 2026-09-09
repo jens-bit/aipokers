@@ -86,7 +86,7 @@ const BUILT_TURN = {
 };
 
 async function reachCard(record = BORN) {
-  fetchMock.route('/api/agents', { agents: [record] });
+  fetchMock.route('/api/agents?', { agents: [record] });
   fetchMock.route('/api/agents/chat', BUILT_TURN, { method: 'POST' });
 
   render(<BirthScreen onBack={() => {}} onBirth={() => {}} />);

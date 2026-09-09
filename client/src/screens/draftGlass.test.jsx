@@ -43,7 +43,7 @@ const draft = () => render(<BirthScreen onBack={() => {}} onBirth={() => {}} />)
 describe('DRAFT-2: the draft opens on the room, not on a blank screen', () => {
   beforeEach(() => {
     telegram.signIn();
-    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/agents?', { agents: [] });
     fetchMock.route('/api/agents/chat', REPLY(), { method: 'POST' });
   });
 
@@ -86,7 +86,7 @@ describe('DRAFT-2: the draft opens on the room, not on a blank screen', () => {
 describe('DRAFT-2: he forms while you answer', () => {
   beforeEach(() => {
     telegram.signIn();
-    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/agents?', { agents: [] });
     fetchMock.route('/api/agents/chat', REPLY(), { method: 'POST' });
   });
 
@@ -123,6 +123,9 @@ describe('DRAFT-2: he forms while you answer', () => {
 });
 
 describe('DRAFT-2: the name, and the one gold button', () => {
+  // These retain the older ready-only wire contract for rolling deployments.
+  // BUG-145's modern session tests supersede that expectation with Board29's
+  // explicit name composer, then the gold action, then the birth card.
   // The wire is unchanged: `profile` still arrives, the sheet just does not
   // draw it any more (see the retirement note in draftFlow.test.jsx). The
   // temperament it produces lands on the pill, which is where the ref puts it.
@@ -134,7 +137,7 @@ describe('DRAFT-2: the name, and the one gold button', () => {
 
   beforeEach(() => {
     telegram.signIn();
-    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/agents?', { agents: [] });
     fetchMock.route('/api/agents/chat', READY, { method: 'POST' });
   });
 

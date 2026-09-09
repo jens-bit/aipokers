@@ -389,6 +389,9 @@ function applySchema(d) {
   // null, so the migration touches no rows: an owner who has never had the
   // feature has nothing unread, which is exactly true.
   addColumnIfMissing(d, 'profiles', 'home_thread_unread_since', 'INTEGER NOT NULL DEFAULT 0');
+  // BUG-145: one resumable draft and bounded completion receipts. Kept apart
+  // from model turns, and committed with the agent and wallet in saveProfile.
+  addColumnIfMissing(d, 'profiles', 'draft', 'TEXT');
 
   addColumnIfMissing(d, 'notifications', 'dedupe_key', 'TEXT');
   d.exec('CREATE INDEX IF NOT EXISTS notifications_key ON notifications (owner_id, dedupe_key)');
@@ -536,15 +539,16 @@ function migrateNotifications(d) {
 
 // ── Row writers (shared by the migration and the live accessors) ─────────────
 
-function putProfileRow(d, ownerId, chat, homeThreadUnreadSince = 0) {
+function putProfileRow(d, ownerId, chat, homeThreadUnreadSince = 0, draft = null) {
   const unread = Number.isFinite(homeThreadUnreadSince) ? Math.max(0, Math.floor(homeThreadUnreadSince)) : 0;
   d.prepare(`
-    INSERT INTO profiles (owner_id, chat, home_thread_unread_since, updated_at) VALUES (?, ?, ?, ?)
+    INSERT INTO profiles (owner_id, chat, home_thread_unread_since, draft, updated_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(owner_id) DO UPDATE SET
       chat = excluded.chat,
       home_thread_unread_since = excluded.home_thread_unread_since,
+      draft = excluded.draft,
       updated_at = excluded.updated_at
-  `).run(String(ownerId), JSON.stringify(chat ?? []), unread, Date.now());
+  `).run(String(ownerId), JSON.stringify(chat ?? []), unread, draft ? JSON.stringify(draft) : null, Date.now());
 }
 
 // The lifted columns are written from `data` and never read back into it —
@@ -603,11 +607,12 @@ function putNotificationRow(d, ownerId, state) {
 export function loadAgentStore() {
   const d = conn();
   const out = {};
-  for (const row of d.prepare('SELECT owner_id, chat, home_thread_unread_since FROM profiles').all()) {
+  for (const row of d.prepare('SELECT owner_id, chat, home_thread_unread_since, draft FROM profiles').all()) {
     out[row.owner_id] = {
       userId: row.owner_id,
       agents: [],
       chat: jsonParse(row.chat, []),
+      ...(row.draft ? { draft: jsonParse(row.draft, null) } : {}),
       // SERVER-4: 0 on the wire means nothing waiting; in memory that is null,
       // so nobody downstream has to know which of the two sentinels they hold.
       homeThreadUnreadSince: row.home_thread_unread_since || null,
@@ -635,13 +640,14 @@ export function loadAgentStore() {
 export function loadProfile(ownerId) {
   const d = conn();
   const owner = String(ownerId);
-  const row = d.prepare('SELECT owner_id, chat, home_thread_unread_since FROM profiles WHERE owner_id = ?').get(owner);
+  const row = d.prepare('SELECT owner_id, chat, home_thread_unread_since, draft FROM profiles WHERE owner_id = ?').get(owner);
   const agents = d.prepare('SELECT data FROM agents WHERE owner_id = ? ORDER BY created_at, id').all(owner);
   if (!row && agents.length === 0) return null;
   return {
     userId: owner,
     agents: agents.map((a) => jsonParse(a.data, {})),
     chat: jsonParse(row?.chat, []),
+    ...(row?.draft ? { draft: jsonParse(row.draft, null) } : {}),
     homeThreadUnreadSince: row?.home_thread_unread_since || null,
   };
 }
@@ -655,7 +661,7 @@ export function saveProfile(ownerId, profile, wallet = null) {
   const list = Array.isArray(profile?.agents) ? profile.agents : [];
 
   d.transaction(() => {
-    putProfileRow(d, owner, profile?.chat ?? [], profile?.homeThreadUnreadSince ?? 0);
+    putProfileRow(d, owner, profile?.chat ?? [], profile?.homeThreadUnreadSince ?? 0, profile?.draft ?? null);
     if (wallet) putWalletRow(d, owner, wallet);
     for (let i = 0; i < list.length; i++) putAgentRow(d, owner, list[i], i);
 

@@ -96,7 +96,7 @@ describe('FIX-2b: the thread composer docks to the bottom of the screen', () => 
   beforeEach(() => {
     telegram.signIn();
     fetchMock.route('/api/agents/a1/hands', { recentHands: [] });
-    fetchMock.route('/api/agents', { agents: [AGENT] });
+    fetchMock.route('/api/agents?', { agents: [AGENT] });
   });
 
   async function renderThread() {
@@ -146,7 +146,7 @@ describe('FIX-2b: the thread composer docks to the bottom of the screen', () => 
 describe('FIX-2b: the birth composer docks the same way', () => {
   beforeEach(() => {
     telegram.signIn();
-    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/agents?', { agents: [] });
   });
 
   async function renderBirth() {

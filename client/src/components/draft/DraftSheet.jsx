@@ -73,14 +73,17 @@ export function DraftRow({ row }) {
 export function DraftSheet({
   rows = [],
   stage = 1,
+  stageLabel = null,
   pending = false,
   draft = '',
   onDraft,
   onSend,
   busy = false,
+  sendDisabled = false,
   above = null,
   action = null,
   foot = null,
+  feedback = null,
   placeholder = 'answer him…',
   inputRef,
 }) {
@@ -90,7 +93,7 @@ export function DraftSheet({
   }, [rows.length, pending]);
   const submit = (e) => {
     e.preventDefault();
-    if (!draft.trim() || busy) return;
+    if (!draft.trim() || busy || sendDisabled) return;
     onSend?.(draft.trim());
   };
 
@@ -99,7 +102,7 @@ export function DraftSheet({
       <div className="draft-sheet__head">
         <span className="draft-sheet__grab" aria-hidden />
         <span className="draft-sheet__spacer" />
-        <span className="draft-sheet__count" data-testid="draft-count">
+        <span className="draft-sheet__count" data-testid="draft-count" aria-label={stageLabel ? `${stageLabel} · ${Math.min(stage, DRAFT_STAGE_COUNT)} of ${DRAFT_STAGE_COUNT}` : undefined}>
           THE DRAFT · {Math.min(stage, DRAFT_STAGE_COUNT)} OF {DRAFT_STAGE_COUNT}
         </span>
       </div>
@@ -117,6 +120,7 @@ export function DraftSheet({
             </div>
           </div>
         ) : null}
+        {feedback}
       </div>
 
       {above ? <div className="draft-sheet__above">{above}</div> : null}
@@ -137,7 +141,7 @@ export function DraftSheet({
             <button
               type="submit"
               className="draft-sheet__send"
-              disabled={!draft.trim() || busy}
+              disabled={!draft.trim() || busy || sendDisabled}
               aria-label="Send"
             >
               <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden>

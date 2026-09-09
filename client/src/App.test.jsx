@@ -359,7 +359,8 @@ describe('agent creation is BirthScreen and nothing else', () => {
 
   it('leaving BirthScreen returns to the room without creating anything', async () => {
     const user = userEvent.setup();
-    fetchMock.route('/api/agents', { agents: [] });
+    fetchMock.route('/api/agents?', { agents: [] });
+    fetchMock.route('/api/agents/draft', { draftId: 'unused-draft', draftStep: 'briefing', ready: false, chat: [] }, { method: 'POST' });
     render(<App />);
 
     await user.click(await screen.findByRole('button', { name: /DRAFT YOUR FIRST AGENT/i }));
@@ -368,7 +369,10 @@ describe('agent creation is BirthScreen and nothing else', () => {
     await user.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
-    expect(fetchMock.posts).toHaveLength(0);
+    // BUG-145 begins/resumes the draft on entry; only answering or confirming
+    // may call creation chat. Opening and leaving still creates no agent.
+    expect(fetchMock.posts.map(post => post.url)).toEqual(['/api/agents/draft']);
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(0);
   });
 });
 
