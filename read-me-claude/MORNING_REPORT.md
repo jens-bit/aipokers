@@ -1,6 +1,6 @@
 # Railbird — progress and handoff, 9 September 2026
 
-Twenty-six implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
+Twenty-seven implementation batches are prepared. The full design/spec goal remains active: this is a verified development milestone, not a claim that the product is ready for final friends-shareable sign-off. No deployment or Claude/Opus review is claimed.
 
 ## What is now implemented
 
@@ -26,7 +26,7 @@ BUG-94 retains an unexplained earlier Windows child-process exit. BUG-102 record
 
 ## Remaining work
 
-1. Desktop kitchen-table Watch/Sit is now fixed (BUG-99) and the welcome page uses its working desktop example. Generic casino Watch and post-deploy routing are now fixed and verified (BUG-105). Next: reproduce/fix dropped queue blinds (BUG-106), the newborn observer (BUG-107), and port the remaining newer desktop Watch geometry/header/rail. Its current header navigation and public hero name also need attention.
+1. Desktop kitchen-table Watch/Sit is now fixed (BUG-99) and the welcome page uses its working desktop example. Generic casino Watch and post-deploy routing are now fixed and verified (BUG-105). Dropped queue blinds (BUG-106) and the newborn observer crash (BUG-107) are fixed with red-first checks. Next: port the remaining newer desktop Watch geometry/header/rail. Its current header navigation and public hero name also need attention.
 2. Desktop floor sizing and its repeated heading are fixed and paired (BUG-103/104). Phone Board ordering/panel styling still differs from the authored example; the full frame inventory needs to distinguish current designs from superseded ones.
 3. Finish the current reference-state inventory and identity presentation audit. Separate current requirements from explicitly parked rare-birth rolls and future design waves. Do not invent a collar or an item economy.
 4. Remaining board-41 applications, unspecified celebration audio, external avatar/account settings and undesigned visit/referral/share/fast-forward states need explicit dispositions.

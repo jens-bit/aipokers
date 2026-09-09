@@ -28,7 +28,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -662,6 +662,15 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await user.click(within(row).getByRole('button', { name: 'Deploy' }));
     return dealHimIn(user);
   }
+
+  it('BUG-106: phone deployment preserves the queued table stakes in WATCH', async () => {
+    fetchMock.route('/queue', { tableId: 'tbl-new', agentId: 'agent_cannon', agentName: 'Loose Cannon', smallBlind: 25, bigBlind: 50 }, { method: 'POST' });
+    render(<App />);
+    await bootedOnHome();
+    await deployFromThread(userEvent.setup());
+    act(() => { for (const socket of socketMock.instances) if (socket.readyState === 0) socket.open(); });
+    expect(socketMock.instances.flatMap(socket => socket.sent).find(message => message.type === 'watch' && message.tableId === 'tbl-new')).toMatchObject({ smallBlind: 25, bigBlind: 50 });
+  });
 
   it('CHAT-2: back from a watch started in a thread lands in that thread', async () => {
     const user = userEvent.setup();

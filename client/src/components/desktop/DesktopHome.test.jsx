@@ -5,7 +5,7 @@
 // DSK2-2 made — a half-typed message survives switching agents, because the
 // panel remounts and the map does not.
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -160,4 +160,21 @@ describe('DesktopHome panel', () => {
     // ...and back to the resting panel, which on the HOME stage is the room.
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
   });
+});
+
+
+it('BUG-107: a newly arrived agent opens his birth card and can be dealt in', async () => {
+  telegram.signIn();
+  fetchMock.route('/api/agents', agentsResponse);
+  fetchMock.route('/hands', { recentHands: [] });
+  const onDeployAgent = vi.fn();
+  renderHome({ onDeployAgent });
+  await openAgent(restingAgent.name);
+  const newborn = { ...restingAgent, id: 'newborn-107', name: 'New Arrival' };
+  fetchMock.route('/api/agents', { agents: [...agentsResponse.agents, newborn] });
+  fireEvent.focus(window);
+  const deal = await screen.findByRole('button', { name: 'Deal him in' });
+  await userEvent.click(deal);
+  expect(onDeployAgent).toHaveBeenCalledWith(expect.objectContaining({ id: newborn.id }));
+  expect(screen.queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
 });

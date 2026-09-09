@@ -187,7 +187,11 @@ export function DesktopHome({
     if (knownIds.current === null) { knownIds.current = ids; return; }
     const fresh = agents.find((a) => !knownIds.current.has(a.id));
     knownIds.current = ids;
-    if (fresh) { setBornId(fresh.id); setSelectedId(null); }
+    if (fresh) {
+      setBornId(fresh.id);
+      setHomeFocusId(null);
+      setHomePanel('thread');
+    }
   }, [agents, loading]);
 
   const liveCount = agents.filter((a) => a.activeTableId || a.liveGame?.tableId).length;

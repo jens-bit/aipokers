@@ -606,6 +606,9 @@ function AppShell({ guest, guestBoot }) {
         agentId: payload.agentId,
         userId: getUserId(),
         agentStrategy: payload.strategy,
+        // Queue chooses the table stakes before the WATCH creates its felt.
+        smallBlind: payload.smallBlind ?? payload.stakes?.smallBlind,
+        bigBlind: payload.bigBlind ?? payload.stakes?.bigBlind,
         displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
         wantOpponentAI: false,
         memoryContext: payload.memoryContext ?? '',
@@ -917,6 +920,8 @@ function AppShell({ guest, guestBoot }) {
                   agentId: payload.agentId,
                   userId: getUserId(),
                   agentStrategy: payload.strategy,
+                  smallBlind: payload.smallBlind ?? payload.stakes?.smallBlind,
+                  bigBlind: payload.bigBlind ?? payload.stakes?.bigBlind,
                   displayName: payload.agentName || getTelegramDisplayName() || 'Agent',
                   wantOpponentAI: false,
                   memoryContext: payload.memoryContext ?? '',

@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 27
+
+BUG-106 and BUG-107 are repaired: queue-selected blinds reach WATCH on both shells; the desktop newborn observer resets the current room panel state and opens the birth card without crashing. Red-first reproduction precedes both fixes. All 37 desktop browser cases, 37 focused App/DesktopHome checks, the full gate (105 server / 2211 client / 7 e2e), production build and seven fresh built-server smoke cases passed. Home2 and main integration results follow in the work log. This batch changes behavior, not artwork; batch26's inspected Watch pairs still describe the remaining visual work. Batch26 main integration passed before this batch began.
+
 ## Design completion — 2026-09-09, batch 26
 
 Casino Watch now reaches the actual desktop stage for owned and public tables (BUG-105), and queue completion opens the owned Watch. Public mode uses only served table speech with no private composer/analysis/history or owner controls. Back/Escape/roster changes leave the active socket; desktop Back restores the explicit floor room. The real queue/Watch/Back/felt-Watch/Leave path passed on a fresh built server. All 36 desktop browser cases pass. Full gate passed 105 server / 2209 client / 7 e2e.

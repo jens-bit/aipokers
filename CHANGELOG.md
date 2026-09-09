@@ -1,5 +1,7 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+- Design completion batch 27: queued casino stakes survive both phone and desktop WATCH requests (BUG-106), and newly arriving desktop agents open their birth card without the removed-setter crash (BUG-107). Red-first wire/runtime checks and full desktop flows cover both repairs. No layout or engine changes.
+
 All notable changes to this project are documented here.
 
 - Design completion batch 26: casino felt clicks and queue completion now open the visible desktop Watch stage (BUG-105). Owned tables retain their conversation; public tables expose no private controls. Back returns to the selected floor room and leaves the subscription. The newer desktop Watch visual port remains tracked separately.

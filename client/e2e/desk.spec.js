@@ -797,10 +797,10 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
 });
 
 
-test('BUG-105: deploying through the casino puts the new game on the stage',async({page})=>{
+test('BUG-105 BUG-106: deploying through the casino opens the game with its queued stakes',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await desk(page,{width:1440,height:900});
-  await page.route('**/api/agents/a1/queue',r=>r.fulfill({json:{tableId:'tbl-deployed',agentId:'a1',agentName:'Balance'}}));
+  await page.route('**/api/agents/a1/queue',r=>r.fulfill({json:{tableId:'tbl-deployed',agentId:'a1',agentName:'Balance',smallBlind:5,bigBlind:10}}));
   await page.addInitScript(()=>{
     const Base=window.WebSocket;window.__deployWatch=[];
     window.WebSocket=class extends Base{send(raw){super.send(raw);const m=JSON.parse(raw);if(m.type==='watch')window.__deployWatch.push(m);}};
@@ -812,8 +812,27 @@ test('BUG-105: deploying through the casino puts the new game on the stage',asyn
   await page.getByRole('button',{name:'The floor, 5/10 — 118 seated',exact:true}).click();
   await expect(page.locator('.dtb')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>window.__deployWatch.some(m=>m.tableId==='tbl-deployed'&&m.agentId==='a1'))).toBe(true);
+  expect(await page.evaluate(()=>window.__deployWatch.find(m=>m.tableId==='tbl-deployed'))).toMatchObject({smallBlind:5,bigBlind:10});
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
   await page.getByRole('button',{name:'Draft another 1 seat left'}).click();
   await expect(page.getByTestId('home-screen')).toBeVisible();await expect(page.locator('.dtb')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+
+test('BUG-107: an agent arriving on an open desktop can continue to the casino',async({page})=>{
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await desk(page,{width:1440,height:900});
+  await rosterRow(page,'Balance').click();
+  await expect(page.getByRole('button',{name:'Carry',exact:true})).toBeVisible();
+  const newborn=agent('newborn-107','New Arrival');
+  await page.route('**/api/agents?**',route=>route.fulfill({json:{agents:[...AGENTS,newborn]}}));
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.getByRole('button',{name:'Deal him in',exact:true}).click();
+  await expect(page.locator('.csn-tray')).toContainText('New Arrival');
+  await page.route('**/api/agents/newborn-107/queue',route=>route.fulfill({json:{tableId:'tbl-newborn',agentId:'newborn-107',agentName:'New Arrival',smallBlind:5,bigBlind:10}}));
+  await page.getByRole('button',{name:'Deal him in',exact:true}).click();
+  await expect(page.locator('.dtb')).toBeVisible();
+  await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
   expect(errors).toEqual([]);
 });
