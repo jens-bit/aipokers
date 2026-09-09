@@ -1,5 +1,9 @@
 # DESIGN GAP — what the design says, what the app does, what is left
 
+## Design completion — 2026-09-09, batch 24
+
+The populated desktop floor now has one 54px header: current room and counts, Floor/Board, account/result and Home return. Its former second heading row is gone (BUG-104). Context renders from CasinoScreen's live state into the shell, so selecting rooms and toggling does not duplicate that state. The room fits the recovered height. The actual desktop frame and design-batch24-casino-1280.png were inspected. All 27 desktop browser cases and both refreshed welcome widths pass; phone headers/Watch layout remain unchanged. The permanent board remains 380px, and actual data replaces authored sample occupants and results. Desktop human seating, generic table navigation and remaining inventory work are not certified by this header fix.
+
 ## Design completion — 2026-09-09, batch 23
 
 BUG-103 is resolved: the casino plan measures when live tables arrive and fits DkFloorStage's 390×470 coordinate space into both desktop axes. The former 520px cap is gone; short windows keep all six felt centers and the bar visible. The existing 380px permanent board is retained. Phone plans now measure late content to their actual inner width. Reviewed pairs: client/e2e/shots/design-batch23-casino-{390,1280}.png. The phone marketing fixture now reports the real viewport, so its composer is no longer cropped; both captures have geometry guards.

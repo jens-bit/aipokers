@@ -608,3 +608,26 @@ describe('BUGS-C job 12: the floor first', () => {
     expect(view.dataset.room).toBe('upstairs');
   });
 });
+
+
+it('BUG-104: room context and Floor/Board controls share the desktop header', async () => {
+  telegram.signIn();
+  routeFloor({felts:[felt()]});
+  const header=document.createElement('header');document.body.appendChild(header);
+  const view=renderCasino({desktop:true,shellHeader:true,headerTarget:header});
+  try {
+    await screen.findByTestId('floor-view');
+    expect(await within(header).findByRole('heading',{name:'the floor',exact:true})).toBeVisible();
+    expect(view.container.querySelector('.csn-floor__head')).toBeNull();
+    expect(screen.getAllByTestId('casino-view-toggle')).toHaveLength(1);
+    await userEvent.click(within(header).getByRole('button',{name:'Board',exact:true}));
+    expect(within(header).getByRole('heading',{name:'The casino',exact:true})).toBeVisible();
+    expect(screen.queryByTestId('floor-view')).toBeNull();
+    await userEvent.click(door('upstairs'));
+    expect(within(header).getByRole('heading',{name:'upstairs',exact:true})).toBeVisible();
+    await userEvent.click(within(header).getByRole('button',{name:'Board',exact:true}));
+    await userEvent.click(within(header).getByRole('button',{name:'Floor',exact:true}));
+    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room','upstairs');
+    view.unmount();expect(header).toBeEmptyDOMElement();
+  } finally { view.unmount(); header.remove(); }
+});

@@ -1,8 +1,8 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
-### BUG-104 — desktop casino Floor still repeats the shell header — OPEN
-The populated batch23 screenshot shows The casino and its Home return in the 54px shell, then another room title and THE CASINO return in FloorView. Board's duplicate heading was removed in batch19; the early floorView return still bypasses that shellHeader handling. The approved desktop floor has one top row. Consolidate real room context and Floor/Board controls into the existing shell without losing room selection or return actions.
+### BUG-104 — desktop casino Floor repeats the shell header — FIXED on design branch
+CasinoScreen now renders its actual room title, counts and Floor/Board control into the existing 54px desktop header. The floor's second heading/return row is absent, Board retains the same control, and returning to Floor preserves its selected room. The shell's Home return stays available; a placement can still be cancelled. A red unit test confirmed the missing shared context; 83 targeted tests and all 27 desktop browser cases pass after the repair. The new header context assertion intentionally replaces the old generic The casino assertion on Floor. Reference/actual pair: client/e2e/shots/design-batch24-casino-1280.png. Phone headers are unchanged.
 
 ### BUG-99 — desktop kitchen table exposes neither Watch nor Sit — OPEN
 The marketing capture opened the desktop table panel but found no home-table-sit. DeskHome passes only slots/seated/onDraft to TableSheet, while the phone passes onWatch/onSit from its running home game. App routes every desktop state through DesktopHome before its phone-only seated branch. This needs actual desktop action wiring and a verified human stage, not a button opening an unseen socket. The welcome seating example is explicitly the phone experience.

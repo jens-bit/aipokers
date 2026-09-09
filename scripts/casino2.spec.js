@@ -309,11 +309,11 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
 
         await shot(page, `${shell}-casino2-room`);
 
-        // And back out the way you came in.
-        // BUG-59: Home is a direct exit; Floor/Board switches the casino view.
-        // The desktop still has its own room-to-building back control.
-        if (desktop) await page.getByRole('button', { name: 'Back to the casino' }).click();
-        else await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
+        // BUG-104: both sizes return through Floor/Board. Desktop now keeps
+        // that same control in the sole shell header; the duplicate back row
+        // is gone. The destination assertions below are unchanged.
+        if (desktop) await expect(page.locator('header.dsk-top').getByTestId('casino-view-toggle')).toBeVisible();
+        await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
         await expect(page.getByTestId('floor-view')).toHaveCount(0);
         await expect(page.locator('.csn-room-door')).toHaveCount(3);
       });

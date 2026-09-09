@@ -48,6 +48,7 @@ export function DesktopHome({
 }) {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [casinoHeaderHost, setCasinoHeaderHost] = useState(null);
 
   // One draft per agent (plus the idle panel's own). Lifted above the panels
   // so a half-typed message survives switching agents — the panel remounts,
@@ -200,6 +201,7 @@ export function DesktopHome({
 
   const topBar = (
     <DesktopTopBar
+      roomPortalRef={!homeStage && !deskTableId && !replay ? setCasinoHeaderHost : null}
       room={!deskTableId && !replay ? { title: homeStage ? 'The flat' : 'The casino', subtitle: desktopRoomSummary(agents, loading) } : null}
       onHome={!homeStage ? () => { onCancelDeploy?.(); setStage('floor'); } : null}
       liveCount={liveCount}
@@ -356,6 +358,7 @@ export function DesktopHome({
             <CasinoScreen
               desktop
               shellHeader
+              headerTarget={casinoHeaderHost}
               wsUrl={wsUrl}
               deployAgent={deployAgent}
               onDeployed={onDeployed}

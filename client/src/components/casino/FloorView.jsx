@@ -219,6 +219,7 @@ export function FloorView({
   // caller (CasinoScreen.jsx owns which view is current) so this file never
   // has to know about the toggle's own state.
   toggle = null,
+  headerOwned = false,
 }) {
   // The phone still drags to dismiss: the gesture is how you leave a room in
   // this app and it predates this screen. The desk does not — there is nowhere
@@ -277,7 +278,7 @@ export function FloorView({
       style={desktop ? undefined : drag.style}
       {...(desktop ? {} : drag.handlers)}
     >
-      <div className="csn-floor__head">
+      {!headerOwned && <div className="csn-floor__head">
         <button type="button" className="csn-floor__back" onClick={onHome || onClose} aria-label={onHome ? 'Back home' : 'Back to the casino'}>
           {onHome ? '← HOME' : '← THE CASINO'}
         </button>
@@ -292,7 +293,7 @@ export function FloorView({
         </div>
         {toggle}
         {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
-      </div>
+      </div>}
 
       <div className="csn-floor__body">
         <div className="csn-floor__room">

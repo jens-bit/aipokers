@@ -23,7 +23,7 @@ export function desktopRoomSummary(agents, loading = false) {
   return [home + ' home', casino ? casino + ' at the casino' : null, visiting ? visiting + ' visiting' : null].filter(Boolean).join(' · ');
 }
 
-export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel, stage = null, onStage = null, room = null, onHome = null }) {
+export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel, stage = null, onStage = null, room = null, onHome = null, roomPortalRef = null }) {
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
 
   useEffect(() => {
@@ -48,8 +48,8 @@ export function DesktopTopBar({ liveCount, standupLine, net, flagged, onStandup,
   if (room) return <header className="dsk-top dsk-top--room">
     {onHome && <button type="button" className="dsk-top__home" aria-label="Back home" onClick={onHome}>‹</button>}
     <LogoMark/>
-    <div className="dsk-top__room"><h1>{room.title}</h1><p>{room.subtitle}</p></div>
-    <div className="dsk-top__spacer"/>
+    <div className="dsk-top__portal" ref={roomPortalRef} hidden={!roomPortalRef}/>
+    {!roomPortalRef && <><div className="dsk-top__room"><h1>{room.title}</h1><p>{room.subtitle}</p></div><div className="dsk-top__spacer"/></>}
     <button type="button" className="dsk-top__result" aria-label="Standup — all-time result" onClick={onStandup} disabled={!onStandup}>
       <span>All time</span><strong className={net?.startsWith('−') ? 'is-loss' : ''}>{net ?? '—'}</strong>
     </button>

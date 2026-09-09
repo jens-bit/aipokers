@@ -30,6 +30,7 @@
 // — three live sources joined into one room list, and the two things an owner
 // can do here.
 
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -181,6 +182,7 @@ export function CasinoScreen({
   onSend = null,
   desktop = false,
   shellHeader = false,
+  headerTarget = null,
 }) {
   const [agents, setAgents] = useState([]);
   const [wallet, setWallet] = useState(null);
@@ -584,9 +586,22 @@ export function CasinoScreen({
   // "← THE CASINO" is now the board side of the same toggle rather than a
   // one-way exit — openRoomId is left alone so flipping back to Floor returns
   // to the room he was just looking at, not the default one.
+  // The shell owns one header row. Render the live room context and controls
+  // into that row without copying local room/view state into its parent.
+  const roomOnStage = view === 'floor' && openRoom && !trayAgent ? openRoom : null;
+  const headerPortal = desktop && headerTarget ? createPortal(<>
+    <div className="dsk-top__room">
+      <h1>{roomOnStage?.name ?? 'The casino'}</h1>
+      <p>{roomOnStage ? roomOnStage.stakes.label + ' · ' + count(roomOnStage.seated) + ' in · ' + count(roomOnStage.tables) + ' tables' : sub}</p>
+    </div>
+    {!trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView}/>}
+    {trayAgent && <button type="button" className="dsk-btn dsk-btn--ghost" aria-label="Stop placing him" onClick={onCancelDeploy}>Not now</button>}
+  </>, headerTarget) : null;
+
   const floorView = view === 'floor' && openRoom && !trayAgent ? (
     <FloorView
       room={openRoom}
+      headerOwned={!!headerPortal}
       onHome={desktop ? null : onBack}
       onOpenRoster={desktop ? null : onOpenRoster}
       desktop={desktop}
@@ -635,6 +650,7 @@ export function CasinoScreen({
         className={`csn${desktop ? ' csn--desk-room' : ' csn--phone'}`}
         style={{ flex: 1, minHeight: 0, position: 'relative', display:'flex', flexDirection:'column', overflow: 'hidden', background: M_BG }}
       >
+        {headerPortal}
         {floorView}
         {conversation}
       </div>
@@ -653,9 +669,10 @@ export function CasinoScreen({
     // panel here, the way the room's thread is on HOME.
     return (
       <div className="csn csn--desk" style={{ background: M_BG }}>
+        {headerPortal}
         <div className="csn-desk__stage">
-          {!shellHeader && head}
-          {!trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView} />}
+          {!shellHeader && !headerPortal && head}
+          {!headerPortal && !trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView} />}
           {roomsColumn}
           {tray}
         </div>

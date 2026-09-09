@@ -612,7 +612,11 @@ test('C9 room header and door give one route between Home and casino',async({pag
   await expect(header.getByRole('heading',{name:'The flat'})).toBeVisible();
   await expect(page.getByRole('group',{name:'Stage'})).toHaveCount(0);
   await page.getByRole('button',{name:'The door — the casino',exact:true}).click();
-  await expect(header.getByRole('heading',{name:'The casino'})).toBeVisible();
+  // BUG-104: selected room context replaces the duplicated casino/floor rows.
+  await expect(header.getByRole('heading',{name:'Upstairs',exact:true})).toBeVisible();
+  await expect(page.locator('.csn-floor__head')).toHaveCount(0);
+  await expect(header.getByTestId('casino-view-toggle')).toBeVisible();
+  await expect(page.getByRole('heading',{level:1})).toHaveCount(1);
   await page.getByRole('button',{name:'Board',exact:true}).click();
   await expect(page.locator('.csn-head')).toHaveCount(0);
   await expect(page.locator('.csn-desk__stage')).toBeVisible();
