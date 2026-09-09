@@ -703,7 +703,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-        body: JSON.stringify({ userId, content: text, ...(isEdit ? { agentId: agent.id } : {}),
+        body: JSON.stringify({ userId, content: text, ...(isEdit ? { existingAgentId: agent.id } : {}),
           ...(modernDraft ? { draftId: sessionRef.current.draftId, draftIntent: intent,
             ...(intent === 'create' ? { attemptId: sessionRef.current.attemptId } : {}) } : {}),
         }),

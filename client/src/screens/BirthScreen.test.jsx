@@ -66,6 +66,28 @@ describe('BirthScreen', () => {
     expect(post.headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
   });
 
+  it('BUG-159: an existing agent conversation never becomes a creation draft', async () => {
+    const user = userEvent.setup();
+    const onBirth = vi.fn();
+    fetchMock.route('/api/agents/chat', req => {
+      // Match the actual server target contract. A missing target otherwise
+      // routes this message to creation, even though the screen names Granite.
+      return req.body.existingAgentId === 'edit-granite'
+        ? { chat: [{ role: 'assistant', content: 'I can be more patient.' }] }
+        : { chat: [{ role: 'assistant', content: 'What should we call him?' }], ready: true };
+    }, { method: 'POST' });
+    render(<BirthScreen agent={{ id: 'edit-granite', name: 'Granite', strategy: 'Patient.' }} onBack={() => {}} onBirth={onBirth} />);
+    await user.type(screen.getByPlaceholderText('Message Granite…'), 'Be more patient.');
+    await user.click(send());
+    expect(await screen.findByText('I can be more patient.')).toBeInTheDocument();
+    expect(screen.queryByText('What should we call him?')).toBeNull();
+    const [post] = fetchMock.requestsMatching('/api/agents/chat');
+    expect(post.body).toMatchObject({ existingAgentId: 'edit-granite', content: 'Be more patient.' });
+    expect(post.headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
+    expect(fetchMock.requestsMatching('/api/agents/draft')).toHaveLength(0);
+    expect(onBirth).not.toHaveBeenCalled();
+  });
+
   it('hands the finished agent back through onBirth when the server says it is born', async () => {
     const user = userEvent.setup();
     const onBirth = vi.fn();
