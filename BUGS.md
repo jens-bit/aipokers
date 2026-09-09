@@ -1,5 +1,5 @@
 # Bug Report — Railbird
-Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
+Last updated: 2026-09-10 (Railbird design completion); statuses and evidence below.
 Named BUG headings: 151, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
 
 ### BUG-145 — drafts reuse conversations, hide naming and permit uncertain duplicate creation — FIXED locally, combined gates passed
@@ -33,11 +33,13 @@ P1. Real signed-owner scratch probe: owner9002 requested owner9001's public agen
 ### BUG-157 — existing household briefly renders as empty while its roster loads — OPEN
 P3. In the fresh built four-agent observation, Home at0.4s said “Your room · his story starts here” and “Nobody is home”; at0.6s the actual roster correctly showed one at the casino and three home. The first-paint placeholder asserts an empty household before its read completes. Reproduce with a delayed initial owner-roster response, preserve actual new-owner empty design and avoid presenting a false first-agent action to returning owners. Evidence: artifacts/batch45-playtest-household-b/household.json first two snapshots.
 
-### BUG-158 — Home fallback opener asks for a seat while its agent is already playing — OPEN
+### BUG-158 — Home fallback opener asks for a seat while its agent is already playing — FIXED locally on integration branch
 P2. At120s of the built four-agent playtest Wild Card was visibly in the Home game and requested beer, but the room's bottom line showed his generic nature opener, “Deal me in. I am not here to wait around.” The claim conflicts with the actual location. Keep the authored nature voice while choosing truthful Home context; no extra model call. Evidence: artifacts/batch45-playtest-household-b/household-at-120.png and.json. This is separate from model-dialogue quality and the rest acknowledgement repaired in BUG-142.
 
-### BUG-159 — existing-agent edit chat sends the creation route the wrong target field — OPEN
-Read-only integration review: BirthScreen's edit path sends agentId, while POST /api/agents/chat reads existingAgentId. This predates batch45; an edit can therefore enter drafting instead of talking to the intended existing agent. Reproduce through the actual edit entry with an authenticated owner and confirm no new draft/agent/grant is created. Fix the client/server contract without relaxing ownership checks.
+Repair7ceab7c: Home hands deliberately do not count toward casino career stats, so a seated character can still take the zero-career opener path. The server now uses its actual kitchen-seat witness for eight distinct seated greetings; stored flags cannot invent a seat. Actual recap/thread priority and owner-only voice remain. Red/green server regression,50 adjacent server checks and118/2323/7 combined root gates pass. A fresh built390×844 synthetic Home shows Wild Card in the hand, one beer request, and “This hand first. Then we make something happen.” Actual thread open/close taps pass. Evidence: artifacts/bug158-built-browser.json and bug158-home-seated.png. No new model call, navigation or visual-parity claim; main/deploy integration is separate.
+
+### BUG-159 — latent BirthScreen edit mode sends the creation route the wrong target field — FIXED in working branch, integration gates pending
+Read-only integration review: BirthScreen's edit mode sends agentId, while POST /api/agents/chat reads existingAgentId. This predates batch45. Current App renders BirthScreen only for creation; the reachable profile chat already uses the companion conversation. The latent component contract could enter drafting if its edit mode were used. A red component regression reproduced the wrong name question; the one-field repair targets the existing-agent conversation, retains authentication, and issues no draft/create request.33 focused client checks pass. No new edit entry was added and this is not claimed as a changed current navigation flow.
 
 ### BUG-150 — sent visit links lose their destination and sharing can silently blink — OPEN
 P1 bridge/P2 feedback. Current helper emits bot-chat ?start=visit_ID, but fake /start visit_ID returned a generic OPEN RAILBIRD mini-app button without the visit payload. Native-share failures are treated as success; More closes before async preparation and clipboard copies a bare URL. Repair the existing link bridge and feedback/text without inventing a new visit lobby. Probe and exact source paths are in artifacts/batch46-visit-plan.md.
@@ -426,6 +428,8 @@ Global button/input minimum heights overrode the 26px send and compact line. Bro
 **Found by:** the WATCH report, on the hero stack.
 **Partly fixed:** WATCH-10 job 4 closed the whole of the WATCH FELT — the hero's pile, every opponent's pile, the pot, to-call, the bet spots, the read sheet and the session ceremony, on both the phone felt and SIT-1's. The answer to the question the entry asked is that the felt does want the mark in most places and not beside a chip that is already the currency, so `lib/wallet.js` now exports `group()` — `money()` without the dollar — rather than letting a call site opt out of the rule. Asserted in `client/src/components/watch10.test.jsx` ("BUG-37").
 **Still open:** the DESKTOP stage and tile, the casino floor chip, and `PlayerSeat.jsx` (the pre-v5 felt). Same fix: `money()` where the mark belongs, `group()` where it does not.
+
+**10 September follow-up,5a023ff:** the full root gate exposed a remaining session delta using lib/deltas.js's device formatter: “−$1 000” beside the canonical wallet grouping. A deterministic Swedish-locale red now covers that helper; it delegates to the shared wallet formatter, retaining signed zero and unknown-null behavior. The older test expecting device grouping is explicitly replaced with the established comma rule.119 focused checks and the full118/2323/7 gate pass. The unrelated desktop/floor sites listed above remain open.
 
 ---
 
