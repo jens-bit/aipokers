@@ -39,6 +39,7 @@ export function HomeFlat({
   tvScreen = null,
   // BUGS-C job 4 · is there a show on, right now, worth lighting the sign for?
   signLive = false,
+  doorOpen = false,
   balance = null,
   geometry = PHONE_ROOM,
 }) {
@@ -50,7 +51,7 @@ export function HomeFlat({
     height: FLAT.table.ry * 2,
   };
   return (
-    <div className="home-flat" style={{ width: F_W, height: F_H }} data-lit={lit ? 'true' : 'false'} data-layout={F_W === 560 ? 'desktop' : 'phone'}>
+    <div className="home-flat" style={{ width: F_W, height: F_H }} data-door-open={doorOpen ? 'true' : 'false'} data-lit={lit ? 'true' : 'false'} data-layout={F_W === 560 ? 'desktop' : 'phone'}>
       {/* floorboards, running away from the viewer */}
       <div className="home-flat__boards" aria-hidden>
         {Array.from({ length: Math.ceil((F_H - geometry.boardsTop) / 42) }).map((_, i) => <span key={i} style={{ top: geometry.boardsTop + i * 42 }} />)}

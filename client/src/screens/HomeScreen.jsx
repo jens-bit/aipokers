@@ -43,7 +43,7 @@
 //     the room dims instead of being covered (P16) — so `desktop` reports which
 //     fixture was touched and renders neither sheet itself.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useHomeState } from '../hooks/useHomeState.js';
 import { useTable } from '../hooks/useTable.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
@@ -70,10 +70,9 @@ import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
 import '../styles/home1.css';
 
-// A crossing, not a cut. The ref times the walk out at 1.8s and the walk home at
-// 1.6s; one duration serves both, because what the class is for is the transit
-// and the room does not care which door he used.
+// Later mood-home2 WALKS: departure 2.2s, homecoming 1.9s; an ordinary room crossing stays 1.6s.
 export const WALK_MS = 1600;
+export const CROSSING_MS = { room: WALK_MS, out: 2200, home: 1900 };
 
 // How long the money line rides above a returning agent. The ref: "the session
 // result rides above him and lands with him, once."
@@ -201,40 +200,40 @@ export function fitScale(width, height) {
  * an animation is not observable and a class transition is.
  */
 export function useWalks(positions) {
-  const [walking, setWalking] = useState(() => new Set());
+  const [walking, setWalking] = useState(() => new Map());
   const prevRef = useRef(new Map());
   const timersRef = useRef(new Map());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const prev = prevRef.current;
     const moved = [];
     for (const [id, at] of positions) {
       const was = prev.get(id);
       // First sight is not a walk: an agent who was already on the couch when
       // the screen mounted did not just cross the room to get there.
-      if (was && was !== at.spot) moved.push(id);
+      if (was && was !== at.spot) moved.push([id, at.spot === 'door:away' ? 'out' : was === 'door:away' ? 'home' : 'room']);
       prev.set(id, at.spot);
     }
     for (const id of [...prev.keys()]) if (!positions.has(id)) prev.delete(id);
     if (moved.length === 0) return;
 
     setWalking((s) => {
-      const next = new Set(s);
-      moved.forEach((id) => next.add(id));
+      const next = new Map(s);
+      moved.forEach(([id, kind]) => next.set(id, kind));
       return next;
     });
-    moved.forEach((id) => {
+    moved.forEach(([id, kind]) => {
       const timers = timersRef.current;
       if (timers.has(id)) clearTimeout(timers.get(id));
       timers.set(id, setTimeout(() => {
         timers.delete(id);
         setWalking((s) => {
           if (!s.has(id)) return s;
-          const next = new Set(s);
+          const next = new Map(s);
           next.delete(id);
           return next;
         });
-      }, WALK_MS));
+      }, globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : CROSSING_MS[kind]));
     });
   }, [positions]);
 
@@ -505,7 +504,7 @@ export function HomeScreen({
       // sentence over his head obscured the home game (Jens's playtest).
       // While asking, do not replace that duplicate with an old recap.
       const line = agent.want ? null
-        : landed ? { text: moneyLine(arrival), gold: false }
+        : landed ? null // The compact return result is independent of speech placement.
         : agent.unseenRecap ? { text: agent.sessionRecap?.text, gold: true }
         : (isStudying && tag) ? { text: tag, gold: false }
         : null;
@@ -659,8 +658,10 @@ export function HomeScreen({
   // never lose sight of where the money is.
   const dimmed = desktop && rail !== 'thread' && rail !== 'agent' && rail !== 'draft';
 
+  const visibleAway = away.filter(agent => walking.get(String(agent.id)) !== 'out');
   const flat = (
     <HomeFlat
+      doorOpen={[...walking.values()].some(kind => kind === 'out' || kind === 'home')}
       geometry={geometry}
       lit={lit}
       balance={roomWallet?.balance ?? null}
@@ -710,9 +711,9 @@ export function HomeScreen({
     >
       <AwayWall
         geometry={geometry}
-        away={away}
+        away={visibleAway}
         accentFor={(a) => accentFor(a, agents.indexOf(a))}
-        hooks={Math.max(0, AGENT_CAP - (desktop ? away.length : agents.length))}
+        hooks={Math.max(0, AGENT_CAP - (desktop ? visibleAway.length : agents.length))}
         onWatch={onWatch}
         onOpenAgent={onProfile}
       />
@@ -745,10 +746,12 @@ export function HomeScreen({
         </div>
       ) : null}
 
-      {home.map((agent) => {
+      {/* Keep away bodies mounted invisibly at the door so CSS can cross the same body out and back. */}
+      {agents.map((agent) => {
         const at = positions.get(String(agent.id));
         if (!at) return null;
         const id = String(agent.id);
+        const isAway = (agent.location?.where ?? 'home') !== 'home';
         const seated = at.seat !== null && at.seat !== undefined;
         const size = seated ? geometry.seatedSize : geometry.bodySize;
         const held = carry?.id === id ? carry : null;
@@ -778,13 +781,16 @@ export function HomeScreen({
             identity={identities.get(id) ?? null}
             accent={accentFor(agent, agents.indexOf(agent))}
             size={size}
-            dealt={seated && !held}
+            dealt={seated && !held && !walking.has(id)}
             walking={walking.has(id)}
+            crossing={walking.get(id) ?? null}
+            away={isAway}
+            returnLine={!isAway && arrival?.agentId === id ? moneyLine(arrival) : null}
             carried={held}
             carryHandlers={desktop ? undefined : bindCarry(id, { size })}
             // The queue's answer, or nothing — and the pill still says he has
             // news while his turn is coming.
-            bubble={bubble}
+            bubble={isAway ? null : bubble}
             news={!!(agent.want || agent.unseenRecap)}
             // VISIT-1: he is not one of yours — there is no thread of his to
             // open from here, so the tap that opens every other body's does

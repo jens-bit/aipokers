@@ -158,6 +158,7 @@ async function stub(page, cast) {
     class ScriptedSocket {
       constructor(url) {
         this.url = url;
+        (window.__homeSockets ??= []).push(this);
         this.readyState = 0;
         this.listeners = { open: [], message: [], close: [], error: [] };
         setTimeout(() => {
@@ -583,4 +584,57 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
     await expect(page.getByTestId('home-says-a1')).toContainText('GRANITE');
     await page.screenshot({ path: `e2e/__screenshots__/home-${CASTS.tape.name}.png` });
   });
+});
+
+// BUG-117: observe actual transitions in the running room, not only a walking class.
+for(const viewport of [{width:390,height:844},{width:390,height:590},{width:1440,height:900}])test('BUG-117 crossing out and home at '+viewport.width+'x'+viewport.height,async({page})=>{
+ const home=agent('cross117','Granite',{routine:{key:'plays',label:'in a hand'}});
+ const other=agent('other117','Bal');
+ const game={state:'running',tableId:'home-4242',seats:[{seat:0,agentId:home.id,name:home.name},{seat:1,agentId:other.id,name:other.name}],handsPlayed:7};
+ await page.route('**/api/slots?**',route=>route.fulfill({json:{slots:4,canAdd:false}}));
+ await room(page,{agents:[home,other],game},viewport);
+ const body=page.locator('.home-one[data-agent="cross117"]');
+ const pose=()=>body.evaluate(el=>{const s=getComputedStyle(el);return {x:parseFloat(s.left),y:parseFloat(s.top),opacity:Number(s.opacity),duration:s.transitionDuration};});
+ const start=await pose();await body.evaluate(el=>el.dataset.sameBody='yes');
+ const away={...home,location:loc('table',{tableId:'t117'}),activeTableId:'t117',routine:null};
+ const push=(agents,game=null)=>page.evaluate(({agents,game})=>{for(const sock of window.__homeSockets??[])sock.dispatch('message',{data:JSON.stringify({type:'home_state',userId:'4242',agents,game})});},{agents,game});
+ await push([away,other],game);await expect(body).toHaveAttribute('data-crossing','out');await expect(body).toBeDisabled();
+ await expect(body.locator('.home-prop')).toHaveCount(0);
+ await expect(page.locator('.home-flat')).toHaveAttribute('data-door-open','true');
+ await expect(page.getByTestId('home-frame-cross117')).toHaveCount(0);
+ expect((await pose()).duration.split(',')[0].trim()).toBe('2.2s');
+ await page.waitForTimeout(240);const first=await pose();expect(first.opacity).toBeGreaterThan(.9);
+ await page.screenshot({path:'../artifacts/cross33-'+viewport.width+'-'+viewport.height+'-out-1.png'});
+ await page.waitForTimeout(680);const middle=await pose();
+ const goal=await body.evaluate(el=>({x:parseFloat(el.style.left),y:parseFloat(el.style.top)}));
+ expect(Math.hypot(middle.x-start.x,middle.y-start.y)).toBeGreaterThan(8);
+ expect(Math.hypot(middle.x-goal.x,middle.y-goal.y)).toBeGreaterThan(1);
+ await page.screenshot({path:'../artifacts/cross33-'+viewport.width+'-'+viewport.height+'-out-2.png'});
+ await page.waitForTimeout(900);
+ await page.screenshot({path:'../artifacts/cross33-'+viewport.width+'-'+viewport.height+'-out-3.png'});
+ await expect.poll(async()=> (await pose()).opacity).toBe(0);
+ await expect(body).toHaveAttribute('data-same-body','yes');
+ await expect(page.getByTestId('home-frame-cross117')).toBeVisible();
+ await page.evaluate(()=>{for(const sock of window.__homeSockets??[])sock.dispatch('message',{data:JSON.stringify({type:'session_end',agentId:'cross117',tableId:'t117',hands:41,net:2740,reason:'stopped'})});});
+ await push([home,other],game);await expect(body).toHaveAttribute('data-crossing','home');
+ await expect(page.getByTestId('home-says-cross117')).toContainText('+$2,740');
+ await expect(body.locator('.home-one__cards')).toHaveCount(0);expect((await pose()).duration.split(',')[0].trim()).toBe('1.9s');
+ await page.waitForTimeout(180);const arriving=await pose();expect(Math.hypot(arriving.x-start.x,arriving.y-start.y)).toBeGreaterThan(5);
+ await page.screenshot({path:'../artifacts/cross33-'+viewport.width+'-'+viewport.height+'-home-1.png'});
+ await page.waitForTimeout(650);await page.screenshot({path:'../artifacts/cross33-'+viewport.width+'-'+viewport.height+'-home-2.png'});
+ await expect(body).toHaveAttribute('data-walking','false');
+ await expect(body.locator('.home-one__cards')).toHaveCount(1);
+ await expect.poll(async()=>Math.hypot((await pose()).x-start.x,(await pose()).y-start.y)).toBeLessThan(1);
+ await expect(body).toHaveAttribute('data-same-body','yes');await expect(body).not.toBeDisabled();
+ await page.screenshot({path:'../artifacts/cross33-'+viewport.width+'-'+viewport.height+'-home-3.png'});
+});
+
+test('BUG-117 reduced motion and an initially away body do not animate or intercept the room',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const home=agent('quiet117','Granite');const away={...home,location:loc('table',{tableId:'quiet-table'}),activeTableId:'quiet-table',routine:null};
+ await room(page,{agents:[away],game:null});const body=page.locator('.home-one[data-agent="quiet117"]');
+ await expect(body).toHaveCSS('opacity','0');await expect(body).toHaveAttribute('data-walking','false');await expect(body).toBeDisabled();
+ const push=agents=>page.evaluate(agents=>{for(const sock of window.__homeSockets??[])sock.dispatch('message',{data:JSON.stringify({type:'home_state',userId:'4242',agents,game:null})});},agents);
+ await push([home]);await expect(body).toHaveCSS('opacity','1');expect(await body.evaluate(el=>el.getAnimations().length)).toBe(0);
+ await push([away]);await expect(body).toHaveCSS('opacity','0');expect(await body.evaluate(el=>el.getAnimations().length)).toBe(0);
 });

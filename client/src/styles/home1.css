@@ -507,9 +507,40 @@ button.home-flat__table:active { filter: brightness(1.12); }
   cursor: pointer;
   /* THE WALK. Every position change is a crossing, and this is the whole of it:
    * the left/top the room computed, transitioned rather than jumped. */
-  transition: left 1.6s cubic-bezier(0.4, 0, 0.25, 1), top 1.6s cubic-bezier(0.4, 0, 0.25, 1);
+  opacity: 1;
+  transition: left var(--crossing-ms, 1.6s) cubic-bezier(0.4, 0, 0.25, 1), top var(--crossing-ms, 1.6s) cubic-bezier(0.4, 0, 0.25, 1), opacity .35s ease, transform .4s ease;
 }
-.home-one.is-walking { z-index: 900 !important; }
+/* The body stays at the doorway while away, but cannot intercept taps or focus.
+ * On departure he crosses first and recedes through the doorway in the final beat. */
+.home-one.is-away {
+  animation: none;
+  --crossing-ms: 2.2s;
+  opacity: 0;
+  transform: translate(-50%, -100%) scale(.72);
+  pointer-events: none;
+  transition: left 2.2s cubic-bezier(.4,0,.25,1), top 2.2s cubic-bezier(.4,0,.25,1), opacity .4s ease 1.8s, transform .4s ease 1.8s;
+}
+.home-one.is-coming-home { --crossing-ms: 1.9s; }
+.home-flat[data-door-open="true"] .home-flat__door-light {
+  background: linear-gradient(90deg, rgba(205,179,128,.05), rgba(205,179,128,.3));
+  box-shadow: -12px 0 24px rgba(205,179,128,.12);
+}
+.home-return-result {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border: 1px solid rgba(0,212,170,.3);
+  border-radius: 4px;
+  background: rgba(9,20,17,.9);
+  color: #00D4AA;
+  font: 600 10px var(--font-label, 'Oswald', sans-serif);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.home-return-result.is-loss { color: #FF4D4F; border-color: rgba(255,77,79,.3); }
+.home-one.is-walking { z-index: 900 !important; animation: none; }
 .home-one.is-walking .home-one__body { animation: home-walkbob 0.5s ease-in-out infinite; }
 
 /* ── HOME-2 job 5 · in the owner's hand ────────────────────────────────────

@@ -67,6 +67,7 @@ export function useHomeState({
   // The most recent homecoming, or null. Cleared by the room once it has walked
   // him in — see ARRIVAL_MS in HomeScreen.
   const [arrival, setArrival] = useState(null);
+  const clearArrival = useCallback(() => setArrival(null), []);
   // VISIT-1: the one knock at the door waiting on an answer, or null. Rides
   // HOME_STATE exactly like `game` — server-owned, no local clearing needed:
   // it is null again the moment the server has an answer on record.
@@ -258,7 +259,7 @@ export function useHomeState({
     ...homeViewFrom(agents, game),
     loaded,
     status, refresh, setAgents, clearWant,
-    arrival, clearArrival: () => setArrival(null),
+    arrival, clearArrival,
     visitor,
     ownerLines,
   };

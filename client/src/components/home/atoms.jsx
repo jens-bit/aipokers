@@ -158,6 +158,9 @@ export function HomeOne({
   news = false,
   dealt = false,
   walking = false,
+  crossing = null,
+  away = false,
+  returnLine = null,
   // HOME-2 job 5 · he is off the floor, in the owner's hand. `carried` is
   // { x, y, over } in room coordinates; the body follows the finger instead of
   // his own spot, and `over` is what dropping him there would mean.
@@ -169,7 +172,7 @@ export function HomeOne({
   const mood = agent?.mood?.state ?? 'neutral';
   const heat = agent?.mood?.heat ?? 45;
   const fatigue = fatigueOf(agent);
-  const pose = dealt ? 'hold' : r.pose;
+  const pose = walking ? 'rest' : dealt ? 'hold' : r.pose;
   // His colour is his, not his mood's. Everything his name pill and his body
   // are tinted with comes from here.
   const glow = identity?.glow?.c ?? accent;
@@ -177,11 +180,15 @@ export function HomeOne({
   return (
     <button
       type="button"
-      className={`home-one${walking ? ' is-walking' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
+      className={`home-one${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
       data-agent={agent?.id}
       data-routine={r.key}
       data-spot={at?.spot}
       data-walking={walking ? 'true' : 'false'}
+      data-crossing={crossing}
+      aria-hidden={away ? 'true' : undefined}
+      disabled={away}
+      tabIndex={away ? -1 : undefined}
       data-carried={carried ? 'true' : 'false'}
       data-over={carried?.over ?? null}
       // Carried, he is where the FINGER is, and above everything: a man in your
@@ -191,10 +198,11 @@ export function HomeOne({
       style={carried
         ? { left: carried.x, top: carried.y, zIndex: 950 }
         : { left: at.x, top: at.y, zIndex: Math.round(at.y) }}
-      onClick={onClick}
+      onClick={away ? undefined : onClick}
       aria-label={`${agent?.name ?? 'Agent'} — ${r.label}`}
-      {...(carryHandlers ?? {})}
+      {...(!away ? carryHandlers ?? {} : {})}
     >
+      {returnLine ? <span className={`home-return-result${returnLine.startsWith('−') ? ' is-loss' : ''}`} data-testid={`home-says-${agent?.id}`}>{returnLine}</span> : null}
       {bubble ? (
         <HomeBubble
           text={bubble.text}
@@ -248,7 +256,7 @@ export function HomeOne({
         ) : null}
 
         {!r.back ? <GhostHandLayer className="home-one__hands" pose={pose} size={size} grip={SEAT_GRIP} /> : null}
-        {r.prop ? <RoutineProp kind={r.prop} size={size} /> : null}
+        {!walking && r.prop ? <RoutineProp kind={r.prop} size={size} /> : null}
       </span>
     </button>
   );

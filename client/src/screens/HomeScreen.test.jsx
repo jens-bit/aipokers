@@ -1186,3 +1186,47 @@ describe('FIX-6 · the room queues what it has to say', () => {
     }
   });
 });
+
+describe('BUG-117: departure and homecoming keep the same rendered body',()=>{
+ it('keeps him mounted on the way out and reuses him from the door on return',async()=>{
+  const home=mkAgent('crossing','Granite',{routine:{key:'reads',label:'reading'}});
+  const {sock}=await boot([home]);const body=await screen.findByRole('button',{name:/Granite —/});
+  const away={...home,location:loc('table',{tableId:'t117'}),activeTableId:'t117',routine:null};
+  sock.emit({type:'home_state',userId:'u1',agents:[away],game:null});
+  await waitFor(()=>expect(body).toHaveAttribute('data-spot','door:away'));
+  expect(document.contains(body)).toBe(true);expect(body).toHaveAttribute('aria-hidden','true');expect(body).toBeDisabled();
+  sock.emit({type:'home_state',userId:'u1',agents:[home],game:null});
+  await waitFor(()=>expect(body).toHaveAttribute('data-crossing','home'));
+  expect(screen.getByRole('button',{name:/Granite —/})).toBe(body);expect(body).not.toBeDisabled();
+ });
+});
+
+it('BUG-117: an away location reaches the door even before the old home seats refresh',async()=>{
+ const one=mkAgent('seat117','Granite'),two=mkAgent('other117','Other');
+ const game={state:'running',tableId:'home-u1',seats:[{agentId:one.id},{agentId:two.id}]};
+ const {sock}=await boot([one,two],game);
+ const body=await screen.findByRole('button',{name:/Granite —/});
+ sock.emit({type:'home_state',userId:'u1',agents:[{...one,location:loc('table',{tableId:'t117'})},two],game});
+ await waitFor(()=>expect(body).toHaveAttribute('data-spot','door:away'));
+});
+
+it('BUG-118: the session result remains visible when the returning agent joins a home game',async()=>{
+ const one=mkAgent('result118','Granite'),two=mkAgent('other118','Other');
+ const {sock}=await boot([{...one,location:loc('table',{tableId:'t118'})},two]);
+ sock.emit({type:'session_end',agentId:one.id,tableId:'t118',hands:41,net:2740});
+ sock.emit({type:'home_state',userId:'u1',agents:[one,two],game:{state:'running',tableId:'home-u1',seats:[{agentId:one.id},{agentId:two.id}]}});
+ expect(await screen.findByTestId('home-says-result118')).toHaveTextContent('+$2,740');
+});
+
+it('BUG-118: room refreshes do not restart the six-second result label',async()=>{
+ const one=mkAgent('timer118','Granite');const {sock}=await boot([one]);
+ vi.useFakeTimers();
+ try {
+  await act(async()=>{sock.emit({type:'session_end',agentId:one.id,tableId:'t118',hands:41,net:2740});});
+  expect(screen.getByTestId('home-says-timer118')).toBeInTheDocument();
+  act(()=>vi.advanceTimersByTime(3000));
+  await act(async()=>{sock.emit({type:'home_state',userId:'u1',agents:[{...one,mood:{state:'confident',heat:50}}],game:null});});
+  act(()=>vi.advanceTimersByTime(3100));
+  expect(screen.queryByTestId('home-says-timer118')).toBeNull();
+ }finally{vi.useRealTimers();}
+});

@@ -139,6 +139,9 @@ export function homePositions(agents = [], { gameAgentIds = [], geometry = null 
   const seated = gameAgentIds.filter(Boolean).map(String);
   const seats = tableSeats(seated.length, geometry);
   seated.forEach((id, i) => {
+    // Location wins over stale membership, but the other physical chairs do not move.
+    const where = agents.find(agent => String(agent?.id) === id)?.location?.where;
+    if (where && where !== 'home') return;
     const at = seats[i] ?? seats[seats.length - 1];
     out.set(id, { x: at.x, y: at.y, spot: `table:${i}`, seat: i });
   });

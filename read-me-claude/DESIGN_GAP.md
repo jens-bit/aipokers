@@ -1,6 +1,6 @@
 # Railbird — current design gap inventory
 
-Updated 9 September 2026, batch32. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
+Updated 9 September 2026, batch33. Source: supplied Agentic Poker (56).zip, imported design-refs, the current code and inspected browser pairs. Jens's explicit overrides take precedence: keep the kitchen table/home games, preserve the phone Watch composition, cancel the collar, and use Railbird branding.
 
 This replaces the contradictory old inventory that still called implemented boards 41/42 entirely unbuilt. Its original text and all batch1–29 entries are preserved in [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md). Chronological execution evidence remains in [OVERNIGHT_DESIGN_WORK.md](OVERNIGHT_DESIGN_WORK.md).
 
@@ -24,7 +24,7 @@ This replaces the contradictory old inventory that still called implemented boar
 | 27 K3 hot felt | PARTIAL | Live pot/Watch/hot rows and floor glow exist. Need a dedicated hot-frame pair, not just ordinary floor screenshots. |
 | 29 F01 empty Home / F02–F03b draft / F04 arrival | VERIFIED locally with recorded differences | Batches1/3/4/17/27 and their pairs. Four forming stages, no collar. Actual names/rolled appearances replace samples. Birth card currently retains the earlier 96px correction rather than C2's illustrated 64px. |
 | 29 F05 alone / F10 home game / F11 want | VERIFIED local repairs | One contextual header, full phone space, retained table, distinct agent/table taps, one want answer surface and safe table hit target. BUG-55 passes at 390×590 and 390×844. One-agent reference has no active home game; table furniture remains by Jens's override. |
-| 29 F06 departure / F09 return | UNVERIFIED complete animation | Walking code exists; compare the later mood-home2 three departure beats/2.2s and return/1.9s to actual transitions (the older code comments cite 1.8s/1.6s). Do not mark matched from static Home pairs. |
+| 29 F06 departure / F09 return | VERIFIED local crossing with differences | Batch33 preserves the same body through 2.2s departure and 1.9s return; door light, delayed away frame, compact real net and cards on landing. Three viewport journeys and reduced motion pass. Both three-beat pairs inspected. Reference is a schematic strip; actual room/table follows current layout and Jens’s retained-table override. |
 | 29 F07/F07b casino / F08/F08b own hand | VERIFIED local flow; PARTIAL visual coverage | Batch30 N3b pair and phone layout checks; actual live-table smoke and preserved Watch. Both quiet N3b and live-server N3 pairs are inspected in batch30. |
 | 29 F12/F12b safe/ledger | VERIFIED local repair | Glass safe/ledger and real wallet tests; Home2 browser checks. Earlier BUG-39 status is superseded. |
 | 29 F13 fridge | VERIFIED local implementation | Batch3 stock/prices/charged restock pair and server smoke. Current identity/condition flows and beer tests supersede the old “beer does nothing” note; final production playtest remains. |
@@ -58,10 +58,10 @@ This replaces the contradictory old inventory that still called implemented boar
 
 ## Ordered work remaining
 
-1. Batch31 main recheck passed after a native lifecycle child crash; BUG-94 records three isolated passes and the unresolved cause. Batch32 passed 107 server / 2221 client / 7 end-to-end, 38 desktop plus three share checks, build, seven smoke and 20 Home2 checks. Main32 integration follows.
+1. Batch31 main recheck passed after a native lifecycle child crash; BUG-94 records three isolated passes and the unresolved cause. Batch32 passed 107 server / 2221 client / 7 end-to-end, 38 desktop plus three share checks, build, seven smoke and 20 Home2 checks. Main32 integration passed 107 / 2221 / 7. Batch33 passed 107 / 2225 / 7, all 38 desktop cases plus focused Home checks, build, seven smoke journeys and 20 Home2 checks; main33 integration follows.
 2. Audio playback/C8 hooks are implemented in batch31 with original synthesis. Keep the saved preview available for listening feedback; do not represent it as a supplied recording.
 3. S1/S2 formats and populated/quiet/unavailable-canvas checks are implemented in batch32. Actual external Telegram delivery remains a release verification, not an automated test send.
-4. Close the UNVERIFIED expression/pose/empty/transition/retire/pinch/hot/1920 frame checks above. Repair reproduced failures and label deliberate differences.
+4. Close the UNVERIFIED expression/pose/empty/retire/pinch/hot/1920 frame checks above. Repair reproduced failures and label deliberate differences.
 5. Refresh final product captures and release evidence. Recheck branding applications and the original first-thirty-seconds journey across phone and desktop.
 6. Final integrator fetch, checks and explicit push handoff. Jens pushes; verify deployed commit and production behavior afterwards. External account/feature settings and founder playtest remain explicit, not silently counted complete.
 

@@ -1,6 +1,12 @@
 # Bug Report — Agentic Poker
 Last updated: 2026-09-09 (Railbird design completion); statuses and evidence below.
 
+### BUG-117 — Home agents disappear instead of crossing the room — FIXED on design branch
+A red same-DOM-body check reproduced unmount-on-departure. Home now retains away bodies invisibly at the door, disables their input, and uses the later reference’s 2.2s out / 1.9s home movement. Known away location overrides stale home-game membership without shifting other chair indices. Door light and away wall frame follow the crossing; room props are hidden and cards appear only on landing. Actual intermediate motion, identity, three viewport sizes and reduced motion pass browser checks.
+
+### BUG-118 — returning session result vanishes at a home-game chair or never expires — FIXED on design branch
+The broad browser run passed 41 cases but failed all three returning-result cases. A red unit check confirmed the ordinary speech collision rule suppressed the amount near the table. A separate compact, noninteractive amount now rides above the body. A second red check proved an unrelated roster refresh restarted the six-second timer; clearArrival is now stable. Both regressions and final focused browser checks pass; large wants still use the sole answer strip.
+
 ### BUG-114 — a shared hand labels the whole pot as personal winnings/losses — FIXED on design branch
 Red model checks reproduced both a falsely signed legacy pot and a split winner's net loss being shown as profit. Future flagged hands now store final stack minus the pre-blind starting stack; legacy records say "$… pot". Server captions and image models share the same amount function. Only validated hood/glow IDs accompany new records; owner/public filtering remains intact.
 
