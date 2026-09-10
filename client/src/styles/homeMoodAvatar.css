@@ -1,0 +1,15 @@
+/* BUG-189: exact BUG184/HomeToast atom, with no global palette changes. */
+.home-mood-avatar { position: relative; width: 20px; height: 20px; flex-shrink: 0; }
+.home-mood-avatar__tile {
+  display: flex; align-items: flex-end; justify-content: center;
+  width: 20px; height: 20px; border-radius: 12px; overflow: hidden;
+  background: #0A0F17; border: 1px solid transparent;
+}
+/* Specificity preserves the source font inside the footer's button, too. */
+.home-mood-avatar .home-mood-avatar__pip {
+  position: absolute; bottom: -3px; right: -3px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #0A0A0A; border: 1.5px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 700 7.8px/1 'JetBrains Mono', monospace;
+}

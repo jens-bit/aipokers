@@ -479,7 +479,7 @@ export function HomeScreen({
     // (HOME-2 job 2), so the queue has to measure the same box the room draws.
     return {
       id: String(agent.id), x: at.x, y: at.y, size: seated ? geometry.seatedSize : geometry.bodySize,
-      name: agent.name, nickname: agent.nickname ?? null,
+      name: agent.name, nickname: agent.nickname ?? null, guest: !!agent.guest,
     };
   }).filter(Boolean), [home, positions, geometry]);
 
@@ -844,7 +844,7 @@ export function HomeScreen({
             toast: visitor ? (
               <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />
             ) : wanting ? (
-              <WantToast agent={wanting} onAnswered={onAnswered} onNeeds={onNeeds} />
+              <WantToast agent={wanting} identity={identities.get(String(wanting.id))} onAnswered={onAnswered} onNeeds={onNeeds} />
             ) : null,
           })}
         </div>
@@ -876,7 +876,7 @@ export function HomeScreen({
         toast={visitor ? (
           <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />
         ) : wanting ? (
-          <WantToast agent={wanting} onAnswered={onAnswered} onNeeds={onNeeds} />
+          <WantToast agent={wanting} identity={identities.get(String(wanting.id))} onAnswered={onAnswered} onNeeds={onNeeds} />
         ) : null}
       />
 
