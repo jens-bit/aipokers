@@ -46,6 +46,14 @@ describe('HOME-2 job 8 · every sheet and toast over the room is one glass', () 
     expect(tokens).toContain('--v5-blur: blur(18px) saturate(1.2)');
   });
 
+  it('BUG-181: the collapsed Home conversation band uses the authored panel glass, blur and raised edge', () => {
+    const css = ruleFor(home, '.home-thread__band');
+    expect.soft(css).toContain('background: var(--v5-panel)');
+    expect.soft(css).toContain('backdrop-filter: var(--v5-blur)');
+    expect.soft(css).toContain('-webkit-backdrop-filter: var(--v5-blur)');
+    expect(css).toContain('border-top: 1px solid var(--v5-edge-up)');
+  });
+
   // A SHEET takes `raised` — the thing on top is the lighter one — and it
   // blurs, because a panel that does not blur is a card and not a glass.
   it.each([

@@ -872,9 +872,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
   display: flex;
   flex-direction: column;
   padding: 8px 12px 11px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(12, 17, 17, 0.96);
-  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--v5-edge-up);
+  background: var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
 }
 .home-thread__line {
   min-height: 20px;
