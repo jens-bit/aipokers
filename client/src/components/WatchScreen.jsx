@@ -107,8 +107,8 @@ function formatAction(action) {
   if (t === 'fold')  return 'FOLD';
   if (t === 'check') return 'CHECK';
   if (t === 'call')  return 'CALL';
-  if (t === 'bet')   return 'BET $' + action.amount;
-  if (t === 'raise') return 'RAISE $' + action.amount;
+  if (t === 'bet')   return 'BET ' + potMoney(action.amount);
+  if (t === 'raise') return 'RAISE ' + potMoney(action.amount);
   return String(t).toUpperCase();
 }
 

@@ -207,8 +207,7 @@ export function DesktopHome({
   });
   const netTotal = agents.reduce((sum, a) => sum + (a.careerStats?.net ?? 0), 0);
   const flaggedTotal = agents.reduce((sum, a) => sum + (a.flaggedCount ?? 0), 0);
-  const topNet = agents.length === 0 ? '—'
-    : netTotal < 0 ? `−$${Math.abs(netTotal).toLocaleString()}` : `+$${netTotal.toLocaleString()}`;
+  const topNet = agents.length === 0 ? '—' : money(netTotal, { sign: true });
   const topFlagged = agents.length === 0 ? '—' : `${flaggedTotal} flagged`;
   const firstFlaggable = agents.find((a) => (a.flaggedCount ?? 0) > 0) ?? null;
 

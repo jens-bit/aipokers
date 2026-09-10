@@ -9,12 +9,13 @@ import { PanelHead, RailBody, PComposer, PRosterRow, DraftPanel } from './panelP
 import { PFlaggedCard } from './PFlaggedCard.jsx';
 import { DeskRoomCard } from './DeskRoomCard.jsx';
 import { gainsWithin, grewWithin } from '../../lib/attributes.js';
+import { money } from '../../lib/wallet.js';
 
 const MAX_SEATS = 4;
 
 function fmtNet(net) {
   if (!Number.isFinite(net) || net === 0) return '—';
-  return net < 0 ? `−$${Math.abs(net).toLocaleString()}` : `+$${net.toLocaleString()}`;
+  return money(net, { sign: true });
 }
 
 function TileStack({ games, highlightId, watchedId, onOpenTable, game, lastDecision }) {
