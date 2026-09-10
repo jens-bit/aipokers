@@ -144,6 +144,7 @@ export function HomeThread({
   toast = null,
   roomMode = false,
   roomLoaded = true,
+  nobodyYet = false,
   roomPushed,
   connection = null,
   privateContext = 'AT HOME',
@@ -196,7 +197,11 @@ export function HomeThread({
   // Ordered: the record, then whatever you have said since it was read.
   const shown = pending.length ? rows.concat(pending) : rows;
   const message = pending.length ? pending.at(-1) : collapsedMessage(agent, shown, roomMode);
-  const line = message.text || (roomMode ? (roomLoaded ? 'Nobody is home.' : 'Reading the room…') : '');
+  // F01 is a confirmed empty household, not a roster still loading or all away.
+  // Real speech keeps its place; this observation never becomes a thread row.
+  const emptySystem = roomMode && roomLoaded && nobodyYet && !message.text;
+  const line = message.text || (emptySystem ? 'The room is yours. It is empty.'
+    : roomMode ? (roomLoaded ? 'Nobody is home.' : 'Reading the room…') : '');
   const who = message.who;
 
   return (
@@ -237,8 +242,8 @@ export function HomeThread({
           data-testid="home-thread-line"
           aria-expanded={open}
         >
-          <span className="home-thread__who">{who}</span>
-          <span className="home-thread__text">{line}</span>
+          {!emptySystem && <span className="home-thread__who">{who}</span>}
+          <span className={`home-thread__text${emptySystem ? ' home-thread__text--system' : ''}`}>{line}</span>
         </button>
         <form className="home-thread__composer" onSubmit={submit}>
           <input

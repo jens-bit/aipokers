@@ -907,6 +907,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Board29 F01: the empty room's observation has no agent speaker. */
+.home-thread__text--system {
+  font-size: 11px;
+  font-style: italic;
+  color: #9E9EA2; /* Current M_MUTED; global --sys-muted is an older palette. */
+}
 /* The field itself — the ref's own bar: height 36, radius 18, the text on the
    left and the arrow inset on the right, both inside ONE control rather than
    a pill input beside a floating round button. */

@@ -109,7 +109,10 @@ describe('BUGS-A job 2 · the room renders while the roster is in flight', () =>
     render(<HomeScreen wsUrl={WS} />);
     expect(await screen.findByTestId('home-ftu')).toBeInTheDocument();
     expect(screen.getByText('Your room · his story starts here')).toBeInTheDocument();
-    expect(screen.getByText('Nobody is home.')).toBeInTheDocument();
+    // BUG-183: current Board29 F01 uses a system sentence, not the former
+    // generic nobody-home fallback. The confirmed-roster condition is retained.
+    expect(screen.getByText('The room is yours. It is empty.')).toBeInTheDocument();
+    expect(screen.getByTestId('home-thread-line').querySelector('.home-thread__who')).toBeNull();
   });
   it('an unanswered roster is not an empty household', async () => {
     defaults();
