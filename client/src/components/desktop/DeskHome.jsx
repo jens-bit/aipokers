@@ -192,12 +192,14 @@ export function DeskHome({
           );
         }
 
-        if (open === 'agent' && focus) {
+        if ((open === 'agent' || open === 'profile') && focus) {
           const index = agents.findIndex((a) => a.id === focus.id);
           return (
             <ThreadPanel
               key={focus.id}
               agent={focus}
+              initialView={open === 'profile' ? 'card' : 'thread'}
+              onBackToThread={() => openPanel('agent')}
               accentIndex={index}
               game={game}
               lastDecision={lastDecision}

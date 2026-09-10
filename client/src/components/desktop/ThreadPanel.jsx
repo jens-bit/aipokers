@@ -10,11 +10,13 @@ import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 
 export function ThreadPanel({
   agent, accentIndex, draft, onDraftChange, onClose, onWatch, onDeploy, onCarry, onReplay,
+  initialView = 'thread',
+  onBackToThread,
 }) {
   const { chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride } = useAgentThread(agent);
   const feedRef = useRef(null);
   const inputRef = useRef(null);
-  const [view, setView] = useState('thread');
+  const [view, setView] = useState(initialView);
   const [hand, setHand] = useState(null);
   const [flagsKnown,setFlagsKnown]=useState(false);
   const [funding, setFunding] = useState(false);
@@ -22,9 +24,13 @@ export function ThreadPanel({
   const [pocketOverride, setPocketOverride] = useState(null);
   const [profileError, setProfileError] = useState('');
   const currentAgent = pocketOverride ? { ...agent, pocket: pocketOverride } : agent;
+  const backToThread = () => { setView('thread'); onBackToThread?.(); };
 
   useEffect(() => {
-    setView('thread'); setFunding(false); setPocketOverride(null); setProfileError('');
+    setView(initialView);
+  }, [agent.id, initialView]);
+  useEffect(() => {
+    setFunding(false); setPocketOverride(null); setProfileError('');
   }, [agent.id]);
 
   async function profileWhisper(text) {
@@ -76,7 +82,7 @@ export function ThreadPanel({
 
   return <div className="dsk-panel dsk-panel--agent">
     {view === 'card' ? <AgentProfileScreen companion agent={currentAgent}
-      onBack={() => setView('thread')} onOpenChat={() => setView('thread')}
+      onBack={backToThread} onOpenChat={backToThread}
       onWatch={onWatch} onDeploy={onDeploy} onCallIn={callIn} onFund={openFunds}
       onRetired={onClose} sendWhisper={profileWhisper} /> : <AgentView desktop agent={currentAgent} mood={moodOverride ?? moodOf(agent)} heat={heatOf(agent)}
       chat={hand && onReplay ? [...chat,{role:'replay',hand,_id:'latest-hand'}] : flagsKnown && !hand && hasHands ? [...chat,{role:'noflags',_id:'quiet-shift'}] : chat}

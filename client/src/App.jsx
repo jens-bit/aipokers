@@ -667,7 +667,9 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
         watchingAgent={desktopWatchAgent}
         isWatching={!!config?.isSpectator}
         onWatchAgent={async (agent) => {
-          if (!agent?.activeTableId) return;
+          // Accepted kitchen visitors have a live target without a casino deployment.
+          const tableId = agent?.activeTableId || agent?.liveGame?.tableId;
+          if (!tableId) return;
           let memoryContext = '';
           try {
             const res = await fetch(
@@ -677,7 +679,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
             if (res.ok) memoryContext = (await res.json()).memoryContext || '';
           } catch { /* watch with empty context */ }
           watchPayload({
-            tableId: agent.activeTableId,
+            tableId,
             agentId: agent.id,
             agentName: agent.name,
             strategy: agent.strategy,

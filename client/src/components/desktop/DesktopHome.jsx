@@ -116,7 +116,7 @@ export function DesktopHome({
   // Whose composer is on screen. DESK-2: on the HOME stage the open thread is
   // the rail's, so the key follows the rail's focus — and only while the rail is
   // actually showing a man, because the standup's own composer is the idle one.
-  const homeDraftKey = homeStage && homePanel === 'agent' ? homeFocusId : null;
+  const homeDraftKey = homeStage && ['agent', 'profile'].includes(homePanel) ? homeFocusId : null;
   const draftKey = deskTableId ?? homeDraftKey ?? IDLE_KEY;
   const setDraft = useCallback((text) => {
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
@@ -213,7 +213,7 @@ export function DesktopHome({
 
   const watchedAgent=agents.find(a=>a.id===deskTableId);
   const watchBlinds=Number.isFinite(game?.smallBlind)&&Number.isFinite(game?.bigBlind) ? game.smallBlind+'/'+game.bigBlind : null;
-  const refusedBeforeSnapshot = !!tableError && !!tableConfig && !game && !publicTableId && !homeTableSession && !deskTableId;
+  const refusedBeforeSnapshot = !!tableError && !!tableConfig && !game && !publicTableId && !homeTableSession;
   const goHome=()=>{
     if(deskTableId||publicTableId||homeTableSession||refusedBeforeSnapshot)onLeave?.();
     setDeskTableId(null);setPublicTableId(null);setHomeTableSession(null);
@@ -272,6 +272,15 @@ export function DesktopHome({
     setHomeFocusId(agent.id);
     setHomePanel('agent');
   }, [onLeave, deskTableId, publicTableId, homeTableSession]);
+
+  // Open the same companion card as the rail's Profile button. Room guests
+  // are public projections; only an ID in the owner's roster opens this panel.
+  const openProfile = useCallback((agent) => {
+    const owned = !agent?.guest && agents.find(a => a.id === agent?.id && !a.guest);
+    if (!owned) return;
+    rosterSelect(owned);
+    setHomePanel('profile');
+  }, [agents, rosterSelect]);
 
   // The board and shared hand links resolve through the same owner-only lookup.
   // Keep the desktop theatre inside this shell so Back restores the casino.
@@ -351,7 +360,7 @@ export function DesktopHome({
     );
   }
 
-  if (deskAgent) {
+  if (deskAgent && !refusedBeforeSnapshot) {
     return (
       <div className="dsk-root">
         {topBar}
@@ -444,6 +453,7 @@ export function DesktopHome({
               onDraftChange={setDraft}
               onRefreshWallet={refreshWallet}
               onWatch={openTable}
+              onProfile={openProfile}
               onDeploy={onDeployAgent}
               onCreateAgent={onCreateAgent}
               onFocusTable={openTable}
