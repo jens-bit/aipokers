@@ -36,6 +36,8 @@
 // print it. Adding a tenth verb means adding a pose, so the list is short on
 // purpose.
 
+import { storedIdentity } from '../shared/identity.js';
+
 // ── Where ───────────────────────────────────────────────────────────────────
 
 export const Where = Object.freeze({
@@ -328,9 +330,13 @@ function bornAtOf(agent) {
 
 function homeAgentProjection(agent, { now = Date.now() } = {}) {
   const bornAt = bornAtOf(agent);
+  const identity = storedIdentity(agent);
   return {
     id: agent.id,
     name: agent.name,
+    // Visitors have no row in the host's REST roster to supply their look.
+    // Carry only recognized public palette IDs, never arbitrary stored data.
+    ...(identity ? { identity: { hood: identity.hood.id, glow: identity.glow.id } } : {}),
     nature: agent.nature?.name ?? null,
     mood: agent.mood ?? null,
     location: agent.location ?? null,

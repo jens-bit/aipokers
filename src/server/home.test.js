@@ -163,6 +163,26 @@ test('HOME-STATE-1: the HOME_STATE body carries the card and nothing heavy', () 
 
 // ── SERVER-4 / BUG-32 · the newborn marker ──────────────────────────────────
 
+test('BUG-178: Home carries only canonical saved hood and glow IDs', () => {
+  const raw = { id: 'visitor-look', name: 'Away Day', guest: true,
+    identity: { hood: { id: 'indigo', secret: 'hood-private' }, glow: { id: 'violet', secret: 'glow-private' }, memory: 'private identity field' },
+    strategy: 'private strategy', memory: 'private memory', holeCards: ['Ah', 'As'] };
+  const [body] = homeStateMessage('host', [raw]).agents;
+  assert.deepEqual(body.identity, { hood: 'indigo', glow: 'violet' });
+  assert.equal(body.guest, true);
+  assert.equal(body.strategy, undefined);
+  assert.equal(body.memory, undefined);
+  assert.equal(body.holeCards, undefined);
+  assert.equal(JSON.stringify(body).includes('private'), false);
+});
+
+test('BUG-178: absent or unrecognized saved identity preserves the legacy fallback', () => {
+  for (const identity of [undefined, null, { hood: 'unknown', glow: 'unknown' }]) {
+    const [body] = homeStateMessage('host', [{ id: 'legacy', identity }]).agents;
+    assert.equal(body.identity, undefined, 'do not invent a new stored appearance on the wire');
+  }
+});
+
 test('SERVER-4: the HOME_STATE card says when he was made', () => {
   const bornAt = 1_700_000_000_000;
   const [agent] = homeStateMessage('u1', [{ id: 'a1', name: 'New', createdAt: bornAt }]).agents;
