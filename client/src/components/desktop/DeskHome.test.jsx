@@ -88,7 +88,8 @@ async function boot({ agents = [BALANCE, GRANITE], game = null, props = {}, ...r
     return s;
   });
   sock.open();
-  sock.emit({ type: 'home_state', userId: 'u1', agents, game });
+  // BUG-168 validates the owner; match telegram.signIn()'s authenticated ID.
+  sock.emit({ type: 'home_state', userId: '4242', agents, game });
   await screen.findByTestId('home-screen');
   return { view, sock };
 }
@@ -232,7 +233,7 @@ describe('DESK-2 · the fixtures open in the rail', () => {
       return s;
     });
     sock.open();
-    sock.emit({ type: 'home_state', userId: 'u1', agents: [BALANCE], game: null });
+    sock.emit({ type: 'home_state', userId: '4242', agents: [BALANCE], game: null });
 
     await userEvent.click(await screen.findByTestId('home-table'));
     await userEvent.click(await screen.findByTestId('home-table-draft'));

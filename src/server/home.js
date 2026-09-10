@@ -40,6 +40,8 @@ import { storedIdentity } from '../shared/identity.js';
 
 // ── Where ───────────────────────────────────────────────────────────────────
 
+import { homeTablePreview } from '../shared/homePreview.js';
+
 export const Where = Object.freeze({
   // At home. Not seated anywhere, not on his way anywhere.
   HOME: 'home',
@@ -344,6 +346,10 @@ function homeAgentProjection(agent, { now = Date.now() } = {}) {
     fatigue: agent.fatigue ?? 'fresh',
     unseenRecap: !!agent.unseenRecap,
     study: agent.study ?? null,
+    // BUG-168: a live TV picture can ride Home's existing pushes. This is
+    // deliberately public even for owner/visitor input; no heroHole or reads.
+    liveGame: homeTablePreview(agent.liveGame),
+    homeTableId: agent.homeTableId ?? null,
     // VISIT-1: is this body somebody else's agent, standing in for a session in
     // this flat? Never stored on a resident's own record — only on the
     // synthetic projection visit.js hands homeSnapshot for the DURATION of the

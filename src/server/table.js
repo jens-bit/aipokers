@@ -4695,6 +4695,11 @@ export class Table {
       opponentReads,
       readOnWire,
       mood,
+      // BUG-170: public instant remarks use this seat's saved birth nature.
+      // It is private decision context only, not a new state/wire projection.
+      nature: this.agentIds[aiSeat]
+        ? getAgentAttributes(this.agentIds[aiSeat], this.agentUserIds[aiSeat])?.nature?.name ?? null
+        : null,
       // COST-1: a stack already in the middle. The router reads it as a reason
       // to spend; nothing else does, so it is computed here rather than being
       // recomputed behind the router where it would have no table to ask.

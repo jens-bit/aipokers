@@ -444,7 +444,7 @@ export function DesktopHome({
               drafts={drafts}
               onDraftChange={setDraft}
               onRefreshWallet={refreshWallet}
-              onWatch={onWatchAgent}
+              onWatch={openTable}
               onDeploy={onDeployAgent}
               onCreateAgent={onCreateAgent}
               onFocusTable={openTable}

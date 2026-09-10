@@ -223,6 +223,69 @@ const INSTANT_LINES = Object.freeze({
   raise: ['More.', 'Up.'],
 });
 
+// BUG-170: cadence follows the eight birth voices in attributes.NATURES
+// (ported from char-system.jsx), not the display name or a changing strategy.
+// Only the public action is expressed: never cards, reads, a promised next
+// card, or a result. These are remarks, not their birth catchphrases repeated.
+const NATURE_LINES = Object.freeze({
+  Grinder: {
+    fold: ['I can wait.', 'Leave that one. Keep going.'],
+    check: ['No hurry here.', 'Steady. Check.'],
+    call: ['Still here.', 'I will stay with it.'],
+    bet: ['Keep it moving.', 'A little work.'],
+    raise: ['More work to do.', 'I am staying with this.'],
+  },
+  Hothead: {
+    fold: ['Fine. Take it.', 'Out. Do not make a thing of it.'],
+    check: ['Fine. Your turn.', 'Go on. Do something.'],
+    call: ['Fine. I am coming.', 'You are not getting rid of me.'],
+    bet: ['There. Your problem.', 'Come on, then.'],
+    raise: ['Not enough. More.', 'Try that.'],
+  },
+  Professor: {
+    fold: ['No reason to continue.', 'That is enough of this one.'],
+    check: ['Nothing to add.', 'I will leave it there.'],
+    call: ['That much, then.', 'I can accept that.'],
+    bet: ['That will do.', 'Let us proceed.'],
+    raise: ['I will add to that.', 'A little further, then.'],
+  },
+  Rock: {
+    fold: ['Easy to leave.', 'No need to force it.'],
+    check: ['I am in no rush.', 'Let it come to me.'],
+    call: ['I can wait here.', 'Just the call.'],
+    bet: ['I have decided.', 'This much.'],
+    raise: ['I said more.', 'That is my answer.'],
+  },
+  Gambler: {
+    fold: ['Even I can leave one.', 'I will let this one go.'],
+    check: ['Tempt me.', 'Go on. Give me a reason.'],
+    call: ['All right, I am curious.', 'I want to see this through.'],
+    bet: ['Why be quiet?', 'Let us stir this up.'],
+    raise: ['Let us go further.', 'A little more trouble.'],
+  },
+  Shark: {
+    fold: ['Keep it. I am watching.', 'Not chasing you there.'],
+    check: ['Your move. I am watching.', 'Show me what you do.'],
+    call: ['I am coming with you.', 'Go on. I am still here.'],
+    bet: ['Your turn to answer.', 'What do you do with that?'],
+    raise: ['Answer that.', 'I am pushing back.'],
+  },
+  Sphinx: {
+    fold: ['Done with this one.', 'It passes.'],
+    check: ['I wait.', 'Nothing changes.'],
+    call: ['We continue.', 'So it goes.'],
+    bet: ['There it is.', 'My turn.'],
+    raise: ['Further.', 'It goes up.'],
+  },
+  Showman: {
+    fold: ['I will sit this scene out.', 'Carry on without me.'],
+    check: ['The floor is yours.', 'Let someone else speak.'],
+    call: ['I am staying for this.', 'You still have my attention.'],
+    bet: ['Eyes this way.', 'A little something for the room.'],
+    raise: ['There is more.', 'Let me hold your attention.'],
+  },
+});
+
 // One in this many decisions says something out loud.
 export const TALK_ONE_IN = 8;
 
@@ -242,12 +305,16 @@ function hash(str) {
  * action.
  */
 export function instantLine(gs, action) {
-  const pool = INSTANT_LINES[action?.type];
+  const voice = Object.hasOwn(NATURE_LINES, gs?.nature) ? NATURE_LINES[gs.nature] : null;
+  const pool = voice?.[action?.type] ?? INSTANT_LINES[action?.type];
   if (!pool || pool.length === 0) return null;
   const seed = `${gs?.handNumber ?? 0}:${gs?.seat ?? 0}:${gs?.street ?? ''}:${action.type}`;
   const h = hash(seed);
   if (h % TALK_ONE_IN !== 0) return null;
-  return pool[(h >>> 8) % pool.length];
+  const line = pool[(h >>> 8) % pool.length];
+  // Legacy/House voices keep their pool and choice. Only this impossible
+  // promise changes once the last community card is already on the table.
+  return gs?.street === 'river' && line === 'One more card.' ? "I'll pay." : line;
 }
 
 /**

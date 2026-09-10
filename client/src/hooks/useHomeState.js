@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientMsg, ServerMsg } from '../lib/protocol.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
+import { homeTablePreview } from '../../../src/shared/homePreview.js';
 
 // The socket is the primary path; this is the floor under it, not a poll loop.
 const REFRESH_MS = 30_000;
@@ -49,7 +50,16 @@ export function useHomeState({
   enabled = true,
   onOwnerLine = null,
 } = {}) {
-  const [agents, setAgents] = useState([]);
+  const [agents, setAgentState] = useState([]);
+  const agentsRef = useRef([]);
+  // Socket events may arrive in one React batch. Resolve each update against
+  // the last received roster, so push overlays update synchronously rather
+  // than mutating refs inside a React state updater during rendering.
+  const setAgents = useCallback(update => {
+    const next=typeof update==='function' ? update(agentsRef.current) : update;
+    agentsRef.current=next;
+    setAgentState(next);
+  }, []);
   const [game, setGame] = useState(null);
   // REST answers the roster only. A table is unknown until HOME_STATE answers
   // with a game or an explicit null; reconnects retain that last answer.
@@ -90,6 +100,11 @@ export function useHomeState({
   const pollRef = useRef(null);
   const attemptRef = useRef(0);
   const aliveRef = useRef(false);
+  // A retired connection/fetch may finish after a new effect becomes alive.
+  // Scope objects invalidate that work without discarding a same-owner room
+  // during a reconnect or refreshed Telegram credentials.
+  const scopeRef = useRef(null);
+  const ownerIdRef = useRef(null);
   const openSocketRef = useRef(null);
   // The last HOME_STATE, by agent id. The socket is the truth (rule 1), and a
   // REST body that was in flight while a push landed is OLDER than the push
@@ -99,30 +114,40 @@ export function useHomeState({
   // applied as the BASE — it carries the pocket, the live game and the career
   // stats the compact push does not — and the newest push is re-laid over it.
   const pushRef = useRef(new Map());
+  const rosterIdsRef = useRef(null);
 
   // REST backfill. Never clobbers with an empty list on a failed request — the
   // room going momentarily empty because a fetch 500'd is worse than a stale
   // room, and the socket is about to correct it either way.
   const refresh = useCallback(async () => {
     if (!wireUserId) return;
+    const scope=scopeRef.current;
+    if (!aliveRef.current || !scope || scope.userId!==String(wireUserId) || scope.initData!==wireInitData) return;
     try {
       const res = await fetch(`/api/agents?userId=${encodeURIComponent(wireUserId)}`, {
         headers: wireInitData ? { 'X-Telegram-Init-Data': wireInitData } : undefined,
       });
       if (!res.ok) return;
       const body = await res.json();
-      if (!aliveRef.current) return;
+      if (!aliveRef.current || scopeRef.current!==scope) return;
 
       if (!Array.isArray(body?.agents)) return;
       setLoaded(true);
       const pushed = pushRef.current;
       // GET /api/agents has no home game in it — only HOME_STATE does — so the
       // REST path deliberately leaves `game` alone rather than nulling it.
-      setAgents(body.agents.map((a) => ({ ...a, ...(pushed.get(String(a.id)) ?? {}) })));
+      setAgents(prev => {
+        const residents=body.agents.filter(a=>!rosterIdsRef.current || rosterIdsRef.current.has(String(a.id)))
+          .map(a=>mergeHomeAgent(a,pushed.get(String(a.id)) ?? {}));
+        // REST is only this owner's roster. It cannot remove a guest whose
+        // presence was confirmed by the latest HOME_STATE.
+        const ids=new Set(residents.map(a=>String(a.id)));
+        return residents.concat(prev.filter(a=>a.guest && pushed.get(String(a.id))?.guest && !ids.has(String(a.id))));
+      });
     } catch {
       // The socket is the primary path.
     }
-  }, [wireUserId, wireInitData]);
+  }, [wireUserId, wireInitData, setAgents]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
@@ -142,19 +167,18 @@ export function useHomeState({
 
   openSocketRef.current = () => {
     if (!aliveRef.current || !wsUrl || !wireUserId) return;
+    const scope=scopeRef.current;
+    if (!scope || scope.userId!==String(wireUserId) || scope.initData!==wireInitData) return;
     setStatus((s) => (s === 'reconnecting' ? s : 'connecting'));
     let ws;
     try { ws = new WebSocket(wsUrl); }
     catch { scheduleReconnect(); return; }
     wsRef.current = ws;
+    const isCurrent=()=>aliveRef.current && scopeRef.current===scope && wsRef.current===ws;
 
     ws.addEventListener('open', () => {
-      if (!aliveRef.current) return;
-      ws.send(JSON.stringify({
-        type: ClientMsg.FLOOR_SUB,
-        userId: String(wireUserId),
-        initData: wireInitData ?? null,
-      }));
+      if (!isCurrent()) return;
+      ws.send(JSON.stringify({type:ClientMsg.FLOOR_SUB,userId:String(wireUserId),initData:wireInitData ?? null}));
       attemptRef.current = 0;
       setStatus('live');
       refresh();
@@ -163,8 +187,45 @@ export function useHomeState({
     ws.addEventListener('message', (event) => {
       let msg;
       try { msg = JSON.parse(event.data); } catch { return; }
-      if (!aliveRef.current) return;
+      if (!isCurrent()) return;
 
+      if ([ServerMsg.HOME_STATE,ServerMsg.FLOOR_STATE,ServerMsg.FLOOR_GAME].includes(msg?.type)
+        && msg.userId != null && String(msg.userId)!==String(wireUserId)) return;
+
+      if (msg?.type === ServerMsg.FLOOR_STATE && Array.isArray(msg.agents)) {
+        const cards=msg.agents.map(a=>({...a,liveGame:homeTablePreview(a.liveGame)}));
+        const floorById=new Map(cards.map(a=>[String(a.id),a]));
+        rosterIdsRef.current=new Set(floorById.keys());
+        for (const [id,card] of floorById) {
+          if (pushRef.current.get(id)?.guest) continue;
+          pushRef.current.set(id,mergeHomeAgent(pushRef.current.get(id),card));
+        }
+        for(const [id,old] of pushRef.current) if(!old.guest&&!floorById.has(id)) pushRef.current.delete(id);
+        setAgents(prev=>prev.filter(a=>a.guest||floorById.has(String(a.id)))
+          .map(a=>a.guest?a:mergeHomeAgent(a,floorById.get(String(a.id)))));
+        return;
+      }
+
+      if (msg?.type === ServerMsg.FLOOR_GAME) {
+        setAgents(prev=>{
+          // The server emits one hero's delta per owner/table, even when two
+          // owned agents share it. Only the public table fields are shared;
+          // each agent retains his own seat, session net and private REST data.
+          const source=prev.find(a=>!a.guest&&String(a.id)===String(msg.agentId)&&a.liveGame?.tableId===msg.tableId);
+          if(!source) return prev;
+          const delta=homeTablePreview({tableId:msg.tableId,street:msg.street,board:msg.board,pot:msg.pot,handNumber:msg.handNumber});
+          return prev.map(a=>{
+            if(a.guest||a.liveGame?.tableId!==msg.tableId) return a;
+            const before=a.liveGame;
+            if(Number.isFinite(msg.handNumber)&&Number.isFinite(before.handNumber)&&msg.handNumber<before.handNumber) return a;
+            const update=homeTablePreview({...before,...delta});
+            const next=mergeHomeAgent(a,{liveGame:update});
+            pushRef.current.set(String(a.id),mergeHomeAgent(pushRef.current.get(String(a.id)) ?? {id:a.id},{liveGame:update}));
+            return next;
+          });
+        });
+        return;
+      }
       if (msg?.type === ServerMsg.OWNER_LINE && String(msg.userId) === String(wireUserId) && msg.line) {
         const line = { ...msg.line, sessionId: msg.line.sessionId ?? msg.sessionId };
         setOwnerLines(prev => [...prev.filter(l => l.id !== line.id), line].slice(-200));
@@ -175,7 +236,8 @@ export function useHomeState({
       if (msg?.type === ServerMsg.HOME_STATE) {
         if (Array.isArray(msg.agents)) {
           setLoaded(true);
-          pushRef.current = new Map(msg.agents.map((a) => [String(a.id), a]));
+          rosterIdsRef.current=new Set(msg.agents.filter(a=>!a.guest).map(a=>String(a.id)));
+          pushRef.current = new Map(msg.agents.map(a => [String(a.id),mergeHomeAgent(pushRef.current.get(String(a.id)),a)]));
           setAgents((prev) => mergeHome(prev, msg.agents));
         }
         if (msg.game === null || (msg.game && typeof msg.game === 'object' && !Array.isArray(msg.game))) {
@@ -215,17 +277,27 @@ export function useHomeState({
     });
 
     ws.addEventListener('close', () => {
-      if (wsRef.current === ws) wsRef.current = null;
-      if (!aliveRef.current) return;
+      if (!isCurrent()) return;
+      wsRef.current = null;
       scheduleReconnect();
     });
     ws.addEventListener('error', () => { /* `close` follows and reconnects */ });
   };
 
   useEffect(() => {
+    const ownerId=String(wireUserId ?? '');
+    if (ownerIdRef.current!==ownerId) {
+      ownerIdRef.current=ownerId;
+      pushRef.current=new Map();
+      rosterIdsRef.current=null;
+      setAgents([]);
+      setGame(null);setGameKnown(false);setLoaded(false);
+      setVisitor(null);setArrival(null);setOwnerLines([]);
+    }
+    const scope={userId:ownerId,initData:wireInitData};
+    scopeRef.current=scope;
     if (!enabled) { setStatus('idle'); return undefined; }
     aliveRef.current = true;
-    setOwnerLines([]);
     attemptRef.current = 0;
     refresh();
     if (wsUrl && wireUserId) openSocketRef.current();
@@ -234,6 +306,7 @@ export function useHomeState({
 
     return () => {
       aliveRef.current = false;
+      if (scopeRef.current===scope) scopeRef.current=null;
       clearTimer();
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
       const ws = wsRef.current;
@@ -278,5 +351,16 @@ export function useHomeState({
 // lose their money line every time somebody's routine changed.
 export function mergeHome(prev, incoming) {
   const before = new Map((prev ?? []).map((a) => [String(a.id), a]));
-  return incoming.map((a) => ({ ...(before.get(String(a.id)) ?? {}), ...a }));
+  return incoming.map((a) => mergeHomeAgent(before.get(String(a.id)),a));
+}
+
+// A public picture updates the same agent/table, preserving REST-only facts
+// such as casino session net. A replacement table inherits none of its cards.
+function mergeHomeAgent(before, incoming) {
+  const next={...before,...incoming};
+  if(Object.prototype.hasOwnProperty.call(incoming,'liveGame')) {
+    const view=homeTablePreview(incoming.liveGame);
+    next.liveGame=view ? {...(before?.liveGame?.tableId===view.tableId ? before.liveGame : {}),...view} : null;
+  }
+  return next;
 }

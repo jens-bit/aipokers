@@ -108,18 +108,31 @@ export function useThread(agentId, { enabled = true } = {}) {
  * to a tally the client composed.
  */
 export function collapsedLine(agent, rows = []) {
-  if (agent?.unseenRecap && agent?.sessionRecap?.text) return agent.sessionRecap.text;
+  return collapsedMessage(agent, rows).text;
+}
+
+// BUG-174: choose the speaker from the same source as the displayed sentence.
+// A focused agent's recap can outrank another resident's newer room line.
+function collapsedMessage(agent, rows = [], roomMode = false) {
+  const agentName = agent ? pillName(agent.name) : 'THE ROOM';
+  if (agent?.unseenRecap && agent?.sessionRecap?.text) {
+    return { who: agentName, text: agent.sessionRecap.text };
+  }
   const last = rows.length ? rows[rows.length - 1] : null;
-  if (last?.text) return last.text;
+  if (last?.text) return {
+    who: !roomMode && last.who === 'HIM' ? agentName : (last.who || agentName),
+    text: last.text,
+  };
   // BUGS-C job 6: a pending want is the toast's line and his own bubble's
   // already — the server stamps it into `lastMoment` the instant he asks
   // (agentProfiles.js: `kind: 'want'`), and this fell through to it too,
   // which is the same sentence shown a third time. It carries as history
   // here once it is ANSWERED, same as any other moment — the server moves
   // `lastMoment` on then, and this falls through to it exactly as before.
-  if (agent?.lastMoment?.kind === 'want') return agent?.opener ?? '';
-  if (agent?.lastMoment?.text) return agent.lastMoment.text;
-  return agent?.opener ?? '';
+  const text = agent?.lastMoment?.kind === 'want'
+    ? agent?.opener ?? ''
+    : agent?.lastMoment?.text || agent?.opener || '';
+  return { who: agentName, text };
 }
 
 export function HomeThread({
@@ -182,8 +195,9 @@ export function HomeThread({
   if (!agent && !roomMode) return null;
   // Ordered: the record, then whatever you have said since it was read.
   const shown = pending.length ? rows.concat(pending) : rows;
-  const line = pending.length ? pending.at(-1).text : (collapsedLine(agent, shown) || (roomMode ? (roomLoaded ? 'Nobody is home.' : 'Reading the room…') : ''));
-  const who = roomMode ? (shown.at(-1)?.who || (agent ? pillName(agent.name) : 'THE ROOM')) : pillName(agent.name);
+  const message = pending.length ? pending.at(-1) : collapsedMessage(agent, shown, roomMode);
+  const line = message.text || (roomMode ? (roomLoaded ? 'Nobody is home.' : 'Reading the room…') : '');
+  const who = message.who;
 
   return (
     <div className={`home-thread${open ? ' is-open' : ''}`} data-testid="home-thread" data-open={open ? 'true' : 'false'}>

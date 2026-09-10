@@ -40,7 +40,7 @@ describe('DeskTableStage mid-hand', () => {
 
   it('names the pot rather than an em dash', () => {
     render(<DeskTableStage game={midHandGame} agentName={HERO} />);
-    expect(screen.getByText(`$${midHandGame.pot.toLocaleString()}`)).toBeInTheDocument();
+    expect(screen.getByText('$100')).toBeInTheDocument();
   });
 
   it('offers the way back to the floor', () => {
@@ -233,7 +233,7 @@ describe('DP-1 — his one line', () => {
 it('BUG-105: a server-assigned camera wins over duplicate display names',()=>{
   const game={...midHandGame,seats:midHandGame.seats.map((s,i)=>({...s,displayName:'Same name',stack:1000+i*100,holeCards:i===2?['Ah','Kh']:[]}))};
   const {container}=render(<DeskTableStage game={game} mySeat={2} agentName="Same name"/>);
-  expect(container.querySelector('.dtb__hero-stack').textContent).toBe('$'+(1200).toLocaleString());
+  expect(container.querySelector('.dtb__hero-stack').textContent).toBe('$1,200');
   expect(container.querySelector('.dtb__hero-cards')).toHaveTextContent('AK');
 });
 it('BUG-105: no seat-control button exists without an owner action',()=>{

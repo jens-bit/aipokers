@@ -92,7 +92,7 @@
   flex: 1;
   font-family: Inter, sans-serif;
   font-size: 11px;
-  color: var(--text-muted, #6B6B6B);
+  color: #9E9EA2; /* Current C5 M_MUTED: secondary text, not the old faint ink. */
 }
 .roster__close {
   width: 28px;
@@ -136,7 +136,7 @@
 .roster__place { display:flex; align-items:center; gap:6px; margin-top:2.5px; min-width:0; }
 .roster__routine { font:9.5px 'JetBrains Mono',monospace; color:#6B6B6B; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .roster__numbers { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:2.5px; }
-.roster__result { font:700 11.5px 'JetBrains Mono',monospace; color:#6B6B6B; }
+.roster__result { font:700 11.5px 'JetBrains Mono',monospace; color:#9E9EA2; }
 .roster__result.is-up { color:#00D4AA; }
 .roster__result.is-down { color:#FF4D4F; }
 .roster__pocket { display:flex; align-items:center; gap:4px; font:600 10px 'JetBrains Mono',monospace; color:#CDB380; }
@@ -188,7 +188,7 @@
 }
 .roster__where {
   font-size: 10px;
-  color: var(--text-muted, #6B6B6B);
+  color: #9E9EA2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

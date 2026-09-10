@@ -163,7 +163,8 @@
   position: absolute; inset: 4px;
   border-radius: 2px;
   background: linear-gradient(180deg, #101A18 0%, #0A1211 100%);
-  overflow: hidden;
+  /* The live scene uses the full TV box; the TV button still clips its edge. */
+  overflow: visible;
 }
 /* the armchair, below the screen it faces */
 .home-flat__tv-chair {
@@ -208,9 +209,39 @@
   background: var(--accent, #00D4AA);
   animation: home-shimmer 2.2s ease-in-out infinite;
 }
-/* MiniFelt is authored against a frame's box; on the set it fills the screen. */
-.home-tv__live { position: absolute; inset: 0; display: block; }
-.home-tv__live .home-frame__picture { position: absolute; inset: 0; }
+/* C7a / mood-home.jsx 224–247: a TV-specific ring, not the away-frame felt.
+   Only the backing is inset four pixels in the source. Undo the furniture's
+   existing inner inset for this scene, retaining the outer TV and its chair. */
+.home-tv__live { position: absolute; inset: -4px; display: block; overflow: hidden; border-radius: 2px; }
+.home-tv__live-backdrop {
+  position: absolute; inset: 4px; border-radius: 2px;
+  background: radial-gradient(ellipse at 50% 42%, #2B3C37 0%, #16201E 76%);
+}
+.home-tv__live .home-tv__ghost {
+  position: absolute; transform: translate(-50%, -50%);
+  /* Preserve the reference's inline SVG baseline inside its 16px Inter line. */
+  font: 16px/normal "Inter", sans-serif;
+}
+.home-tv__ghost svg { display: inline; vertical-align: baseline; }
+.home-tv__pot-dot {
+  position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%);
+  width: 5px; height: 5px; border-radius: 50%;
+  background: #CDB380; box-shadow: 0 0 6px #CDB380;
+}
+.home-tv__live .home-tv__caption {
+  position: absolute; left: 6px; right: 6px; bottom: 4px;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 6.5px;
+  color: #00D4AA; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.home-tv__live-signal {
+  position: absolute; right: 6px; top: 6px; width: 4px; height: 4px;
+  border-radius: 50%; background: #FF6B6D;
+  animation: home-tv-live-pulse 2.2s ease-in-out infinite;
+}
+@keyframes home-tv-live-pulse {
+  0%, 100% { opacity: .35; transform: scale(.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
 
 .home-flat__couch {
   position: absolute;
@@ -1213,6 +1244,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
   .home-one--counts .home-prop--chips,
   .home-one--tape .home-one__body,
   .home-tv__live-dot,
+  .home-tv__live-signal,
   .home-frame__seat,
   .home-frame__card,
   .home-frame__glow,

@@ -1,5 +1,6 @@
 import { Hood, MiniCard } from './primitives.jsx';
 import { Streets } from '../../lib/protocol.js';
+import { group } from '../../lib/wallet.js';
 
 function formatAction(action) {
   if (!action?.type) return 'THINKING';
@@ -56,14 +57,14 @@ export function GameTile({ game, agentName, lastDecision, highlighted, dimmed, o
             <MiniCard card={null} size="mini" />
           </div>
           <div className="dsk-tile__opp-name">
-            {oppName} · {(opp?.stack ?? 0).toLocaleString()}
+            {oppName} · {group(opp?.stack ?? 0)}
           </div>
         </div>
 
         <div className="dsk-tile__center">
           <div className="dsk-tile__pot">
             <small>POT</small>
-            <b>{(game?.pot ?? 0).toLocaleString()}</b>
+            <b>{group(game?.pot ?? 0)}</b>
           </div>
           <div className="dsk-tile__cards">
             {board.map((card, i) => <MiniCard key={i} card={card} />)}
@@ -78,7 +79,7 @@ export function GameTile({ game, agentName, lastDecision, highlighted, dimmed, o
           <div className="dsk-tile__hero-badge">
             <Hood size={18} />
             {equityPct && <span className="dsk-tile__equity">{equityPct}</span>}
-            <span className="dsk-tile__stack">{(hero?.stack ?? 0).toLocaleString()}</span>
+            <span className="dsk-tile__stack">{group(hero?.stack ?? 0)}</span>
           </div>
         </div>
       </div>
