@@ -253,15 +253,42 @@ function collisions(list) {
 }
 
 test.describe('WATCH-10 · density on the felt at 390×844', () => {
-  test('C8: an ordinary win raises his hands and keeps the compact result',async({page})=>{
-    await felt(page,{owned:true});
+  // Design 58 C8a now gives every hero win the raised glass result. The old
+  // compact-only assertion encoded the earlier port, not the current board.
+  for (const viewport of [{width:390,height:844},{width:390,height:590},{width:1440,height:900}]) test(`BUG-173 / C8: ordinary win card preserves the Watch layout at ${viewport.width}×${viewport.height}`,async({page})=>{
+    await felt(page,{owned:viewport.width<1000,viewport});
+    await page.evaluate(()=>document.fonts.ready);
+    const geometry=()=>boxes(page,'.watch-felt, .watch-felt__seat, .watch-felt__board, .watch-hero__body, .watch-hero__strip, textarea, input');
+    const before=await geometry();
     const game={...TABLE,street:'complete',toAct:null,community:['Kc','9c','4c','2c','5h'],seats:TABLE.seats.map((s,i)=>i===0?{...s,holeCards:['Ks','Kd'],stack:5534}:s),result:{type:'showdown',pot:3694,winners:[{seat:0,amount:3694}],showdown:[{seat:0,holeCards:['Ks','Kd']}]},bigBlind:100};
     await page.evaluate(state=>window.__pushWatchState(state),game);
     await expect(page.locator('.watch-hero__hands [data-pose="raise"]')).toHaveCount(1);
     await expect(page.getByTestId('hand-fireworks')).toHaveCount(0);
-    await expect(page.locator('.watch-felt__won')).not.toHaveClass(/is-celebrating/);
+    await expect(page.locator('.watch-felt__won')).toHaveClass(/is-ordinary-win/);
+    await expect(page.locator('.watch-felt__won-to')).toHaveText(viewport.width>=1000?'The Clock WON':'WON');
+    await expect(page.locator('.watch-felt__won-amt')).toHaveText('$3,694');
+    await expect(page.locator('.watch-felt__won-amt')).toHaveCSS('font-size','19px');
+    await expect(page.locator('.watch-felt__won-amt')).toHaveCSS('font-weight','400');
+    await expect(page.locator('.watch-felt__won-to')).toHaveCSS('color','rgb(0, 212, 170)');
+    await expect(page.locator('.watch-felt__won-pill')).toHaveAttribute('aria-label','The Clock won $3,694 with three kings');
+    await expect(page.locator('.watch-felt__won-pill')).toHaveRole('group');
+    await expect(page.locator('.watch-felt__won-pill')).toHaveAccessibleName('The Clock won $3,694 with three kings');
+    await expect(page.locator('.watch-felt__won')).toHaveCSS('pointer-events','none');
     await page.waitForTimeout(1200);
-    await page.screenshot({path:'../artifacts/celebration-c8a.png'});
+    // The description changes; the existing seats, board, hero, strip, and
+    // composer must stay in exactly the same boxes after the result arrives.
+    expect((await geometry()).map(({what,...box})=>box)).toEqual(before.map(({what,...box})=>box));
+    const result=await page.locator('.watch-felt__won-pill').boundingBox();
+    const board=await page.locator('.watch-felt__board').boundingBox();
+    expect(result.y+result.height).toBeLessThanOrEqual(board.y);
+    // Keep the existing compact-height clamp and desktop stage scale. The
+    // standard phone is the reference's 96px; the 590px shell clamps to 72.875.
+    await expect(page.locator('.watch-felt__won')).toHaveCSS('top',viewport.height===590?'72.875px':'96px');
+    await page.screenshot({path:`../artifacts/celebration-c8a-${viewport.width}x${viewport.height}.png`});
+    const composer=page.getByRole('textbox').first();
+    await expect(composer).toBeVisible();
+    await composer.fill('Nice hand.');
+    await expect(composer).toHaveValue('Nice hand.');
   });
   for(const viewport of [{width:390,height:844},{width:390,height:590},{width:490,height:844}]) {
     test(`C8: result effects preserve the felt and composer at ${viewport.width}×${viewport.height}`,async({page})=>{

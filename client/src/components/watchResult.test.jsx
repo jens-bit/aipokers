@@ -13,7 +13,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { WatchScreen } from './WatchScreen.jsx';
+import { WatchScreen, WatchFelt } from './WatchScreen.jsx';
 import { midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -46,10 +46,46 @@ beforeEach(() => {
 });
 
 describe('BUGS-A job 12 · the felt names the hand', () => {
-  it('C8: an ordinary hero win raises his hands without fireworks',()=>{
+  it('BUG-173 / C8: an ordinary hero win uses the raised WON card without fireworks',()=>{
     render(<WatchScreen {...base} game={settled({type:'uncontested',pot:100,winners:[{seat:0,amount:100}]})}/>);
     expect(document.querySelector('.watch-hero__hands [data-pose="raise"]')).not.toBeNull();
     expect(screen.queryByTestId('hand-fireworks')).toBeNull();
+    expect(pill().parentElement).toHaveClass('is-celebrating', 'is-ordinary-win');
+    expect(pill().querySelector('.watch-felt__won-to')).toHaveTextContent(/^WON$/);
+    expect(pill().querySelector('.watch-felt__won-amt')).toHaveTextContent(/^\$100$/);
+    expect(pill()).toHaveAttribute('aria-label', 'The Grinder won $100 uncontested');
+    expect(screen.getByRole('group', { name: 'The Grinder won $100 uncontested' })).toBe(pill());
+  });
+  it('BUG-173: a split win shows the hero award once and names its owner accessibly',()=>{
+    render(<WatchScreen {...base} game={settled({type:'showdown',pot:300,
+      winners:[{seat:2,amount:200},{seat:0,amount:60},{seat:0,amount:40}]})}/>);
+    expect(pill().querySelector('.watch-felt__won-amt')).toHaveTextContent(/^\$100$/);
+    expect(pill()).toHaveAttribute('aria-label', 'The Grinder won $100 in a shared pot');
+    expect(pill().querySelector('.watch-felt__won-with')).toBeNull();
+    expect(screen.getByText('shared the pot')).toBeInTheDocument();
+  });
+  it('BUG-173: missing award and hand description stay unknown on an ordinary win',()=>{
+    render(<WatchFelt mySeat={0} game={settled({type:'showdown',pot:300,winners:[{seat:0}]}, [])}/>);
+    expect(pill().querySelector('.watch-felt__won-to')).toHaveTextContent(/^WON$/);
+    expect(pill().querySelector('.watch-felt__won-amt')).toBeNull();
+    expect(pill().querySelector('.watch-felt__won-with')).toBeNull();
+    expect(pill()).toHaveAttribute('aria-label', 'The Grinder won');
+  });
+  it('BUG-173: a boxed replay keeps its compact named result',()=>{
+    render(<WatchFelt mySeat={0} geom={{felt:500,pot:196,board:243,tug:290}} game={settled({
+      type:'uncontested',pot:100,winners:[{seat:0,amount:100}],
+    })}/>);
+    expect(pill().parentElement).not.toHaveClass('is-celebrating');
+    expect(pill()).toHaveTextContent('The Grinder took');
+    expect(pill()).toHaveAttribute('aria-label', 'The Grinder took $100 uncontested');
+    expect(screen.queryByTestId('hand-fireworks')).toBeNull();
+  });
+  it('BUG-173: desktop kitchen Watch keeps the full winner name visible',()=>{
+    render(<WatchFelt mySeat={0} ownerVariant="desktop" game={settled({
+      type:'uncontested',pot:100,winners:[{seat:0,amount:100}],
+    })}/>);
+    expect(pill().querySelector('.watch-felt__won-to')).toHaveTextContent(/^The Grinder WON$/);
+    expect(pill()).toHaveAttribute('aria-label', 'The Grinder won $100 uncontested');
   });
   it('C8: a big win uses actual big blinds and a busted seat gets its own falling name',()=>{
     const game=settled({type:'showdown',pot:3000,winners:[{seat:0,amount:3000}],showdown:[{seat:0,holeCards:['Ks','Kd']}]});
@@ -90,7 +126,10 @@ describe('BUGS-A job 12 · the felt names the hand', () => {
       winners: [{ seat: 0, amount: 60 }],
     })} />);
 
-    expect(pillText()).toContain('The Grinder took');
+    // Design 58 C8a replaces the ordinary hero's compact sentence with WON;
+    // the accessible sentence still names the actual winner and amount.
+    expect(pill().querySelector('.watch-felt__won-to')).toHaveTextContent(/^WON$/);
+    expect(pill()).toHaveAttribute('aria-label', 'The Grinder won $60 uncontested');
     expect(pillText()).toContain('uncontested');
     expect(pillText()).not.toContain('with');
   });

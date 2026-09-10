@@ -50,7 +50,7 @@ import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
 import { OwnerHero } from './system/OwnerHero.jsx';
 import { SitStrip } from './system/SitStrip.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
-import { handResult } from '../lib/handResult.js';
+import { handResult, seatName } from '../lib/handResult.js';
 // WATCH-10 job 4: ONE THOUSANDS SEPARATOR ON THE FELT. Every figure on this
 // screen went through toLocaleString, which groups by the device's locale — so
 // the same pot read "$4 180" in the pot pill and "$4,180" in the result pill
@@ -892,9 +892,22 @@ export function WatchFelt({
   var celebration = !geom && settled ? handCelebration(game,heroSeat) : null;
   useCelebrationAudio(game,heroSeat,!geom);
   var majorWin = celebration?.won && (celebration.big || celebration.busted.length>0);
+  // BUG-173 / Design 58 C8a: the ordinary hero win gets the same raised glass
+  // card, with its smaller amount and no fireworks. Replay keeps its geometry.
+  var ordinaryWin = celebration?.won && !majorWin;
+  var ordinaryAwards = ordinaryWin ? result.winners.filter(w => w.seat === heroSeat) : [];
+  var ordinaryAmount = ordinaryAwards.length && ordinaryAwards.every(w => Number.isFinite(w.amount) && w.amount >= 0)
+    ? ordinaryAwards.reduce((sum, w) => sum + w.amount, 0) : null;
+  var ordinaryLabel = ordinaryWin ? [seatName(heroSeat, game.seats), 'won',
+    ordinaryAmount == null ? '' : potMoney(ordinaryAmount),
+    new Set(result.winners.map(w => w.seat)).size > 1 ? 'in a shared pot' : handLine?.tail,
+  ].filter(Boolean).join(' ') : null;
   var winLabel = majorWin ? (celebration.busted.length>1 ? `${celebration.busted.length} OPPONENTS OUT`
     : celebration.busted.length===1 ? `${celebration.busted[0].name} IS OUT`
-    : `WON ${Math.round(celebration.bb)} BB`) : null;
+    : `WON ${Math.round(celebration.bb)} BB`)
+    // Desktop kitchen Watch has a room title instead of the phone's agent
+    // header. Preserve its formerly visible winner identity (Jens's win clarity).
+    : ordinaryWin ? (ownerVariant === 'desktop' ? `${seatName(heroSeat, game.seats)} WON` : 'WON') : null;
 
   useFlyTo(feltRef, { muck: muckRef, pot: potRef },
     [mucking, sweep, slots.length, live, settled]);
@@ -1067,12 +1080,12 @@ export function WatchFelt({
               showdown reveals every contested seat — and it was throwing the
               answer away. See lib/handResult.js for where the name comes from
               and in what order. */}
-          <div className={`watch-felt__won${majorWin ? ' is-celebrating' : ''}${majorWin && celebration.busted.length ? ' is-busting' : ''}`}>
-            <div className="watch-felt__won-pill" aria-label={handLine ? handLine.line : undefined}>
+          <div className={`watch-felt__won${majorWin || ordinaryWin ? ' is-celebrating' : ''}${ordinaryWin ? ' is-ordinary-win' : ''}${majorWin && celebration.busted.length ? ' is-busting' : ''}`}>
+            <div className="watch-felt__won-pill" role={ordinaryWin ? 'group' : undefined} aria-label={ordinaryLabel || (handLine ? handLine.line : undefined)}>
               {handLine && <span className="watch-felt__won-to">{winLabel || handLine.who + ' took'}</span>}
-              <span className="watch-felt__won-amt">
-                {potMoney(majorWin ? celebration.amount : result.pot || 0)}
-              </span>
+              {(!ordinaryWin || ordinaryAmount != null) && <span className="watch-felt__won-amt">
+                {potMoney(ordinaryWin ? ordinaryAmount : majorWin ? celebration.amount : result.pot || 0)}
+              </span>}
               {handLine && handLine.tail
                 ? <span className="watch-felt__won-with">{handLine.tail}</span>
                 : null}
