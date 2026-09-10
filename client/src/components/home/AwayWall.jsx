@@ -24,7 +24,7 @@ import { PHONE_ROOM } from './flat.js';
 import { MiniFelt } from './MiniFelt.jsx';
 import { useOnScreen, useThrottled } from '../../hooks/useThrottledFrame.js';
 import { money, signedMoney } from '../../lib/wallet.js';
-import { pillName } from '../../lib/names.js';
+import { shortName } from '../../lib/names.js';
 import { homeGameOf } from '../floor/agentView.js';
 
 const ROOM_LABEL = { floor: '10/20', upstairs: '25/50', backroom: '50/100' };
@@ -85,7 +85,7 @@ export function AwayFrame({ agent, accent, width = 118, hot = false, onClick, no
     >
       <MiniFelt liveGame={live} accent={accent} width={width} hot={hot} money={money} />
       <span className="home-frame__plate">
-        <span className="home-frame__name">{pillName(agent?.name)}</span>
+        <span className="home-frame__name">{shortName(agent?.name, agent?.nickname)}</span>
         <span className={`home-frame__line${line.includes('−') ? ' is-down' : ''}`}>
           {line || (walking ? 'walking in' : '')}
         </span>

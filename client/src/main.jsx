@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import { BrandLoading } from './components/system/BrandLoading.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
+import { loadTelegramSdk } from './lib/telegramSdk.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
 import { resolveVisitInvitation, rememberPendingVisitor, visitErrorText } from './lib/visit.js';
 import { parseStartParam, readStartParam } from './lib/deeplink.js';
@@ -52,6 +53,14 @@ function welcome(roomContent, options = {}) {
 }
 
 async function boot() {
+  // Paint the authored B12 frame while the external script loads, but retain
+  // the same credential priority as the old parser-blocking script. An actual
+  // load/error settles this gate; a slow request must never mint a guest early.
+  const sdkLoading = loadTelegramSdk();
+  if (sdkLoading) {
+    render(<BrandLoading/>);
+    await sdkLoading;
+  }
   // (1) and (2): a credential is already here.
   //
   // initTelegram() is called INSIDE each branch that mounts something, never

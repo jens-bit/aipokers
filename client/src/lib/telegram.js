@@ -1,5 +1,5 @@
-// Thin wrapper around the Telegram Web App SDK loaded by the script tag in
-// index.html. Safe to call outside Telegram (returns null) so the app still
+// Thin wrapper around the Telegram Web App SDK loaded before owner selection
+// by telegramSdk.js. Safe to call outside Telegram (returns null) so the app still
 // works when opened directly in a browser for development.
 
 import { getGuestOwner } from './guest.js';
@@ -71,7 +71,7 @@ export function isInTelegram() {
   return getWebApp() != null;
 }
 
-// AUTH-1 — stricter than isInTelegram(): the SDK script in index.html defines
+// AUTH-1 — stricter than isInTelegram(): the SDK script defines
 // window.Telegram.WebApp in *every* browser, so the only reliable signal that
 // we are really running as a Mini App is a non-empty initData string. That is
 // also exactly the condition under which the initData credential is usable.
