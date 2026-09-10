@@ -164,9 +164,17 @@ test('GUEST-1: one agent, and the refusal says what fixes it', () => {
 });
 
 test('GUEST-1: the build door refuses his second agent, and the draft survives', async () => {
-  // The go signal with a brief behind it is the build trigger. The roster
-  // already holds one, so this is the second.
-  await post('/api/agents/chat', { userId: GUEST_ID, content: 'tight and patient, small pots' }, guestCookie());
+  // The go signal with a FINISHED draft behind it is the build trigger. The
+  // roster already holds one, so this is the second.
+  //
+  // BUG-198 changed what "finished" means for a guest, and this setup with it:
+  // a guest's draft is now the four-stage script, so one vague sentence is a
+  // style and nothing else. The three questions are answered here on purpose —
+  // the door this test is about is the AGENT CAP, and a draft that stops short
+  // of the door would pass this test for the wrong reason.
+  for (const answer of ['tight and patient, small pots', 'rarely', 'fold']) {
+    await post('/api/agents/chat', { userId: GUEST_ID, content: answer }, guestCookie());
+  }
   const built = await post('/api/agents/chat', { userId: GUEST_ID, content: 'lets go' }, guestCookie());
   assert.equal(built.status, 409);
   assert.equal(built.body.error, 'guestAgentCap');

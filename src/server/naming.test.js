@@ -5,7 +5,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { coinName, ensureName, NAME_MAX, DEFAULT_NAME } from './naming.js';
+import { coinName, ensureName, suggestName, NAME_MAX, DEFAULT_NAME } from './naming.js';
+import { NATURES } from '../agent/attributes.js';
 
 test('BUGS-B/4: a name typed as a name comes back as itself', () => {
   assert.equal(coinName('Granite'), 'Granite');
@@ -110,4 +111,43 @@ test('BUGS-B/4: ensureName repairs a record in place, once', () => {
   assert.equal(ensureName(long).length <= NAME_MAX, true);
 
   assert.equal(ensureName(null), DEFAULT_NAME);
+});
+
+// ── BUG-198 · the name the field is pre-filled with ─────────────────────────
+//
+// The guest draft's fourth stage is a field with a name already in it and a
+// button. An empty box asking "what shall we call him" is where a four-tap
+// draft stalls, so there is always a name to accept.
+
+test('BUG-198: every nature has a name to offer, and every one of them fits', () => {
+  for (const nature of NATURES) {
+    const seen = new Set();
+    // Walk the whole ring rather than sampling: one bad entry in a list of
+    // three is a name a third of guests would be shown.
+    for (let i = 0; i < 12; i++) {
+      const name = suggestName(nature.name, { rand: () => i / 12 });
+      seen.add(name);
+      assert.ok(name, `${nature.name} must always offer a name`);
+      assert.ok(name.length <= NAME_MAX, `"${name}" is ${name.length} chars, over ${NAME_MAX}`);
+      assert.equal(name, coinName(name), `"${name}" must survive its own coining unchanged`);
+      assert.notEqual(name, DEFAULT_NAME, `${nature.name} must offer better than the fallback`);
+    }
+    assert.ok(seen.size > 1, `${nature.name} offers the same name every time`);
+  }
+});
+
+test('BUG-198: an unknown or missing nature still yields a usable name', () => {
+  // The field is pre-filled at stage 4, which can be reached before the dials
+  // have settled on anything. It can never be empty.
+  for (const bad of [null, undefined, '', 'Nonsense', 42]) {
+    const name = suggestName(bad, { rand: () => 0 });
+    assert.ok(name && name.length <= NAME_MAX, `"${bad}" gave "${name}"`);
+    assert.equal(name, coinName(name));
+  }
+});
+
+test('BUG-198: the suggestion is deterministic for a given roll', () => {
+  const a = suggestName('Rock', { rand: () => 0.4 });
+  const b = suggestName('Rock', { rand: () => 0.4 });
+  assert.equal(a, b, 'the same roll must give the same name');
 });

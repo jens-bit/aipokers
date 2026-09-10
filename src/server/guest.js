@@ -42,13 +42,23 @@
 // spelled out at its call site is a limit that will be relaxed at one of them
 // and nowhere else, six weeks from now, by somebody fixing something adjacent.
 //
-// ── THE DRAFT IS THE EXCEPTION, ON PURPOSE ──────────────────────────────────
+// ── THE DRAFT WAS THE EXCEPTION. IT IS NOT ANY MORE ─────────────────────────
 //
-// Drafting him is the only thing a guest may spend a model call on. It is also
-// the only thing that has to be good: the draft is the product's whole first
-// impression and a templated recruiter is a worse advertisement than no
-// recruiter at all. Everything after it — his play, his lines, his memory, the
-// nightly write-up — is free until somebody claims him.
+// Drafting him used to be the one thing a guest could spend a model call on,
+// on the reasoning that the draft is the product's whole first impression and
+// a templated recruiter is a worse advertisement than none.
+//
+// Jens reversed that on 2026-09-10, and BUG-198 is why the old reasoning did
+// not survive contact: the template was ALREADY what most guests met — no key,
+// a timeout, a parse failure — and it could not read the word "loose". The
+// answer to "the template is a bad advertisement" is a template worth meeting,
+// not a model call behind it. So the guest draft is now the four-stage script
+// in draftScript.js: chips at every stage, loose matching for anything typed,
+// and no model anywhere in the path. `modelBlocked` is the whole rule again,
+// with no exception to remember.
+//
+// Everything after it — his play, his lines, his memory, the nightly write-up
+// — is free until somebody claims him, exactly as before.
 //
 // ── OFF BY DEFAULT ──────────────────────────────────────────────────────────
 //
@@ -327,12 +337,15 @@ export function guestCannotVisit(ownerId) {
 /**
  * True when nothing this owner does may reach a model.
  *
- * The one exception is the draft, and it is an exception by OMISSION: the two
- * draft routes simply do not ask this question. Everything else does — the
- * decision router, the hand's talk, the memory refresh, the nightly recap and
- * the nightly exchange — so a new model call added anywhere in the product is
- * free for guests only if somebody remembers to ask, which is why the ask is
- * one function with one name and not a flag threaded through five signatures.
+ * There is no exception left. It used to be the draft, by OMISSION — the draft
+ * routes simply did not ask — and BUG-198 closed it: the chat route now asks
+ * this question too, and a true answer runs the scripted recruiter instead of
+ * calling a model. Everything else asks as well: the decision router, the
+ * hand's talk, the memory refresh, the nightly recap and the nightly exchange.
+ *
+ * A new model call added anywhere in the product is free for guests only if
+ * somebody remembers to ask, which is why the ask is one function with one name
+ * rather than a flag threaded through five signatures.
  */
 export function modelBlocked(ownerId) {
   return isGuestOwner(ownerId);

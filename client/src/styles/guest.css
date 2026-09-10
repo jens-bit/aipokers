@@ -420,7 +420,12 @@
 
 /* L2: the room itself follows the hero, with no second heading above it.
    The regular signed-in draft keeps its own Back/header and suggestion chips. */
-.guest-landing__room .draft-sheet__above { display: none; }
+/* BUG-198: the chips are no longer decoration for an owner with no words
+   ready — on the guest draft they ARE the recruiter, and hiding them left a
+   template that only advanced on words it never showed anybody. The rule this
+   line came from (no second heading above the room) is unaffected: the chips
+   sit under the rows, inside the sheet. */
+.guest-landing__room .draft-sheet__above { display: flex; }
 .guest-landing__room .draft-sheet { background: var(--glass-panel); }
 .guest-landing__room .draft2__room { opacity: 0.46; }
 .guest-landing__room .draft2__veil { background: linear-gradient(180deg, rgba(6,10,10,0.5), rgba(6,10,10,0.78)); }
