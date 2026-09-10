@@ -27,9 +27,10 @@ const roster = ['Bal', 'Aggro', 'Bluff'].map((name, i) => ({
 }));
 
 async function fixture(page) {
+  let publicRoster = roster;
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
-    const body = path === '/api/agents' ? { agents: roster }
+    const body = path === '/api/agents' ? { agents: publicRoster }
       : path === '/api/slots' ? { used: 3, cap: 4, next: null }
       : path === '/api/wallet' ? { balance: 54000, staked: 0, ledger: [] }
       : path.includes('/thread') ? { lines: [], count: 0, sessionId: 'home' }
@@ -50,7 +51,11 @@ async function fixture(page) {
     } };
     window.__tvSent = [];
     const sockets = [];
-    window.__tvRoster = agents => sockets.filter(s => s.floor).forEach(s => s.emit({ type: 'home_state', userId: '4242', agents, game: null }));
+    let currentRoster = roster;
+    window.__tvRoster = agents => {
+      currentRoster = agents;
+      sockets.filter(s => s.floor).forEach(s => s.emit({ type: 'home_state', userId: '4242', agents, game: null }));
+    };
     class Socket {
       constructor() { this.readyState = 0; this.listeners = {}; sockets.push(this); setTimeout(() => { this.readyState = 1; this.dispatch('open', {}); }, 20); }
       addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
@@ -59,13 +64,16 @@ async function fixture(page) {
       emit(message) { this.dispatch('message', { data: JSON.stringify(message) }); }
       send(raw) {
         const message = JSON.parse(raw); window.__tvSent.push(message);
-        if (message.type === 'floor_sub') { this.floor = true; this.emit({ type: 'home_state', userId: '4242', agents: roster, game: null }); }
+        if (message.type === 'floor_sub') { this.floor = true; this.emit({ type: 'home_state', userId: '4242', agents: currentRoster, game: null }); }
         if (message.type === 'watch') setTimeout(() => {
+          const table = currentRoster.find(a => a.id === message.agentId)?.liveGame;
+          const [smallBlind, bigBlind] = table.blinds.split('/').map(Number);
           this.emit({ type: 'watching', tableId: message.tableId, seat: 0 });
           this.emit({ type: 'state', yourSeat: 0, legalActions: [], state: {
-            tableId: message.tableId, handNumber: 2, street: 'flop', pot: 4180,
-            smallBlind: 25, bigBlind: 50, currentBet: 0, toAct: 1, community: ['Ah', 'Kd', '2c'],
-            seats: seats.map((s, i) => ({ ...s, playerId: `p${i}`, stack: 2000, holeCards: i === 0 ? ['9h', '9d'] : [] })),
+            tableId: message.tableId, handNumber: 2, street: table.street, pot: table.pot,
+            smallBlind, bigBlind, currentBet: 0, toAct: 1, community: table.board,
+            seats: table.seats.map((s, i) => ({ ...s,
+              playerId: `p${i}`, stack: 2000, holeCards: i === 0 ? ['9h', '9d'] : [] })),
           } });
         }, 20);
       }
@@ -73,12 +81,43 @@ async function fixture(page) {
     }
     Socket.OPEN = 1; window.WebSocket = Socket;
   }, { roster, seats });
+  return async agents => {
+    publicRoster = agents;
+    await page.evaluate(next => { window.__tvRoster(next); window.dispatchEvent(new Event('focus')); }, agents);
+  };
 }
+
+test('BUG-172: desktop away-frame and TV taps open the named live table, including a changed TV selection', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const updateRoster = await fixture(page);
+  await page.goto('/');
+  await page.getByTestId('home-frame-tv-0').click();
+  await expect(page.getByTestId('desk-casino-table')).toHaveAccessibleName('Bal at the table');
+  await expect(page.locator('.watch-felt')).toBeVisible();
+  await page.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }).click();
+  await expect(page.getByTestId('home-tv')).toBeVisible();
+  const changed = roster.map((agent, i) => i !== 2 ? agent : { ...agent,
+    activeTableId: 'casino-bluff', location: { ...agent.location, where: 'table', tableId: 'casino-bluff', room: 'backroom' },
+    liveGame: { ...roster[0].liveGame, tableId: 'casino-bluff', blinds: '50/100', pot: 9000,
+      seats: [{ displayName: 'Bluff', identity: agent.identity }, seats[1]] },
+  });
+  await updateRoster(changed);
+  const tv = page.getByTestId('home-tv');
+  await expect(tv).toHaveAccessibleName("Television — Watch Bluff's live table");
+  await expect(tv.locator('.home-tv__caption')).toHaveText('Bluff · 50/100');
+  await expect(tv.locator('.home-tv__ghost')).toHaveCount(2);
+  await tv.click();
+  await expect(page.getByTestId('desk-casino-table')).toHaveAccessibleName('Bluff at the table');
+  await expect(page.getByRole('heading', { name: 'The table · 50/100' })).toBeVisible();
+  await expect(page.locator('.watch-felt')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__tvSent.filter(m => m.type === 'watch').at(-1))).toMatchObject({ tableId: 'casino-bluff', agentId: 'tv-2' });
+  await page.screenshot({ path: artifact('desktop-tv172-selected-table.png') });
+});
 
 for (const width of [390, 1440]) {
   test(`BUG-169: the live picture can return to an actual saved tape without changing its tap at ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-    await fixture(page);
+    const updateRoster = await fixture(page);
     await page.goto('/');
     await expect(page.getByTestId('home-tv-felt')).toBeVisible();
     const returned = roster.map((agent, i) => ({ ...agent, activeTableId: null, liveGame: null,
@@ -86,7 +125,7 @@ for (const width of [390, 1440]) {
       routine: { key: 'reads', label: 'reading' },
       sessionFlagged: i === 0 ? [badBeatHand] : [],
     }));
-    await page.evaluate(agents => window.__tvRoster(agents), returned);
+    await updateRoster(returned);
     const tv = page.getByTestId('home-tv');
     await expect(tv).toHaveAccessibleName("Television — Replay Bal's hand #37");
     await expect(tv.getByTestId('home-tape')).toContainText('BAD BEAT');
