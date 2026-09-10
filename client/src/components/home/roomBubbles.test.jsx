@@ -18,13 +18,14 @@
 //      there is only ever one.
 
 import { describe, expect, it } from 'vitest';
+import { renderHook } from '@testing-library/react';
 
 import {
   BUBBLE_LIFE_MS, BUBBLE_PREEMPT_MS, MAX_IN_ROOM,
-  bubbleRect, layout, overlaps, pillRect, resolve, sideFor,
+  bubbleRect, layout, overlaps, pillRect, resolve, sideFor, useRoomBubbles,
 } from './roomBubbles.js';
 import {
-  DOOR_SPOT, FLOOR_SPOTS, SIGN, TABLE_SEATS, WALL_SPOT, FLAT,
+  DOOR_SPOT, FLOOR_SPOTS, SIGN, TABLE_SEATS, WALL_SPOT, FLAT, DESK_ROOM, PHONE_ROOM, bodyRect,
 } from './flat.js';
 
 const body = (id, x, y, over = {}) => ({ id, x, y, size: 46, name: 'Balance', ...over });
@@ -36,16 +37,81 @@ const A = body('a', 100, 120);
 const B = body('b', 100, 240);
 const C = body('c', 100, 360);
 
-describe('the boxes stack up from the feet', () => {
-  it('pill sits over the head, bubble sits over the pill', () => {
+describe('the boxes are anchored to the same body', () => {
+  it('BUG-185: the pill stays above the head while ordinary speech centers beside it', () => {
     const pill = pillRect(A);
     const bubble = bubbleRect(A, 'right');
     // Feet at y, body 46 tall, 4px gaps: the pill's bottom is above his head.
     expect(pill.bottom).toBe(120 - 46 - 4);
-    expect(bubble.bottom).toBe(pill.top - 4);
+    // Current board29 HomeOne replaces the old over-pill bubble stack.
+    expect((bubble.top + bubble.bottom) / 2).toBe(A.y - A.size / 2);
     expect(bubble.top).toBeLessThan(bubble.bottom);
     // ...and a bubble never sits on its own pill.
     expect(overlaps(bubble, pill)).toBe(false);
+  });
+
+  it.each([46, 50, 56, 62])('BUG-185: a %spx body reserves the actual box, side tail and entrance movement', size => {
+    const speaker = body('wide', 220, 440, { size });
+    const offset = Math.max(32, size / 2 - 2);
+    for (const side of ['left', 'right']) {
+      const box = bubbleRect(speaker, side);
+      expect((box.top + box.bottom) / 2).toBe(speaker.y - size / 2);
+      expect(box.bottom - box.top).toBeGreaterThanOrEqual(39 + 8);
+      expect(box.right - box.left).toBeGreaterThanOrEqual(150 + 5);
+      if (side === 'right') {
+        expect(box.left).toBeLessThanOrEqual(speaker.x + offset - 5);
+        expect(box.right).toBeGreaterThanOrEqual(speaker.x + offset + 150);
+      } else {
+        expect(box.left).toBeLessThanOrEqual(speaker.x - offset - 150);
+        expect(box.right).toBeGreaterThanOrEqual(speaker.x - offset + 5);
+      }
+    }
+  });
+
+  it('BUG-185: room blockers contain the measured resident and guest name-pill heights', () => {
+    const resident = pillRect(A), guest = pillRect({ ...A, guest: true });
+    expect(resident.bottom - resident.top).toBeGreaterThanOrEqual(27);
+    expect(guest.bottom - guest.top).toBeGreaterThanOrEqual(37);
+    expect(guest.bottom).toBe(resident.bottom);
+  });
+
+  it.each([PHONE_ROOM, DESK_ROOM])('BUG-185: the side tail stays inside the eight-pixel room edge at width$width', geometry => {
+    for (const x of [8, 32, 100, geometry.width / 2, geometry.width - 32, geometry.width - 8]) {
+      const speaker = body('edge', x, 440, { size: geometry.seatedSize });
+      const side = sideFor(speaker, [], geometry);
+      if (side) {
+        const box = bubbleRect(speaker, side);
+        expect(box.left).toBeGreaterThanOrEqual(8);
+        expect(box.right).toBeLessThanOrEqual(geometry.width - 8);
+      }
+    }
+  });
+
+  it('BUG-185: another body cannot disappear behind speech even when its pill is above the line', () => {
+    const speaker = body('speaker', 100, 440), neighbour = body('neighbour', 215, 440, { guest: true });
+    const alone = layout([says(speaker, 'A public line')], [speaker]);
+    expect(alone).toHaveLength(1);
+    const together = layout([says(speaker, 'A public line')], [speaker, neighbour]);
+    for (const placed of together) expect(overlaps(bubbleRect(placed, placed.side), bodyRect(neighbour, neighbour.size))).toBe(false);
+    expect(together).toHaveLength(0);
+  });
+
+  it('BUG-185: a side bubble cannot cover the fridge beside the wall routine', () => {
+    const speaker = body('wall', WALL_SPOT.x, WALL_SPOT.y);
+    const fridge = { left: FLAT.fridge.x, right: FLAT.fridge.x + FLAT.fridge.w,
+      top: FLAT.fridge.y, bottom: FLAT.fridge.y + FLAT.fridge.h };
+    for (const placed of layout([says(speaker, 'A public recap')], [speaker])) {
+      expect(overlaps(bubbleRect(placed, placed.side), fridge)).toBe(false);
+    }
+  });
+
+  it('BUG-185: a new guest label recomputes clearance even when neither occupant moves', () => {
+    const speaker = body('speaker', 100, 440), neighbour = body('neighbour', 215, 520);
+    const speakers = [says(speaker, 'A line beside me')];
+    const { result, rerender } = renderHook(({ guest }) => useRoomBubbles(speakers, [speaker, { ...neighbour, guest }]), { initialProps:{guest:false} });
+    expect(result.current.size).toBe(1);
+    rerender({guest:true});
+    expect(result.current.size).toBe(0);
   });
 
   it('opens to the right of him, or to the left of him', () => {
@@ -75,9 +141,9 @@ describe('picking the side with clearance', () => {
   });
 
   it('a name pill is a blocker like any other', () => {
-    // Somebody standing just above and to the right: his PILL is where this
-    // bubble wants to open, and the room edge takes the other side away.
-    const near = body('n', 250, 96);
+    // With speech beside the head, a neighbour farther down has his PILL
+    // in that line's path. The right wall still takes the other side away.
+    const near = body('n', 170, 190);
     const at = body('m', 250, 150);
     expect(sideFor(at, [])).toBe('left');
     expect(sideFor(at, [pillRect(near)])).not.toBe('left');
@@ -88,11 +154,15 @@ describe('picking the side with clearance', () => {
 // the top that BUGS-C job 2's header exclusion takes his only clear side —
 // exactly the kind of case "picking the side with clearance" above exists to
 // prove, so it stays there. These three are a clean case with room to spare.
-const P = body('p', 100, 180);
+// Beside-head speech must also clear the fridge; keep this free-space fixture
+// between the safe and fridge without changing what the lifecycle asserts.
+const P = body('p', 50, 180);
 // Queue/lifetime fixtures stay off the newly protected felt. These tests
 // exercise turn-taking with free space; BUG-55 above exercises blocked seats.
 const Q = body('q', 100, 440);
-const R = body('r', 100, 560);
+// The old above-pill box at560 cleared the TV. Beside-head speech belongs
+// below its screen here, so this turn-taking fixture moves to600 instead.
+const R = body('r', 100, 600);
 
 describe('BUGS-C job 2: one bubble in the room, ever', () => {
   it('BUG-55: speech from any kitchen chair stays off the felt', () => {

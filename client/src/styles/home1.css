@@ -716,39 +716,57 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-bubble-slot {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 4px);
+  bottom: var(--home-room-speech-top, 23px);
   width: 0;
-  height: 38px;
+  height: 0;
   pointer-events: none;
 }
 .home-bubble {
   position: absolute;
-  bottom: 0;
+  top: 0;
+  transform: translateY(-50%);
   /* BUGS-C job 2: 150px, down from 152 — the playtest called these "far too
      large", and clamped to two lines with an ellipsis rather than growing to
      fit whatever the household had to say. */
   width: 150px;
   padding: 5px 9px;
   border-radius: 11px;
-  background: rgba(20, 28, 27, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  --home-bubble-fill: rgba(20, 28, 27, 0.94);
+  --home-bubble-edge: rgba(255, 255, 255, 0.14);
+  background: var(--home-bubble-fill);
+  border: 1px solid var(--home-bubble-edge);
   font-size: 10px;
   line-height: 1.35;
   color: var(--text-secondary, #A1A1A1);
   text-align: left;
   white-space: normal;
+  overflow: visible;
+  animation: home-bubblein 0.3s ease-out both;
+}
+.home-bubble__text {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  animation: home-bubblein 0.3s ease-out both;
 }
-.home-bubble--right { left: 9px; border-bottom-left-radius: 3px; }
-.home-bubble--left { right: 9px; border-bottom-right-radius: 3px; }
+.home-bubble--right { left: var(--home-room-bubble-offset, 32px); }
+.home-bubble--left { right: var(--home-room-bubble-offset, 32px); }
+.home-bubble__tail {
+  position: absolute;
+  top: 50%; margin-top: -4px;
+  width: 7px; height: 7px;
+  background: var(--home-bubble-fill);
+  border-left: 1px solid var(--home-bubble-edge);
+  border-bottom: 1px solid var(--home-bubble-edge);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.home-bubble--right .home-bubble__tail { left: -4px; }
+.home-bubble--left .home-bubble__tail { right: -4px; }
 .home-bubble--gold {
-  background: rgba(205, 179, 128, 0.12);
-  border-color: rgba(205, 179, 128, 0.4);
+  --home-bubble-fill: rgba(205, 179, 128, 0.12);
+  --home-bubble-edge: rgba(205, 179, 128, 0.4);
   color: #CDB380;
 }
 
@@ -1207,8 +1225,8 @@ button.home-flat__table:active { filter: brightness(1.12); }
   100% { opacity: 0.85; transform: translateY(0); }
 }
 @keyframes home-bubblein {
-  0% { opacity: 0; transform: translateY(4px) scale(0.96); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% { opacity: 0; transform: translateY(calc(-50% + 4px)) scale(0.96); }
+  100% { opacity: 1; transform: translateY(-50%) scale(1); }
 }
 @keyframes home-sheetup {
   0% { transform: translateY(14px); opacity: 0; }

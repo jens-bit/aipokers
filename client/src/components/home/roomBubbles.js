@@ -46,7 +46,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { BUBBLE_W, PHONE_ROOM, bubbleFits, bubbleSide } from './flat.js';
+import { BUBBLE_W, PHONE_ROOM, bodyRect, bubbleSide } from './flat.js';
 import { overlaps, place, sideFor as placeSide } from '../../lib/bubblePlace.js';
 import { shortName } from '../../lib/names.js';
 
@@ -78,7 +78,7 @@ const fixtureRect = (f) => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y
 // request bubble with another sentence over the community cards.
 const fixtureBlockersFor = (speakers, geometry) => {
   const { flat, sign, header, tvSpot, tvScreen } = geometry;
-  const blocked = [sign, flat.safe, header, {
+  const blocked = [sign, flat.safe, flat.fridge, header, {
     x: flat.table.cx - flat.table.rx, y: flat.table.cy - flat.table.ry,
     w: flat.table.rx * 2, h: flat.table.ry * 2,
   }].map(fixtureRect);
@@ -88,21 +88,24 @@ const fixtureBlockersFor = (speakers, geometry) => {
 
 // ── The boxes, from home1.css ───────────────────────────────────────────────
 //
-// .home-one is a column, bottom-anchored at the body's feet (translate -100%),
-// stacking [bubble slot] [name pill] [body] with a 4px gap. So every rect below
-// is measured UP from `y`, and the pill's position does not depend on whether
-// there is a bubble above it.
+// The pill stays above the body. Current board29 HomeOne puts ordinary speech
+// beside its center; carry/refusal has a separate authored .65-height anchor.
+// A 39px two-line box plus its existing 4px entrance movement fits inside 47px.
+// The rotated 7px tail extends less than 5px beyond the border toward the head.
 
 export const STACK_GAP = 4;      // .home-one { gap: 4px }
-export const BUBBLE_H = 38;      // .home-bubble-slot { height: 38px }
-export const BUBBLE_GAP = 9;     // .home-bubble--right { left: 9px }
-export const PILL_H = 24;        // 3 + name + 2 + bars + 4, plus its border
+export const BUBBLE_H = 47;
+export const BUBBLE_TAIL = 5;
+export const PILL_H = 28;        // measured resident pill27px, rounded outward
 export const PILL_PAD = 16;      // 7px each side, plus its border
 // HOME-2 job 2: the pill's two bars are 44px each — the ref's own pill scale —
 // and the pill can never be narrower than what they need.
 export const PILL_MIN_W = PILL_PAD + 44;
 // 8.5px at weight 600 with a little tracking. Rounded UP: see the header.
 const CHAR_W = 6.2;
+
+// mood-home.jsx: bubAnchor(size) minus the body's half-width.
+export const roomBubbleOffset = (size = 46) => Math.max(32, size / 2 - 2);
 
 /**
  * How wide the name pill over this body is, near enough and never under.
@@ -121,14 +124,14 @@ export function pillWidth(name, nickname = null) {
 export function pillRect(body) {
   const w = pillWidth(body?.name, body?.nickname);
   const bottom = body.y - (body.size ?? 46) - STACK_GAP;
-  return { left: body.x - w / 2, right: body.x + w / 2, top: bottom - PILL_H, bottom };
+  return { left: body.x - w / 2, right: body.x + w / 2, top: bottom - PILL_H - (body.guest ? 10 : 0), bottom };
 }
 
-/** The bubble's box over this body, opening the given way. */
+/** Ordinary bubble and tail envelope beside this body's actual center. */
 export function bubbleRect(body, side) {
-  const bottom = pillRect(body).top - STACK_GAP;
-  const left = side === 'right' ? body.x + BUBBLE_GAP : body.x - BUBBLE_GAP - BUBBLE_W;
-  return { left, right: left + BUBBLE_W, top: bottom - BUBBLE_H, bottom };
+  const size = body.size ?? 46, center = body.y - size / 2, offset = roomBubbleOffset(size);
+  const left = side === 'right' ? body.x + offset - BUBBLE_TAIL : body.x - offset - BUBBLE_W;
+  return { left, right: left + BUBBLE_W + BUBBLE_TAIL, top: center - BUBBLE_H / 2, bottom: center + BUBBLE_H / 2 };
 }
 
 // WATCH-10 job 2 moved the algorithm to lib/bubblePlace.js so the FELT could
@@ -140,8 +143,11 @@ export { overlaps };
 /** The two sides, most wanted first. flat.js decides which is preferred. */
 const roomSides = (body, geometry) => (bubbleSide(body.x, geometry.width) === 'right' ? ['right', 'left'] : ['left', 'right']);
 
-/** The box, or null when the room edge would cut it — flat.js's rule. */
-const roomRect = (body, side, geometry) => (bubbleFits(body.x, side, geometry.width) ? bubbleRect(body, side) : null);
+/** The actual box and tail must clear the authored eight-pixel room margin. */
+const roomRect = (body, side, geometry) => {
+  const rect = bubbleRect(body, side);
+  return rect.left >= 8 && rect.right <= geometry.width - 8 ? rect : null;
+};
 
 /**
  * Which way this body's bubble may open, or null when neither way is clear.
@@ -169,7 +175,12 @@ export function layout(speakers = [], bodies = [], geometry = PHONE_ROOM) {
   return place(speakers, {
     max: MAX_IN_ROOM,
     sides: body => roomSides(body, geometry),
-    rect: (body, side) => roomRect(body, side, geometry),
+    rect: (body, side) => {
+      const rect = roomRect(body, side, geometry);
+      // At desktop size the authored tail can enter its OWN hood's transparent
+      // outer square. Other occupants still keep their whole visible body box.
+      return rect && !bodies.some(other => other.id !== body.id && overlaps(rect, bodyRect(other, other.size ?? 46))) ? rect : null;
+    },
     blockers: [...bodies.map(pillRect), ...fixtureBlockersFor(speakers, geometry)],
   });
 }
@@ -256,7 +267,7 @@ export function useRoomBubbles(speakers = [], bodies = [], geometry = PHONE_ROOM
   // The identity of what is being said and where everyone stands, so a
   // re-render that changed neither does not restart anybody's beat.
   const said = speakers.map((s) => `${s.id}:${s.eventId ?? ''}:${s.gold ? 'g' : 's'}:${s.text}`).join('|');
-  const where = bodies.map((b) => `${b.id}@${Math.round(b.x)},${Math.round(b.y)}`).join('|');
+  const where = JSON.stringify(bodies.map(b => [b.id, Math.round(b.x), Math.round(b.y), b.size, !!b.guest, b.name, b.nickname]));
 
   const { shown, nextAt } = useMemo(() => {
     const out = resolve(speakers, bodies, { ...state.current, now: Date.now(), geometry });
