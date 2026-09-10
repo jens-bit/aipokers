@@ -464,6 +464,8 @@ During recovery of the interrupted overnight gate, src/server/share.test.js exit
 
 Batch31 main integration repeated this native exit in agentLifecycle.test.js (3221226505, empty child output, about 690ms). Three isolated runScript executions passed all 15 lifecycle checks; a read-only Application event query found no matching node.exe crash record. The complete main31 recheck passed 106 server / 2225 client / 7 e2e. These measurements do not establish the native failure cause. Evidence: artifacts/batch31-main-test-all.log, batch31-lifecycle-diagnostic.log, batch31-main-test-all-rechecked.log.
 
+Batch54 integration repeated it a third time, in a different suite again: scripts/verify-multi-seat.js exited 3221226505 inside `npm run test:all` after printing every one of its own checks ok, the last being "dealt into the next hand". The same command passed end to end on an immediate rerun with verify-multi-seat.js green in 41.3s (128 server / 2 skipped, 2534 client / 2 todo, 7 e2e). The batch under gate was client-only and touches nothing that script exercises, so this occurrence cannot be attributed to it. Three occurrences now share one signature — 3221226505, a child that printed no JavaScript assertion, and a clean pass in isolation — and all three were in a different suite, which is what argues the cause is the runner or the platform rather than any one test. Still unproven; nothing is skipped or weakened for it.
+
 
 
 
