@@ -4,6 +4,7 @@ import App from './App.jsx';
 import { BrandLoading } from './components/system/BrandLoading.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { loadTelegramSdk } from './lib/telegramSdk.js';
+import { hasTelegramLaunchSignal } from './lib/telegramLaunch.js';
 import { resolveGuest, startGuest, installClaimCatcher } from './lib/guest.js';
 import { resolveVisitInvitation, rememberPendingVisitor, visitErrorText } from './lib/visit.js';
 import { parseStartParam, readStartParam } from './lib/deeplink.js';
@@ -44,8 +45,35 @@ const GuestLanding = lazy(() => import('./components/guest/GuestLanding.jsx').th
 const wantsWelcome = /^\/welcome\/?$/.test(window.location.pathname);
 const root = createRoot(document.getElementById('root'));
 
+// BUG-191/187: once a real Mini App credential has taken the room, nothing
+// the ungated path was still working on may paint over it. The credential
+// order in boot() is unchanged; this is what keeps it true when the answer
+// arrives after a door has already been opened.
+let miniAppAdopted = false;
+
 function render(tree) {
+  if (miniAppAdopted) return undefined;
   root.render(<StrictMode>{tree}</StrictMode>);
+  return undefined;
+}
+
+function renderMiniApp() {
+  miniAppAdopted = true;
+  initTelegram();
+  root.render(<StrictMode><App /></StrictMode>);
+  return undefined;
+}
+
+/**
+ * The SDK has settled after we chose a door without it. If it turned out to
+ * carry a real Mini App credential, that credential wins — which is the same
+ * priority boot() applies, applied late.
+ */
+function adoptLateMiniApp() {
+  if (miniAppAdopted) return true;
+  if (!isMiniAppSession()) return false;
+  renderMiniApp();
+  return true;
 }
 
 function welcome(roomContent, options = {}) {
@@ -53,13 +81,35 @@ function welcome(roomContent, options = {}) {
 }
 
 async function boot() {
-  // Paint the authored B12 frame while the external script loads, but retain
-  // the same credential priority as the old parser-blocking script. An actual
-  // load/error settles this gate; a slow request must never mint a guest early.
+  // Paint the authored B12 frame while the external script loads, and keep the
+  // same credential priority the parser-blocking script had.
+  //
+  // BUG-191/187 — WHO WAITS FOR telegram.org, AND WHO DOES NOT.
+  //
+  // The gate used to be absolute: every window, Telegram's or not, sat on the
+  // B12 frame until an external request settled. On a cold entry that request
+  // is DNS + TLS + transfer to a third party and it measured a little under
+  // three seconds, so the room was three seconds late for everybody — including
+  // the browsers Telegram had nothing to do with, which were waiting to be told
+  // something their own URL already said.
+  //
+  // So the gate is now the launch signal rather than the clock:
+  //
+  //   · A window Telegram opened (hasTelegramLaunchSignal) behaves EXACTLY as
+  //     before — B12, await the real SDK, let initData choose the owner. The
+  //     Mini App path is not shortened and no credential is reconstructed here.
+  //   · A window with no Telegram signal at all cannot become a Mini App
+  //     session, so it opens its own door immediately. If the SDK settles into
+  //     a real credential regardless, adoptLateMiniApp re-takes the room with
+  //     it, so door 1 still outranks a saved web login and a guest.
+  //   · Minting a guest is the one irreversible step in here, and it waits for
+  //     the actual settlement in every window, signal or no signal. A slow
+  //     request still cannot mint a guest early.
   const sdkLoading = loadTelegramSdk();
   if (sdkLoading) {
     render(<BrandLoading/>);
-    await sdkLoading;
+    if (hasTelegramLaunchSignal()) await sdkLoading;
+    else sdkLoading.then(adoptLateMiniApp);
   }
   // (1) and (2): a credential is already here.
   //
@@ -67,7 +117,7 @@ async function boot() {
   // before the branching. LAND-2's rule is that a visitor who is about to be
   // redirected to the marketing page never has the SDK initialised at all, and
   // initialising it up here to save three lines would quietly break that.
-  if (isMiniAppSession()) { initTelegram(); return render(<App />); }
+  if (isMiniAppSession()) return renderMiniApp();
   if (getWebLogin() != null) {
     initTelegram();
     const room = <Suspense fallback={<BrandLoading/>}><LoginGate><App /></LoginGate></Suspense>;
@@ -77,6 +127,10 @@ async function boot() {
   // (3): is the no-account door open, and are we already through it?
   render(<BrandLoading/>);
   const { enabled, ownerId } = await resolveGuest();
+  // A credential may have landed while that round trip was in the air. The
+  // claim catcher wraps every fetch for a guest and must never wrap an
+  // owner's, so the guest branch is not entered once door 1 has been taken.
+  if (adoptLateMiniApp()) return undefined;
   if (enabled) {
     initTelegram();
     // Every guest refusal, from anywhere, raises the same wall. Installed
@@ -111,6 +165,10 @@ async function boot() {
     // bounds a crawler or a bounced tab; see guest.js for why that cap is rows
     // rather than a Map. A server that refuses falls through to the login door
     // rather than rendering an app with no owner behind it.
+    // The mint waits for the real settlement even in a window with no launch
+    // signal: a guest is the one thing here that cannot be taken back, and a
+    // late credential must be allowed to make it unnecessary.
+    if (sdkLoading) { await sdkLoading; if (adoptLateMiniApp()) return undefined; }
     const made = await startGuest(visitor ? visitInvitationToken : null, { onCreated: (body) => {
       if (visitor && body.visitInvitationAccepted !== true) {
         visitor = null;
