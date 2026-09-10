@@ -302,19 +302,31 @@ function hash(str) {
 /**
  * The template line this decision says out loud, or null for the silence that
  * is the common case. Deterministic in the hand, the seat, the street and the
- * action.
+ * action. Optional public speech context only avoids repeating the speaker's
+ * last delivered line; it never changes the speaking opportunity or action.
  */
-export function instantLine(gs, action) {
+export function instantLine(gs, action, { lastPublicLine = null } = {}) {
   const voice = Object.hasOwn(NATURE_LINES, gs?.nature) ? NATURE_LINES[gs.nature] : null;
   const pool = voice?.[action?.type] ?? INSTANT_LINES[action?.type];
   if (!pool || pool.length === 0) return null;
   const seed = `${gs?.handNumber ?? 0}:${gs?.seat ?? 0}:${gs?.street ?? ''}:${action.type}`;
   const h = hash(seed);
   if (h % TALK_ONE_IN !== 0) return null;
-  const line = pool[(h >>> 8) % pool.length];
+  const index = (h >>> 8) % pool.length;
   // Legacy/House voices keep their pool and choice. Only this impossible
   // promise changes once the last community card is already on the table.
-  return gs?.street === 'river' && line === 'One more card.' ? "I'll pay." : line;
+  const truthful = line => gs?.street === 'river' && line === 'One more card.' ? "I'll pay." : line;
+  const line = truthful(pool[index]);
+  // BUG-177: keep the old deterministic choice unless it is exactly what
+  // this speaker last said. Walk the existing pool without another hash or
+  // random draw. Normalize first: two legacy river entries mean "I'll pay."
+  if (line === lastPublicLine) {
+    for (let offset = 1; offset < pool.length; offset++) {
+      const next = truthful(pool[(index + offset) % pool.length]);
+      if (next !== lastPublicLine) return next;
+    }
+  }
+  return line;
 }
 
 /**
@@ -328,7 +340,7 @@ export function instantLine(gs, action) {
  * action, which is the same fallback the model path uses when a model returns
  * something unusable. `say` is the table-talk bubble, or null.
  */
-export function chooseFromPolicy(gs) {
+export function chooseFromPolicy(gs, speech = {}) {
   const rated = rateActions(gs);
   const best = rated[0] ?? (gs?.canCheck ? { type: 'check' } : { type: 'call' });
   const action = best.amount === undefined
@@ -337,7 +349,7 @@ export function chooseFromPolicy(gs) {
   return {
     action,
     reasoning: fallbackLine({ holeCards: gs?.holeCards, action }),
-    say: instantLine(gs, action),
+    say: instantLine(gs, action, speech),
     rated,
     options: countOptions(rated),
   };

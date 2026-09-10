@@ -207,6 +207,43 @@ test('BUG-162: kitchen Profile projections never expose another agent’s privat
   assert.equal(profiles.presentAgentById(hostAgent, THIRD, {owner:true}), null);
 });
 
+test('BUG-178: signed host Home keeps the visitor saved identity without owner-only fields', async () => {
+  const visitor = profiles.agentsOf(VISITOR)[0];
+  visitor.identity = { hood: 'indigo', glow: 'violet', secret: 'PRIVATE_IDENTITY_FIELD' };
+  visitor.memory = 'PRIVATE_VISITOR_MEMORY';
+  profiles.saveOwner(VISITOR);
+  const table = await kitchen();
+  assert.equal(registry.getLiveGame(table.tableId, { agentId: guestAgent, includeHole: true }).heroHole.length, 2);
+  async function subscribe(uid) {
+    const ws = new WebSocket(base.replace('http:', 'ws:'));
+    const socket = { ws, messages: [] }; sockets.push(socket);
+    ws.on('message', raw => socket.messages.push(JSON.parse(raw)));
+    await once(ws, 'open');
+    ws.send(JSON.stringify({ type: 'floor_sub', ...identity(uid) }));
+    return waitFor(() => socket.messages.find(m => m.type === 'home_state'));
+  }
+  const host = await subscribe(HOST);
+  assert.equal(host.userId, HOST);
+  const body = host.agents.find(a => a.id === guestAgent);
+  assert.ok(body, 'the accepted guest reaches the actual host wire');
+  assert.equal(body.guest, true);
+  assert.equal(body.routine.key, 'plays');
+  assert.equal(body.strategy, undefined);
+  assert.equal(body.memory, undefined);
+  assert.equal(body.holeCards, undefined);
+  assert.equal(body.liveGame.tableId, table.tableId, 'BUG-168 public preview remains present');
+  assert.equal(body.liveGame.heroHole, undefined);
+  assert.ok(body.liveGame.seats.every(seat => !seat.holeCards && !seat.heroHole));
+  assert.equal(JSON.stringify(body).includes('PRIVATE_'), false);
+  assert.deepEqual(body.identity, { hood: 'indigo', glow: 'violet' });
+  const other = await subscribe(THIRD);
+  assert.equal(other.userId, THIRD);
+  assert.ok(other.agents.every(a => a.id !== guestAgent && a.id !== hostAgent));
+  const own = profiles.presentAgentById(guestAgent, VISITOR, { owner: true });
+  assert.notEqual(own.location.where, 'home');
+  assert.deepEqual(own.identity, body.identity);
+});
+
 test('BUG-168: signed Home subscriptions keep host, visitor and public previews card-free while Profile/Floor retain exact owner cards',async()=>{
   const table=await kitchen();
   async function subscribe(claimed, signed) {
