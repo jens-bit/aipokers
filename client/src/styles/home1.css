@@ -1044,7 +1044,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-want__chips { display: flex; gap: 7px; margin-top: 3px; }
 .home-want__chip {
-  /* F11's small pills. The transparent extension keeps a 44px touch target. */
+  /* F11's small pills. The transparent extension expands the touch target. */
   min-height: 24px;
   position: relative;
   flex-shrink: 0;
@@ -1059,6 +1059,13 @@ button.home-flat__table:active { filter: brightness(1.12); }
   background: transparent;
   color: var(--text-secondary, #A1A1A1);
   cursor: pointer;
+}
+/* F11 request lettering outranks the room reset. The shared visitor/notice
+   controls keep their existing base styles and color modifiers. */
+.home1 .home-want[data-agent] .home-want__chip {
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .home-want__chip::after { content: ''; position: absolute; inset: -10px -3px; }
 .home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); background: rgba(0, 212, 170, 0.08); color: var(--accent, #00D4AA); }
