@@ -1,9 +1,30 @@
+/* index.css — what EVERY entry pays for, and nothing else.
+ *
+ * BUG-156: this file used to pull in twenty-four sheets, so a phone opening
+ * Home downloaded the desktop shell, the casino building and three screens
+ * nothing imports any more before it could paint a room. The rule now is that
+ * a sheet belongs here only if a module in the ENTRY graph names its classes;
+ * everything else is imported by the module that owns it, and Vite gives it to
+ * whichever chunk that module lands in.
+ *
+ * Moved out, and where to:
+ *   desktop.css  -> components/desktop/DesktopHome.jsx and screens/CasinoScreen.jsx
+ *                   (the only two islands that name .dsk-*; the handful of
+ *                    non-dsk rules in it are --desk overrides that nothing
+ *                    outside the desktop shell can render)
+ *   casino.css   -> screens/CasinoScreen.jsx (every .csn-* is in components/casino/*)
+ *   home.css     -> components/HomeTab.jsx      (already self-imported)
+ *   agents.css   -> components/AgentsTab.jsx    (already self-imported)
+ *   history.css  -> components/HistoryTab.jsx
+ *
+ * The last three are screens no reachable module imports at all. They keep
+ * their sheets beside them rather than losing them, so bringing one back is
+ * still one import.
+ */
 @import './tokens.css';
 @import '../components/system/system.css';
 @import './base.css';
 @import './layout.css';
-@import './home.css';
-@import './agents.css';
 @import './play.css';
 @import './table.css';
 @import './cards.css';
@@ -11,10 +32,7 @@
 @import './chat.css';
 @import './agent-chat.css';
 @import './analysis.css';
-@import './history.css';
 @import './floor.css';
-@import './casino.css';
-@import './desktop.css';
 @import './watch.css';
 @import './watch6.css';
 @import './sit1.css';

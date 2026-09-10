@@ -496,8 +496,9 @@
 }
 
 /* Scrollbar hide — also used by horizontal agent track */
-.no-scrollbar               { scrollbar-width: none; -ms-overflow-style: none; }
-.no-scrollbar::-webkit-scrollbar { display: none; }
+/* BUG-156: .no-scrollbar moved to base.css — it is a shared utility that four
+   always-loaded components name, and keeping it here kept this whole sheet in
+   the entry bundle for the sake of two lines. */
 
 /* ── Active-agents pill ─────────────────────────────────────────────────── */
 
