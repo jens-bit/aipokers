@@ -1,5 +1,18 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 0.13.0 — the first screen, the entry bundle, and a draft that listens (2026-09-10)
+
+Release candidate. Merged as MERGE-6; not deployed.
+
+- **The room stops waiting for telegram.org (BUG-191/187).** The SDK wait is gated on the Telegram launch signal instead of a timer, so an ordinary browser entry never waits for the external script at all and a Mini App entry waits only as long as it must. The five-second cold-mount miss went with it. `09e2899`
+- **The phone entry stops downloading the desk and the building (BUG-156).** The desktop shell, the casino, the agent profile and the replay theatre are split out of the entry chunk. `2c86799`
+- **WatchScreen stays EAGER, by decision.** It is the obvious next split and it is refused: watching him play is what a deep link, a notification and a share card all open, and a spinner there is a spinner at the moment the product is trying to earn. The rule and its reasoning are now in `read-me-claude/HOW_WE_WORK.md` under Perf rules, and revisiting it needs a new instruction rather than a passing thought.
+- **The companion action row gets its letters back (BUG-197).** Authored weight, number size, tracking and muted ink on the phone AgentView; portrait and stage untouched. `0dd46f5`
+- **RECENT reads a cost's own clock (BUG-196).** A freshly flagged cost carries its `flaggedAt` and sorts newest-first instead of landing at time zero behind older growth. `21798cb`
+- **The guest draft advances on the words it actually shows (BUG-198).** Every chip label the design offers used to fail: the nature ladder needs two signals and a single word carries one. The draft is now a four-stage script whose chips ARE the matcher's vocabulary, so a chip that cannot be read cannot be offered — with loose matching for free text, a restatement of what was heard, and a miss that never re-asks. Four taps end in a poker player. Owners keep the conversational recruiter and their own openers; the guest draft is templated, with no model call. `3459297`
+- **The landing's desktop proportions are measured and guarded (BUG-199).** Reported as far larger than design 58 at 1024 and up; measured at 896/1152/1408 across the three widths, which is board 40's `(w − 128)` exactly. No product change — a desk e2e assertion now computes the expected width from the design's own formula so the next drift fails a test instead of a playtest.
+
+
 ## 2026-09-09 — the owner's dashboard
 
 GET /admin: one page, behind ADMIN_KEY in an x-admin-key header, that says how the game is doing without an SSH session — owners, agents, play, chips, model spend, notifications, system and 14 days of retention cohorts, with a 7-day sparkline on every tile that has a daily series and a red strip at the top for anything wrong. Read-only, no model call, six requests a minute per key per endpoint, and nothing about a request reaches the logs. Every number carries the SQL that produced it as a hover title, enforced by a test. Six new counters make numbers answerable that had no durable source before — hands by the hour, knocks at a door, chips won today, pings the notify budget refused, and model calls that succeeded or failed — plus a throttled presence row, the one write the feature adds. With ADMIN_KEY unset the whole thing 404s. read-me-claude/ADMIN.md says what "active" means and what each number does not mean.

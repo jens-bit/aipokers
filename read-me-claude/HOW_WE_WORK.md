@@ -145,6 +145,16 @@ The 185-row frame inventory and its 466 substates are Astra's source-indexed aud
 
 One rule for writing in it: a screen's status is what somebody actually looked at, with the difference named. "PARTIAL" with no named difference is not a status, it is a shrug.
 
+## Perf rules
+
+**WatchScreen stays EAGER. Do not lazy-load it, now or later, without a new instruction from Jens.**
+
+BUG-156 split the desk, the casino, the profile and the replay theatre out of the phone's entry bundle, and WatchScreen is the obvious next candidate — it is large, and on the phone it is not the first screen. It is nevertheless not a candidate, and the reason is not technical: watching him play is the thing the product is for, and it is what a deep link, a notification and a share card all open. A spinner on the way into a hand is a spinner at the only moment the whole app is trying to earn. The saving is real; the trade is not the one we want, and it has now been considered and refused rather than overlooked.
+
+That is the standing rule. If it is ever revisited, it is revisited on purpose, by Jens, and this line is what has to change first.
+
+The rest of the entry budget: measure before splitting (`npm run build:client` prints the chunk sizes), and split what a first-time phone visitor genuinely does not reach — never what a link opens.
+
 ## Playtests
 
 Jens plays prod on the phone and the desktop and writes down what broke or felt wrong, with screenshots. That list becomes one queue (`fix/bugs-x`) for one tab, one job per finding, each with the failure named in a test. Product calls that a finding implies are decided in the queue, not left to the tab.

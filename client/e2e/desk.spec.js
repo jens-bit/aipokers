@@ -1048,3 +1048,42 @@ for(const width of [390,490]) test('BUG-131: visiting agent is live in the roste
  await expect.poll(()=>page.evaluate(()=>window.__visitWatch.at(-1)?.tableId)).toBe('home-friend');
  expect(await page.evaluate(()=>window.__visitWatch.at(-1)?.agentId)).toBe('a1');
 });
+// ── BUG-199 · the landing's product shots keep design 58's proportions ───────
+//
+// Board 40's L2BigDesk states the rule in one line: `const k = (w - 128) / 1440`
+// — "the desktop product, scaled into the column: 1440 into (w − 128), so 0.8 at
+// 1280 and 0.91 at 1440 — the same shot both times, and never a phone."
+//
+// The shipped page reproduces that as `.landing-section { padding: 54px 64px }`
+// plus `.landing-screen picture { width: 100% }`, which is the same arithmetic
+// written in two places rather than one. Two places is exactly how a number
+// drifts, so it is nailed down here: the report that these rendered "far larger
+// than design 58" was measured and was not reproducible, and this assertion is
+// what makes that measurement survive the next person who changes a padding.
+//
+// 1280 is the width board 40 is authored at (`LandingPage({ w = 1280 })`).
+test('BUG-199: the landing product shot is the design 58 width at 1280', async ({ page }) => {
+  await page.route('**/api/guest', (r) => r.fulfill({ json: { ownerId: 'g_welcome' } }));
+  await page.route('**/api/auth/config', (r) => r.fulfill({ json: { botUsername: '' } }));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('http://127.0.0.1:5199/welcome');
+
+  const shot = page.locator('.landing-screen img').first();
+  await expect(shot).toBeVisible({ timeout: 20_000 });
+  // The design's own arithmetic, not a number copied out of a screenshot.
+  const expected = (1280 - 128) / 1440 * 1440;
+  const box = await shot.boundingBox();
+  expect(box.width).toBeCloseTo(expected, 0);
+  // And it is the desktop capture at its real 1440x900 ratio, never the phone
+  // one stretched — the other half of "never a phone". Within a pixel, because
+  // the frame carries the design's own 1px hairline and the ratio lands on a
+  // subpixel; a phone capture here would be off by more than a thousand.
+  expect(Math.abs(box.height - expected * 900 / 1440)).toBeLessThan(2);
+
+  // The hero's own art is fixed-size on desktop and must not scale with it:
+  // board 40 draws the creature block at 470x350 for every width above 700.
+  const creature = page.locator('.guest-hero__creature');
+  const c = await creature.boundingBox();
+  expect(c.width).toBeCloseTo(470, 0);
+  expect(c.height).toBeCloseTo(350, 0);
+});
