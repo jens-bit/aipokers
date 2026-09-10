@@ -108,3 +108,73 @@ it('BUG-127: a quiet shift keeps the authored explanation in the phone companion
  expect(await screen.findByText('NOTHING WORTH FLAGGING')).toBeInTheDocument();
  expect(screen.getByText('When a hand is worth watching, it arrives here as a replay you can scrub.')).toBeInTheDocument();
 });
+
+// ── BUG-197 · the action row's type and ink ─────────────────────────────────
+//
+// The row's geometry survived the port; its letters did not. Every number
+// below is measured off the authored C1 frame at 390x844 — the crop is
+// design-refs/frames/42-C1-actions.png — and the pair is
+// artifacts/pairs/42-C1-actions.png.
+const rowStyles = () => {
+  const row = document.querySelector('.agent-view__actions');
+  const deploy = row.querySelector('.agent-view__deploy');
+  const label = [...row.querySelectorAll('button:not(.agent-view__deploy) > span')];
+  return { row, deploy, label, css: (el) => getComputedStyle(el) };
+};
+
+it('BUG-197: DEPLOY carries the authored condensed face, weight and tracking', async () => {
+  show();
+  await screen.findByTestId('agent-stage');
+  const { deploy, css } = rowStyles();
+  const word = css(deploy.querySelector('b'));
+  expect(word.fontFamily).toMatch(/Oswald/);
+  expect(word.fontSize).toBe('10.5px');
+  expect(word.fontWeight).toBe('600');
+  // .14em of 10.5px is the 1.47px the authored frame measures.
+  expect(word.letterSpacing).toMatch(/em$/);
+  expect(parseFloat(word.letterSpacing)).toBeCloseTo(0.14, 5);
+  expect(word.color).toBe('rgb(0, 212, 170)');
+});
+
+it('BUG-197: the pocket line is 10px mono in the authored dim ink, not 9px in flat grey', async () => {
+  show();
+  await screen.findByTestId('agent-stage');
+  const { deploy, css } = rowStyles();
+  const number = css(deploy.querySelector('span'));
+  expect(number.fontFamily).toMatch(/JetBrains Mono/);
+  expect(number.fontSize).toBe('10px');
+  expect(number.color).toBe('rgb(195, 195, 198)');
+});
+
+it('BUG-197: the three labels are Oswald 600 at 7.5px in muted ink, and the icons are not', async () => {
+  show();
+  await screen.findByTestId('agent-stage');
+  const { row, label, css } = rowStyles();
+  expect(label.map((s) => s.textContent)).toEqual(['GIVE CHIPS', 'CARRY', 'PROFILE']);
+  for (const span of label) {
+    const s = css(span);
+    expect(s.fontFamily).toMatch(/Oswald/);
+    expect(s.fontSize).toBe('7.5px');
+    expect(s.fontWeight).toBe('600');
+    expect(s.letterSpacing).toMatch(/em$/);
+    expect(parseFloat(s.letterSpacing)).toBeCloseTo(0.1, 5);
+    expect(s.color).toBe('rgb(158, 158, 162)');
+  }
+  // Two inks. The icon rides the button's own colour, which is the brighter
+  // dim; the label under it is the muted one. Flattening both is the bug.
+  for (const button of row.querySelectorAll('button:not(.agent-view__deploy)')) {
+    expect(css(button).color).toBe('rgb(195, 195, 198)');
+  }
+});
+
+it('BUG-197: the row keeps the geometry the port already had', async () => {
+  show();
+  await screen.findByTestId('agent-stage');
+  const { row, deploy, css } = rowStyles();
+  expect(css(row).height).toBe('66px');
+  expect(css(row).gap).toBe('6px');
+  expect(css(row).padding).toBe('0px 12px');
+  expect(css(deploy).height).toBe('46px');
+  expect(css(deploy).borderRadius).toBe('10px');
+  expect(css(deploy).gap).toBe('7px');
+});
