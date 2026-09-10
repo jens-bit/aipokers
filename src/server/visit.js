@@ -5,7 +5,7 @@ import { bumpTick, loadVisitInvitation, invitationForAgent, saveVisitInvitation,
   loadVisitRecords, saveVisitMutation } from './store.js';
 import { allOwnerIds, agentsOf, saveOwner, reloadOwners, seatStatusOf,
   presentAgentById, presentedRoster } from './agentProfiles.js';
-import { Where } from './home.js';
+import { Where, routineFor } from './home.js';
 import * as homeGameMod from './homeGame.js';
 import { notifyEvent } from './notify.js';
 import { notifyHomeChanged } from './floorChannel.js';
@@ -246,7 +246,18 @@ export function listVisitorsFor(hostUserId) {
     if (v.hostUserId!==String(hostUserId) || v.status!=='accepted' || !currentGuest(v) || closedGameFor(v)) continue;
     if (v.endsAt<=Date.now() && !tableBusy(hostTable(v))) continue;
     const p=presentAgentById(v.agentId,v.guestUserId,{owner:false});
-    if (p) out.push({...p,guest:true,ownerId:v.guestUserId,location:{where:Where.HOME,tableId:null,room:null,since:v.acceptedAt}});
+    if (p) out.push({
+      ...p, guest: true, ownerId: v.guestUserId,
+      location: { where: Where.HOME, tableId: null, room: null, since: v.acceptedAt },
+      // His own projection is away and therefore has no Home routine. The
+      // host sees what he is doing in this room: only an actual current chair
+      // outranks his idle habit. Admission alone cannot make him play.
+      routine: routineFor({
+        nature: p.nature, where: Where.HOME, atHomeTable: actualSeat(v),
+        studying: !!p.study, broke: p.presence === 'broke',
+        fatigue: p.fatigue, unseenRecap: p.unseenRecap,
+      }),
+    });
   }
   return out;
 }

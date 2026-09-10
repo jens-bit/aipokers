@@ -389,6 +389,57 @@ test('VISIT-1: both seats get their own thread session, so both threads can carr
   assert.ok(hostThread.some((l) => l.text === 'Cheers.'), "the host's thread carries his, separately");
 });
 
+test('BUG-175: a seated visitor has the host playing routine without changing identity or privacy', async () => {
+  resetAgents(GUEST, [agent('traveler', {
+    nature: { name: 'Rock' }, identity: { hood: 'indigo', glow: 'violet' },
+    memory: 'Private strategy memory', sessionRecap: { text: 'Private recap' },
+  })]);
+  const { body: knock } = await visitReq('traveler', HOST, 0);
+  const pending = visitMod.visitBodiesFor(HOST).find(a => a.id === 'traveler');
+  assert.notEqual(pending.routine?.key, 'plays', 'a pending knock is not a seat');
+  assert.equal(pending.homeTableId, null);
+  const answered = await answerReq(knock.visitId, HOST, true);
+  assert.equal(answered.status, 200);
+  const table = registry.getTable(homeGame.homeTableId(HOST));
+  table.maybeStartHand();
+  const own = profiles.presentAgentById('traveler', GUEST, { owner: true });
+  assert.equal(own.liveGame.heroHole.length, 2, 'privacy is measured with real dealt cards');
+  assert.notEqual(own.location.where, 'home', 'he remains away from his own household');
+  assert.equal(own.routine, null);
+  const body = visitMod.listVisitorsFor(HOST).find(a => a.id === 'traveler');
+  assert.equal(body.location.where, 'home');
+  assert.deepEqual(body.identity, own.identity);
+  assert.equal(body.fatigue, own.fatigue);
+  assert.equal(body.guest, true);
+  assert.equal(body.homeTableId, table.tableId);
+  assert.equal(body.liveGame.heroHole, null, 'host never receives the visiting owner\'s cards');
+  assert.equal(body.memory, undefined);
+  assert.equal(body.strategy, undefined);
+  assert.equal(body.sessionRecap, null);
+  assert.deepEqual(body.routine, { key: 'plays', label: 'in the home game' });
+  const wire = profiles.homeSnapshot(HOST, { owner: true, game: homeGame.state(HOST), visitors: [body] });
+  assert.equal(wire.agents.find(a => a.id === 'traveler').routine.key, 'plays');
+});
+
+test('BUG-175: an accepted visitor who leaves the actual chair is no longer playing', async () => {
+  resetAgents(HOST, [agent('resident'), agent('housemate')]);
+  resetAgents(GUEST, [agent('traveler', { nature: { name: 'Rock' } })]);
+  const { body: knock } = await visitReq('traveler', HOST, 0);
+  assert.equal((await answerReq(knock.visitId, HOST, true)).status, 200);
+  const table = registry.getTable(homeGame.homeTableId(HOST));
+  while (table.handInProgress()) table.game.act(table.game.toAct, { type: 'fold' });
+  if (table.game?.result) table._handCompleted();
+  const seat = table.agentIds.indexOf('traveler');
+  assert.ok(seat >= 0);
+  assert.equal(table.sitOutSeat(seat).pending, false);
+  assert.equal(table.closed, false, 'the two host residents can keep their game');
+  assert.equal(table.agentIds.includes('traveler'), false);
+  const body = visitMod.listVisitorsFor(HOST).find(a => a.id === 'traveler');
+  assert.ok(body, 'the pending visit sweep has not yet removed the visiting body');
+  assert.notEqual(body.routine?.key, 'plays', 'an accepted record cannot invent current seating');
+  assert.equal(body.homeTableId, null);
+});
+
  test('BUG-131: the visitor owner receives the actual host-table preview with scoped cards',async()=>{
  const {body:knock}=await visitReq('traveler',HOST,0);
  assert.equal(profiles.presentedRoster(GUEST,{owner:true}).find(a=>a.id==='traveler').liveGame,null,'a pending knock is not a live game');
