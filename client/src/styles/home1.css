@@ -511,6 +511,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   font-size: 7.5px; color: #00D4AA; white-space: nowrap;
 }
 .home-frame__line.is-down { color: #FF4D4F; }
+/* Current C7a numbers use JetBrains Mono. Keep the room's name-case reset,
+   but let these two AwayFrame labels use the authored face. */
+.home1 .home-frame .home-frame__pot,
+.home1 .home-frame .home-frame__line {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
 
 .home-wall__hook {
   width: 44px; height: 34px;
