@@ -83,8 +83,11 @@ describe('R-3 entry from the flagged sheet', () => {
     await screen.findByText(/Hand #37/);
 
     await user.click(container.querySelector('.replay-card'));
-    expect(container.querySelector('.replay-theatre')).toBeTruthy();
+    // BUG-156: the theatre is a chunk of its own now, so it arrives a tick
+    // after the tap rather than on it. Same assertion, awaited.
+    await vi.waitFor(() => expect(container.querySelector('.replay-theatre')).toBeTruthy());
     // And it is Watch v3's felt in there, not a second one.
+    expect(container.querySelector('.replay-theatre')).toBeTruthy();
     expect(container.querySelector('.watch-felt')).toBeTruthy();
     expect(container.querySelector('.replay-scrub')).toBeTruthy();
   });
@@ -95,7 +98,9 @@ describe('R-3 entry from the flagged sheet', () => {
     await user.click(await screen.findByText(/88% equity favorite/));
 
     await user.click(screen.getByRole('button', { name: 'Watch it' }));
-    expect(container.querySelector('.replay-theatre')).toBeTruthy();
+    // BUG-156: the theatre is a chunk of its own now, so it arrives a tick
+    // after the tap rather than on it. Same assertion, awaited.
+    await vi.waitFor(() => expect(container.querySelector('.replay-theatre')).toBeTruthy());
   });
 
   it('R-3: and Open hand takes you from the theatre back to the transcript', async () => {
@@ -104,6 +109,9 @@ describe('R-3 entry from the flagged sheet', () => {
     await screen.findByText(/Hand #37/);
 
     await user.click(container.querySelector('.replay-card'));
+    // BUG-156: the theatre is a chunk of its own now, so it arrives a tick
+    // after the tap rather than on it. Same assertion, awaited.
+    await vi.waitFor(() => expect(container.querySelector('.replay-theatre')).toBeTruthy());
     await user.click(screen.getByRole('button', { name: 'Open hand' }));
 
     expect(container.querySelector('.replay-theatre')).toBeNull();
@@ -121,6 +129,9 @@ describe('R-3 entry from the flagged sheet', () => {
     await screen.findByText(/Hand #37/);
 
     await user.click(container.querySelector('.replay-card'));
+    // BUG-156: the theatre is a chunk of its own now, so it arrives a tick
+    // after the tap rather than on it. Same assertion, awaited.
+    await vi.waitFor(() => expect(container.querySelector('.replay-theatre')).toBeTruthy());
     await user.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(container.querySelector('.replay-theatre')).toBeNull();

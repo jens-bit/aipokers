@@ -1,7 +1,7 @@
 // NAV-1b — full port of mood-screens-a.jsx (roster) + mood-screens-b.jsx (thread).
 // Roster = HomeScreenM. Thread = ThreadScreen. Both in this file.
 
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { LiveBar } from '../components/system/LiveBar.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
@@ -13,7 +13,13 @@ import { openerFor } from '../components/desktop/useAgentThread.js';
 import { money } from '../lib/wallet.js';
 import { ReplayCard } from '../components/replay/ReplayCard.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
-import { ReplayTheatre } from '../components/replay/ReplayTheatre.jsx';
+// BUG-156: the theatre is the heaviest thing either of these screens can open
+// and neither opens it on arrival. App.jsx already loads it lazily; these two
+// static imports were what kept it — and the replay timeline it drags with it —
+// inside the entry chunk anyway, so they take the same lazy handle. The
+// fallback is null for the same reason as App.jsx's: it replaces a screen that
+// is not on the felt yet, so there is nothing to hold a spinner over.
+const ReplayTheatre = lazy(() => import('../components/replay/ReplayTheatre.jsx').then((m) => ({ default: m.ReplayTheatre })));
 import { AgentView } from '../components/agent/AgentView.jsx';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
@@ -745,11 +751,13 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
   // scrolling thread would be a video in a sidebar. Back returns to the thread.
   if (replayHand) {
     return (
-      <ReplayTheatre
-        hand={{ ...replayHand, agentName: agent.name }}
-        agentId={agent.id}
-        onBack={() => setReplayHand(null)}
-      />
+      <Suspense fallback={null}>
+        <ReplayTheatre
+          hand={{ ...replayHand, agentName: agent.name }}
+          agentId={agent.id}
+          onBack={() => setReplayHand(null)}
+        />
+      </Suspense>
     );
   }
 

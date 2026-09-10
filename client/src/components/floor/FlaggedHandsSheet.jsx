@@ -6,12 +6,12 @@
 //   { flaggedHands: [{ flagType, handNumber, pot, holeCards, won, streets, flaggedAt }] }
 //   street: { street, board, action, equity (integer %), potOdds, reasoning }
 
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { PlayingCard, CardBack } from '../system/PlayingCard.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
 import { ReplayCard } from '../replay/ReplayCard.jsx';
-import { ReplayTheatre } from '../replay/ReplayTheatre.jsx';
+const ReplayTheatre = lazy(() => import('../replay/ReplayTheatre.jsx').then((m) => ({ default: m.ReplayTheatre })));
 import { ShareButton } from '../share/ShareButton.jsx';
 
 // ── Design tokens (verbatim from mood-screens-f) ──────────────────────────────
@@ -607,12 +607,14 @@ export function FlaggedHandsSheet({ agent, onBack }) {
   if (replayHand) {
     return (
       <div className="watch-sheet-overlay">
-        <ReplayTheatre
-          hand={{ ...replayHand, agentName }}
-          agentId={agent?.id}
-          onBack={() => setReplayHand(null)}
-          onOpenHand={() => { setSelectedHand(replayHand); setReplayHand(null); }}
-        />
+        <Suspense fallback={null}>
+          <ReplayTheatre
+            hand={{ ...replayHand, agentName }}
+            agentId={agent?.id}
+            onBack={() => setReplayHand(null)}
+            onOpenHand={() => { setSelectedHand(replayHand); setReplayHand(null); }}
+          />
+        </Suspense>
       </div>
     );
   }

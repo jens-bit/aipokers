@@ -32,10 +32,38 @@
 .agent-view__answers button:before{content:"";position:absolute;inset:-9px 0}
 .agent-view__answers button:first-child{color:#00D4AA;border-color:#00d4aa66;background:#00d4aa1f}
 .agent-view__actions{height:66px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 12px;background:linear-gradient(180deg,#101a1800,#101A18 42%)}
-.agent-view__actions button{flex:1;min-width:0;min-height:46px;height:46px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;border:1px solid #ffffff1f;background:linear-gradient(#ffffff06,#ffffff02);color:#A1A1A1;font-size:7.5px}
-.agent-view__actions button.agent-view__deploy{flex:1.85;padding:0 12px;flex-direction:row;background:#00d4aa1c;border-color:#00d4aa59;gap:7px}
-.agent-view__deploy b{font-size:10.5px;font-weight:600;color:#00D4AA}
-.agent-view__deploy span{font:9px 'JetBrains Mono',monospace;letter-spacing:normal;white-space:nowrap}
+/* BUG-197 — the action row's type and ink, ported from mood-agent.jsx 143-155.
+   The geometry was already right: 66px row, 6px gap, 0 12px, the 1.85/1/1/1
+   split, 46px buttons at radius 10. What the port had dropped was everything
+   the letters are made of. Measured on the authored C1 frame at 390x844:
+
+     DEPLOY   Oswald 10.5/600, 1.47px tracking (.14em), #00D4AA
+     25/50 ·  JetBrains Mono 10px, #C3C3C6      (the app had 9px, and #A1A1A1)
+     labels   Oswald 7.5/600, 0.75px (.1em), #9E9EA2  (the app had Inter 7.5
+              at normal weight, no tracking, #A1A1A1)
+     icons    stroke #C3C3C6, which is the button's own colour
+
+   Two inks, not one: the icon and the number are M_DIM #C3C3C6, the three
+   labels under the icons are M_MUTED #9E9EA2. Flattening both to #A1A1A1 is
+   what made the row read as one grey block. */
+.agent-view__actions button{flex:1;min-width:0;min-height:46px;height:46px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;border:1px solid #ffffff1f;background:linear-gradient(#ffffff06,#ffffff02);color:#C3C3C6;font-size:7.5px}
+.agent-view__actions button:not(.agent-view__deploy)>span{font-family:Oswald,Inter,sans-serif;font-size:7.5px;font-weight:600;letter-spacing:.1em;color:#9E9EA2;white-space:nowrap}
+/* min-width:auto, against the row's blanket min-width:0, because DEPLOY is the
+   one button here whose contents cannot be compressed: both spans are nowrap.
+   The authored button is 157.7px — its own min-content — and the remaining
+   190.3px splits three ways into 63.4px each. With min-width:0 it took its
+   flex share of 146.5px instead and paid for the difference out of its 12px
+   inner padding, which is invisible at 9px and 10.7px short at the authored
+   10px. The three plain buttons keep min-width:0; they have room. */
+.agent-view__actions button.agent-view__deploy{flex:1.85;min-width:auto;padding:0 12px;flex-direction:row;background:#00d4aa1c;border-color:#00d4aa59;gap:7px}
+.agent-view__deploy b{font-family:Oswald,Inter,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.14em;color:#00D4AA;white-space:nowrap}
+/* Scoped through .agent-view__actions to clear BUG-188's broad reset:
+   `.home1 button, .home1 button span { font-family: inherit }` is two classes
+   deep and outranks a single-class family rule, so inside the desk rail — where
+   the companion panel sits in .home1--desk — the pocket line silently fell back
+   to the panel's Inter. The phone sheet is not inside .home1 and never showed
+   it. Same declaration, one class further in, so both surfaces read the mono. */
+.agent-view__actions .agent-view__deploy span{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:normal;color:#C3C3C6;white-space:nowrap}
 .agent-view__thread{flex:1;min-height:0;overflow:hidden auto;padding:8px 12px 4px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none}
 .agent-view__thread::-webkit-scrollbar{display:none}
 .agent-view__thread-space{margin-top:auto}
@@ -83,6 +111,12 @@
 .agent-view--desktop .agent-view__actions button{height:40px;min-height:40px;border-radius:9px;font-size:7px}
 .agent-view--desktop .agent-view__actions .agent-view__deploy{flex:1.7;padding:0 7px;gap:5px}
 .agent-view--desktop .agent-view__deploy b{font-size:9.5px}
+/* BUG-197 is the phone's row. C9 measured its own smaller sizes for the desk —
+   40px buttons, 7px labels, 9.5px DEPLOY — so the phone's restored 7.5/10px
+   are held off it here. The faces, weights, tracking and both inks are not
+   size, and they apply on the desk too. */
+.agent-view--desktop .agent-view__actions button:not(.agent-view__deploy)>span{font-size:7px}
+.agent-view--desktop .agent-view__actions .agent-view__deploy span{font-size:9px}
 .agent-view--desktop .agent-view__thread{padding:12px 14px;gap:9px}
 .agent-view--desktop .agent-view__composer{padding:10px 14px 14px}
 .agent-view--desktop .agent-view__composer>div{height:40px}

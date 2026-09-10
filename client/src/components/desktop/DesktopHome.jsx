@@ -22,6 +22,10 @@ import { PanelHead } from './panelParts.jsx';
 import { DeskRoster } from './DeskRoster.jsx';
 import { CasinoScreen } from '../../screens/CasinoScreen.jsx';
 import { resolveDeepLink } from '../../lib/deeplink.js';
+// BUG-156: the desk shell's 72KB sheet belongs to the desk shell. Nothing
+// outside this island names .dsk-*, and its few non-dsk rules are --desk
+// overrides that only render once this has mounted.
+import '../../styles/desktop.css';
 
 const POLL_MS = 10_000;
 const IDLE_KEY = '__standup__';

@@ -47,6 +47,10 @@ import { getTelegramInitData, getUserId } from '../lib/telegram.js';
 import { M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { Num } from '../components/wallet/atoms.jsx';
 import { HomeThread } from '../components/home/HomeThread.jsx';
+// BUG-156: the building's own sheet, and the desk shell's, travel with the
+// chunk that draws them instead of with every phone entry.
+import '../styles/casino.css';
+import '../styles/desktop.css';
 
 const POLL_MS = 10_000;
 const MONO = '"JetBrains Mono",ui-monospace,monospace';

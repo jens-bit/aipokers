@@ -192,8 +192,11 @@ describe('WIRE-1/5 the replay poster in the thread', () => {
     await screen.findByText(SERVED_OPENER);
 
     await user.click(container.querySelector('.replay-card'));
-    expect(container.querySelector('.replay-theatre')).toBeTruthy();
+    // BUG-156: the theatre is a chunk of its own now, so it arrives a tick
+    // after the tap rather than on it. Same assertion, awaited.
+    await vi.waitFor(() => expect(container.querySelector('.replay-theatre')).toBeTruthy());
     // Watch v3's own felt, not a second one.
+    expect(container.querySelector('.replay-theatre')).toBeTruthy();
     expect(container.querySelector('.watch-felt')).toBeTruthy();
     expect(container.querySelector('.replay-scrub')).toBeTruthy();
   });
@@ -205,6 +208,9 @@ describe('WIRE-1/5 the replay poster in the thread', () => {
     await screen.findByText(SERVED_OPENER);
 
     await user.click(container.querySelector('.replay-card'));
+    // BUG-156: the theatre is a chunk of its own now, so it arrives a tick
+    // after the tap rather than on it. Same assertion, awaited.
+    await vi.waitFor(() => expect(container.querySelector('.replay-theatre')).toBeTruthy());
     await user.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(container.querySelector('.replay-theatre')).toBeNull();

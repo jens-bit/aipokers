@@ -3,6 +3,15 @@ import fs from 'node:fs/promises';
 
 const invitation = '0123456789abcdefghijklmnopqrstuv';
 const sdkBody = owner => `window.Telegram={WebApp:{initData:${JSON.stringify(owner ? 'synthetic-mini-credential' : '')},initDataUnsafe:${JSON.stringify(owner ? { user: { id: Number(owner), first_name: 'Synthetic' } } : {})},get viewportHeight(){return innerHeight},ready(){},expand(){},disableVerticalSwipes(){},onEvent(){},offEvent(){}}};`;
+// BUG-191/187 — `mini` now also means the window carries Telegram's launch
+// fragment, because that is what a real Mini App launch is: Telegram puts
+// tgWebAppData on the URL and the SDK reads initData back out of it. The
+// fragment is what tells the app to wait for the real SDK before choosing an
+// owner, and every gated assertion below is scoped to those three cases.
+//
+// The five windows Telegram never opened no longer wait for telegram.org.
+// They still may not MINT anything before it settles, which is asserted
+// per-case further down.
 const cases = [
   { name: 'Mini App beats saved web login', owner: '9123', mini: true, saved: true, width: 390, height: 844 },
   { name: 'short Mini App', owner: '9123', mini: true, width: 390, height: 590 },
@@ -13,6 +22,9 @@ const cases = [
   { name: 'guest disabled', owner: null },
   { name: 'SDK network failure with guests disabled', owner: null, failure: true },
 ];
+
+// What Telegram appends to the page URL when it opens a Mini App.
+const LAUNCH_FRAGMENT = '#tgWebAppData=user%3D%257B%2522id%2522%253A9123%257D&tgWebAppVersion=7.0&tgWebAppPlatform=android';
 
 for (const scenario of cases) test(`BUG-191: loading before delayed SDK and correct ${scenario.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width: scenario.width ?? 390, height: scenario.height ?? 844 });
@@ -63,17 +75,42 @@ for (const scenario of cases) test(`BUG-191: loading before delayed SDK and corr
   }, { saved: scenario.saved });
   try {
     // commit deliberately does not wait for a parser-blocking baseline script.
-    await page.goto('/' + (scenario.visit ? `?visit=${invitation}` : ''), { waitUntil: 'commit' });
+    await page.goto('/' + (scenario.visit ? `?visit=${invitation}` : '') + (scenario.mini ? LAUNCH_FRAGMENT : ''), { waitUntil: 'commit' });
     const loading = page.getByRole('status', { name: 'Loading Railbird' });
-    await expect(loading).toBeVisible();
-    await expect(loading).toContainText('You don’t play. You raise a player.');
-    expect(sdkStarted).toBe(true);
-    expect(requests).toEqual([]);
-    expect(await page.evaluate(() => localStorage.getItem('agentic_uid'))).toBeNull();
-    await expect.poll(() => page.evaluate(() => performance.getEntriesByType('paint').length)).toBeGreaterThan(0);
-    await page.evaluate(() => document.fonts.ready);
+    // The document itself asks for the SDK now, so the request is in flight
+    // before any module has evaluated; poll rather than sample at commit.
+    await expect.poll(() => sdkStarted).toBe(true);
     await fs.mkdir(testInfo.outputDir, { recursive: true });
-    await page.screenshot({ path: testInfo.outputPath('41-B12-loading.png'), animations: 'disabled' });
+    if (scenario.mini) {
+      // A window Telegram opened: the gate is exactly what it was. B12 holds
+      // the screen and nothing is asked, chosen or minted until the real SDK
+      // has settled.
+      await expect(loading).toBeVisible();
+      await expect(loading).toContainText('You don’t play. You raise a player.');
+      expect(requests).toEqual([]);
+      expect(await page.evaluate(() => localStorage.getItem('agentic_uid'))).toBeNull();
+      await expect.poll(() => page.evaluate(() => performance.getEntriesByType('paint').length)).toBeGreaterThan(0);
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({ path: testInfo.outputPath('41-B12-loading.png'), animations: 'disabled' });
+    } else if (scenario.guest && !scenario.returning) {
+      // A stranger with no account and no Telegram: the door is open, but the
+      // guest has to be MINTED, and that one irreversible step still waits for
+      // the actual settlement. So this window is still on B12 here, and the
+      // POST has not been made.
+      await expect(loading).toBeVisible();
+      await expect(loading).toContainText('You don’t play. You raise a player.');
+      expect(requests.filter(r => r.path === '/api/guest' && r.method === 'POST')).toEqual([]);
+      await page.evaluate(() => document.fonts.ready);
+    } else {
+      // BUG-191/187: a window Telegram never opened, holding a credential of
+      // its own or none at all, reaches its destination with the external
+      // request still in flight. That is the repair. Nothing was minted to get
+      // there.
+      const destination = scenario.owner ? page.getByTestId('home-screen') : page.locator('.ftu-login');
+      await expect(destination).toBeVisible();
+      expect(requests.filter(r => r.path === '/api/guest' && r.method === 'POST')).toEqual([]);
+      await page.evaluate(() => document.fonts.ready);
+    }
     const pendingMetrics = await page.evaluate(() => ({ paint: performance.getEntriesByType('paint').map(p => ({ name: p.name, start: p.startTime })), beforeRelease: performance.now(), overflow: document.documentElement.scrollWidth > innerWidth }));
     expect(pendingMetrics.overflow).toBe(false);
     release();

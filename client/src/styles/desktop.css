@@ -4,7 +4,14 @@
  * Old Command Center (desktop-command.jsx) superseded — deleted.
  * ============================================================ */
 
-.dsk-root { display: none; }
+/* BUG-156: written as the exact complement of the block below rather than as
+   an unconditional rule plus an override. Identical in a browser — hidden
+   under 1100px, `display: flex` at or above it, with no gap between the two —
+   but this sheet now travels with the desk chunk instead of with index.css,
+   so it reaches jsdom, which applies no @media block at all. Unconditional,
+   the rule made the whole desk shell invisible in every desktop component
+   test: an assertion about the phone that those tests are not making. */
+@media not all and (min-width: 1100px) { .dsk-root { display: none; } }
 
 @media (min-width: 1100px) {
 

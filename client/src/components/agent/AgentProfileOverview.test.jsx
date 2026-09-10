@@ -76,3 +76,69 @@ it('BUG-143: returning to Chat preserves prior messages and both sides of repeat
     {role:'user',content:'Take your time.'},{role:'assistant',content:'I will wait for value.'},
     {role:'user',content:'Good.'},{role:'assistant',content:'I will wait for value.'}]);
 });
+
+// ── BUG-196 · RECENT is a timeline, and a cost is on it ─────────────────────
+//
+// A flagged hand's clock is `flaggedAt` — the only one buildFlaggedEntry
+// writes. Reading `at`/`ts` off it always came back null, so every cost sorted
+// as if it happened at the epoch and printed no time at all.
+const HOUR = 60 * 60 * 1000;
+
+it('BUG-196: a cost that just happened leads RECENT, ahead of older growth', () => {
+  const now = Date.now();
+  const log = [
+    { key: 'READS', from: 61, to: 62, cause: 'Watched his river sizing.', ts: now - 6 * HOUR },
+    { key: 'DISCIPLINE', from: 50, to: 51, cause: 'Folded the second best hand.', ts: now - 3 * HOUR },
+  ];
+  const flagged = [{ handNumber: 41, flaggedAt: now - 10 * 60 * 1000,
+    attrCosts: [{ key: 'FOCUS', line: 'I counted it wrong.' }] }];
+  const rows = profileRecent({ ...agent, sessionFlagged: flagged }, log, now);
+  expect(rows.map(r => r.label)).toEqual(['FOCUS', '+DISCIPLINE', '+READS']);
+  expect(rows[0].at).toBe(now - 10 * 60 * 1000);
+});
+
+it('BUG-196: costs and growth interleave by their own clocks, newest first', () => {
+  const now = Date.now();
+  const log = [
+    { key: 'READS', from: 61, to: 62, cause: 'Read the turn.', ts: now - 2 * HOUR },
+    { key: 'COMPOSURE', from: 40, to: 39, cause: 'Rust.', ts: now - 8 * HOUR },
+  ];
+  const flagged = [
+    { handNumber: 12, flaggedAt: now - 9 * HOUR, attrCosts: [{ key: 'FOCUS', line: 'Lost the thread.' }] },
+    { handNumber: 58, flaggedAt: now - 1 * HOUR, attrCosts: [{ key: 'DISCIPLINE', line: 'Chased it.' }] },
+  ];
+  const rows = profileRecent({ ...agent, sessionFlagged: flagged }, log, now);
+  expect(rows.map(r => r.label)).toEqual(['DISCIPLINE', '+READS', '−COMPOSURE', 'FOCUS']);
+});
+
+it('BUG-196: an ISO flaggedAt is the same clock as a numeric one', () => {
+  const now = Date.now();
+  const flagged = [{ handNumber: 7, flaggedAt: new Date(now - 30 * 60 * 1000).toISOString(),
+    attrCosts: [{ key: 'FOCUS', line: 'I counted it wrong.' }] }];
+  const rows = profileRecent({ ...agent, sessionFlagged: flagged }, [], now);
+  expect(rows[0].at).toBe(now - 30 * 60 * 1000);
+});
+
+it('BUG-196: a record with no clock at all still falls to the bottom rather than claiming the epoch', () => {
+  const now = Date.now();
+  const log = [{ key: 'READS', from: 61, to: 62, cause: 'Read the turn.', ts: now - 5 * HOUR }];
+  const flagged = [{ handNumber: 3, attrCosts: [{ key: 'FOCUS', line: 'Nobody wrote the time down.' }] }];
+  const rows = profileRecent({ ...agent, sessionFlagged: flagged }, log, now);
+  expect(rows.map(r => r.label)).toEqual(['+READS', 'FOCUS']);
+  expect(rows[1].at).toBeNull();
+});
+
+it('BUG-196: the cost line carries its real time on screen', () => {
+  const now = Date.now();
+  const flagged = [
+    { handNumber: 41, flaggedAt: now - 12 * 60 * 1000, attrCosts: [{ key: 'FOCUS', line: 'I counted it wrong.' }] },
+    { handNumber: 20, flaggedAt: now - 3 * HOUR, attrCosts: [{ key: 'DISCIPLINE', line: 'Chased it.' }] },
+  ];
+  render(<AgentProfileOverview agent={{ ...agent, sessionFlagged: flagged }} attrLog={[]} />);
+  const first = screen.getByText('I counted it wrong.').closest('.profile-overview__recent-row');
+  const second = screen.getByText('Chased it.').closest('.profile-overview__recent-row');
+  expect(first.querySelector('time')).toHaveTextContent('12m');
+  expect(second.querySelector('time')).toHaveTextContent('3h');
+  // …and the newer one is above the older one in the list.
+  expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

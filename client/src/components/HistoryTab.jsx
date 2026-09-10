@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
+import '../styles/history.css';
 
 function formatAmount(amount) {
   return amount == null ? '--' : Number(amount).toLocaleString();
