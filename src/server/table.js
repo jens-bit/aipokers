@@ -342,6 +342,9 @@ export class Table {
     this.aiHandsPlayed = Array(maxSeats).fill(0);  // local hand count per AI seat (for memory-update cadence)
     this.aiRecentHands = Array(maxSeats).fill(null).map(() => []); // last 5 hand summaries per AI seat
     this.aiLastChatHand = Array(maxSeats).fill(-1); // hand number of last chat per AI seat (1 chat/hand cap)
+    // BUG-177: last delivered public AI line, retained across hands. Private
+    // reasoning/owner whispers never enter it; seat lifecycle moves/clears it.
+    this._lastPublicAiLine = Array(maxSeats).fill(null);
     // FRIDGE-1: he had a beer before this session. Effective only — his stored
     // DISCIPLINE is untouched; this seat plays with 5 less of it and bluffs 10
     // points more often, and the flag rides the wire so the client can draw the
@@ -555,6 +558,7 @@ export class Table {
     ['aiHandsPlayed',    () => 0],
     ['aiRecentHands',    () => []],
     ['aiLastChatHand',   () => -1],
+    ['_lastPublicAiLine', () => null],
     ['seatStacks',       () => null],
     ['seatLeaving',      () => false],
     ['seatJoinedAtHand', () => 0],
@@ -1506,6 +1510,7 @@ export class Table {
     this.aiHandsPlayed[free] = 0;
     this.aiRecentHands[free] = [];
     this.aiLastChatHand[free] = -1;
+    this._lastPublicAiLine[free] = null;
     // HC-1: cast identity (null for player/agent seats)
     this.seatAccentColors[free] = accentColor ?? null;
     this.seatTalkLines[free]    = Array.isArray(talkLines) ? [...talkLines] : null;
@@ -4021,6 +4026,9 @@ export class Table {
       text: trimmed,
       isAI: entry.isAI,
     });
+    if (entry.isAI && this.aiSeats[seat] && this.pending[seat]) {
+      this._lastPublicAiLine[seat] = trimmed;
+    }
   }
 
   // ── BUGS-B/2 · the whisper ────────────────────────────────────────────────
@@ -4814,7 +4822,9 @@ export class Table {
     const memoryContext = this.agentMemory[aiSeat] ?? '';
     let decision;
     if (routed.route === Route.POLICY) {
-      decision = chooseFromPolicy(gameState);
+      // BUG-177: speech history is local to this occupied speaker and only
+      // reaches the free phrase selector, never the model's poker briefing.
+      decision = chooseFromPolicy(gameState, { lastPublicLine: this._lastPublicAiLine[aiSeat] });
     } else {
       console.log(`[agent] using strategy: "${(this.agentStrategy || 'default').slice(0, 60)}"`);
       decision = await getAgentAction(gameState, strategy, memoryContext);
