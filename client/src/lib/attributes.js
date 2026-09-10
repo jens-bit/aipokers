@@ -153,7 +153,10 @@ export function normalizeAttrs(agent) {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function toMillis(ts) {
+// BUG-196: exported so a flagged hand's flaggedAt is read through the same
+// millis/ISO tolerance the growth log's ts already gets. Two clocks in one
+// list must be the same kind of number before they can be sorted together.
+export function toMillis(ts) {
   if (Number.isFinite(ts)) return ts;
   if (typeof ts === 'string') {
     const n = Date.parse(ts);

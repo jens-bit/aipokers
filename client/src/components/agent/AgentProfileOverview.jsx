@@ -7,7 +7,7 @@ import { FatigueLine } from '../system/CharacterAtoms.jsx';
 import { AttrExplain } from '../system/AttrExplain.jsx';
 import { AttrCluster } from '../system/AttrCluster.jsx';
 import { identityOf } from '../../lib/identity.js';
-import { normalizeAttrs, recentEntries, seriesFor, ATTR_KEYS } from '../../lib/attributes.js';
+import { normalizeAttrs, recentEntries, seriesFor, toMillis, ATTR_KEYS } from '../../lib/attributes.js';
 import { heatOf, moodOf, homeGameOf } from '../floor/agentView.js';
 import { money } from '../../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
@@ -20,10 +20,23 @@ export function profileRecent(agent, log, now = Date.now()) {
     line: e.cause || `${e.from} → ${e.to}`, at: e._ts, hand: e.handNumber,
   }));
   // A cost is a misjudgment, not an attribute level change. Do not turn it into +growth.
+  //
+  // BUG-196: the clock is `flaggedAt`, and only `flaggedAt`. buildFlaggedEntry
+  // has never written `at` or `ts` (src/server/flaggedHands.js), so every cost
+  // read as undated: the sort below scored it 0 and parked it under growth
+  // ticks that were hours older, and RecentRow, which prints a time only when
+  // it has one, left the line without one. The two are the same defect —
+  // RECENT could not say when a cost happened, so it could not place it either.
   const costs = (agent.sessionFlagged ?? []).flatMap(hand => (hand.attrCosts ?? [])
     .filter(c => ATTR_KEYS.includes(c.key) && c.line)
-    .map(c => ({ key: c.key, label: c.key, bad: true, line: c.line, hand: hand.handNumber, at: hand.at ?? hand.ts ?? null })));
-  return [...growth, ...costs].sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0) || (b.hand ?? 0) - (a.hand ?? 0)).slice(0, 8);
+    .map(c => ({ key: c.key, label: c.key, bad: true, line: c.line, hand: hand.handNumber,
+      at: toMillis(hand.flaggedAt ?? hand.at ?? hand.ts) })));
+  // Newest first. A record with no clock at all — one written before flaggedAt
+  // existed — still falls to the bottom rather than claiming the epoch, and
+  // hand number breaks the tie between two of them.
+  return [...growth, ...costs]
+    .sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0) || (b.hand ?? 0) - (a.hand ?? 0))
+    .slice(0, 8);
 }
 
 export function profileSession(agent) {

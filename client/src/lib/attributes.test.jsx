@@ -25,6 +25,7 @@ import {
   normalizeAttrs,
   recentEntries,
   seriesFor,
+  toMillis,
 } from './attributes.js';
 
 const NOW = Date.UTC(2026, 8, 5, 12, 0, 0);
@@ -218,5 +219,17 @@ describe('FIX-1i growth line cause filter', () => {
     expect(recentEntries(log, 24, NOW)).toEqual([]);
     expect(grewWithin(log, 24, NOW)).toBe(false);
     expect(gainsWithin(log, 24, NOW)).toEqual([]);
+  });
+});
+
+describe('BUG-196 · toMillis, the one clock reader', () => {
+  it('reads a numeric stamp, an ISO string, and nothing else', () => {
+    expect(toMillis(NOW)).toBe(NOW);
+    expect(toMillis(new Date(NOW).toISOString())).toBe(NOW);
+    expect(toMillis(0)).toBe(0);
+    expect(toMillis(null)).toBeNull();
+    expect(toMillis(undefined)).toBeNull();
+    expect(toMillis('not a date')).toBeNull();
+    expect(toMillis(NaN)).toBeNull();
   });
 });
