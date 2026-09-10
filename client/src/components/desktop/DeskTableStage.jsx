@@ -29,6 +29,7 @@ import { heroPose, betBand } from '../system/WatchHero.jsx';
 import { BodyBars, Bottle, isDrinking } from '../system/FeltBodyBars.jsx';
 import { Streets } from '../../lib/protocol.js';
 import { heroEquityOf, paceMeta, paceOf } from '../../lib/pace.js';
+import { money, group } from '../../lib/wallet.js';
 
 const LIVE_STREETS = [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN];
 
@@ -175,7 +176,7 @@ export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, o
           <div key={o.index} className={`dtb__seat dtb__seat--${slot}`}>
             <SeatChip
               name={o.seat.displayName || `Seat ${o.index + 1}`}
-              stack={Number.isFinite(o.seat.stack) ? o.seat.stack.toLocaleString() : null}
+              stack={Number.isFinite(o.seat.stack) ? group(o.seat.stack) : null}
               pos={posLabel(o.index, game)}
               acting={live && game?.toAct === o.index}
               folded={!!o.seat.folded}
@@ -193,7 +194,7 @@ export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, o
           <span className="dsk-label" style={{ fontSize: 9 }}>Pot</span>
           {between
             ? <span className="dtb__pot-dash">—</span>
-            : <span className="dtb__pot-amt">${(game?.pot ?? 0).toLocaleString()}</span>}
+            : <span className="dtb__pot-amt">{money(game?.pot ?? 0)}</span>}
         </div>
 
         <Board cards={board} between={between} />
@@ -242,7 +243,7 @@ export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, o
           <div>
             <span className="dsk-label" style={{ fontSize: 8.5 }}>Stack</span>
             <div className="dtb__hero-stack">
-              {Number.isFinite(hero?.stack) ? `$${hero.stack.toLocaleString()}` : '—'}
+              {Number.isFinite(hero?.stack) ? money(hero.stack) : '—'}
               {/* FRIDGE-1: beside his stack, because that is what it cost him. */}
               {heroDrinking && <Bottle size={14} className="dtb__bottle" />}
             </div>
@@ -251,7 +252,7 @@ export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, o
           <div>
             <span className="dsk-label" style={{ fontSize: 8.5 }}>{toCall > 0 ? 'To call' : 'Street'}</span>
             <div className={`dtb__hero-num${toCall > 0 ? ' is-gold' : ' is-dim'}`}>
-              {toCall > 0 ? `$${toCall.toLocaleString()}` : ((game?.street ?? '').toUpperCase() || '—')}
+              {toCall > 0 ? money(toCall) : ((game?.street ?? '').toUpperCase() || '—')}
             </div>
           </div>
           <div className="dtb__strip-rule" aria-hidden />

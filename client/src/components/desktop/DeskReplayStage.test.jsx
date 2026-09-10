@@ -103,7 +103,8 @@ describe('DP-3 — the transport', () => {
     expect(screen.queryByRole('button', { name: /Sit out after this hand/i })).toBeNull();
     expect(screen.getByText('End of replay')).toBeInTheDocument();
     expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('0.0%');
-    expect(container.querySelector('.dtb__pot-amt').textContent).toBe(`$${badBeatHand.pot.toLocaleString()}`);
+    // BUG-37: the recorded pot follows the app's canonical grouping, not the device locale.
+    expect(container.querySelector('.dtb__pot-amt').textContent).toBe('$1,840');
     expect([...container.querySelector('.dtb__board').children].map(card => card.textContent)).toEqual(['2', '7', 'K', '4', '9']);
   });
 

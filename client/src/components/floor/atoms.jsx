@@ -8,6 +8,7 @@ import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
 import { identityOf } from '../../lib/identity.js';
 import { ghostFace, ghostBrow } from '../system/GhostFace.jsx';
 import { roomStyle } from './layouts.js';
+import { group } from '../../lib/wallet.js';
 
 const IDENTITY_ROOM = { k: 1, ox: 0, oy: 0 };
 
@@ -122,7 +123,7 @@ export function GhostChip({ name, accent = M_TEAL, state = 'resting', stack = nu
         style={chipMaxW ? { maxWidth: chipMaxW, overflow: 'hidden', textOverflow: 'ellipsis' } : undefined}
       >{name}</span>
       {stack != null && chipMaxW == null && (
-        <span className="floor-chip__stack">{stack.toLocaleString()}</span>
+        <span className="floor-chip__stack">{group(stack)}</span>
       )}
     </div>
   );
