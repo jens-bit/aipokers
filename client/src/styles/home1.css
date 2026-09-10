@@ -716,39 +716,57 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-bubble-slot {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 4px);
+  bottom: var(--home-room-speech-top, 23px);
   width: 0;
-  height: 38px;
+  height: 0;
   pointer-events: none;
 }
 .home-bubble {
   position: absolute;
-  bottom: 0;
+  top: 0;
+  transform: translateY(-50%);
   /* BUGS-C job 2: 150px, down from 152 — the playtest called these "far too
      large", and clamped to two lines with an ellipsis rather than growing to
      fit whatever the household had to say. */
   width: 150px;
   padding: 5px 9px;
   border-radius: 11px;
-  background: rgba(20, 28, 27, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  --home-bubble-fill: rgba(20, 28, 27, 0.94);
+  --home-bubble-edge: rgba(255, 255, 255, 0.14);
+  background: var(--home-bubble-fill);
+  border: 1px solid var(--home-bubble-edge);
   font-size: 10px;
   line-height: 1.35;
   color: var(--text-secondary, #A1A1A1);
   text-align: left;
   white-space: normal;
+  overflow: visible;
+  animation: home-bubblein 0.3s ease-out both;
+}
+.home-bubble__text {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  animation: home-bubblein 0.3s ease-out both;
 }
-.home-bubble--right { left: 9px; border-bottom-left-radius: 3px; }
-.home-bubble--left { right: 9px; border-bottom-right-radius: 3px; }
+.home-bubble--right { left: var(--home-room-bubble-offset, 32px); }
+.home-bubble--left { right: var(--home-room-bubble-offset, 32px); }
+.home-bubble__tail {
+  position: absolute;
+  top: 50%; margin-top: -4px;
+  width: 7px; height: 7px;
+  background: var(--home-bubble-fill);
+  border-left: 1px solid var(--home-bubble-edge);
+  border-bottom: 1px solid var(--home-bubble-edge);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.home-bubble--right .home-bubble__tail { left: -4px; }
+.home-bubble--left .home-bubble__tail { right: -4px; }
 .home-bubble--gold {
-  background: rgba(205, 179, 128, 0.12);
-  border-color: rgba(205, 179, 128, 0.4);
+  --home-bubble-fill: rgba(205, 179, 128, 0.12);
+  --home-bubble-edge: rgba(205, 179, 128, 0.4);
   color: #CDB380;
 }
 
@@ -872,9 +890,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
   display: flex;
   flex-direction: column;
   padding: 8px 12px 11px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(12, 17, 17, 0.96);
-  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--v5-edge-up);
+  background: var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
 }
 .home-thread__line {
   min-height: 20px;
@@ -907,6 +926,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Board29 F01: the empty room's observation has no agent speaker. */
+.home-thread__text--system {
+  font-size: 11px;
+  font-style: italic;
+  color: #9E9EA2; /* Current M_MUTED; global --sys-muted is an older palette. */
+}
 /* The field itself — the ref's own bar: height 36, radius 18, the text on the
    left and the arrow inset on the right, both inside ONE control rather than
    a pill input beside a floating round button. */
@@ -920,6 +945,51 @@ button.home-flat__table:active { filter: brightness(1.12); }
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 .home-thread__composer:focus-within { border-color: var(--accent, #00D4AA); }
+/* BUG-184 · Board29 F11 collapsed room line. Keep the private Casino band
+   unchanged. 1px border +22px line +8px gap +36px composer +11px bottom =78. */
+.home-thread--room .home-thread__band { padding: 0; }
+.home-thread--room .home-thread__line {
+  height: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  font: 11px Inter, system-ui, sans-serif;
+  line-height: normal;
+}
+.home-thread--room .home-thread__composer { flex-shrink: 0; margin: 8px 12px 11px; }
+.home-thread--room .home-thread__sentence {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #9E9EA2;
+  font: 11px Inter, system-ui, sans-serif;
+}
+.home-thread--room .home-thread__who {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: #9E9EA2;
+}
+.home-thread--room .home-thread__text { font-size: 11px; color: #9E9EA2; }
+.home-thread__avatar { position: relative; width: 20px; height: 20px; flex-shrink: 0; }
+.home-thread__avatar-tile {
+  display: flex; align-items: flex-end; justify-content: center;
+  width: 20px; height: 20px; border-radius: 12px; overflow: hidden;
+  background: #0A0F17; border: 1px solid transparent;
+}
+.home-thread--room .home-thread__mood {
+  position: absolute; bottom: -3px; right: -3px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #0A0A0A; border: 1.5px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 700 7.8px/1 'JetBrains Mono', monospace;
+}
+.home-thread--room .home-thread__error { bottom: 78px; }
 .home-thread__input {
   min-height: 0;
   height: 32px;
@@ -1044,7 +1114,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-want__chips { display: flex; gap: 7px; margin-top: 3px; }
 .home-want__chip {
-  /* F11's small pills. The transparent extension keeps a 44px touch target. */
+  /* F11's small pills. The transparent extension expands the touch target. */
   min-height: 24px;
   position: relative;
   flex-shrink: 0;
@@ -1059,6 +1129,13 @@ button.home-flat__table:active { filter: brightness(1.12); }
   background: transparent;
   color: var(--text-secondary, #A1A1A1);
   cursor: pointer;
+}
+/* F11 request lettering outranks the room reset. The shared visitor/notice
+   controls keep their existing base styles and color modifiers. */
+.home1 .home-want[data-agent] .home-want__chip {
+  font-family: var(--font-label, 'Oswald', sans-serif);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .home-want__chip::after { content: ''; position: absolute; inset: -10px -3px; }
 .home-want__chip--yes { border-color: rgba(0, 212, 170, 0.5); background: rgba(0, 212, 170, 0.08); color: var(--accent, #00D4AA); }
@@ -1207,8 +1284,8 @@ button.home-flat__table:active { filter: brightness(1.12); }
   100% { opacity: 0.85; transform: translateY(0); }
 }
 @keyframes home-bubblein {
-  0% { opacity: 0; transform: translateY(4px) scale(0.96); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% { opacity: 0; transform: translateY(calc(-50% + 4px)) scale(0.96); }
+  100% { opacity: 1; transform: translateY(-50%) scale(1); }
 }
 @keyframes home-sheetup {
   0% { transform: translateY(14px); opacity: 0; }

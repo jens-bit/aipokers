@@ -36,12 +36,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ThreadRow } from '../system/ThreadSheet.jsx';
 import { GlassLabel } from '../system/Glass.jsx';
+import { MoodGhost } from '../system/MoodGhost.jsx';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { pillName } from '../../lib/names.js';
+import { pillName, shortName } from '../../lib/names.js';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 import { useHomeThread } from '../../hooks/useHomeThread.js';
 
 const WHO_BY_KIND = { him: 'HIM', you: 'YOU', table: 'TABLE' };
+
+// BUG-184: the wire's from names the speaker; storage agentId only files the
+// record. Keep this separate from row.kind, which styles expanded ThreadRow.
+function rowActorId(line) {
+  const from = line.kind === 'overheard' ? line.lines?.[0]?.from
+    : ['him', 'opponent'].includes(line.kind) ? line.from : null;
+  return typeof from === 'string' && from && from !== 'owner' && from !== 'all' ? from : null;
+}
+
+// Board29 F11 uses mood for this small state pip, not for permanent identity.
+// Local source colors: the older floor MOODS palette differs in two entries.
+const FOOTER_MOODS = {
+  confident: { color: '#00D4AA', pip: '▲' },
+  neutral: { color: '#BDBDC1', pip: '–' },
+  frustrated: { color: '#CDB380', pip: '!' },
+  tilted: { color: '#FF4D4F', pip: '⚡' },
+  sulking: { color: '#9E9EA2', pip: '▾' },
+};
+
+function RoomAvatar({ agent, identity }) {
+  const mood = Object.hasOwn(FOOTER_MOODS, agent.mood?.state) ? agent.mood.state : 'neutral';
+  const pip = FOOTER_MOODS[mood];
+  return <span className="home-thread__avatar" data-agent-id={agent.id} aria-hidden="true">
+    <span className="home-thread__avatar-tile" style={{ borderColor: `${identity.glow.c}44` }}>
+      <MoodGhost size={18.8} ring={false} mood={mood} heat={agent.mood?.heat}
+        hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c} />
+    </span>
+    <span className="home-thread__mood" style={{ color: pip.color, borderColor: pip.color,
+      boxShadow: `0 0 6px ${pip.color}66` }}>{pip.pip}</span>
+  </span>;
+}
 
 /** Server thread lines → the row shape ThreadRow renders. */
 export function toRows(lines = [], { named = false } = {}) {
@@ -53,6 +85,7 @@ export function toRows(lines = [], { named = false } = {}) {
     // HOME-STATE-1: a line said at home rather than at a felt. Carried through
     // so the sheet can mark it; never used to change what the row says.
     source: l.source ?? 'table',
+    ...(named ? { actorId: rowActorId(l) } : {}),
     ...(l.kind === 'overheard' ? { overheard: l.lines ?? [] } : {}),
   }));
 }
@@ -116,12 +149,13 @@ export function collapsedLine(agent, rows = []) {
 function collapsedMessage(agent, rows = [], roomMode = false) {
   const agentName = agent ? pillName(agent.name) : 'THE ROOM';
   if (agent?.unseenRecap && agent?.sessionRecap?.text) {
-    return { who: agentName, text: agent.sessionRecap.text };
+    return { who: agentName, text: agent.sessionRecap.text, actorId: agent.id };
   }
   const last = rows.length ? rows[rows.length - 1] : null;
   if (last?.text) return {
     who: !roomMode && last.who === 'HIM' ? agentName : (last.who || agentName),
     text: last.text,
+    actorId: last.actorId,
   };
   // BUGS-C job 6: a pending want is the toast's line and his own bubble's
   // already — the server stamps it into `lastMoment` the instant he asks
@@ -132,11 +166,13 @@ function collapsedMessage(agent, rows = [], roomMode = false) {
   const text = agent?.lastMoment?.kind === 'want'
     ? agent?.opener ?? ''
     : agent?.lastMoment?.text || agent?.opener || '';
-  return { who: agentName, text };
+  return { who: agentName, text, actorId: agent?.id };
 }
 
 export function HomeThread({
   agent,
+  agents = [],
+  identities,
   open = false,
   onToggle,
   onSend,
@@ -144,6 +180,7 @@ export function HomeThread({
   toast = null,
   roomMode = false,
   roomLoaded = true,
+  nobodyYet = false,
   roomPushed,
   connection = null,
   privateContext = 'AT HOME',
@@ -196,11 +233,18 @@ export function HomeThread({
   // Ordered: the record, then whatever you have said since it was read.
   const shown = pending.length ? rows.concat(pending) : rows;
   const message = pending.length ? pending.at(-1) : collapsedMessage(agent, shown, roomMode);
-  const line = message.text || (roomMode ? (roomLoaded ? 'Nobody is home.' : 'Reading the room…') : '');
+  // F01 is a confirmed empty household, not a roster still loading or all away.
+  // Real speech keeps its place; this observation never becomes a thread row.
+  const emptySystem = roomMode && roomLoaded && nobodyYet && !message.text;
+  const line = message.text || (emptySystem ? 'The room is yours. It is empty.'
+    : roomMode ? (roomLoaded ? 'Nobody is home.' : 'Reading the room…') : '');
   const who = message.who;
+  const actor = roomMode && message.text && message.actorId != null
+    ? agents.find(a => String(a.id) === String(message.actorId)) : null;
+  const identity = actor ? identities?.get(String(actor.id)) : null;
 
   return (
-    <div className={`home-thread${open ? ' is-open' : ''}`} data-testid="home-thread" data-open={open ? 'true' : 'false'}>
+    <div className={`home-thread${roomMode ? ' home-thread--room' : ''}${open ? ' is-open' : ''}`} data-testid="home-thread" data-open={open ? 'true' : 'false'}>
       {toast}
 
       {open ? (
@@ -236,9 +280,18 @@ export function HomeThread({
           onClick={() => onToggle?.(!open)}
           data-testid="home-thread-line"
           aria-expanded={open}
+          aria-label={actor ? `${actor.name} ${line}` : undefined}
         >
-          <span className="home-thread__who">{who}</span>
-          <span className="home-thread__text">{line}</span>
+          {emptySystem ? <span className="home-thread__text home-thread__text--system">{line}</span> : roomMode ? <>
+            {actor && identity && <RoomAvatar agent={actor} identity={identity} />}
+            <span className="home-thread__sentence">
+              <span className="home-thread__who" style={identity ? { color: identity.glow.c } : undefined}>{actor ? shortName(actor.name, actor.nickname) : who}</span>{' '}
+              <span className="home-thread__text">{line}</span>
+            </span>
+          </> : <>
+            <span className="home-thread__who">{who}</span>
+            <span className="home-thread__text">{line}</span>
+          </>}
         </button>
         <form className="home-thread__composer" onSubmit={submit}>
           <input
