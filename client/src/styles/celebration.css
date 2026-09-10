@@ -17,6 +17,11 @@
 .watch-felt__won.is-celebrating .watch-felt__won-to { color:#CDB380; font-size:9.5px; letter-spacing:.18em; }
 .watch-felt__won.is-busting .watch-felt__won-to { color:#FF4D4F; }
 .watch-felt__won.is-celebrating .watch-felt__won-amt { color:#00D4AA; font-size:24px; }
+/* BUG-173: AgCelebLine's ordinary C8a card, inside the existing Watch layout. */
+.watch-felt__won.is-ordinary-win .watch-felt__won-pill { gap:0; background:rgba(18,30,28,.84); backdrop-filter:blur(18px) saturate(1.2); -webkit-backdrop-filter:blur(18px) saturate(1.2); box-shadow:none; }
+.watch-felt__won.is-ordinary-win .watch-felt__won-to { color:#00D4AA; }
+.watch-felt__won.is-ordinary-win .watch-felt__won-amt { margin-top:4px; font-family:'Rozha One',Georgia,serif; font-size:19px; font-weight:400; }
+.watch-felt__won.is-ordinary-win .watch-felt__won-with { margin-top:3px; color:#9E9EA2; }
 @keyframes hand-name-fall { from {opacity:1;transform:translate(-50%,0) rotate(0)} to {opacity:0;transform:translate(-50%,56px) rotate(24deg)} }
 @media (prefers-reduced-motion:reduce) {
   .hand-fireworks__spark {animation:none;opacity:.25;transform:rotate(var(--spark-angle)) translateY(-20px)}
