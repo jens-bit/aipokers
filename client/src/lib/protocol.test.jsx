@@ -42,6 +42,8 @@ describe('protocol', () => {
       // CASINO-1 mirrored the two frames ROOMS-1 already sends: the floor
       // snapshot that rides a subscribe, and the rooms push after it.
       FLOOR_STATE: 'floor_state',
+      // BUG-168: Home now consumes this existing owner-scoped server frame.
+      FLOOR_GAME: 'floor_game',
       FLOOR_ROOMS: 'floor_rooms',
       // CASINO-2: and the felts inside those rooms, on the same subscription.
       ROOM_TABLES: 'room_tables',

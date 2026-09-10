@@ -198,9 +198,50 @@ test('BUG-162: kitchen Profile projections never expose another agent’s privat
   }
   const visitingBody = profiles.homeSnapshot(HOST, {owner:true, visitors:visit.visitBodiesFor(HOST)}).agents.find(a => a.id === guestAgent);
   assert.equal(visitingBody.guest, true);
-  assert.equal(visitingBody.liveGame, undefined, 'the room body excludes live cards entirely');
+  // BUG-168 supersedes omission of the entire picture: Home now carries a
+  // public TV preview while private cards remain exclusively owner-gated.
+  assert.equal(visitingBody.liveGame.tableId,table.tableId);
+  assert.equal(visitingBody.liveGame.heroHole,undefined);
+  assert.ok(visitingBody.liveGame.seats.every(s=>!s.holeCards&&!s.heroHole&&!s.history));
   assert.equal(visit.visitBodiesFor(HOST).find(a => a.id === guestAgent).liveGame.heroHole, null, 'owning the room is not owning its visitor');
   assert.equal(profiles.presentAgentById(hostAgent, THIRD, {owner:true}), null);
+});
+
+test('BUG-168: signed Home subscriptions keep host, visitor and public previews card-free while Profile/Floor retain exact owner cards',async()=>{
+  const table=await kitchen();
+  async function subscribe(claimed, signed) {
+    const ws=new WebSocket(base.replace('http:','ws:')), socket={ws,messages:[]};sockets.push(socket);
+    ws.on('message',raw=>socket.messages.push(JSON.parse(raw)));
+    await once(ws,'open');ws.send(JSON.stringify({type:'floor_sub',userId:claimed,...(signed?{initData:credential(signed)}:{})}));
+    await waitFor(()=>socket.messages.find(m=>m.type==='home_state'));return socket;
+  }
+  const host=await subscribe(HOST,HOST), visitor=await subscribe(VISITOR,VISITOR);
+  const publicHost=await subscribe(HOST,THIRD), anonymous=await subscribe(HOST,null), third=await subscribe(THIRD,THIRD);
+  for(const socket of [host,visitor,publicHost,anonymous]) {
+    const packet=socket.messages.find(m=>m.type==='home_state');
+    assert.ok(packet.agents.some(a=>a.liveGame?.tableId===table.tableId));
+    const text=JSON.stringify(packet);
+    for(const key of ['heroHole','holeCards','reasoning','strategy','history','reads']) assert.equal(text.includes('"'+key+'"'),false,key+' leaked into Home');
+  }
+  const hostPacket=host.messages.find(m=>m.type==='home_state');
+  assert.equal(hostPacket.agents.find(a=>a.id===guestAgent).guest,true);
+  assert.equal(third.messages.find(m=>m.type==='home_state').agents.some(a=>a.id===hostAgent||a.id===guestAgent),false);
+  for(const [socket,id] of [[host,hostAgent],[visitor,guestAgent]]) {
+    const own=socket.messages.find(m=>m.type==='floor_state').agents.find(a=>a.id===id);
+    assert.equal(own.liveGame.heroHole.length,2,'existing owner Floor card contract stays intact');
+  }
+  for(const socket of [publicHost,anonymous]) assert.ok(socket.messages.find(m=>m.type==='floor_state').agents.every(a=>a.liveGame?.heroHole==null));
+  // Move the real engine to the flop, then exercise the existing throttled
+  // Home push. No private-card shortcut or new request path supplies the TV.
+  while(table.game.street===Streets.PREFLOP) {
+    const seat=table.game.toAct, legal=table.game.legalActions(seat);
+    const action=legal.find(a=>a.type===Actions.CHECK)||legal.find(a=>a.type===Actions.CALL);
+    assert.ok(action);table.game.act(seat,{type:action.type});
+  }
+  table._notifyStateChange();
+  const updated=await waitFor(()=>visitor.messages.find(m=>m.type==='home_state'&&m.agents.find(a=>a.id===guestAgent)?.liveGame?.board?.length===3));
+  assert.deepEqual(updated.agents.find(a=>a.id===guestAgent).liveGame.board,table.game.community);
+  assert.equal(JSON.stringify(updated).includes('"heroHole"'),false);
 });
 
 test('BUG-162: absent, removed and closed kitchen seats cannot leave a live Profile destination', async () => {

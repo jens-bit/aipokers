@@ -36,6 +36,8 @@ export const ServerMsg = Object.freeze({
   // alongside `agents`, which is how a fresh subscriber has a lobby before the
   // first push arrives.
   FLOOR_STATE: 'floor_state',
+  // Existing owner-scoped table-picture delta; Home only reads public fields.
+  FLOOR_GAME: 'floor_game',
   // ROOMS-1: the floor grouped by stakes tier, { type, rooms }. Not
   // owner-filtered — it is counts and table ids — and pushed on change.
   FLOOR_ROOMS: 'floor_rooms',

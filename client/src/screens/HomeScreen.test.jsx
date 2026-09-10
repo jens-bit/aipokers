@@ -20,6 +20,7 @@ import { LONG_PRESS_MS } from '../components/home/carry.js';
 import { lockedSeatLine } from '../lib/slots.js';
 import { FLAT, TV_SCREEN, F_W, F_H } from '../components/home/flat.js';
 
+// BUG-168: owner-scoped pushes match the signed-in4242 fixture; all assertions remain.
 const WS = 'ws://localhost:8765';
 
 const loc = (where = 'home', extra = {}) => ({
@@ -72,7 +73,7 @@ async function boot(agents, game = null, props = {}) {
     return s;
   });
   sock.open();
-  sock.emit({ type: 'home_state', userId: 'u1', agents, game });
+  sock.emit({ type: 'home_state', userId: '4242', agents, game });
   await screen.findByTestId('home-screen');
   return { view, sock, roster };
 }
@@ -320,7 +321,7 @@ describe('HOME-1 · walks', () => {
     // The home game starts: couch → table.
     sock.emit({
       type: 'home_state',
-      userId: 'u1',
+      userId: '4242',
       agents: [one, two],
       game: { tableId: 'home-u1', state: 'running', seats: [{ agentId: 'a1' }, { agentId: 'a2' }], handsPlayed: 0 },
     });
@@ -360,7 +361,7 @@ describe('HOME-1 · walks', () => {
     });
     roster.agents = [home];
     sock.emit({ type: 'session_end', agentId: 'a1', tableId: 't1', reason: 'stopped', hands: 41, net: 2740 });
-    sock.emit({ type: 'home_state', userId: 'u1', agents: [home], game: null });
+    sock.emit({ type: 'home_state', userId: '4242', agents: [home], game: null });
 
     // The money line rides above him and lands once.
     expect(await screen.findByTestId('home-says-a1')).toHaveTextContent('+$2,740');
@@ -445,7 +446,7 @@ describe('HOME-1 · the want', () => {
   it('a WANT push clears a toast answered on another device', async () => {
     const { sock } = await boot([wanting()]);
     expect(await screen.findByTestId('home-want')).toBeInTheDocument();
-    sock.emit({ type: 'want', userId: 'u1', agentId: 'a1', want: null });
+    sock.emit({ type: 'want', userId: '4242', agentId: 'a1', want: null });
     await waitFor(() => expect(screen.queryByTestId('home-want')).toBeNull());
   });
 
@@ -485,7 +486,7 @@ describe('VISIT-1 · a friend at the door', () => {
   it('a knock shows as a want-style toast, in the room', async () => {
     const { sock } = await boot([mkAgent('a1', 'Resident')]);
     act(() => {
-      sock.emit({ type: 'home_state', userId: 'u1', agents: [mkAgent('a1', 'Resident')], game: null, visitor: knock() });
+      sock.emit({ type: 'home_state', userId: '4242', agents: [mkAgent('a1', 'Resident')], game: null, visitor: knock() });
     });
     const toast = await screen.findByTestId('home-visitor');
     expect(toast).toHaveTextContent('Away Day');
@@ -506,7 +507,7 @@ describe('VISIT-1 · a friend at the door', () => {
     }, { method: 'POST' });
 
     act(() => {
-      sock.emit({ type: 'home_state', userId: 'u1', agents: [mkAgent('a1', 'Resident')], game: null, visitor: knock() });
+      sock.emit({ type: 'home_state', userId: '4242', agents: [mkAgent('a1', 'Resident')], game: null, visitor: knock() });
     });
     await userEvent.click(await screen.findByTestId('home-visitor-accept'));
     // hostUserId is always the CALLER's own id (telegram.js's getUserId,
@@ -515,7 +516,7 @@ describe('VISIT-1 · a friend at the door', () => {
 
     // HOME_STATE clears it on its own — the toast has no local dismissal.
     act(() => {
-      sock.emit({ type: 'home_state', userId: 'u1', agents: [mkAgent('a1', 'Resident')], game: null, visitor: null });
+      sock.emit({ type: 'home_state', userId: '4242', agents: [mkAgent('a1', 'Resident')], game: null, visitor: null });
     });
     await waitFor(() => expect(screen.queryByTestId('home-visitor')).toBeNull());
   });
@@ -605,7 +606,7 @@ describe('HOME-1 · the thread', () => {
     render(<StrictMode><HomeScreen wsUrl={WS} /></StrictMode>);
     const sock = await waitFor(() => { const x = socketMock.last(); expect(x).toBeTruthy(); return x; });
     sock.open();
-    sock.emit({ type: 'home_state', userId: 'u1', agents: roster.agents, game: null });
+    sock.emit({ type: 'home_state', userId: '4242', agents: roster.agents, game: null });
 
     await userEvent.click(await screen.findByTestId('home-thread-line'));
     expect(await screen.findByTestId('home-thread-rows')).toHaveTextContent('Long night in here.');
@@ -882,7 +883,7 @@ describe('HOME-1 · the tape room', () => {
     render(<HomeScreen wsUrl={WS} />);
     const sock = await waitFor(() => { const x = socketMock.last(); expect(x).toBeTruthy(); return x; });
     sock.open();
-    sock.emit({ type: 'home_state', userId: 'u1', agents: roster.agents, game: null });
+    sock.emit({ type: 'home_state', userId: '4242', agents: roster.agents, game: null });
     expect(await screen.findByTestId('home-tape')).toBeInTheDocument();
     expect(await screen.findByTestId('home-says-a1')).toHaveTextContent('+3 GRANITE');
   });
@@ -965,7 +966,7 @@ describe('BUG-32 · a birth is an arrival', () => {
     const { sock } = await boot([sitting]);
 
     const born = mkAgent('a2', 'Fresh Meat', { newborn: true, bornAt: Date.now() });
-    sock.emit({ type: 'home_state', userId: 'u1', agents: [sitting, born], game: null });
+    sock.emit({ type: 'home_state', userId: '4242', agents: [sitting, born], game: null });
 
     // Beat one: he is at the door, which is a place of its own — not the
     // 'door:away' an agent at the casino gets.
@@ -1003,7 +1004,7 @@ describe('BUG-32 · a birth is an arrival', () => {
 
     // No `newborn` field at all — an older server. The timestamp is enough.
     const born = mkAgent('a2', 'Fresh Meat', { bornAt: Date.now() - 2_000 });
-    sock.emit({ type: 'home_state', userId: 'u1', agents: [sitting, born], game: null });
+    sock.emit({ type: 'home_state', userId: '4242', agents: [sitting, born], game: null });
 
     expect(await screen.findByRole('button', { name: /Fresh Meat/ }))
       .toHaveAttribute('data-spot', 'door:born');
@@ -1014,7 +1015,7 @@ describe('BUG-32 · a birth is an arrival', () => {
     const { sock } = await boot([sitting]);
 
     const legacy = mkAgent('a2', 'The Old Man', { routine: { key: 'sleeps', label: 'asleep' } });
-    sock.emit({ type: 'home_state', userId: 'u1', agents: [sitting, legacy], game: null });
+    sock.emit({ type: 'home_state', userId: '4242', agents: [sitting, legacy], game: null });
 
     expect(await screen.findByRole('button', { name: /The Old Man/ }))
       .toHaveAttribute('data-spot', 'sleeps');
@@ -1251,10 +1252,10 @@ describe('BUG-117: departure and homecoming keep the same rendered body',()=>{
   const home=mkAgent('crossing','Granite',{routine:{key:'reads',label:'reading'}});
   const {sock}=await boot([home]);const body=await screen.findByRole('button',{name:/Granite —/});
   const away={...home,location:loc('table',{tableId:'t117'}),activeTableId:'t117',routine:null};
-  sock.emit({type:'home_state',userId:'u1',agents:[away],game:null});
+  sock.emit({type:'home_state',userId:'4242',agents:[away],game:null});
   await waitFor(()=>expect(body).toHaveAttribute('data-spot','door:away'));
   expect(document.contains(body)).toBe(true);expect(body).toHaveAttribute('aria-hidden','true');expect(body).toBeDisabled();
-  sock.emit({type:'home_state',userId:'u1',agents:[home],game:null});
+  sock.emit({type:'home_state',userId:'4242',agents:[home],game:null});
   await waitFor(()=>expect(body).toHaveAttribute('data-crossing','home'));
   expect(screen.getByRole('button',{name:/Granite —/})).toBe(body);expect(body).not.toBeDisabled();
  });
@@ -1265,7 +1266,7 @@ it('BUG-117: an away location reaches the door even before the old home seats re
  const game={state:'running',tableId:'home-u1',seats:[{agentId:one.id},{agentId:two.id}]};
  const {sock}=await boot([one,two],game);
  const body=await screen.findByRole('button',{name:/Granite —/});
- sock.emit({type:'home_state',userId:'u1',agents:[{...one,location:loc('table',{tableId:'t117'})},two],game});
+ sock.emit({type:'home_state',userId:'4242',agents:[{...one,location:loc('table',{tableId:'t117'})},two],game});
  await waitFor(()=>expect(body).toHaveAttribute('data-spot','door:away'));
 });
 
@@ -1273,7 +1274,7 @@ it('BUG-118: the session result remains visible when the returning agent joins a
  const one=mkAgent('result118','Granite'),two=mkAgent('other118','Other');
  const {sock}=await boot([{...one,location:loc('table',{tableId:'t118'})},two]);
  sock.emit({type:'session_end',agentId:one.id,tableId:'t118',hands:41,net:2740});
- sock.emit({type:'home_state',userId:'u1',agents:[one,two],game:{state:'running',tableId:'home-u1',seats:[{agentId:one.id},{agentId:two.id}]}});
+ sock.emit({type:'home_state',userId:'4242',agents:[one,two],game:{state:'running',tableId:'home-u1',seats:[{agentId:one.id},{agentId:two.id}]}});
  expect(await screen.findByTestId('home-says-result118')).toHaveTextContent('+$2,740');
 });
 
@@ -1284,7 +1285,7 @@ it('BUG-118: room refreshes do not restart the six-second result label',async()=
   await act(async()=>{sock.emit({type:'session_end',agentId:one.id,tableId:'t118',hands:41,net:2740});});
   expect(screen.getByTestId('home-says-timer118')).toBeInTheDocument();
   act(()=>vi.advanceTimersByTime(3000));
-  await act(async()=>{sock.emit({type:'home_state',userId:'u1',agents:[{...one,mood:{state:'confident',heat:50}}],game:null});});
+  await act(async()=>{sock.emit({type:'home_state',userId:'4242',agents:[{...one,mood:{state:'confident',heat:50}}],game:null});});
   act(()=>vi.advanceTimersByTime(3100));
   expect(screen.queryByTestId('home-says-timer118')).toBeNull();
  }finally{vi.useRealTimers();}
