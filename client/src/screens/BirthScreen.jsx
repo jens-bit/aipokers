@@ -480,6 +480,15 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
   const [draftStep, setDraftStep] = useState('briefing');
   const [sessionReady, setSessionReady] = useState(isEdit);
   const [modernDraft, setModernDraft] = useState(false);
+  // BUG-198: what the recruiter is asking for RIGHT NOW, and the words that
+  // answer it. Both come from the server rather than being decided here,
+  // because the server is the thing that has to understand the answer — a
+  // client that drew its own chips could offer one the recruiter has never
+  // heard of, which is the bug this repair exists to make impossible.
+  const [askStage, setAskStage] = useState('style');
+  const [scriptedDraft, setScriptedDraft] = useState(false);
+  const [draftChips, setDraftChips] = useState([]);
+  const [suggestedName, setSuggestedName] = useState('');
   const [acceptedTurns, setAcceptedTurns] = useState(0);
   const [problem, setProblem] = useState(null);
   const [createdPending, setCreatedPending] = useState(false);
@@ -538,6 +547,10 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
     if (Object.hasOwn(data, 'draftName')) setAgentName(data.draftName || null);
     if (Object.hasOwn(data, 'natureHint')) setNatureHint(data.natureHint || null);
     if (typeof data.ready === 'boolean') setReady(data.ready);
+    if (Object.hasOwn(data, 'draftScripted')) setScriptedDraft(!!data.draftScripted);
+    if (Object.hasOwn(data, 'draftStage')) setAskStage(data.draftStage || 'style');
+    if (Object.hasOwn(data, 'draftChips')) setDraftChips(Array.isArray(data.draftChips) ? data.draftChips : []);
+    if (Object.hasOwn(data, 'suggestedName')) setSuggestedName(data.suggestedName || '');
     if (replaceChat) {
       const lines = chatLines(data.chat);
       setChat(lines.map(m => mkMsg(m.role, m.content)));
@@ -801,12 +814,46 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
   // Board 29's gold action follows the name, not merely a usable playing style.
   // Old servers retain their original ready contract during a rolling deploy.
   const showNextAction = (modernDraft ? draftStep === 'ready' : ready) && !talking && !born;
+  // BUG-198: the fourth stage is a field with a name already in it. It is
+  // pre-filled ONCE, on arrival, and never again — re-filling it on every
+  // render would overwrite a name somebody is halfway through typing.
+  // Scripted only. An owner's fourth stage stays the composer and Send it has
+  // always been — the model asks him for a name in its own words, and there is
+  // no suggestion to pre-fill because nothing computed his character.
+  const namingStage = scriptedDraft && modernDraft && askStage === 'name' && draftStep === 'naming' && !talking && !born;
+  const prefilled = useRef(null);
+  useEffect(() => {
+    if (!namingStage || !suggestedName) { if (!namingStage) prefilled.current = null; return; }
+    if (prefilled.current === suggestedName) return;
+    prefilled.current = suggestedName;
+    setDraft((current) => (current.trim() ? current : suggestedName));
+  }, [namingStage, suggestedName, setDraft]);
+
+  // One tap ends the draft: the name in the field, then the birth. Two requests
+  // because the server keeps naming and building as separate intents, but ONE
+  // gesture, because "four taps" is the requirement and a second button between
+  // a finished character and his arrival is the thing that made it five.
+  async function dealHimIn() {
+    if (sendingRef.current || createdRef.current) return;
+    const chosen = (draft.trim() || suggestedName || '').trim();
+    if (chosen) await send(chosen, 'name');
+    if (createdRef.current) return;
+    await send(GO_SIGNAL, 'create');
+  }
   const naming = modernDraft && draftStep === 'naming' && !talking;
   const hasTalked = chat.some(m => m.role === 'user');
 
   const suggestions = phase < 0.3
     ? ['Tight and patient', 'Aggressive bluffer', 'Solver-strict']
     : ['Heads-up only', 'Everywhere in position'];
+
+  // BUG-198: the server's chips when it sends any. A SCRIPTED draft (a guest's)
+  // always does, at every stage — that is the repair. An owner's draft sends
+  // none, and falls back to the three openers this screen has always offered
+  // before the first answer, because those are complete briefs a model can
+  // build from and the script's single words are not. Same fallback covers an
+  // older server during a rolling deploy.
+  const stageChips = draftChips.length ? draftChips : (!hasTalked ? suggestions : []);
 
   // The create draft's opening line is the sheet's first row; the rebuild's is
   // the first thing the agent says. The footnote that used to ride under it on
@@ -996,20 +1043,53 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
                The suggestion chips stay, and only before the first answer: an
                owner with no words ready needs somewhere to start, and a chip
                sends exactly as a typed line does. */
-            above={!hasTalked ? (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {suggestions.map((sug) => (
+            /* BUG-198: chips at EVERY stage, not only before the first answer.
+               The words come from the server, which is the thing that has to
+               understand them — the old list lived here, said "Tight and
+               patient", and the matcher on the other end had never heard of
+               "Loose". Requirement 4 of the queue is that an owner talking to
+               the real recruiter gets these too, as shortcuts; he does,
+               because the server sends them to both. */
+            above={stageChips.length ? (
+              <div className="draft-sheet__chips" data-testid="draft-chips">
+                {stageChips.map((chip) => (
                   <button
-                    key={sug}
+                    key={chip}
                     type="button"
                     className="draft-sheet__chip"
                     disabled={loading || !sessionReady || createdPending}
-                    onClick={() => send(sug, 'brief')}
-                  >{sug}</button>
+                    onClick={() => send(chip, 'brief')}
+                  >{chip}</button>
                 ))}
               </div>
             ) : null}
-            action={showNextAction ? (
+            action={namingStage ? (
+              /* The fourth stage takes the composer's place, exactly as the
+                 gold action does — but with a FIELD in it, because here the
+                 question is the name and the answer is already written. One
+                 row: his name, and the only thing left to press. */
+              <form
+                className="draft-sheet__composer draft-sheet__name"
+                data-testid="draft-name-row"
+                onSubmit={(e) => { e.preventDefault(); dealHimIn(); }}
+              >
+                <input
+                  ref={inputRef}
+                  className="draft-sheet__input"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder="His name…"
+                  aria-label="His name"
+                  data-testid="draft-input"
+                  disabled={loading || createdPending}
+                />
+                <button
+                  type="submit"
+                  className="draft-sheet__deal"
+                  disabled={loading || !sessionReady || createdPending}
+                >{loading || createdPending ? 'Dealing him in…' : 'Deal him in'}</button>
+              </form>
+            ) : showNextAction ? (
               <NextAction
                 label={createdPending ? 'Opening his card…' : loading ? 'Creating…' : 'Deal him in'}
                 sub={natureHint ? 'STRATEGY SET · NATURE FORMED' : 'STRATEGY SET'}

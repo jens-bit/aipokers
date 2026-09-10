@@ -143,3 +143,59 @@ export function ensureName(agent, { fallback = DEFAULT_NAME } = {}) {
   agent.name = coined ?? fallback;
   return agent.name;
 }
+
+// ── BUG-198 · the name the draft offers ─────────────────────────────────────
+//
+// coinName turns what somebody SAID into a name. This turns what somebody
+// BUILT into one, for the guest draft's fourth stage: a field with a name
+// already in it, and a button.
+//
+// The reason it is a field with a name in it rather than a question with an
+// empty box is the same reason the stages have chips. A guest who has tapped
+// three times is one tap from a poker player, and "what shall we call him" is
+// exactly where that stalls — a blank box is a small essay question at the
+// finish line. So there is always a name to accept, and typing over it is the
+// same gesture it always was.
+//
+// Every entry below is WRITTEN to fit. None is sliced to length: a name cut
+// mid-word ("Hand Four Hund") is the exact failure clamp() exists to prevent,
+// and a table that needs cutting is a table with the wrong names in it.
+//
+// Names are grouped by NATURE rather than by dials, because the nature is what
+// the rest of the product already shows him as ("GRANITE · A ROCK"), and a
+// suggested name that fights the temperament chip beside it reads as a bug.
+// Every one of them is a name coinName would return unchanged — a suggestion
+// the coiner would then rewrite is not a suggestion.
+const SUGGESTIONS = Object.freeze({
+  Grinder:   ['The Grinder', 'Clockwork', 'The Machine', 'Night Shift'],
+  Hothead:   ['Loose Cannon', 'The Fuse', 'Powder Keg', 'Short Fuse'],
+  Professor: ['The Professor', 'Chalk', 'The Lecture', 'Margin Note'],
+  Rock:      ['The Rock', 'Granite', 'The Vault', 'Bedrock'],
+  Gambler:   ['The Gambler', 'Long Shot', 'Coin Flip', 'The Punt'],
+  Shark:     ['The Shark', 'Deep Water', 'The Fin', 'Cold Read'],
+  Sphinx:    ['The Sphinx', 'Stone Face', 'Poker Face', 'The Quiet'],
+  Showman:   ['The Showman', 'Headline', 'The Encore', 'Front Row'],
+});
+
+// The nature of somebody the draft has not decided anything about yet. Stage 4
+// is reachable before the dials have settled, and an empty field is the one
+// outcome this file does not allow.
+const UNDECIDED = Object.freeze(['The Understudy', 'The New Face', 'The Rookie', 'Fresh Deck']);
+
+/**
+ * A name to put in the field, for an agent of this nature.
+ *
+ * @param nature  a nature NAME ('Rock', 'Hothead', …). Anything unrecognised —
+ *                including null, which is what a half-finished draft has —
+ *                falls back to the undecided list rather than to nothing.
+ * @param rand    injected for the tests, exactly as birthAttributes takes it.
+ * @returns a name of at most NAME_MAX characters. Never empty.
+ */
+export function suggestName(nature, { rand = Math.random } = {}) {
+  const pool = SUGGESTIONS[String(nature ?? '')] ?? UNDECIDED;
+  const roll = rand();
+  const at = Math.min(pool.length - 1, Math.max(0, Math.floor(roll * pool.length)));
+  // Through the coiner on the way out, so this list can never be the one place
+  // in the product that ships a name the rest of it would have rewritten.
+  return coinName(pool[at], { fallback: DEFAULT_NAME });
+}

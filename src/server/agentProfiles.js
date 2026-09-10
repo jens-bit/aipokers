@@ -48,6 +48,7 @@ import {
   logAttrChange,
   firstWordsFor,
   applySessionGrowth,
+  natureForProfile,
 } from '../agent/attributes.js';
 import { formatMoment, formatOpener } from '../agent/moment.js';
 // SERVER-5 job 1 — the states he can arrive in, and what they cost him for one
@@ -122,7 +123,13 @@ import {
 } from './draftGuard.js';
 // BUGS-B/4: whatever the owner types becomes a name that fits on a seat plate
 // — never empty, never a bare article.
-import { coinName, ensureName, NAME_MAX } from './naming.js';
+import { coinName, ensureName, suggestName, NAME_MAX } from './naming.js';
+// BUG-198: the guest draft's script. Four questions, chips that are the same
+// words the matcher understands, and no model anywhere in the path.
+import {
+  chipsFor, questionFor, readAnswer, restate, nextStage, isComplete,
+  profileFromAnswers, briefFromAnswers, MISS_LINE,
+} from './draftScript.js';
 
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
 const TIMEOUT_MS = 9000;
@@ -3428,7 +3435,7 @@ function startDraft(profile, { adoptLegacy = false } = {}) {
     }
   }
   profile.draft = {
-    active: { id: randomUUID(), brief: brief.join(' ').slice(-12_000), name, revision: 0 },
+    active: { id: randomUUID(), brief: brief.join(' ').slice(-12_000), name, revision: 0, answers: {} },
     receipts: draftReceipts(profile).slice(-DRAFT_RECEIPT_CAP),
   };
   profile.chat = previous.length ? previous : [{ role: 'assistant', content: DRAFT_OPENING }];
@@ -3468,12 +3475,95 @@ function draftProjection(profile, receipt = null) {
       ...(done.visitOutcome ? {visitOutcome:done.visitOutcome} : {}),
     } };
   }
-  const state = draftProfile(active?.brief ?? '');
+  const state = scriptedState(active) ?? draftProfile(active?.brief ?? '');
+  const step = !state.ready ? 'briefing' : active.name ? 'ready' : 'naming';
   return { status: 200, body: {
-    draftId: active?.id, draftStep: !state.ready ? 'briefing' : active.name ? 'ready' : 'naming',
+    draftId: active?.id, draftStep: step,
     ready: state.ready, chat: profile.chat, draftName: active?.name ?? null,
     natureHint: state.nature, profile: state.profile,
+    // BUG-198: what the sheet should put under the rows. A scripted draft
+    // always has chips — that is the whole repair — and the client draws
+    // whatever is here rather than deciding for itself which stage it is on.
+    ...draftAffordances(active, step, state),
   } };
+}
+
+// ── BUG-198 · the scripted draft ────────────────────────────────────────────
+//
+// A guest's draft has no model behind it, so the recruiter is the script in
+// draftScript.js. Its answers live on the draft record; the dials are computed
+// from THOSE rather than by re-reading the accumulated brief, because the brief
+// is prose and the answers are facts, and a fact that has already been given
+// must never be re-derived and lost.
+
+/** Whether this draft is being run by the script rather than by a model. */
+function isScripted(active) {
+  return Boolean(active?.answers && Object.keys(active.answers).length) || Boolean(active?.scripted);
+}
+
+/** The same `{ profile, nature, ready }` shape draftProfile returns, or null. */
+function scriptedState(active) {
+  if (!isScripted(active)) return null;
+  const profile = profileFromAnswers(active.answers ?? {});
+  return {
+    profile,
+    nature: natureForProfile(profile).name,
+    ready: isComplete(active.answers ?? {}),
+    source: 'script',
+  };
+}
+
+/**
+ * The chips under the rows, and the name already in the field.
+ *
+ * Sent for every draft, scripted or not: requirement 4 of the queue is that an
+ * owner talking to the real recruiter gets the same chips as shortcuts. The
+ * only difference is that an owner may ignore them and be understood anyway,
+ * because a model is reading his sentence.
+ */
+function draftAffordances(active, step, state) {
+  const stage = step === 'naming' || step === 'ready' ? 'name' : nextStage(active?.answers ?? {});
+  return {
+    // Whether the recruiter on the other end is the SCRIPT or a model. The
+    // client needs to know because two of its affordances belong to the script
+    // alone — the per-stage chips, and the fourth stage's name row with its one
+    // button. An owner keeps the composer and the Send he has always had.
+    draftScripted: isScripted(active),
+    draftStage: stage,
+    // Only a SCRIPTED draft gets the script's chips. An owner keeps the three
+    // openers the birth screen has always shown, and this is not tidiness — the
+    // openers are complete briefs a model can build a character from, and the
+    // script's chips are single words. Sending "Tight" to the owner's draft
+    // would put him exactly where BUG-198 found the guest: one signal, not
+    // ready, and a recruiter with nothing to say. Owners get chips as
+    // shortcuts, as the queue asks; they get the ones that work for them.
+    draftChips: isScripted(active) ? chipsFor(stage) : [],
+    // The field is pre-filled from whatever character the draft has so far.
+    // Offered at every step so the client never has to ask for it separately at
+    // the exact moment somebody is waiting to press a button.
+    suggestedName: active?.name ?? suggestName(state?.nature ?? null),
+  };
+}
+
+/**
+ * BUG-198: ask for what is still missing, and NEVER twice in a row.
+ *
+ * The go signal arriving early is the one moment the recruiter has to prompt
+ * without having been given anything to restate, and it is exactly where the
+ * old code appended DRAFT_FALLBACK_LINE for the second, third and tenth time.
+ * The guard is on the transcript rather than on a flag because the transcript
+ * is the thing the owner is actually reading.
+ */
+function appendDraftPrompt(profile, active) {
+  const scripted = isScripted(active);
+  const ask = scripted ? questionFor(nextStage(active.answers ?? {})) : DRAFT_FALLBACK_LINE;
+  const last = [...(profile.chat ?? [])].reverse().find((t) => t.role === 'assistant');
+  if (last && String(last.content ?? '').trim() === String(ask ?? '').trim()) {
+    // Already on screen. Saying it again is the bug; say the short thing instead.
+    if (scripted) appendDraftTurn(profile, 'assistant', MISS_LINE);
+    return;
+  }
+  if (ask) appendDraftTurn(profile, 'assistant', ask);
 }
 
 function appendDraftTurn(profile, role, content) {
@@ -3491,8 +3581,13 @@ async function createDraftAgent(profile, active, userId, { attemptId = null, all
   }
   const underway = draftBuilds.get(userId);
   if (underway) return underway.draftId === active.id ? underway.promise : draftFailure('draftBusy', 'Your other draft is still finishing.');
-  if (!draftProfile(active.brief).ready && !allowEmptyLegacy) {
-    appendDraftTurn(profile, 'assistant', DRAFT_FALLBACK_LINE);
+  // BUG-198: a scripted draft's readiness is its ANSWERS, not its brief. The
+  // brief it writes is a compact restatement ("tight, bluffs often") and
+  // running that back through the prose reader would ask the script's own
+  // finished answers to prove themselves a second time, in a vocabulary that
+  // was never theirs.
+  if (!(scriptedState(active) ?? draftProfile(active.brief)).ready && !allowEmptyLegacy) {
+    appendDraftPrompt(profile, active);
     saveStore(userId);
     return draftProjection(profile);
   }
@@ -3504,7 +3599,7 @@ async function createDraftAgent(profile, active, userId, { attemptId = null, all
   const snapshot = { chat: [{ role: 'user', content: active.brief || 'A balanced poker player.' }] };
   const promise = (async () => {
     let built;
-    try { built = await buildFromDraft(snapshot, active.brief, userId, active.name); }
+    try { built = await buildFromDraft(snapshot, active.brief, userId, active.name, active.answers); }
     catch (err) {
       console.error('[agentProfiles] draft not committed:', err.message);
       return { status: 503, body: { error: 'Could not finish your agent. Your draft is saved — please try again.' } };
@@ -3547,6 +3642,53 @@ async function createDraftAgent(profile, active, userId, { attemptId = null, all
   finally { if (draftBuilds.get(userId)?.promise === promise) draftBuilds.delete(userId); }
 }
 
+/**
+ * BUG-198: the script's answers in the shape `slidersFromBrief` returns, so the
+ * whole build path below can stay one path.
+ *
+ * The name here is only a LAST resort — the draft asks for a name at stage 4
+ * and pre-fills the field, so `chosenName` almost always wins. It exists for
+ * the one case where somebody cleared the field and sent nothing usable.
+ */
+function scriptedArchetype(answers) {
+  if (!answers || !Object.keys(answers).length) return null;
+  const profile = profileFromAnswers(answers);
+  const nature = natureForProfile(profile);
+  return {
+    key: 'script',
+    profile,
+    line: `${nature.line}`,
+    name: suggestName(nature.name),
+    strategy: strategyFromAnswers(answers),
+  };
+}
+
+/**
+ * His strategy, in his owner's own three decisions.
+ *
+ * Written from the answers rather than picked from an archetype list because
+ * the archetypes are five and the answers are twenty-seven: "tight, bluffs
+ * often, pushes when unsure" is a real character and is not any of the five.
+ */
+function strategyFromAnswers(answers = {}) {
+  const style = {
+    tight: 'You are selective. You fold most hands and wait for the ones worth playing.',
+    balanced: 'You play a balanced range — neither the tightest nor the loosest player at the table.',
+    loose: 'You play a wide range of hands and put chips in often.',
+  }[answers.style] ?? 'You play a balanced range.';
+  const bluff = {
+    rarely: 'You almost never bluff; when you bet, you have it.',
+    sometimes: 'You bluff occasionally, enough that nobody can simply believe you.',
+    often: 'You bluff often, and you are comfortable being caught.',
+  }[answers.bluffing] ?? 'You bluff occasionally.';
+  const unsure = {
+    fold: 'When a spot is genuinely unclear you fold and wait for a better one.',
+    call: 'When a spot is genuinely unclear you call it down rather than fold the best hand.',
+    push: 'When a spot is genuinely unclear you apply pressure and make the other player decide.',
+  }[answers.unsure] ?? 'When a spot is genuinely unclear you take the low-variance line.';
+  return `${style} ${bluff} ${unsure}`;
+}
+
 // Turn a finished draft into an agent payload plus the one line the recruiter
 // says when he hands him over.
 //
@@ -3554,8 +3696,14 @@ async function createDraftAgent(profile, active, userId, { attemptId = null, all
 // timeout, or output that will not parse — the sliders still have to come from
 // what the owner actually said: a chaotic brief that quietly produces a
 // balanced agent is the same bug as a code fence, just harder to see.
-async function buildFromDraft(profile, brief, ownerId = null, chosenName = undefined) {
-  const vague = slidersFromBrief(brief);
+async function buildFromDraft(profile, brief, ownerId = null, chosenName = undefined, answers = null) {
+  // BUG-198: a scripted draft already HAS the dials — three answers, given on
+  // purpose. Re-reading them out of the prose brief would be guessing at facts
+  // that were never in doubt, and `slidersFromBrief` does not know the script's
+  // vocabulary anyway ("bluffs often" is not "bluffer"). So the script wins
+  // where it has spoken, and the brief reader stays exactly as it was for
+  // every draft that was actually talked out.
+  const vague = scriptedArchetype(answers) ?? slidersFromBrief(brief);
   // BUGS-B/4: what the owner typed when he was asked what to call him. Read
   // deterministically out of the transcript, so a build with no model behind
   // it still uses HIS answer rather than a canned archetype name.
@@ -5253,6 +5401,10 @@ export function installAgentProfileRoutes(app) {
     const userId = String(req.body?.userId || 'anon');
     const profile = getOrCreate(userId);
     const resolved = resolveDraft(profile, req.body?.draftId ?? null, { begin: true });
+    // BUG-198: a guest's draft is scripted from the moment it OPENS, not from
+    // its first answer. The opening screen is the one that most needs the chips
+    // — it is the screen somebody is looking at with nothing typed yet.
+    if (resolved.active && modelBlocked(userId)) resolved.active.scripted = true;
     const result = resolved.failure ?? draftProjection(profile, resolved.receipt);
     if (result.status === 200) saveStore(userId);
     return res.status(result.status).json(result.body);
@@ -5263,6 +5415,7 @@ export function installAgentProfileRoutes(app) {
     const userId = String(req.body?.userId || 'anon');
     const profile = getOrCreate(userId);
     startDraft(profile);
+    if (profile.draft?.active && modelBlocked(userId)) profile.draft.active.scripted = true;
     saveStore(userId);
     res.json({ ok: true, ...draftProjection(profile).body });
   });
@@ -5321,18 +5474,63 @@ export function installAgentProfileRoutes(app) {
       const result = draftFailure('draftBusy', 'Your agent is still finishing.');
       return res.status(result.status).json(result.body);
     }
-    const naming = intent === 'name' || (!intent && !active.name && draftProfile(active.brief).ready && hasAskedName(profile.chat));
+    // BUG-198: a guest's draft is the script, all the way down. Decided here
+    // rather than inside the turn so that `naming` below reads the SCRIPT's
+    // idea of where the draft is, not the accumulated-brief one — the two
+    // disagreeing is how a draft asks for a name it has already been given.
+    const scripted = modelBlocked(userId);
+    if (scripted) active.scripted = true;
+    const scriptStage = scripted ? nextStage(active.answers ?? {}) : null;
+    const naming = scripted
+      ? (intent === 'name' || scriptStage === 'name')
+      : intent === 'name' || (!intent && !active.name && draftProfile(active.brief).ready && hasAskedName(profile.chat));
     appendDraftTurn(profile, 'user', content);
     active.revision++;
     const revision = active.revision;
     if (naming) {
       active.name = coinName(content, { fallback: null });
+      // BUG-198: a scripted draft never bounces the last question back. The
+      // field arrived pre-filled, so an unusable answer means somebody cleared
+      // it and sent nothing — take the suggestion rather than asking again,
+      // which is the same never-re-ask rule the three questions above follow.
+      if (!active.name && scripted) {
+        active.name = suggestName(scriptedState(active)?.nature ?? null);
+      }
       appendDraftTurn(profile, 'assistant', active.name
         ? `${active.name} it is. Ready when you are.`
         : 'Choose a name, or let me pick one.');
       saveStore(userId);
       return res.json(draftProjection(profile).body);
     }
+    // ── BUG-198 · the scripted turn ─────────────────────────────────────────
+    //
+    // No model, and no way back into the old behaviour: a miss NEVER re-asks.
+    // The stage holds, the chips come back with one line that is not a
+    // question, and the owner is free to tap instead of typing.
+    if (scripted) {
+      const heard = readAnswer(content, { stage: scriptStage });
+      Object.assign(active.answers ??= {}, heard);
+      active.brief = briefFromAnswers(active.answers);
+
+      // ONE rule for what the recruiter says, and one guard on saying it.
+      //
+      // A miss gets the short line. A hit gets its facts restated and the next
+      // UNANSWERED question — which is what makes one sentence answering two
+      // questions skip the one it filled. And whichever it is, it is never the
+      // sentence already sitting at the bottom of the screen: saying "Loose.
+      // Got it." twice to somebody who typed "loose" twice is the same failure
+      // as re-asking, wearing a different sentence.
+      const said = Object.keys(heard).length ? restate(heard) : null;
+      const ask = isComplete(active.answers) ? null : questionFor(nextStage(active.answers));
+      const line = said ? [said, ask].filter(Boolean).join(' ') : MISS_LINE;
+      const last = [...(profile.chat ?? [])].reverse().find((t) => t.role === 'assistant');
+      if (String(last?.content ?? '').trim() !== line) {
+        appendDraftTurn(profile, 'assistant', line);
+      }
+      saveStore(userId);
+      return res.json(draftProjection(profile).body);
+    }
+
     active.brief = `${active.brief} ${content}`.trim().slice(-12_000);
     saveStore(userId);
     const state = draftProfile(active.brief);
