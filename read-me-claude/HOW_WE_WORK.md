@@ -1,12 +1,24 @@
 # How We Work — Railbird (formerly Agentic Poker)
 
-The operating protocol as it actually ran on 2026-09-06 (v3), with the 2026-09-07 additions (v3.1: arena runs, keys, brand art). It replaces the numbered-tab protocol of 2026-09-05. Read it at the start of every session.
+The operating protocol as it actually ran on 2026-09-10 (v4). v3 (2026-09-06) established the worktree and queue discipline, v3.1 (2026-09-07) added arena runs, keys and brand art, and both replaced the numbered-tab protocol of 2026-09-05. **v4 records what changed when a second builder arrived**: who owns main, how many pairs a job is allowed, and what DESIGN_GAP.md is for. Read it at the start of every session.
 
 ## Who is Jens
 
 Founder, not a developer. He understands the product deeply and orchestrates the terminals; he does not read diffs. Give him exact copy-paste commands and state the tab first. Never assume he knows what branch a tab is on.
 
 He runs Windows/PowerShell. **Never use `>` to redirect into a source file** — PowerShell writes UTF-16 and the Vite build dies with `Unexpected "?"`. Use Python or a heredoc. `git config core.pager cat` is set in the main repo so nothing opens `less`; if a command ever shows `(press RETURN)`, press Enter then `q`.
+
+## Two builders, one main
+
+There are two builders now and they build the same product out of the same folder. Astra — OpenAI's GPT-6, on Jens's $20 plan, and the author of every `codex/*` branch — works in the main project folder and merges its own work to main; the Claude integrator works in that same folder the same way. One folder, one index, one `data/`, two agents that both believe they own it — so the rule is not "coordinate", it is **one at a time, and the other one is not running**.
+
+**Astra is builder and integrator on main while it runs.** It writes the batch, gates it, commits it, merges it. Nothing else touches main in that window. When Astra is out — an overnight, a weekend, a handoff like 10 September's — **the Claude integrator owns main** and does the identical job: gate what is in the tree, commit it, merge it, write down what the gates said. Neither of them is the senior one; the difference is only which is running.
+
+**Nobody else ever works in `C:\Projects\ai-poker` while one of them is running.** Not a second Claude tab, not a quick `git status`, not an arena run. Two agents in one working tree do not collide loudly — they collide quietly, by sweeping each other's half-written files into a commit neither of them meant. Astra's batch 53 could be handed over as fifteen uncommitted files precisely because nothing else had written to that tree since it stopped.
+
+**Claude Code tabs stay in their worktrees, on their branches.** STEP 0's branch guard is what enforces it; a tab that finds itself on `main` in the shared folder has been pasted into the wrong window and stops there. Worktrees are cheap and branches are free. The shared folder is the only scarce thing and it belongs to whoever is integrating.
+
+The handoff is a sentence, not a ceremony. Whoever takes main says so; whoever hands it over says what is left uncommitted in the tree and whether it has been gated. "Astra is out until 15 Sep; you own main until then, and its last batch is sitting in the tree ungated" is the entire protocol.
 
 ## The three roles
 
@@ -16,7 +28,7 @@ He runs Windows/PowerShell. **Never use `>` to redirect into a source file** —
 
 | Tab | Folder | Role |
 |-----|--------|------|
-| **INTEGRATOR** | `C:\Projects\ai-poker` (main) | Merges the queue, gates, files bugs, commits design-refs. Never pushes. |
+| **INTEGRATOR** | `C:\Projects\ai-poker` (main) | Merges the queue, gates, files bugs, commits design-refs. Never pushes. Runs only when Astra is not. |
 | **BACKEND** | `ai-poker-backend` | Server trees. |
 | **WATCH** | `ai-poker-watch` | The felt and the casino client. |
 | **FRONTEND** | `ai-poker-bugsb` | The flat and the phone shell. |
@@ -71,7 +83,17 @@ npm run smoke:browser
 npm run test:home2
 ```
 
-Build the client first (`npm start` once, or `npm run build:client`) — both suites load `client/dist` and a stale bundle is a green run that proves nothing. Wipe the scratch directory between runs. Four smoke tests plus home2's twenty (one `test.fixme`, BUG-43), about forty seconds total, and the screenshots land in `smoke-shots/` and `home2-shots/`.
+Build the client first (`npm start` once, or `npm run build:client`) — both suites load `client/dist` and a stale bundle is a green run that proves nothing. Wipe the scratch directory between runs. Eight smoke tests (four of them casino2's) plus home2's twenty, about ninety seconds total, and the screenshots land in `smoke-shots/` and `home2-shots/`.
+
+**Port 8765 is shared by every worktree, so it is regularly already taken.** A tab in another tree starts a server on it for its own check and forgets to stop it, and then the scratch server dies with `EADDRINUSE` — or, worse, does not die because you skipped starting one, and both suites quietly gate the *other tree's* bundle against the *other tree's* database. Do not kill it: it belongs to somebody who is still working. Give yours a port of its own and point the suites at it, which is what `SMOKE_BASE_URL` is for:
+
+```
+PORT=8791 …the same five variables… node /path/to/ai-poker/src/index.js
+SMOKE_BASE_URL=http://127.0.0.1:8791 npm run smoke:browser
+SMOKE_BASE_URL=http://127.0.0.1:8791 npm run test:home2
+```
+
+`netstat -ano | grep :8765` gives the PID and `Get-CimInstance Win32_Process -Filter "ProcessId = <pid>"` gives the command line, which is how you find out whose it is before touching anything.
 
 `e2e/desk.spec.js` is different in kind — a look check, not a gate, with its own Vite dev server and no fixture or key needed — but it is still one of the three, because it is the only thing that ever lays out the desktop's three-column claim in a real browser:
 
@@ -100,6 +122,28 @@ Claude Design produces boards; a wave starts from a playtest finding or a stated
 Cowork imports the zip, diffs it, and — for a big wave or after a long session — **renders the boards before saying what changed**. A source diff is not a picture. What it reports is what it saw.
 
 The design is **frozen** once code is more than about two waves behind it; then only correction rounds on what the tabs are porting. Ports go one way, `design-refs/` → `client/src/`; port, don't redesign.
+
+## Pairs
+
+A pair is one picture: the reference on the left, the actual product on the right, same scale, same state. It is the only thing that settles "did that port land", and it is expensive — somebody has to render the frame, drive the product into the same state, put them side by side, and *look at them*. It earns that cost when a job has just changed that frame. It earns nothing when it is generated to fill a row in a table.
+
+**Only for the frames a job names.** A queue that ports the Home header ink produces the Home header pair, plus whatever the change could plausibly have moved. Not the room. Not the roster. Not the eleven other frames that happen to sit on the same board.
+
+**Three to six per queue.** That is the budget, and it is a budget rather than a target: three is a normal batch, six is a wide one, and a queue that wants more than six is really two queues.
+
+**Never inventory-wide.** Regenerating every pair in the audit is not verification; it is a night spent producing 185 pictures nobody reads, and it ends with a document that says PARTIAL 103 times without a single named difference. The enumeration exists to be queried, not to be re-photographed.
+
+**Never redone once matched.** A pair that has been inspected and matched is finished. If a later change moves that frame, the job that moves it names it and pairs it again. Otherwise it stays matched and nobody looks at it twice.
+
+**Jens's phone is the gate for everything else.** A pair proves one frame against one reference. Whether the thing is *good* — whether the room reads as a room, whether the agent reads as a companion, whether the wait before the first screen is bearable — is settled by Jens opening the deployed app on his phone and saying so. That is why every screen section in DESIGN_GAP.md ends with what to look at. When it is unclear whether something needs a pair, it usually needs a playtest.
+
+## DESIGN_GAP.md
+
+`read-me-claude/DESIGN_GAP.md` is a **short per-screen status**: one section per screen — Home, Draft, Agent, Roster, Casino, Watch, Safe/Fridge, Landing/Guest, Brand, Desktop, Notifications — each saying where that screen stands, which bugs are open against it, and what Jens should look at on the phone. It is written to be read in five minutes, by a person, at the start of a session, and it is kept current by hand because it is short enough to be.
+
+The 185-row frame inventory and its 466 substates are Astra's source-indexed audit, and they keep their value: they are the enumeration of what was authored, indexed to the exact reference line. They live in [DESIGN_STATE_GAP.md](DESIGN_STATE_GAP.md), they are **referenced, not maintained by hand**, and they are regenerated from `artifacts/current-frame-inventory.json` when somebody needs the enumeration. Hand-editing them every batch is what went wrong — a table too long to read in one sitting stops being read and starts merely being appended to, and then the one document that was supposed to say where the design stands says it in 185 places at once. The batch-41 snapshot stays byte-for-byte in [DESIGN_GAP_BATCH41.md](DESIGN_GAP_BATCH41.md) and the older history in [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md).
+
+One rule for writing in it: a screen's status is what somebody actually looked at, with the difference named. "PARTIAL" with no named difference is not a status, it is a shrug.
 
 ## Playtests
 

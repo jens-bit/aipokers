@@ -7,7 +7,7 @@ Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claud
 
 ## Read next, in order
 1. `CORE_GAME_PLAN.md` — current state, the active build plan (skill engine, personality layer, mood economy), tree-by-tree with megaprompts. **This is where we are.**
-2. Highest-version `agentic-poker-master-spec-*.docx` — full product vision (v14 at this repair). Read `read-me-claude/DESIGN_GAP.md` and `read-me-claude/ASTRA_REPAIR.md` for current founder overrides and verified repair status.
+2. Highest-version `agentic-poker-master-spec-*.docx` — full product vision (v15 as of 2026-09-10). Read `read-me-claude/DESIGN_GAP.md` and `read-me-claude/ASTRA_REPAIR.md` for current founder overrides and verified repair status.
 3. `read-me-claude/HOW_WE_WORK.md` — workflow: worktrees, terminal discipline, merge rules, deploy.
 4. `BUGS.md` — known bugs. Verify against code; entries go stale.
 
