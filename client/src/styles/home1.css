@@ -25,6 +25,11 @@
   overflow: hidden;
 }
 
+/* BUG-195: HomeHead and C7b use the current muted text ink. The quiet dot
+ * keeps its existing faint colour; shared Casino/Watch headers are unchanged. */
+.home1 > .room-header .room-header__sub,
+.home1 > .room-header .room-header__live.is-quiet > span { color: #9E9EA2; }
+
 /* The room is authored at 390x612 and the phone is taller than that, so there
  * is always floor below it. The container carries the flat's OWN ground so the
  * seam is invisible and the extra space reads as more room rather than as a
