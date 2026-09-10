@@ -872,9 +872,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
   display: flex;
   flex-direction: column;
   padding: 8px 12px 11px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(12, 17, 17, 0.96);
-  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--v5-edge-up);
+  background: var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
 }
 .home-thread__line {
   min-height: 20px;
@@ -907,6 +908,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Board29 F01: the empty room's observation has no agent speaker. */
+.home-thread__text--system {
+  font-size: 11px;
+  font-style: italic;
+  color: #9E9EA2; /* Current M_MUTED; global --sys-muted is an older palette. */
+}
 /* The field itself — the ref's own bar: height 36, radius 18, the text on the
    left and the arrow inset on the right, both inside ONE control rather than
    a pill input beside a floating round button. */
@@ -920,6 +927,51 @@ button.home-flat__table:active { filter: brightness(1.12); }
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 .home-thread__composer:focus-within { border-color: var(--accent, #00D4AA); }
+/* BUG-184 · Board29 F11 collapsed room line. Keep the private Casino band
+   unchanged. 1px border +22px line +8px gap +36px composer +11px bottom =78. */
+.home-thread--room .home-thread__band { padding: 0; }
+.home-thread--room .home-thread__line {
+  height: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  font: 11px Inter, system-ui, sans-serif;
+  line-height: normal;
+}
+.home-thread--room .home-thread__composer { flex-shrink: 0; margin: 8px 12px 11px; }
+.home-thread--room .home-thread__sentence {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #9E9EA2;
+  font: 11px Inter, system-ui, sans-serif;
+}
+.home-thread--room .home-thread__who {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: #9E9EA2;
+}
+.home-thread--room .home-thread__text { font-size: 11px; color: #9E9EA2; }
+.home-thread__avatar { position: relative; width: 20px; height: 20px; flex-shrink: 0; }
+.home-thread__avatar-tile {
+  display: flex; align-items: flex-end; justify-content: center;
+  width: 20px; height: 20px; border-radius: 12px; overflow: hidden;
+  background: #0A0F17; border: 1px solid transparent;
+}
+.home-thread--room .home-thread__mood {
+  position: absolute; bottom: -3px; right: -3px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #0A0A0A; border: 1.5px solid transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 700 7.8px/1 'JetBrains Mono', monospace;
+}
+.home-thread--room .home-thread__error { bottom: 78px; }
 .home-thread__input {
   min-height: 0;
   height: 32px;

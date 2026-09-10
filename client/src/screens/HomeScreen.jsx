@@ -862,7 +862,10 @@ export function HomeScreen({
 
       <HomeThread
         roomMode
+        agents={agents}
+        identities={identities}
         roomLoaded={loaded}
+        nobodyYet={nobodyYet}
         roomPushed={ownerLines}
         connection={roomConnection}
         agent={focus}
