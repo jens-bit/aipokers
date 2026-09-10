@@ -23,6 +23,7 @@ import { MoodGhost } from '../system/MoodGhost.jsx';
 import { GhostHandLayer, SEAT_GRIP } from '../system/GhostHands.jsx';
 import { CardBack } from '../system/PlayingCard.jsx';
 import { PHONE_ROOM, bubbleSide } from './flat.js';
+import { roomBubbleOffset } from './roomBubbles.js';
 import { presentRoutine } from './routines.js';
 import { fatigueOf } from '../../lib/attributes.js';
 import { heatColor, heatStep, staminaOf, staminaPct } from '../system/FeltBodyBars.jsx';
@@ -45,7 +46,8 @@ export function HomeBubble({ text, x, gold = false, side = null, maxWidth, testI
         data-side={open}
         data-testid={testId}
       >
-        {text}
+        <div className="home-bubble__text">{text}</div>
+        <i className="home-bubble__tail" aria-hidden="true" />
       </div>
     </div>
   );
@@ -209,7 +211,8 @@ export function HomeOne({
       // is held, or he would lag a frame behind the thumb.
       style={{ ...(carried ? { left: carried.x, top: carried.y, zIndex: 950 }
         : { left: at.x, top: at.y, zIndex: Math.round(at.y) }),
-        '--home-speech-top': (size * .65) + 'px', '--home-bubble-offset': (size / 2 + 8) + 'px' }}
+        '--home-speech-top': (size * .65) + 'px', '--home-bubble-offset': (size / 2 + 8) + 'px',
+        '--home-room-speech-top': (size / 2) + 'px', '--home-room-bubble-offset': roomBubbleOffset(size) + 'px' }}
       onClick={away ? undefined : onClick}
       aria-label={`${agent?.name ?? 'Agent'} — ${r.label}`}
       {...(!away ? carryHandlers ?? {} : {})}
