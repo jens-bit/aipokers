@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from 'react';
 
-import { MiniFelt } from './MiniFelt.jsx';
 import { identityOf } from '../../lib/identity.js';
 import { PlayingCard } from '../system/PlayingCard.jsx';
 import { FLAGS } from '../replay/timeline.js';
-import { pillName } from '../../lib/names.js';
+import { pillName, shortName } from '../../lib/names.js';
 
 export const ROOMS_URL = '/api/rooms';
 
@@ -63,14 +62,41 @@ export function CasinoOnTv({ away = [] }) {
   const rooms = useRooms(!showing);
 
   if (showing) {
+    const game = showing.liveGame;
+    // C7a's five demo bodies become the actual occupied seats. A mid-hand
+    // arrival is not in this list yet, so never append an imagined own seat.
+    const seats = (Array.isArray(game.seats) ? game.seats : [])
+      .map((seat, index) => seat && typeof seat === 'object'
+        ? { ...seat, seat: Number.isInteger(seat.seat) ? seat.seat : index } : null)
+      .filter(Boolean);
+    const own = Number.isInteger(game.heroSeat) ? seats.findIndex(s => s.seat === game.heroSeat) : -1;
+    const ring = own > 0 ? [...seats.slice(own), ...seats.slice(0, own)] : seats;
+    const name = shortName(showing.name, showing.nickname);
+    const blinds = typeof game.blinds === 'string' ? game.blinds.trim() : '';
     return (
-      <span className="home-tv__live" data-testid="home-tv-felt">
-        <MiniFelt
-          liveGame={showing.liveGame}
-          accent={identityOf(showing).glow.c}
-          width={100}
-          hot={!!showing.liveGame?.hot}
-        />
+      <span className="home-tv__live" data-testid="home-tv-felt" data-street={game.street ?? 'none'}>
+        <span className="home-tv__live-backdrop" />
+        {ring.map((seat, index) => {
+          const theta = (index / ring.length) * Math.PI * 2 - Math.PI / 2;
+          const isOwn = seat.seat === game.heroSeat;
+          const look = identityOf({ ...seat, name: seat.displayName ?? seat.name,
+            identity: seat.identity ?? (isOwn ? showing.identity : null) });
+          return (
+            <span key={seat.seat} className={`home-tv__ghost${isOwn ? ' is-own' : ''}`}
+              data-seat={seat.seat} aria-hidden
+              style={{ left: `${50 + Math.cos(theta) * 33}%`, top: `${50 + Math.sin(theta) * 34}%` }}>
+              <svg width="10" height="10" viewBox="0 0 80 80">
+              <path d="M40 8 C58 8 70 20 70 38 L70 68 C70 76 62 75 58 79 C54 83 46 83 40 79 C34 83 26 83 22 79 C18 75 10 76 10 68 L10 38 C10 20 22 8 40 8Z"
+                fill={look.hood.top} stroke={isOwn ? '#00D4AAAA' : 'rgba(0,0,0,0.5)'} strokeWidth={isOwn ? 5 : 2} />
+              <ellipse cx="29" cy="40" rx="7" ry="7" fill={look.glow.c} />
+              <ellipse cx="51" cy="40" rx="7" ry="7" fill={look.glow.c} />
+              </svg>
+            </span>
+          );
+        })}
+        {Number(game.pot) > 0 && <span className="home-tv__pot-dot" />}
+        <span className="home-tv__caption">{[name, blinds].filter(Boolean).join(' · ')}</span>
+        <span className="home-tv__live-signal" aria-hidden />
       </span>
     );
   }
