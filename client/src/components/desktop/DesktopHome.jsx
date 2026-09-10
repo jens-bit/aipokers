@@ -213,7 +213,7 @@ export function DesktopHome({
 
   const watchedAgent=agents.find(a=>a.id===deskTableId);
   const watchBlinds=Number.isFinite(game?.smallBlind)&&Number.isFinite(game?.bigBlind) ? game.smallBlind+'/'+game.bigBlind : null;
-  const refusedBeforeSnapshot = !!tableError && !!tableConfig && !game && !publicTableId && !homeTableSession && !deskTableId;
+  const refusedBeforeSnapshot = !!tableError && !!tableConfig && !game && !publicTableId && !homeTableSession;
   const goHome=()=>{
     if(deskTableId||publicTableId||homeTableSession||refusedBeforeSnapshot)onLeave?.();
     setDeskTableId(null);setPublicTableId(null);setHomeTableSession(null);
@@ -360,7 +360,7 @@ export function DesktopHome({
     );
   }
 
-  if (deskAgent) {
+  if (deskAgent && !refusedBeforeSnapshot) {
     return (
       <div className="dsk-root">
         {topBar}
