@@ -64,6 +64,32 @@ describe('DesktopHome roster', () => {
     fetchMock.route('/hands', { recentHands: [] });
   });
 
+  it.each(['television', 'away frame'])('BUG-172: the %s puts the selected live table on the desktop stage and Back restores the room', async (entry) => {
+    const liveAgent = { ...playingAgent, location: { where: 'table', tableId: playingAgent.liveGame.tableId, room: 'floor' } };
+    fetchMock.route('/api/agents', { agents: [liveAgent, restingAgent] });
+    const watch = vi.fn(), leave = vi.fn();
+    renderHome({ onWatchAgent: watch, onLeave: leave });
+    const target = await screen.findByTestId(entry === 'television' ? 'home-tv' : `home-frame-${playingAgent.id}`);
+    await userEvent.click(target);
+    expect(watch).toHaveBeenCalledOnce();
+    expect(watch).toHaveBeenCalledWith(expect.objectContaining({ id: playingAgent.id }));
+    expect(await screen.findByTestId('desk-casino-table')).toHaveAccessibleName(`${playingAgent.name} at the table`);
+    expect(screen.queryByTestId('home-tv')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
+    expect(await screen.findByTestId('home-tv')).toBeInTheDocument();
+    expect(leave).toHaveBeenCalledOnce();
+  });
+
+  it('BUG-172: opening the already watched agent from the TV changes the stage without subscribing twice', async () => {
+    const liveAgent = { ...playingAgent, location: { where: 'table', tableId: playingAgent.liveGame.tableId, room: 'floor' } };
+    fetchMock.route('/api/agents', { agents: [liveAgent, restingAgent] });
+    const watch = vi.fn();
+    renderHome({ onWatchAgent: watch, isWatching: true, watchingAgent: playingAgent });
+    await userEvent.click(await screen.findByTestId('home-tv'));
+    expect(watch).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('desk-casino-table')).toHaveAccessibleName(`${playingAgent.name} at the table`);
+  });
+
   it('BUG-157: desktop does not offer a first agent or claim an empty flat during the initial roster read', async () => {
     const answers = [];
     fetchMock.route('/api/agents', () => new Promise(resolve => answers.push(resolve)));
