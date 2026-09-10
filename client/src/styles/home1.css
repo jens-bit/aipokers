@@ -511,6 +511,12 @@ button.home-flat__table:active { filter: brightness(1.12); }
   font-size: 7.5px; color: #00D4AA; white-space: nowrap;
 }
 .home-frame__line.is-down { color: #FF4D4F; }
+/* Current C7a numbers use JetBrains Mono. Keep the room's name-case reset,
+   but let these two AwayFrame labels use the authored face. */
+.home1 .home-frame .home-frame__pot,
+.home1 .home-frame .home-frame__line {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
 
 .home-wall__hook {
   width: 44px; height: 34px;
@@ -976,19 +982,6 @@ button.home-flat__table:active { filter: brightness(1.12); }
   color: #9E9EA2;
 }
 .home-thread--room .home-thread__text { font-size: 11px; color: #9E9EA2; }
-.home-thread__avatar { position: relative; width: 20px; height: 20px; flex-shrink: 0; }
-.home-thread__avatar-tile {
-  display: flex; align-items: flex-end; justify-content: center;
-  width: 20px; height: 20px; border-radius: 12px; overflow: hidden;
-  background: #0A0F17; border: 1px solid transparent;
-}
-.home-thread--room .home-thread__mood {
-  position: absolute; bottom: -3px; right: -3px;
-  width: 15px; height: 15px; border-radius: 50%;
-  background: #0A0A0A; border: 1.5px solid transparent;
-  display: inline-flex; align-items: center; justify-content: center;
-  font: 700 7.8px/1 'JetBrains Mono', monospace;
-}
 .home-thread--room .home-thread__error { bottom: 78px; }
 .home-thread__input {
   min-height: 0;
@@ -1113,6 +1106,21 @@ button.home-flat__table:active { filter: brightness(1.12); }
   color: var(--text-primary, #EDEDED);
 }
 .home-want__chips { display: flex; gap: 7px; margin-top: 3px; }
+/* BUG-189 · F11's saved speaker and one full request. The data-agent scope
+   excludes the separately authored visitor/visit-notice consumers. */
+.home-want[data-agent] .home-want__row { display: flex; align-items: flex-start; gap: 8px; }
+.home-want[data-agent] .home-want__avatar { margin-top: 1px; }
+.home-want[data-agent] .home-want__content { flex: 1; min-width: 0; }
+.home-want[data-agent] .home-want__sentence {
+  font: 11.5px/1.35 Inter, system-ui, sans-serif;
+  color: #EDEDED;
+  overflow-wrap: anywhere;
+}
+.home-want[data-agent] .home-want__who {
+  font-size: 11.5px; font-weight: 600; letter-spacing: normal;
+  text-transform: none; color: inherit; margin-right: 0;
+}
+.home-want[data-agent] .home-want__chips { margin-top: 7px; }
 .home-want__chip {
   /* F11's small pills. The transparent extension expands the touch target. */
   min-height: 24px;

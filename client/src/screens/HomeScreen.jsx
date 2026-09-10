@@ -844,7 +844,7 @@ export function HomeScreen({
             toast: visitor ? (
               <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />
             ) : wanting ? (
-              <WantToast agent={wanting} onAnswered={onAnswered} onNeeds={onNeeds} />
+              <WantToast agent={wanting} identity={identities.get(String(wanting.id))} onAnswered={onAnswered} onNeeds={onNeeds} />
             ) : null,
           })}
         </div>
@@ -876,7 +876,7 @@ export function HomeScreen({
         toast={visitor ? (
           <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />
         ) : wanting ? (
-          <WantToast agent={wanting} onAnswered={onAnswered} onNeeds={onNeeds} />
+          <WantToast agent={wanting} identity={identities.get(String(wanting.id))} onAnswered={onAnswered} onNeeds={onNeeds} />
         ) : null}
       />
 

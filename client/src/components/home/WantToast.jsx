@@ -21,7 +21,8 @@
 
 import { useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
-import { pillName } from '../../lib/names.js';
+import { shortName } from '../../lib/names.js';
+import { HomeMoodAvatar } from './HomeMoodAvatar.jsx';
 
 export const ANSWERS = [
   { id: 'yes', label: 'Yes' },
@@ -45,7 +46,7 @@ export async function answerWant(agentId, answer) {
   return res.json();
 }
 
-export function WantToast({ agent, onAnswered, onNeeds }) {
+export function WantToast({ agent, identity, onAnswered, onNeeds }) {
   const want = agent?.want ?? null;
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState('');
@@ -79,23 +80,28 @@ export function WantToast({ agent, onAnswered, onNeeds }) {
     >
       {/* Full sentence once, small pills below, using F11's panel glass. */}
       <div className="home-want__row">
-        <span className="home-want__who">{pillName(agent.name)}</span>
-        <span className="home-want__text">{want.text}</span>
+        <HomeMoodAvatar agent={agent} identity={identity} className="home-want__avatar" />
+        <div className="home-want__content">
+          <div className="home-want__sentence">
+            <span className="home-want__who" style={identity?.glow?.c ? { color: identity.glow.c } : undefined}>{shortName(agent.name, agent.nickname)}</span>{' '}
+            <span className="home-want__text">{want.text}</span>
+          </div>
+          <span className="home-want__chips">
+            {ANSWERS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className={`home-want__chip home-want__chip--${a.id}`}
+                disabled={!!busy}
+                onClick={() => send(a.id)}
+                data-testid={`home-want-${a.id}`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </span>
+        </div>
       </div>
-      <span className="home-want__chips">
-        {ANSWERS.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            className={`home-want__chip home-want__chip--${a.id}`}
-            disabled={!!busy}
-            onClick={() => send(a.id)}
-            data-testid={`home-want-${a.id}`}
-          >
-            {a.label}
-          </button>
-        ))}
-      </span>
       {error && <span role="alert" className="home-want__text">{error}</span>}
     </div>
   );

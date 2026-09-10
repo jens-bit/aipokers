@@ -36,7 +36,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ThreadRow } from '../system/ThreadSheet.jsx';
 import { GlassLabel } from '../system/Glass.jsx';
-import { MoodGhost } from '../system/MoodGhost.jsx';
+import { HomeMoodAvatar } from './HomeMoodAvatar.jsx';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { pillName, shortName } from '../../lib/names.js';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
@@ -50,29 +50,6 @@ function rowActorId(line) {
   const from = line.kind === 'overheard' ? line.lines?.[0]?.from
     : ['him', 'opponent'].includes(line.kind) ? line.from : null;
   return typeof from === 'string' && from && from !== 'owner' && from !== 'all' ? from : null;
-}
-
-// Board29 F11 uses mood for this small state pip, not for permanent identity.
-// Local source colors: the older floor MOODS palette differs in two entries.
-const FOOTER_MOODS = {
-  confident: { color: '#00D4AA', pip: '▲' },
-  neutral: { color: '#BDBDC1', pip: '–' },
-  frustrated: { color: '#CDB380', pip: '!' },
-  tilted: { color: '#FF4D4F', pip: '⚡' },
-  sulking: { color: '#9E9EA2', pip: '▾' },
-};
-
-function RoomAvatar({ agent, identity }) {
-  const mood = Object.hasOwn(FOOTER_MOODS, agent.mood?.state) ? agent.mood.state : 'neutral';
-  const pip = FOOTER_MOODS[mood];
-  return <span className="home-thread__avatar" data-agent-id={agent.id} aria-hidden="true">
-    <span className="home-thread__avatar-tile" style={{ borderColor: `${identity.glow.c}44` }}>
-      <MoodGhost size={18.8} ring={false} mood={mood} heat={agent.mood?.heat}
-        hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c} />
-    </span>
-    <span className="home-thread__mood" style={{ color: pip.color, borderColor: pip.color,
-      boxShadow: `0 0 6px ${pip.color}66` }}>{pip.pip}</span>
-  </span>;
 }
 
 /** Server thread lines → the row shape ThreadRow renders. */
@@ -283,7 +260,7 @@ export function HomeThread({
           aria-label={actor ? `${actor.name} ${line}` : undefined}
         >
           {emptySystem ? <span className="home-thread__text home-thread__text--system">{line}</span> : roomMode ? <>
-            {actor && identity && <RoomAvatar agent={actor} identity={identity} />}
+            {actor && identity && <HomeMoodAvatar agent={actor} identity={identity} className="home-thread__avatar" />}
             <span className="home-thread__sentence">
               <span className="home-thread__who" style={identity ? { color: identity.glow.c } : undefined}>{actor ? shortName(actor.name, actor.nickname) : who}</span>{' '}
               <span className="home-thread__text">{line}</span>
