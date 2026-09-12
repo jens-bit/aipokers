@@ -119,7 +119,10 @@ function AgentsCountPill() {
   );
 }
 
-function PersonIcon() {
+function PersonIcon({ outline = false }) {
+  if (outline) return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden>
+    <circle cx="12" cy="8" r="3.6"/><path d="M4.5 21c0-4.1 3.4-7.5 7.5-7.5s7.5 3.4 7.5 7.5"/>
+  </svg>;
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <circle cx="12" cy="8" r="4" />
@@ -130,15 +133,15 @@ function PersonIcon() {
 
 // Board 29 HomeHead: the room owns its one 46px contextual header.
 // Reuse the roster doorway in the casino instead of stacking app chrome.
-export function RosterButton({ onOpenRoster, liveCount }) {
+export function RosterButton({ onOpenRoster, liveCount, unread = false }) {
   const known = Number.isFinite(liveCount);
   return <>
     {known && <span className={`room-header__live${liveCount ? '' : ' is-quiet'}`} title={`${liveCount} of your agents at a live table`}><i aria-hidden/><span>{liveCount ? `${liveCount} ${liveCount === 1 ? 'AGENT' : 'AGENTS'} LIVE` : 'NOBODY LIVE'}</span></span>}
-    <button type="button" className="room-header__roster" onClick={onOpenRoster} aria-label="Your agents" title="Your agents"><PersonIcon /></button>
+    <button type="button" className={`room-header__roster${unread ? ' has-news' : ''}`} onClick={onOpenRoster} aria-label="Your agents" title="Your agents"><PersonIcon outline /></button>
   </>;
 }
 
-export function RoomHeader({ title, subtitle, onOpenRoster, liveCount, news = null }) {
+export function RoomHeader({ title, subtitle, onOpenRoster, liveCount, news = null, rosterUnread = false }) {
   return (
     <header className="room-header" data-testid="room-header">
       <RailMotion size={20} news={news} />
@@ -146,7 +149,7 @@ export function RoomHeader({ title, subtitle, onOpenRoster, liveCount, news = nu
         <h1>{title}</h1>
         {subtitle && <div className="room-header__sub">{subtitle}</div>}
       </div>
-      {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} liveCount={liveCount} />}
+      {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} liveCount={liveCount} unread={rosterUnread} />}
     </header>
   );
 }
