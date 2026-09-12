@@ -2,6 +2,8 @@
 
 ## 0.14.0 — THE SHOW (2026-09-12)
 
+- **HOME-2 — believable room behaviour.** Returning Home no longer repeats an already displayed recap; new news still speaks. Character idles start at distinct phases, and ordinary greetings use their existing nature voices. Accepted snacks and beers drive the authored fridge trip once, with one pickup space, reserved neighbours, cancellation on carry/play/departure, and no invented activity.
+
 - **HOME-1 — the room follows the current reference.** Home remains the entry. Its background and right wall fill the available height; short phones keep a scrollable room with readable controls. The quiet roster uses the outlined icon, with gold reserved for unread news. Phone cards, marked backs, seated character sizes and empty wall hooks match the current source. The kitchen table stays.
 
 - **SHOW-3 — the action has a sentence.** Phone, desktop and public Watch now explain accepted bets, calls, checks, folds and the visible result under the felt. Owner-only holding labels reuse server hand naming and describe the board at the moment of the action; spectators never receive them. All-in winners wait for the last visible card. Existing result naming now respects canonical server hand names when showdown cards are absent and avoids doubled articles.

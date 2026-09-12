@@ -1,15 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { agent, room } from './show-home-fixtures.js';
+import { agent, room, pushHome } from './show-home-fixtures.js';
 
 const shot = name => fileURLToPath(new URL('../../artifacts/show/'+name,import.meta.url));
 const overlaps = (a,b) => a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height;
-async function pushHome(page,cast) {
-  await page.waitForFunction(()=>window.__homeSockets.some(s=>s.readyState===1&&s.sent?.some(m=>m.type==='floor_sub')));
-  await page.evaluate(c=>window.__homeSockets.filter(s=>s.readyState===1).forEach(s=>s.dispatch('message',{
-    data:JSON.stringify({type:'home_state',userId:'4242',agents:c.agents,game:c.game??null}),
-  })),cast);
-}
 
 for (const viewport of [{width:390,height:844},{width:1440,height:900}]) {
   test(`HOME-2 supported household and visitors keep separate resting places at ${viewport.width}`,async({page})=>{

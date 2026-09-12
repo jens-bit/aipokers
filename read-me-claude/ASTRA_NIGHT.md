@@ -72,3 +72,10 @@ Reviewed and applied support f57af25 (recap display memory, per-speaker TV clear
 Root inspected both room captures. At most one occupant takes the TV destination even in the deliberately stale eight-student fixture. The fridge walk is still being implemented from successful accepted item events; this checkpoint is not a verified job and is not merged. HOME-3 journey work is isolated and queued. SHOW-4 WIP remains saved. No full HOME-2 gate has run yet.
 
 Resume from: complete the real-event fridge choreography, verify its affected phone/desktop path, then run the single HOME-2 full gate and merge only if green. Pair count 1/3; no new pair created.
+
+
+HOME-2 candidate: reviewed fridge checkpoint 3a9794a applied. The first typed owner homeItem snapshot is a baseline; only subsequent accepted beer/snack events walk. Server timestamps are compared to server timestamps, so skewed phone clocks work. One trip uses the existing 1.6-second room crossing for out, hold and return; the reference supplies poses and props, not these durations. Neighbours and actual game chairs remain reserved, blocked trips expire after 15 seconds, and carrying/leaving/joining a hand cancels the trip. No new inventory or model path.
+
+Fridge support passed 190 focused tests across nine files, including ten named regressions red first, real Home socket wiring and long-press cancellation. Root's two built checks passed: accepted snack on phone and beer on desktop, a deliberately two-minute-ahead server clock, unchanged neighbours/chairs, exact return position, and no replay on a repeated snapshot. Root inspected both captures and refreshed the SAME named F10 pair; still 1/3 unique pairs. The missing fridge pose is now present; differences in actual wallet, identity, bars and TV history remain labelled. Home table retained by founder instruction.
+
+Resume from: run the single HOME-2 test:all on this candidate, record gates and merge locally if green. HOME-3 source f755567 +44d757a is reviewed and queued. SHOW-4 fixes are isolated. Nothing pushed or deployed.

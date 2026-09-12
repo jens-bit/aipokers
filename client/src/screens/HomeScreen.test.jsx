@@ -13,7 +13,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { HomeScreen, studyTag, moneyLine } from './HomeScreen.jsx';
+import { HomeScreen, studyTag, moneyLine, WALK_MS } from './HomeScreen.jsx';
 import { fetchMock, socketMock, telegram } from '../test/harness.js';
 import { bubbleRect, overlaps, pillRect } from '../components/home/roomBubbles.js';
 import { LONG_PRESS_MS } from '../components/home/carry.js';
@@ -1292,4 +1292,61 @@ it('BUG-118: room refreshes do not restart the six-second result label',async()=
   act(()=>vi.advanceTimersByTime(3100));
   expect(screen.queryByTestId('home-says-timer118')).toBeNull();
  }finally{vi.useRealTimers();}
+});
+
+it('HOME-2: only an accepted Home item walks the real resident to the lit fridge and back with its snack', async () => {
+  const one = mkAgent('fridge-home-2', 'Granite', { homeItem: null });
+  const { sock } = await boot([one]);
+  const body = await screen.findByRole('button', { name: /Granite —/ });
+  const original = { left: body.style.left, top: body.style.top, spot: body.dataset.spot };
+  vi.useFakeTimers();
+  try {
+    await act(async () => sock.emit({ type: 'home_state', userId: '4242', agents: [{ ...one, drinkPending: true }], game: null }));
+    expect(body).not.toHaveAttribute('data-home-item-phase');
+    const accepted = { ...one, homeItem: { item: 'snack', at: Date.now() } };
+    await act(async () => sock.emit({ type: 'home_state', userId: '4242', agents: [accepted], game: null }));
+    expect(body).toHaveAttribute('data-home-item-phase', 'out');
+    expect(body).toHaveAttribute('data-walking', 'true');
+    expect(body.querySelector('.home-one__body')).toHaveStyle({ width: '44px', height: '44px' });
+    expect(body.querySelector('.home-prop--paper')).toBeNull();
+    expect(screen.queryByTestId('home-fridge-light')).toBeNull();
+    act(() => vi.advanceTimersByTime(WALK_MS));
+    expect(body).toHaveAttribute('data-walking', 'false');
+    expect(screen.getByTestId('home-fridge-light')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-item-snack')).toBeNull();
+    act(() => vi.advanceTimersByTime(WALK_MS));
+    expect(body).toHaveAttribute('data-home-item-phase', 'back');
+    expect(body).toHaveAttribute('data-walking', 'true');
+    expect(body.style.left).toBe(original.left);
+    expect(body.style.top).toBe(original.top);
+    expect(screen.queryByTestId('home-fridge-light')).toBeNull();
+    expect(within(body).getByTestId('home-item-snack')).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(WALK_MS));
+    expect(body).not.toHaveAttribute('data-home-item-phase');
+    expect(body).toHaveAttribute('data-walking', 'false');
+    expect(body).toHaveAttribute('data-spot', original.spot);
+    expect(body.querySelector('.home-prop--paper')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-item-snack')).toBeNull();
+    await act(async () => sock.emit({ type: 'home_state', userId: '4242', agents: [accepted], game: null }));
+    expect(body).not.toHaveAttribute('data-home-item-phase');
+  } finally { vi.useRealTimers(); }
+});
+
+it('HOME-2: a real lift cancels the open fridge and never brings an item into the carry pose', async () => {
+  const one = mkAgent('fridge-carry-home-2', 'Granite', { homeItem: null });
+  const { sock } = await boot([one]);
+  const body = await screen.findByRole('button', { name: /Granite —/ });
+  vi.useFakeTimers();
+  try {
+    await act(async () => sock.emit({ type: 'home_state', userId: '4242', agents: [{ ...one, homeItem: { item: 'beer', at: Date.now() } }], game: null }));
+    act(() => vi.advanceTimersByTime(WALK_MS));
+    expect(screen.getByTestId('home-fridge-light')).toBeInTheDocument();
+    fireEvent.pointerDown(body, { pointerId: 7, clientX: 284, clientY: 200, button: 0 });
+    act(() => vi.advanceTimersByTime(LONG_PRESS_MS));
+    expect(body).toHaveAttribute('data-carried', 'true');
+    expect(body).not.toHaveAttribute('data-home-item-phase');
+    expect(screen.queryByTestId('home-fridge-light')).toBeNull();
+    act(() => vi.advanceTimersByTime(WALK_MS * 4));
+    expect(screen.queryByTestId('home-item-beer')).toBeNull();
+  } finally { vi.useRealTimers(); }
 });

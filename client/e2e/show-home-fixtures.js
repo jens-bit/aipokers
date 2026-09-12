@@ -89,7 +89,9 @@ const THREAD = {
 
 // Everything the room asks for, from a fixture. No server, no database, no model.
 export async function stub(page, cast) {
-  await page.route('**/api/agents?**', (route) => route.fulfill({ json: { agents: cast.agents } }));
+  await page.route('**/api/agents?**', (route) => route.fulfill({ json: {
+    agents: cast.agents.map(({ homeItem, ...record }) => record),
+  } }));
   await page.route('**/api/agents/*/study**', (route) => route.fulfill({ json: cast.study ?? { study: null, book: [], count: 0 } }));
   await page.route('**/api/agents/*/thread**', (route) => route.fulfill({ json: THREAD }));
   await page.route('**/api/home/thread**', route => route.fulfill({ json: cast.agents.length ? THREAD : { sessionId: 'home-empty', lines: [], count: 0 } }));
@@ -163,6 +165,13 @@ export async function room(page, cast, viewport = VIEWPORT) {
   // The room's own bodies have landed, so nothing is captured mid-mount.
   await page.waitForSelector('.home-flat');
   await page.waitForTimeout(600);
+}
+
+export async function pushHome(page, cast) {
+  await page.waitForFunction(()=>window.__homeSockets.some(s=>s.readyState===1&&s.sent?.some(m=>m.type==='floor_sub')));
+  await page.evaluate(c=>window.__homeSockets.filter(s=>s.readyState===1).forEach(s=>s.dispatch('message',{
+    data:JSON.stringify({type:'home_state',userId:'4242',agents:c.agents,game:c.game??null}),
+  })),cast);
 }
 
 
