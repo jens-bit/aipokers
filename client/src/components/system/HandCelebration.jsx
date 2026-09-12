@@ -39,15 +39,27 @@ export function BustedName({name}) {
 
 // React to a hand finishing while watched. Joining a completed hand, replay
 // frames, camera changes and repeated state snapshots must not replay effects.
-export function useCelebrationAudio(game,heroSeat=0,enabled=true) {
+export function useCelebrationAudio(
+  game,heroSeat=0,enabled=true,
+  visiblySettled=game?.street==='complete'&&!!game?.result,
+) {
   const previous=useRef(null);
-  const hand=game?.handNumber,table=game?.tableId,done=game?.street==='complete'&&!!game?.result;
+  const hand=game?.handNumber,table=game?.tableId,rawDone=game?.street==='complete'&&!!game?.result;
   useEffect(()=>{
-    const before=previous.current;previous.current={hand,table,done,heroSeat};
-    if(!enabled||!done||!before||before.done||before.hand!==hand||before.table!==table||before.heroSeat!==heroSeat)return;
+    const before=previous.current;
+    const sameScope=!!before&&before.hand===hand&&before.table===table&&before.heroSeat===heroSeat;
+    // An all-in STATE can already contain the result while the felt is still
+    // revealing the board. Remember the watched completion until that reveal
+    // finishes; a cold completed entry or another camera never earns a beat.
+    const pending=sameScope&&rawDone&&(before.pending||!before.rawDone);
+    const consume=pending&&visiblySettled;
+    previous.current={hand,table,heroSeat,rawDone,pending:consume?false:pending};
+    // Consume even when playback is disabled, muted or locked. Unmuting or
+    // receiving another copy of the result must not replay an old celebration.
+    if(!enabled||!consume)return;
     const result=handCelebration(game,heroSeat);if(!result)return;
     if(result.won){play('winSwell');if(result.big||result.busted.length)play('bigWinBursts');}
     else play('lostPot');
     if(result.busted.length)play('bustKnock',{delayMs:900});
-  },[hand,table,done,heroSeat,enabled,game]);
+  },[hand,table,rawDone,heroSeat,enabled,visiblySettled,game]);
 }
