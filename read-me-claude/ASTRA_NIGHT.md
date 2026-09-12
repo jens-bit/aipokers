@@ -43,3 +43,9 @@ Resume from: SHOW-3 test:all is running once, logged to artifacts/show/show-3-te
 SHOW-3 final gate: test:all passed on its single run. Server132 passes/two skips (134 total), client206 files/2579 tests/two todo, gameplay7 passed (91.44s). Four built-browser checks and focused gates above are green. No native abort. Resume from: record SHOW-3 merge, then SHOW-4 celebration; only two reference captures requested, no pairs yet.
 
 SHOW-3 source commit:6e6d998. Local main merge:6383c4c. All three full stages and four touched-screen browser cases passed. Resume from: SHOW-4, final job.
+
+## Founder steering — Home first, 12 September
+
+Jens interrupted SHOW-4 to reconsider the goal and requested a Home-first rewrite. App.jsx still defaults activeTab to home; SHOW-2 animated the Floor inside Casino and did not change that app entry. SHOW-1/2/3 are locally merged; nothing pushed. SHOW-4 is preserved uncommitted on codex/show-4 in astra-show. Reviewed audio checkpoint275419a applied without commit. Focused117 checks:116 passed; the new-deal pose check expects hold before the existing deal beat finishes and still needs correction/verification. SHOW-4 has not had its final test:all or built-browser gate. Two isolated reference renders exist, zero comparison pairs produced.
+
+Resume from: follow Jens's Home-first direction and rewritten scope; do not automatically continue the old casino-priority queue while he is revising it. Shared fix/guest-cap work remains untouched.
