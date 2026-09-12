@@ -360,7 +360,7 @@ describe('protocol alignment', () => {
   });
 
   it('builds the poll URL the server documents', () => {
-    expect(eventsUrl(0)).toBe('/api/events?since=0');
+    expect(eventsUrl(0)).toBe('/api/events?since=0&limit=20');
     expect(eventsUrl(42)).toBe('/api/events?since=42');
   });
 });

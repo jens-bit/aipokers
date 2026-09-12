@@ -193,7 +193,8 @@ assert('nobody watching → the unwatched pause', lonely._dealPauseMs(), 25_000)
 assert('and it knows nobody is there', lonely.isWatched(), false);
 
 lonely.spectators.push({ ws: fakeWs(), spectatorSeat: 0 });
-assert('a spectator arrives → today\'s pacing, mid-session', lonely._dealPauseMs(), 8000);
+// SHOW-2: watched tables cap even an older eight-second result pause.
+assert('a spectator arrives → next hand within three seconds', lonely._dealPauseMs(), 3000);
 assert('and it knows somebody is there', lonely.isWatched(), true);
 
 const named = table();

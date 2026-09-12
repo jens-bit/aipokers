@@ -127,7 +127,8 @@ export function nextHotExpiryDelay(events = [], now = Date.now(), windowMs = HOT
 }
 
 export function eventsUrl(since = 0) {
-  return `/api/events?since=${encodeURIComponent(Number(since) || 0)}`;
+  const cursor = Number(since) || 0;
+  return `/api/events?since=${encodeURIComponent(cursor)}${cursor > 0 ? '' : '&limit=20'}`;
 }
 
 // ── The hook ────────────────────────────────────────────────────────────────
@@ -328,4 +329,3 @@ export function useCasinoEvents({
 
   return { events, latest, byType, hotTables, status, lastId: lastIdRef.current };
 }
-

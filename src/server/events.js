@@ -285,7 +285,7 @@ export function installEventRoutes(app) {
     res.setHeader('Cache-Control', 'no-store');
     const since = Number(req.query?.since ?? 0);
     res.json({
-      events: eventsSince(Number.isFinite(since) ? since : 0),
+      events: eventsSince(Number.isFinite(since) ? since : 0, { limit: req.query?.limit }),
       lastId: lastEventId(),
     });
   });

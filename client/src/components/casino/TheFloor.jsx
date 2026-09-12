@@ -35,7 +35,7 @@
 // felts go. `floorPlan` derives that, and reproduces the ref's own six exactly
 // — the jitter tables below are its coordinates, read back out.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { HOODS, GLOWS, storedIdentity } from '../../lib/identity.js';
 import { M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
 import { pillName } from '../../lib/names.js';
@@ -133,6 +133,18 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
   const bodies = Math.max(0, Math.min(9, felt.seated || felt.seats?.length || 0));
   const hot = !!felt.hot;
   const label = felt.blinds || '';
+  const seats = [...(felt.seats ?? [])].sort((a, b) => a.seat - b.seat);
+  const action = felt.lastAction?.handNumber === felt.handNumber ? felt.lastAction : null;
+  const actor = seats.findIndex(s => s.seat === action?.seat);
+  const angle = actor >= 0 ? seatAngle(actor, bodies) : 0;
+  const [now, setNow] = useState(Date.now);
+  const chat = felt.recentChat;
+  useEffect(() => {
+    if (!chat?.expiresAt) return undefined;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, chat.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [chat?.seq, chat?.expiresAt]);
+  const speaking = chat?.expiresAt > Math.max(now, Date.now()) && seats.some(s => s.seat === chat.seat);
 
   const inner = (
     <>
@@ -148,6 +160,15 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
           : 'radial-gradient(ellipse at 50% 38%, #2E3F3A 0%, #1C2825 76%)',
         border: `1px solid ${hot ? `${M_RED}5C` : 'rgba(255,255,255,0.09)'}`,
       }} />
+
+      <span className="csn-felt58__board" aria-hidden="true">
+        {(felt.board ?? []).slice(0, 5).map(card => <span key={`${felt.handNumber}-${card}`} data-floor-card={card}
+          className="csn-felt58__card" style={{ '--suit': /[hd]$/i.test(card) ? '#C6494C' : '#161C1A' }} />)}
+      </span>
+      {actor >= 0 && action.chips > 0 && <span key={`${felt.handNumber}-${action.seq}`} data-floor-push={action.seat}
+        className="csn-felt58__push" aria-hidden="true" style={{ '--from-x': `${Math.cos(angle) * place.r}px`, '--from-y': `${Math.sin(angle) * place.r * .75}px` }}>
+        <i /><i />{action.chips >= felt.bigBlind * 8 && <i />}
+      </span>}
 
       {/* the pot: one gold dot, the smallest thing that says money. Drawn only
           when there IS money — a felt between hands has nothing in the middle,
@@ -167,10 +188,13 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
             className="csn-felt58__seat"
             style={{ left: `${50 + Math.cos(th) * 52}%`, top: `${50 + Math.sin(th) * 56}%` }}
           >
-            <TinyGhost i={i + place.x} mine={i === mineSeat} hot={hot} identity={felt.seats?.[i]?.identity} />
+            <TinyGhost i={i + place.x} mine={i === mineSeat} hot={hot} identity={seats[i]?.identity} />
+            {seats[i]?.inHand && <span key={felt.handNumber} className="csn-felt58__backs" aria-hidden="true"><i /><i /></span>}
           </span>
         );
       })}
+
+      {speaking && <span key={chat.seq} className="csn-felt58__bubble" aria-hidden="true"><span>{chat.text.split(/\s+/).slice(0, 12).join(' ')}</span></span>}
 
       {label && (
         <span className="csn-felt58__stake" style={{

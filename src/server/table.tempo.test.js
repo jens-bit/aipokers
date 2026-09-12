@@ -147,6 +147,53 @@ test('BUG-141: explicit environment and constructor pauses remain exact', () => 
   assert.deepEqual(JSON.parse(output.trim().split('\n').at(-1)), { hand: 650, home: 725, constructor: 475 });
 });
 
+test('SHOW-2: a watched automatic table caps a long explicitly configured pause at three seconds', (t) => {
+  const table = tableFor(t);
+  table.handPauseMs = 18000;
+  table._handPauseNamed = true;
+  finishByFolding(table);
+  assert.equal(table._nextHandTimer?._idleTimeout, 3000);
+});
+
+test('SHOW-2: a public visitor arriving late in an explicit pause deals next tick and never resets the wait', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const table = tableFor(t, { watched: false });
+  table.handPauseMs = 18000;
+  table._handPauseNamed = true;
+  finishByFolding(table);
+  const hand = table.game.handNumber;
+  t.mock.timers.tick(10000);
+  table.addSpectator(socket(), { publicOnly: true });
+  table.addSpectator(socket(), { publicOnly: true });
+  assert.equal(table.game.handNumber, hand, 'attaching never deals synchronously');
+  t.mock.timers.tick(1);
+  assert.equal(table.game.handNumber, hand + 1, 'the old eighteen-second setting cannot strand an arrival');
+});
+
+test('SHOW-2: public arrivals preserve the remaining authored runout before the capped pause', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const table = tableFor(t, { watched: false });
+  table.handPauseMs = 18000;
+  table._handPauseNamed = true;
+  while (table.game.street !== Streets.COMPLETE) table.game.act(table.game.toAct, { type: Actions.FOLD });
+  table._scheduleNextHand(26000, { resultAt: Date.now() + 8000 });
+  table.addSpectator(socket(), { publicOnly: true });
+  const hand = table.game.handNumber;
+  t.mock.timers.tick(10999);
+  assert.equal(table.game.handNumber, hand, 'all eight seconds of the runout plus the result beat remain');
+  t.mock.timers.tick(1);
+  assert.equal(table.game.handNumber, hand + 1);
+});
+
+test('SHOW-2: watching a manually dealt human casino table never starts an automatic next hand', (t) => {
+  const table = tableFor(t, { home: true });
+  table.home = false;
+  table.autoPlay = false;
+  finishByFolding(table);
+  table.addSpectator(socket(), { publicOnly: true });
+  assert.equal(table._nextHandTimer, null, 'the human still owns the deal button at a manual casino table');
+});
+
 test('BUG-141: a human joining mid-hand immediately sees public play and joins the next deal', async (t) => {
   const { createServer } = await import('./wsServer.js');
   const { wss, tables } = createServer({ port: 0, host: '127.0.0.1' });
