@@ -61,6 +61,23 @@ export const MAX_IN_ROOM = 1;
 export const BUBBLE_PREEMPT_MS = 2500;
 export const BUBBLE_LIFE_MS = 3000;
 
+const speechKey = speaker => JSON.stringify([speaker.eventId ?? null, !!speaker.gold, speaker.text]);
+const recapKey = speaker => JSON.stringify([speaker.id, speechKey(speaker)]);
+// Display memory lasts through Home/Watch navigation in this app session. It
+// never acknowledges a recap or changes its unread state on the server.
+const recapMemory = new Map();
+const MAX_RECAP_OWNERS = 8;
+const MAX_RECAP_EVENTS = 128;
+function rememberRecaps(scope, shown) {
+  if (scope === null || !shown.some(speaker => speaker.gold)) return;
+  const events = recapMemory.get(scope) ?? new Set();
+  for (const speaker of shown) if (speaker.gold) events.add(recapKey(speaker));
+  while (events.size > MAX_RECAP_EVENTS) events.delete(events.values().next().value);
+  recapMemory.delete(scope);
+  recapMemory.set(scope, events);
+  while (recapMemory.size > MAX_RECAP_OWNERS) recapMemory.delete(recapMemory.keys().next().value);
+}
+
 /** `{x,y,w,h}` (flat.js's fixture shape) as an `{left,right,top,bottom}` rect. */
 const fixtureRect = (f) => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y + f.h });
 
@@ -76,14 +93,14 @@ const fixtureRect = (f) => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y
 // only ever relaxes for the speaker it would otherwise silence.
 // BUG-55: the felt is also a control. A recap must not replace the removed
 // request bubble with another sentence over the community cards.
-const fixtureBlockersFor = (speakers, geometry) => {
+const fixtureBlockersFor = (speaker, geometry) => {
   const { flat, sign, header, tvSpot, tvScreen } = geometry;
   const blocked = [sign, flat.safe, flat.fridge, header, {
     x: flat.table.cx - flat.table.rx, y: flat.table.cy - flat.table.ry,
     w: flat.table.rx * 2, h: flat.table.ry * 2,
   }].map(fixtureRect);
   const atTv = b => b?.x === tvSpot.x && b?.y === tvSpot.y;
-  return speakers.some(atTv) ? blocked : [...blocked, fixtureRect(tvScreen)];
+  return atTv(speaker) ? blocked : [...blocked, fixtureRect(tvScreen)];
 };
 
 // ── The boxes, from home1.css ───────────────────────────────────────────────
@@ -177,11 +194,14 @@ export function layout(speakers = [], bodies = [], geometry = PHONE_ROOM) {
     sides: body => roomSides(body, geometry),
     rect: (body, side) => {
       const rect = roomRect(body, side, geometry);
+      // The student may speak beside his own TV seat. Merely queuing him must
+      // not allow a different speaker's bubble to cover the television.
+      if (!rect || fixtureBlockersFor(body, geometry).some(blocker => overlaps(rect, blocker))) return null;
       // At desktop size the authored tail can enter its OWN hood's transparent
       // outer square. Other occupants still keep their whole visible body box.
       return rect && !bodies.some(other => other.id !== body.id && overlaps(rect, bodyRect(other, other.size ?? 46))) ? rect : null;
     },
-    blockers: [...bodies.map(pillRect), ...fixtureBlockersFor(speakers, geometry)],
+    blockers: bodies.map(pillRect),
   });
 }
 
@@ -204,7 +224,7 @@ export function layout(speakers = [], bodies = [], geometry = PHONE_ROOM) {
  */
 export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now = 0, geometry = PHONE_ROOM } = {}) {
   const by = new Map(speakers.map((s) => [s.id, s]));
-  const key = s => JSON.stringify([s.eventId ?? null, !!s.gold, s.text]);
+  const key = speechKey;
   let keep = held.filter((h) => by.has(h.id) && h.key === key(by.get(h.id)));
 
   // Longest since his last turn goes first, so the queue rotates instead of
@@ -260,9 +280,10 @@ export function resolve(speakers = [], bodies = [], { held = [], seen = {}, now 
  * Everything else the caller handed in is waiting, and nothing about that is
  * drawn — a queue you can see is a queue that has become the subject.
  */
-export function useRoomBubbles(speakers = [], bodies = [], geometry = PHONE_ROOM) {
+export function useRoomBubbles(speakers = [], bodies = [], geometry = PHONE_ROOM, ownerScope = null) {
   const [tick, setTick] = useState(0);
   const state = useRef({ held: [], seen: {} });
+  const scope = ownerScope === null || ownerScope === undefined ? null : String(ownerScope);
 
   // The identity of what is being said and where everyone stands, so a
   // re-render that changed neither does not restart anybody's beat.
@@ -270,12 +291,20 @@ export function useRoomBubbles(speakers = [], bodies = [], geometry = PHONE_ROOM
   const where = JSON.stringify(bodies.map(b => [b.id, Math.round(b.x), Math.round(b.y), b.size, !!b.guest, b.name, b.nickname]));
 
   const { shown, nextAt } = useMemo(() => {
-    const out = resolve(speakers, bodies, { ...state.current, now: Date.now(), geometry });
-    state.current = { held: out.held, seen: out.seen };
+    if (state.current.scope !== scope) state.current = { scope, held: [], seen: {} };
+    const remembered = scope === null ? null : recapMemory.get(scope);
+    const eligible = speakers.filter(speaker => !speaker.gold || !remembered?.has(recapKey(speaker))
+      || state.current.held.some(held => held.id === speaker.id && held.key === speechKey(speaker)));
+    const out = resolve(eligible, bodies, { ...state.current, now: Date.now(), geometry });
+    state.current = { scope, held: out.held, seen: out.seen };
     return out;
   // `tick` is the timer's only job: re-run this with a later clock.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [said, where, tick, geometry]);
+  }, [said, where, tick, geometry, scope]);
+
+  // Only committed, actually placed recaps enter the cache. A line blocked by
+  // a control or another occupant remains available when the owner returns.
+  useEffect(() => rememberRecaps(scope, shown), [scope, shown]);
 
   useEffect(() => {
     if (nextAt == null) return undefined;

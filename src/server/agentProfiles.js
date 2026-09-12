@@ -50,7 +50,7 @@ import {
   applySessionGrowth,
   natureForProfile,
 } from '../agent/attributes.js';
-import { formatMoment, formatOpener } from '../agent/moment.js';
+import { formatMoment, formatOpener, natureOpener } from '../agent/moment.js';
 // SERVER-5 job 1 — the states he can arrive in, and what they cost him for one
 // session. The module is pure; this file is where the record it reads lives.
 import { dipsFor, dipLine } from '../agent/dips.js';
@@ -2064,13 +2064,15 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     winRate: typeof agent.stats?.winRate === 'number' ? agent.stats.winRate : null,
     bankroll: agent.bankroll,
   };
+  // BUG-49: public responses start from an allowlist, never stored private data.
+  const record = owner ? { ...agent } : Object.fromEntries([
+    'id', 'name', 'status', 'style', 'risk', 'nature', 'attrs', 'potential',
+    'activeTableId', 'archived', 'retiring', 'createdAt', 'bornAt',
+  ].filter(key => key in agent).map(key => [key, agent[key]]));
+  // HOME-2: this action belongs only to the owner's Home animation channel.
+  delete record.homeItem;
   return {
-    // BUG-49: persisted records contain private cards, memories and prompts.
-    // Public responses start from an allowlist, never a spread of storage.
-    ...(owner ? agent : Object.fromEntries([
-      'id', 'name', 'status', 'style', 'risk', 'nature', 'attrs', 'potential',
-      'activeTableId', 'archived', 'retiring', 'createdAt', 'bornAt',
-    ].filter(key => key in agent).map(key => [key, agent[key]]))),
+    ...record,
     // WALLET-1: the pocket rides the agent list projection, so the floor, the
     // profile's pocket line and the wallet screen all read it from the call
     // they already make. Money and stakes only — never an attribute or a mood.
@@ -2198,7 +2200,7 @@ export function homeSnapshot(userId, { owner = false, game = null, visitors = []
     .filter((v) => v && v.id != null && !mine.has(v.id))
     .map((v) => ({ ...v, guest: true }));
   const roster = residents.concat(guests);
-  return homeStateMessage(userId, roster, game, {
+  const snapshot = homeStateMessage(userId, roster, game, {
     // SERVER-4: the room's unread marker and the fridge's counts. Both are
     // things the HOME screen draws on its first paint and both used to cost it
     // a second request; neither is worth a route of its own to keep current.
@@ -2206,6 +2208,19 @@ export function homeSnapshot(userId, { owner = false, game = null, visitors = []
     fridge: walletFor(userId)?.fridge ?? null,
     visitor,
   });
+  // HOME-2: an accepted fridge action is private Home state. Add it after the
+  // common whitelist so neither profile/floor projections nor visiting agents
+  // gain it. Repeated snapshots preserve the action time; they are not actions.
+  if (owner) {
+    const items = new Map(activeAgents(getOrCreate(userId ?? 'anon')).map(a => [a.id, a.homeItem]));
+    for (const body of snapshot.agents) {
+      if (body.guest) continue;
+      const event = items.get(body.id);
+      body.homeItem = isFridgeItem(event?.item) && Number.isFinite(event?.at) && event.at > 0
+        ? { item: event.item, at: event.at } : null;
+    }
+  }
+  return snapshot;
 }
 
 /**
@@ -3016,6 +3031,9 @@ export function giveItemTo(agent, userId, item) {
     mood: agent.mood?.state ?? 'neutral',
     at: Date.now(),
   };
+  // Only this successful common path records a fetch; refusals leave the last
+  // event untouched. The callers retain responsibility for saving the agent.
+  agent.homeItem = { item, at: agent.lastMoment.at };
   saveWalletFor(userId);
   return {
     ok: true,
@@ -3351,6 +3369,12 @@ function ownerChatScene(agent, table = null) {
 function unavailableOwnerReply(agent, content, table) {
   // A known fact can still be answered without a model. Other messages must
   // not be disguised as a successful conversation with canned strategy tips.
+  // HOME-2: a plain hello needs no invented fact. Reuse his authored greeting;
+  // a real table context selects the seated voice, never a stale stored flag.
+  // Anchor the whole message so "hello, should I call?" remains a question.
+  if (/^\s*(?:(?:hi|hello|hey)(?:\s+there)?|hiya|yo|good\s+(?:morning|afternoon|evening))\s*[?.!]*\s*$/i.test(content)) {
+    return { message: natureOpener(agent.nature, { seated: !!table }), unavailable: false };
+  }
   if (/^\s*(?:where are you(?: now)?|what are you doing|are you (?:home|at home|at the bar))\s*[?.!]*\s*$/i.test(content)) {
     return { message: `I am ${ownerChatScene(agent, table).description}.`, unavailable: false };
   }

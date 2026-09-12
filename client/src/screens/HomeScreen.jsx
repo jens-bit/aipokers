@@ -530,7 +530,7 @@ export function HomeScreen({
 
   // At most two on screen, one per man, nothing drawn over anything. The rest
   // wait their turn — see roomBubbles.js.
-  const bubbles = useRoomBubbles(speakers, bodies, geometry);
+  const bubbles = useRoomBubbles(speakers, bodies, geometry, getUserId());
 
   // ── HOME-2 job 5 · carrying him ───────────────────────────────────────────
   //
