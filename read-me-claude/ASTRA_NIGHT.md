@@ -41,3 +41,5 @@ Four built-browser checks passed (owner/public at390x590 and1440x900). Root insp
 Resume from: SHOW-3 test:all is running once, logged to artifacts/show/show-3-test-all.log. Record final gates and local merge, then SHOW-4 only.
 
 SHOW-3 final gate: test:all passed on its single run. Server132 passes/two skips (134 total), client206 files/2579 tests/two todo, gameplay7 passed (91.44s). Four built-browser checks and focused gates above are green. No native abort. Resume from: record SHOW-3 merge, then SHOW-4 celebration; only two reference captures requested, no pairs yet.
+
+SHOW-3 source commit:6e6d998. Local main merge:6383c4c. All three full stages and four touched-screen browser cases passed. Resume from: SHOW-4, final job.
