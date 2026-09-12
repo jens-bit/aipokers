@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { midHandGame } from '../src/test/fixtures/game.js';
 import { rooms, felt } from '../src/test/fixtures/rooms.js';
 
@@ -61,6 +63,12 @@ function latch(held) {
   let release;
   const ready = held ? new Promise(resolve => { release = resolve; }) : Promise.resolve();
   return { ready, release: () => release?.() };
+}
+
+async function checkpoint(page, name) {
+  const directory = new URL('../../artifacts/show/', import.meta.url);
+  await mkdir(fileURLToPath(directory), { recursive: true });
+  await page.screenshot({ path: fileURLToPath(new URL(`${name}.png`, directory)) });
 }
 
 async function installJourney(page, { holdDetail = false, holdRoster = false, returningGuest = false } = {}) {
@@ -177,8 +185,7 @@ async function openRosterThread(page) {
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
 }
 
-async function expectPublicWatch(page, tableId, board, pot) {
-  await expect(page.getByRole('button', { name: 'Leave table' })).toBeVisible();
+async function expectPublicTable(page, tableId, board, pot) {
   await expect(page.locator('.watch-felt__board .watch-felt__card')).toHaveText([...board, '', '']);
   await expect(page.locator('.watch-felt__pot-amt')).toHaveText(pot);
   await expect(page.getByTestId('owner-hero')).toHaveCount(0);
@@ -188,6 +195,11 @@ async function expectPublicWatch(page, tableId, board, pot) {
   expect(frames.length).toBeGreaterThan(0);
   expect(frames.at(-1).yourSeat).toBe(-1);
   expect(frames.at(-1).state.seats.filter(Boolean).every(seat => seat.holeCards.length === 0)).toBe(true);
+}
+
+async function expectPublicWatch(page, tableId, board, pot) {
+  await expect(page.getByRole('button', { name: 'Leave table' })).toBeVisible();
+  await expectPublicTable(page, tableId, board, pot);
 }
 
 function expectClean(fixture) {
@@ -213,6 +225,8 @@ test('HOME-3 roster → Chat draft → fresh Profile career → both ways back p
     await expect(career.getByText('123', { exact: true })).toBeVisible();
     await expect(career.getByText('42%', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'READS 62', exact: true })).toBeVisible();
+    await career.scrollIntoViewIfNeeded();
+    await checkpoint(page, 'home-3-phone-profile-populated');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(draft).toHaveValue('Ask about that river after the hand.');
     await page.getByRole('button', { name: 'Profile', exact: true }).click();
@@ -270,6 +284,10 @@ test('HOME-3 direct Home table Watch and actual seated YOU both leave for Home',
   expect(await page.evaluate(() => window.__homeJourneyFrames.filter(frame => frame.type === 'state' && frame.yourSeat === 0).at(-1))).toMatchObject({
     yourSeat: 0, state: { tableId: HOME_TABLE, handNumber: 8, toAct: 0 }, legalActions: LEGAL,
   });
+  await expect(page.locator('.owner-hero__card.is-down')).toHaveCount(2);
+  await expect(page.locator('.owner-hero__card').nth(0)).toHaveCSS('opacity', '1');
+  await expect(page.locator('.owner-hero__card').nth(1)).toHaveCSS('opacity', '1');
+  await checkpoint(page, 'home-3-phone-you-hand');
   await check.click();
   await expect.poll(() => page.evaluate(() => window.__homeJourneyWire.filter(message => message.type === 'action'))).toEqual([{ type: 'action', action: { type: 'check' } }]);
   await expect(page.getByTestId('sit-strip')).toHaveAttribute('data-turn', 'no');
@@ -295,6 +313,8 @@ test('HOME-3 Upstairs floor → Watch twice and nested Profile CHAT return to th
     await page.getByRole('button', { name: 'Leave table' }).click();
     await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs');
   }
+  await expect(page.getByTestId('floor-view').getByRole('button', { name: /Watch table home3-upstairs/ })).toBeVisible();
+  await checkpoint(page, 'home-3-phone-upstairs-return');
   await openRosterThread(page);
   await page.getByPlaceholder('Whisper to him…').fill('Keep my place upstairs.');
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
@@ -304,6 +324,36 @@ test('HOME-3 Upstairs floor → Watch twice and nested Profile CHAT return to th
   await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs');
   await page.getByRole('button', { name: 'Back home', exact: true }).click();
   await expect(page.getByTestId('home-screen')).toBeVisible();
+  expectClean(fixture);
+});
+
+test('HOME-3 desktop Upstairs Watch uses its floor return and the explicit Home exit', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const fixture = await installJourney(page);
+  await openHome(page);
+  await page.getByTestId('home-door').click();
+  await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
+  await page.getByRole('button', { name: 'Board', exact: true }).click();
+  await page.getByRole('button', { name: /^upstairs,/ }).click();
+  const floor = page.getByTestId('floor-view');
+  await expect(floor).toHaveAttribute('data-room', 'upstairs');
+  await floor.getByRole('button', { name: /Watch table home3-upstairs/ }).click();
+  const table = page.getByTestId('desk-casino-table');
+  await expect(table).toBeVisible();
+  await expectPublicTable(page, UPSTAIRS_TABLE, ['A', 'K', '7'], '$640');
+  await expect(table.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true })).toBeVisible();
+  await checkpoint(page, 'home-3-desktop-watch');
+  const leavesBefore = await page.evaluate(() => window.__homeJourneyWire.filter(message => message.type === 'leave').length);
+  await table.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }).click();
+  await expect(table).toHaveCount(0);
+  await expect(floor).toHaveAttribute('data-room', 'upstairs');
+  await expect.poll(() => page.evaluate(() => window.__homeJourneyWire.filter(message => message.type === 'leave').length)).toBeGreaterThan(leavesBefore);
+  await expect(floor.getByRole('button', { name: /Watch table home3-upstairs/ })).toBeVisible();
+  await checkpoint(page, 'home-3-desktop-upstairs-return');
+  await page.locator('.dsk-top').getByRole('button', { name: 'Back home', exact: true }).click();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  await expect(floor).toHaveCount(0);
+  await expect(table).toHaveCount(0);
   expectClean(fixture);
 });
 
