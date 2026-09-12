@@ -17,3 +17,5 @@ Focused tests: 30 passed. New demo test first failed because the module was abse
 `npm run test:all` ran once. Server stage passed. Client stage: 202 files passed, one App round-trip test timed out (2569 passed, one failed, two todo). That unchanged test passed alone in 4.05 s; the affected full client stage passed with two workers: 203 files, 2570 tests, two existing todo (237.22 s), without changing assertions. The unreached gameplay stage was run separately: 7 passed. No Node native abort occurred. Build passed; Watch remains eager.
 
 Resume from: SHOW-1 gates are complete; record its local merge, then SHOW-2 floor animation and public state. SHOW-2 server support is isolated in codex/show-2-server. SHOW-3 premise check: HAND-1/heroHand is absent on current main; reuse existing server evaluator and English hand naming, never add a second evaluator. SHOW-4 remains queued.
+
+SHOW-1 source commit: e5ec57d. Local main merge: d407ede. All three test stages and four built-browser checks complete; no push. Resume from: SHOW-2.
