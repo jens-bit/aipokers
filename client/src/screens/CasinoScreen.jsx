@@ -137,6 +137,12 @@ function doorHeight({ hot, shut, index, desktop = false }) {
 // board reached by a toggle. Session-only (sessionStorage, not localStorage):
 // it is "which of the two you were just looking at", not a setting.
 const VIEW_KEY = 'agentic_casino_view';
+const ROOM_KEY = 'agentic_casino_room';
+
+function readCasinoRoom() {
+  try { return sessionStorage.getItem(ROOM_KEY) || null; }
+  catch { return null; }
+}
 
 function readCasinoView() {
   try {
@@ -201,7 +207,7 @@ export function CasinoScreen({
   // Only ever set when he is NOT placing an agent — with somebody in the tray
   // a doorway is the choice of where to seat him, and that is the older and
   // more important meaning of the tap.
-  const [openRoomId, setOpenRoomId] = useState(initialRoomId);
+  const [openRoomId, setOpenRoomId] = useState(() => initialRoomId ?? readCasinoRoom());
   // BUGS-C job 12: floor or board — remembered for the session, not tapped
   // fresh every time the owner leaves and comes back to the casino tab.
   const [view, setView] = useState(readCasinoView);
@@ -329,6 +335,7 @@ export function CasinoScreen({
   // It was scenery — the one tap on this screen that did nothing.
   function lookIntoRoom(room) {
     setOpenRoomId(room.id);
+    try { sessionStorage.setItem(ROOM_KEY, room.id); } catch { /* Keep this visit in memory. */ }
     changeView('floor');
   }
 
@@ -420,7 +427,18 @@ export function CasinoScreen({
   // or the first room the building has, so "opens on the floor" never needs
   // an empty room to fall back to.
   const defaultFloorRoomId = focus?.room?.id ?? rooms[0]?.id ?? null;
-  const openRoom = rooms.find((r) => r.id === (openRoomId ?? defaultFloorRoomId)) ?? null;
+  const openRoom = rooms.find((r) => r.id === openRoomId)
+    ?? rooms.find((r) => r.id === defaultFloorRoomId) ?? null;
+
+  function watchFromRoom(tableId) {
+    // Also remember a room opened by the initial live focus. A changing hot
+    // table must not move the owner to a different room when Watch closes.
+    if (openRoom) {
+      try { sessionStorage.setItem(ROOM_KEY, openRoom.id); } catch { /* Storage may be unavailable. */ }
+    }
+    if (desktop) onSpectate?.(tableId, { roomId: openRoom?.id });
+    else onSpectate?.(tableId);
+  }
 
   // CASINO-2 job 2 — the board, split by tense. LIVE NOW comes off the felts
   // (pots being built), TONIGHT off the ticker (hands that are over), and both
@@ -620,16 +638,13 @@ export function CasinoScreen({
           liveLimit={desktop ? 6 : 2}
           rows={desktop ? 12 : 2}
           stakesFor={stakesForTable}
-          onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+          onWatch={onSpectate ? watchFromRoom : null}
           onReplay={onReplay ?? null}
         />
       )}
       toggle={<ViewToggle view={view} onChange={changeView} />}
       onClose={() => changeView('board')}
-      onWatch={(tableId) => {
-        if (desktop) onSpectate?.(tableId, { roomId: openRoom.id });
-        else { setOpenRoomId(null); changeView('board'); onSpectate?.(tableId); }
-      }}
+      onWatch={watchFromRoom}
     />
   ) : null;
 

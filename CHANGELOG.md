@@ -2,6 +2,8 @@
 
 ## 0.14.0 — THE SHOW (2026-09-12)
 
+- **HOME-3 — journeys keep their place.** Profile fills in real career/skill readings from the authenticated detail route, including a compact Home entry. Unsent Chat drafts survive Profile and Watch by owner/agent. Chat returns to its original Home or casino room; Watch preserves the selected casino floor. Home table Watch, actual human cards/actions, returning guests and desktop returns are verified in the built app.
+
 - **HOME-2 — believable room behaviour.** Returning Home no longer repeats an already displayed recap; new news still speaks. Character idles start at distinct phases, and ordinary greetings use their existing nature voices. Accepted snacks and beers drive the authored fridge trip once, with one pickup space, reserved neighbours, cancellation on carry/play/departure, and no invented activity.
 
 - **HOME-1 — the room follows the current reference.** Home remains the entry. Its background and right wall fill the available height; short phones keep a scrollable room with readable controls. The quiet roster uses the outlined icon, with gold reserved for unread news. Phone cards, marked backs, seated character sizes and empty wall hooks match the current source. The kitchen table stays.

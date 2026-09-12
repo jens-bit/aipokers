@@ -140,6 +140,18 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
   const [agentChatTarget, setAgentChatTarget] = useState(null);
+  // A Profile or Watch visit unmounts the thread. Its unsent words belong to
+  // this owner and this agent, and stay in memory until sent or the app closes.
+  const [agentDrafts, setAgentDrafts] = useState(() => new Map());
+  const agentDraftKey = JSON.stringify([String(getUserId()), agentChatTarget?.id ?? null]);
+  function saveAgentDraft(value) {
+    setAgentDrafts(previous => {
+      const next = new Map(previous);
+      if (value) next.set(agentDraftKey, value);
+      else next.delete(agentDraftKey);
+      return next;
+    });
+  }
   const [carryAgentId, setCarryAgentId] = useState(null);
   const [agentProfileTarget, setAgentProfileTarget] = useState(null);
   // GUEST-1 (G1): a guest who has just been minted opens straight into the
@@ -765,9 +777,13 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
             onBack={() => setAgentProfileTarget(null)}
             onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}
             onOpenChat={(ag) => {
-              // BUGS-A job 4: the door he came in by is this profile.
+              // CHAT on a profile opened from this same thread resumes it.
+              // A profile reached directly still remains its own return door.
+              const resumesThread = activeTab === 'chats' && agentChatTarget?.id === ag.id;
               setAgentProfileTarget(null);
-              openAgentChat(ag, { tab: activeTab, profileAgent: ag });
+              openAgentChat(ag, resumesThread
+                ? (chatOriginRef.current ?? { tab: 'home', profileAgent: null })
+                : { tab: activeTab, profileAgent: ag });
             }}
             onWatch={async (ag) => {
               const tableId = ag?.activeTableId || ag?.liveGame?.tableId || ag?.location?.tableId;
@@ -975,9 +991,11 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
               by — the room, or the profile — never to a list. */}
           {activeTab === 'chats' && agentChatTarget && (
             <AgentThread
-              key={agentChatTarget.id}
+              key={agentDraftKey}
               companion
               agent={agentChatTarget}
+              draftValue={agentDrafts.get(agentDraftKey) ?? ''}
+              onDraftChange={saveAgentDraft}
               onBack={closeAgentChat}
               onOpenProfile={openAgentProfile}
               onDeploy={placeInCasino}
@@ -1076,16 +1094,23 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
         // is a person to open — without it WatchScreen keeps talking in its own
         // TABLE tab, which is the behaviour that existed before.
         onOpenThread={watchedAgent ? () => {
+          // Leaving queues a return; this handler still sees the Watch render,
+          // including the casino passed through during a deployment.
+          const origin = watchOriginRef.current;
+          const resumesThread = origin?.tab === 'chats' && origin.chatAgent?.id === watchedAgent.id;
+          const chatOrigin = resumesThread
+            ? (chatOriginRef.current ?? { tab: 'home', profileAgent: null })
+            : { tab: origin?.tab ?? activeTab, profileAgent: null };
           handleLeave();
-          openAgentChat(watchedAgent);
+          openAgentChat(watchedAgent, chatOrigin);
         } : undefined}
         // WATCH-7: the ceremony, once, when the session is over — and the two
         // ways out of the evening it offers. Funding him is the wallet, which
         // is where YOU already keeps the buy-in.
         sessionEnd={sessionEnd}
         // YOU-2 owns the money: the sheet is where the buy-in lives now, not
-        // the YOU tab it used to sit behind. CASINO-1 owns the nav: 'home' is
-        // today's floor, so that is where "back to the floor" goes.
+        // the YOU tab it used to sit behind. The session's explicit Home exit
+        // is separate from Leave table, which restores the Watch origin.
         onFund={() => { handleLeave(); navigateToMoney(); }}
         onBackToFloor={() => { handleLeave(); navigateTo('home'); }}
         config={config}
