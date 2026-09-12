@@ -6,11 +6,14 @@ import { RoomThread } from '../home/RoomThread.jsx';
 import { useHomeThread } from '../../hooks/useHomeThread.js';
 import { handResult } from '../../lib/handResult.js';
 import { money } from '../../lib/wallet.js';
+import { ContextHint } from '../onboarding/ContextHint.jsx';
+import { useFirstRunGuide } from '../onboarding/FirstRunGuide.jsx';
 
 // DkOwnerM: the same live felt and legal actions as phone, within the desktop
 // stage. The room conversation remains a permanent column alongside it.
 export function DeskHomeTable({ game, mySeat, seated, legalActions, onAct, lastDecision, agents, connection, onBack,
-  sessionEnd = null, onRebuy, buyIn = null }) {
+  sessionEnd = null, onRebuy, buyIn = null, error = null }) {
+  const guide = useFirstRunGuide();
   const [selectedSeat, setSelectedSeat] = useState(null);
   const viewport = useRef(null), actions = useRef(null);
   const [scale, setScale] = useState(1), [clearance, setClearance] = useState(112);
@@ -39,6 +42,9 @@ export function DeskHomeTable({ game, mySeat, seated, legalActions, onAct, lastD
     : Number.isFinite(finalStack) && Number.isFinite(buyIn) ? finalStack - buyIn : null;
   const busted = sessionEnd?.busted != null ? !!sessionEnd.busted : Number.isFinite(finalStack) && finalStack <= 0;
   return <>
+    {guide.stage === 'live' && game && !seated && !sessionEnd && !error && selectedSeat == null && <ContextHint
+      rootRef={viewport} selector=".watch-felt__board" targetChildren=".watch-felt__card" text="You’re watching; players use these shared cards."
+      nextLabel="Got it" onNext={guide.dismiss} onDismiss={guide.dismiss}/>}
     <div className="dsk-stage dsk-stage--felt dsk-stage--home-game">
       <div className="dsk-home-table-viewport" ref={viewport}>
       <section className={'dsk-home-table' + (seated ? ' is-seated' : '')} data-testid="desk-home-table" aria-label="The kitchen table" style={{width:900*scale,height:648*scale}}>

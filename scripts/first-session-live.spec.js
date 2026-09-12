@@ -5,10 +5,9 @@ import { expect, test } from '@playwright/test';
 // or WebSocket mock. The two guest projects consume two of the server's five
 // fresh guests per IP per day.
 const NAME = 'Pebble';
-const STEPS = ['deal', 'preflop-call', 'flop', 'flop-bet', 'turn', 'river', 'river-bet', 'showdown', 'conversation'];
 const pathOf = request => new URL(request.url()).pathname;
 
-for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? 'fresh guest' : 'development owner'} drafts, arrives home, learns, and opens private chat`, async ({ page, request }, testInfo) => {
+for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? 'fresh guest' : 'development owner'} drafts, follows the real first-run guide, and opens private chat`, async ({ page, request }, testInfo) => {
   const config = await request.get('/api/auth/config');
   expect(config.ok(), 'the built-app server is reachable').toBe(true);
   expect((await config.json()).guest, `this isolated server must have GUEST_ENABLED=${guestFlow ? 1 : 0}`).toBe(guestFlow);
@@ -63,6 +62,8 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   const birth = await birthResponse.json();
   expect(birth.agentId).toBeTruthy();
   expect(birth.agentName).toBe(NAME);
+  const writesAfterBirth = writes.length;
+  const commandsAfterBirth = gameCommands.length;
 
   const bornCard = draft.locator('.birth-card3');
   await expect(bornCard).toBeVisible();
@@ -71,6 +72,7 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   // second birth rail while the same final action is waiting to be pressed.
   await expect(page.getByText('The card he was born with', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Go home', exact: true })).toHaveCount(1);
+  await expect(page.getByTestId('context-hint')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('birth-card.png') });
   await bornCard.getByRole('button', { name: 'Go home', exact: true }).click();
 
@@ -78,54 +80,81 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   await expect(draft).toHaveCount(0);
   await expect(home).toBeVisible();
   await expect(home.locator(`.home-one[data-agent="${birth.agentId}"]`)).toBeVisible();
-  const learn = home.getByRole('button', { name: `Learn with ${NAME}`, exact: true });
-  await expect(learn).toBeVisible();
+  if (testInfo.project.name.startsWith('phone-')) {
+    await expect(home.getByTestId('room-header'), 'Go home lands at the room, not below the guest landing page').toBeInViewport({ ratio: 1 });
+    await expect(home.locator(`.home-one[data-agent="${birth.agentId}"]`), 'the newborn is on screen without a corrective scroll').toBeInViewport({ ratio: 1 });
+  }
+  const hint = page.getByTestId('context-hint');
+  await expect(hint).toBeVisible();
+  await expect(hint).toContainText(`This is ${NAME}. Tap to talk.`);
+  await expect(page.locator('.practice-entry')).toHaveCount(0);
+  await expect(page.getByTestId('guided-practice')).toHaveCount(0);
   expect(documents, 'birth arrives in Home without reloading the document').toBe(1);
   await page.screenshot({ path: testInfo.outputPath('home-arrival.png') });
 
-  const writesBeforePractice = writes.length;
-  await learn.click();
-  const guide = page.getByTestId('guided-practice');
-  await expect(guide).toHaveAttribute('data-step', 'deal');
-  await expect(page.getByTestId('practice-role')).toHaveText(`You are watching. ${NAME} is playing.`);
-  await expect(page.getByTestId('practice-pointer')).toBeVisible();
-  for (const step of STEPS.slice(1)) {
-    await guide.getByRole('button', { name: 'Next', exact: true }).click();
-    await expect(guide).toHaveAttribute('data-step', step);
-    if (step === 'showdown') {
-      await expect(page.getByTestId('practice-hand')).toContainText('Full house');
-      await expect(page.getByTestId('practice-result')).toContainText('28 chips');
-      await expect(page.getByTestId('practice-result')).toContainText('+14 chips');
-      await page.screenshot({ path: testInfo.outputPath('practice-result.png') });
-    }
-  }
-  const finish = guide.getByRole('button', { name: 'Finish practice', exact: true });
-  await expect(finish).toBeDisabled();
-  await guide.getByRole('button', { name: 'What is a full house?', exact: true }).click();
-  await expect(page.getByTestId('practice-answer')).toContainText('three kings and two sevens');
-  await finish.click();
-  await expect(guide).toHaveAttribute('data-step', 'complete');
-  expect(writes.slice(writesBeforePractice), 'practice makes no API writes').toEqual([]);
-  expect(gameCommands, 'practice never starts or controls a live game').toEqual([]);
-
-  if (guestFlow) {
-    await expect(guide).toContainText('Sign in to send your own messages. You can keep exploring as a guest.');
-    await guide.getByRole('button', { name: `Sign in to chat with ${NAME}`, exact: true }).click();
-    const signIn = page.getByRole('dialog', { name: 'Keep him', exact: true });
-    await expect(signIn).toBeVisible();
-    expect(writes.slice(writesBeforePractice), 'the guide explains sign-in before submitting any private message').toEqual([]);
-    await page.screenshot({ path: testInfo.outputPath('practice-sign-in.png') });
-    await signIn.getByRole('button', { name: 'keep playing as a guest', exact: true }).click();
-    await expect(guide).toHaveAttribute('data-step', 'complete');
-    await guide.getByRole('button', { name: 'Back home', exact: true }).click();
-    await expect(home).toBeVisible();
-    await home.locator(`.home-one[data-agent="${birth.agentId}"]`).click();
+  await hint.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(hint).toContainText('The kitchen table is where you watch or join a game.');
+  await hint.getByRole('button', { name: 'Open table', exact: true }).click();
+  const table = page.getByTestId('home-table-sheet');
+  await expect(table).toBeVisible();
+  // Follow the actual Home state. A single newborn can have a quiet kitchen;
+  // this test must not seat anyone or pretend that an absent game is live.
+  await expect(hint).toContainText(/Watch the kitchen game here\.|The kitchen is quiet; the casino has more tables\./);
+  expect(writes.slice(writesAfterBirth), 'Home guidance makes no API writes').toEqual([]);
+  expect(gameCommands.slice(commandsAfterBirth).filter(type => type !== 'watch'), 'Home preview may watch, but guidance never joins, acts, deals or chats').toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('table-guide.png') });
+  const desktop = testInfo.project.name.startsWith('desktop-');
+  let guideRoute;
+  if (await table.getByTestId('home-table-watch').isVisible()) {
+    guideRoute = 'running kitchen → actual WATCH → shared board → completed';
+    await expect(hint).toContainText('Watch the kitchen game here.');
+    await expect(hint.getByRole('button')).toHaveCount(1);
+    await expect(hint.getByRole('button', { name: 'Skip', exact: true })).toBeVisible();
+    await table.getByTestId('home-table-watch').click();
+    const liveTable = desktop ? page.getByTestId('desk-home-table') : page.locator('.watch-screen');
+    await expect(liveTable).toBeVisible();
+    await expect(liveTable.locator('.watch-felt__board')).toBeVisible();
+    await expect(hint).toContainText('You’re watching; players use these shared cards.');
+    expect(gameCommands.slice(commandsAfterBirth)).toContain('watch');
+    expect(gameCommands.slice(commandsAfterBirth).filter(type => type !== 'watch'), 'the guide never joins, acts, deals or chats').toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath('live-table-guide.png') });
+    await hint.getByRole('button', { name: 'Got it', exact: true }).click();
+    await expect(hint).toHaveCount(0);
+    await liveTable.getByRole('button', { name: desktop ? 'Back to the room' : 'Leave table', exact: true }).click();
   } else {
-    await guide.getByRole('button', { name: `Chat with ${NAME}`, exact: true }).click();
+    guideRoute = 'quiet kitchen → actual casino doorway → Home; no live-hand coverage';
+    await expect(hint).toContainText('The kitchen is quiet; the casino has more tables.');
+    await hint.getByRole('button', { name: 'Show door', exact: true }).click();
+    await expect(table).toHaveCount(0);
+    await expect(home).toBeVisible();
+    await expect(hint).toContainText('The casino has tables for your agent.');
+    await expect(hint.getByRole('button', { name: 'Enter casino', exact: true })).toBeVisible();
+    const door = home.getByTestId('home-door');
+    await expect(door).toBeVisible();
+    await expect.poll(async () => {
+      const [target, outline] = await Promise.all([door.boundingBox(), page.getByTestId('context-hint-target').boundingBox()]);
+      return !!target && !!outline && ['x', 'y', 'width', 'height'].every(key => Math.abs(target[key] - outline[key]) < 2);
+    }, { message: 'the guide outlines the real casino door' }).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('quiet-door-guide.png') });
+    await door.click();
+    const floor = page.getByTestId('floor-view');
+    await expect(floor).toBeVisible();
+    await expect(hint).toHaveCount(0);
+    expect(gameCommands.slice(commandsAfterBirth), 'finding the casino does not start or watch a game').toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath('quiet-casino-arrival.png') });
+    const casinoBack = desktop ? page.locator('.dsk-top--room') : floor;
+    await casinoBack.getByRole('button', { name: 'Back home', exact: true }).click();
   }
-  await expect(guide).toHaveCount(0);
+  testInfo.annotations.push({ type: 'guide-route', description: guideRoute });
+  await testInfo.attach('guide-route', { body: JSON.stringify({ route: guideRoute, gameCommands: gameCommands.slice(commandsAfterBirth) }), contentType: 'application/json' });
+  await expect(home).toBeVisible();
+  await home.locator(`.home-one[data-agent="${birth.agentId}"]`).click();
   const chat = page.getByRole('region', { name: `${NAME}'s room`, exact: true });
   await expect(chat).toBeVisible();
+  await expect(hint).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Keep him', exact: true })).toHaveCount(0);
+  expect(writes.slice(writesAfterBirth), 'the guide and opening private chat submit no API writes before the owner chooses Send').toEqual([]);
+  expect(gameCommands.slice(commandsAfterBirth).filter(type => type !== 'watch'), 'the entire guide remains a spectator').toEqual([]);
   await chat.getByPlaceholder('Whisper to him…', { exact: true }).fill('go home');
   const replied = page.waitForResponse(res => {
     const req = res.request();
@@ -153,5 +182,13 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   }
   await page.screenshot({ path: testInfo.outputPath(guestFlow ? 'private-chat-refused.png' : 'private-chat.png') });
   expect(documents, 'the full first session uses the original document').toBe(1);
+  // A reload is deliberately separate from the uninterrupted journey above.
+  // Seeing the same newborn again must not restart the automatically shown guide.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(home).toBeVisible();
+  await expect(home.locator(`.home-one[data-agent="${birth.agentId}"]`)).toBeVisible();
+  await expect(hint).toHaveCount(0);
+  await expect(page.locator('.practice-entry')).toHaveCount(0);
+  expect(documents).toBe(2);
   expect(errors).toEqual([]);
 });

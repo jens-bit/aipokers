@@ -72,7 +72,8 @@ import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
 import { useWallet } from '../hooks/useWallet.js';
 import '../styles/home1.css';
-import { PracticeEntry } from '../components/practice/PracticeEntry.jsx';
+import { ContextHint } from '../components/onboarding/ContextHint.jsx';
+import { useFirstRunGuide } from '../components/onboarding/FirstRunGuide.jsx';
 
 // Later mood-home2 WALKS: departure 2.2s, homecoming 1.9s; an ordinary room crossing stays 1.6s.
 export const WALK_MS = HOME_WALK_MS;
@@ -305,7 +306,7 @@ export function HomeScreen({
   onProfile,
   onDeploy,
   onCreateAgent,
-  onPractice,
+  guideEnabled = true,
   // HOME-2 job 1 · the casino is the door. There is no bottom bar to reach it
   // by any more, so the room carries the only way in — and the phone is the
   // only shell that needs it: the desk has the building beside it in a rail.
@@ -343,6 +344,8 @@ export function HomeScreen({
   openTable = false,
 }) {
   const { theme } = useHomeAppearance();
+  const guide = useFirstRunGuide();
+  const guideRoot = useRef(null);
   const [phoneRoomHeight, setPhoneRoomHeight] = useState(PHONE_ROOM.height);
   // HomeFlat in the reference fills its wrapper, with a 612px minimum. The
   // furniture keeps its authored coordinates; extra height belongs to the room.
@@ -635,13 +638,40 @@ export function HomeScreen({
   // and a composer for whoever the room is pointed at, expanding to a sheet
   // over the room. Quick word here, whole conversation there.
   const tapAgent = useCallback((agent) => {
+    if (guide.stage === 'agent') guide.advance('table');
     setFocusId(agent.id);
     // DESK-2: on the desk the rail IS the thread, so the man swaps what is in
     // it rather than opening a screen on top of the room he is standing in.
     if (desktop) { setRail('agent'); return; }
     if (onOpenThread) onOpenThread(agent);
     else setThreadOpen(true);
-  }, [onOpenThread, desktop]);
+  }, [onOpenThread, desktop, guide.stage, guide.advance]);
+
+  const openKitchen = () => {
+    if (guide.stage) guide.advance('watch');
+    if (desktop) setRail('table');
+    else setTableOpen(true);
+  };
+  const enterCasino = () => {
+    if (guide.stage) guide.advance('live');
+    onCasino?.();
+  };
+  const roomUncovered = guideEnabled && !carry && (desktop ? rail === 'thread' : !tableOpen && !fridgeOpen && !safeOpen && !threadOpen);
+  const firstAtHome = home.find(agent => !agent.guest && !agent.visiting);
+  useEffect(() => {
+    if (loaded && roomUncovered && firstAtHome) guide.begin(firstAtHome);
+  }, [loaded, roomUncovered, firstAtHome, guide.begin]);
+  useEffect(() => {
+    if (loaded && guide.agentId != null && !agents.some(agent => !agent.guest && String(agent.id) === String(guide.agentId))) guide.dismiss();
+  }, [loaded, agents, guide.agentId, guide.dismiss]);
+  const roomHint = roomUncovered && ['agent', 'table', 'door'].includes(guide.stage) ? (
+    <ContextHint rootRef={guideRoot}
+      selector={guide.stage === 'agent' ? `.home-one[data-agent=${JSON.stringify(String(guide.agentId))}]` : guide.stage === 'door' ? '[data-testid="home-door"]' : '[data-testid="home-table"]'}
+      text={guide.stage === 'agent' ? `This is ${guide.agentName}. Tap to talk.` : guide.stage === 'door' ? 'The casino has tables for your agent.' : 'The kitchen table is where you watch or join a game.'}
+      nextLabel={guide.stage === 'agent' ? 'Next' : guide.stage === 'door' ? 'Enter casino' : 'Open table'}
+      onNext={guide.stage === 'agent' ? () => guide.advance('table') : guide.stage === 'door' ? enterCasino : openKitchen}
+      onDismiss={guide.dismiss} />
+  ) : null;
 
   // BUG-54 / board 42: a body always selects that agent. The felt itself
   // opens the table; moving into a chair must not change a person's tap.
@@ -703,7 +733,7 @@ export function HomeScreen({
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
       fridgeLit={itemMotion.fridgeLit}
       // C9: the room's door is the casino destination on phone and desktop.
-      onDoor={onCasino ? () => onCasino() : undefined}
+      onDoor={onCasino ? enterCasino : undefined}
       // THE TABLE HAS ONE DESTINATION, and it is the sheet.
       //
       // Three trees wanted this tap and all three are now sections of the sheet
@@ -720,7 +750,7 @@ export function HomeScreen({
       // running — which is exactly when SIT-1's free chair is worth having, and
       // is why the fork had to go rather than grow a third branch. The desk has
       // always opened the rail panel from this tap; the phone now agrees with it.
-      onTable={desktop ? () => setRail('table') : () => setTableOpen(true)}
+      onTable={openKitchen}
       tableLabel={game?.state === 'running' ? 'The table' : 'The chairs'}
       // C7: tapping the picture opens that live table or that recorded hand.
       onTv={tv.kind === 'live' ? () => onWatch?.(tv.agent)
@@ -846,11 +876,9 @@ export function HomeScreen({
   // to it here rather than fetched again beside it.
   if (desktop) {
     return (
-      <div className="home1 home1--desk" data-testid="home-screen" data-home-theme={theme}>
-        {onPractice && loaded && agents.some(a => !a.visiting && !a.guest) ? <div className="home1__practice-column">
-          <PracticeEntry key={agents.find(a => !a.visiting && !a.guest).id} agent={agents.find(a => !a.visiting && !a.guest)} ownerId={getUserId()} onStart={onPractice}/>
-          {roomBox}
-        </div> : roomBox}
+      <div ref={guideRoot} className="home1 home1--desk" data-testid="home-screen" data-home-theme={theme}>
+        {roomBox}
+        {roomHint}
         {rail === 'none' ? null : (
         <div className="home1__rail" data-testid="home-rail" data-panel={rail}>
           {renderRail?.({
@@ -885,10 +913,10 @@ export function HomeScreen({
   }
 
   return (
-    <div className="home1" data-testid="home-screen" data-home-theme={theme}>
+    <div ref={guideRoot} className="home1" data-testid="home-screen" data-home-theme={theme}>
       <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} rosterUnread={agents.some(a => a.want || a.unseenRecap)} appearance={<HomeAppearanceControl />} />
-      {onPractice && loaded && agents.some(a => !a.visiting && !a.guest) && <PracticeEntry key={agents.find(a => !a.visiting && !a.guest).id} agent={agents.find(a => !a.visiting && !a.guest)} ownerId={getUserId()} onStart={onPractice}/>}
       {roomBox}
+      {roomHint}
 
       {carry && <div className="home-carry-help"><span>Place him on the couch, table, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}
 
@@ -1014,7 +1042,7 @@ function MobileTableSheet({ seated = 0, maxSeats = null, game, gameKnown, liveTa
           <span className="home-sheet__title">The table</span>
           <button type="button" className="home-sheet__close" onClick={onClose} aria-label="Close">✕</button>
         </div>
-        <TableSheet slots={slots} seated={seated} maxSeats={maxSeats} game={game} gameKnown={gameKnown} liveTable={liveTable} agents={agents} onDraft={onDraft} onSit={onSit} onWatch={onWatch} />
+        <TableSheet slots={slots} seated={seated} maxSeats={maxSeats} game={game} gameKnown={gameKnown} liveTable={liveTable} agents={agents} onDraft={onDraft} onSit={onSit} onWatch={onWatch} onClose={onClose} />
       </div>
     </div>
   );

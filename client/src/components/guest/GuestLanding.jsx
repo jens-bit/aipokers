@@ -76,6 +76,12 @@ export function GuestLanding({ visitorName = null, roomContent = null, showDetai
   // cursor is a worse thing to own than one query.
   const scrollCleanup = useRef(() => {});
   useEffect(() => () => scrollCleanup.current(), []);
+  const arriveHome = useCallback(() => {
+    scrollCleanup.current();
+    // The shorter room must not inherit the birth card's document offset.
+    // This explicit arrival runs once; subsequent reading keeps its scroll.
+    roomRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+  }, []);
   const draftHim = useCallback(() => {
     const room = roomRef.current;
     if (!room) return;
@@ -148,7 +154,7 @@ export function GuestLanding({ visitorName = null, roomContent = null, showDetai
 
       {/* The room, mounted. Not a picture of one. */}
       <div ref={roomRef} className="guest-landing__room">
-        {roomContent ?? <App guestBoot="new" initialVisitHandled={initialVisitHandled} initialVisitNotice={initialVisitNotice} />}
+        {roomContent ?? <App guestBoot="new" initialVisitHandled={initialVisitHandled} initialVisitNotice={initialVisitNotice} onBirthHome={arriveHome} />}
       </div>
       {showDetails && <LandingDetails onDraft={draftHim} ctaLabel={ctaLabel} ctaNote={ctaNote} guestAvailable={guestAvailable} />}
     </div>

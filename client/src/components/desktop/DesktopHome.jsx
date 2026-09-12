@@ -36,7 +36,7 @@ export function DesktopHome({
   tableConfig = null, tableError = null, chatMessages = [], mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
   sessionEnd = null, onRebuy,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
-  onPractice, practiceReturn = null, birthHandledId = null,
+  birthHandledId = null,
   // WATCH-8: the socket's own status, so the desk's rail refetches the stored
   // thread when the connection comes back — the same rule the phone's sheet
   // follows, from the same hook.
@@ -100,14 +100,6 @@ export function DesktopHome({
   // is: the collapsed roster strip is one of the ways it changes, and the strip
   // is the shell's, not the room's.
   const [homeFocusId, setHomeFocusId] = useState(null);
-  useEffect(() => {
-    if (!practiceReturn) return;
-    setStage(practiceReturn.kind === 'casino' ? 'casino' : 'floor');
-    if (practiceReturn.kind === 'chat') {
-      setHomeFocusId(practiceReturn.agentId);
-      setHomePanel('agent');
-    }
-  }, [practiceReturn]);
   const homeStage = stage !== 'casino';
 
   useEffect(() => { if (deployAgent) setStage('casino'); }, [deployAgent]);
@@ -360,6 +352,7 @@ export function DesktopHome({
       <DeskRoster agents={agents} loading={loading} activeId={null} watchedId={null}
         onSelect={rosterSelect} onDraftAgent={()=>{setHomeTableSession(null);onLeave?.();onCreateAgent?.();}}/>
       <DeskHomeTable game={liveGame} mySeat={mySeat} seated={homeTableSession.seated}
+        error={tableError}
         legalActions={ready && tableConfig?.sitting ? legalActions : []} onAct={onAct} lastDecision={lastDecision} agents={agents} connection={connection}
         sessionEnd={homeTableSession.seated ? sessionEnd : null} onRebuy={onRebuy} buyIn={tableConfig?.buyIn}
         onBack={()=>{setHomeTableSession(null);onLeave?.();}}/>
@@ -414,6 +407,8 @@ export function DesktopHome({
             game={watchedId === deskAgent.id ? game : null}
             lastDecision={watchedId === deskAgent.id ? lastDecision : null}
             connection={connection}
+            guideBlocked={!!tableError || connection === 'reconnecting'}
+            sessionEnd={sessionEnd}
             threadLines={watchedId === deskAgent.id ? threadLines : null}
             draft={drafts[deskAgent.id] ?? ''}
             onDraftChange={setDraft}
@@ -497,8 +492,8 @@ export function DesktopHome({
               onDeploy={onDeployAgent}
               onCreateAgent={onCreateAgent}
               // A live newborn may reach Home before his birth card is
-              // acknowledged. Finish that introduction before leaving for practice.
-              onPractice={draft || born ? null : onPractice}
+              // acknowledged. Finish that introduction before any room guidance.
+              guideEnabled={!draft && !bornId && !walletOpen}
               onFocusTable={openTable}
               onOpenFlagged={(agent, hand) => {
                 // A row names its hand: that one goes to the theatre. VIEW ALL
@@ -557,7 +552,7 @@ export function DesktopHome({
 
 // The table stage plus its analysis rail. Split out so the thread hook only
 // mounts while a table is actually on screen.
-function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut }) {
+function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut, guideBlocked = false, sessionEnd = null }) {
   const { chat, sending, send, error } = useAgentThread(agent);
   const composerRef=useRef(null);
   const heroSeat = heroSeatOf(game,agent.name,mySeat);
@@ -587,6 +582,8 @@ function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines,
           agent={agent}
           mySeat={mySeat}
           lastDecision={lastDecision}
+          guideBlocked={guideBlocked}
+          sessionEnd={sessionEnd}
           onBack={onBack}
           onSitOut={onSitOut}
         />

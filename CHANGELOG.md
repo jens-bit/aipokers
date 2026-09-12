@@ -1,5 +1,11 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## In-game introduction — local candidate (2026-09-12)
+
+- **Guidance in the actual game.** The persistent Learn bar and separate practice screen are replaced by short pointers on the actual character, kitchen table, Watch control and shared cards. The birth acknowledgment finishes first; quiet tables never invent a game.
+- **One introduction per owner on this browser.** Skip, completion and reload do not restart it. Previous practice records count as already introduced. Another agent cannot inherit a stale pointer.
+- **Visual review is part of delivery.** Desktop and phone checks now cover actual pointer placement, usable targets, real transitions and the absence of duplicate actions. Room objects need a functional design before they are added.
+
 ## Home appearance — local candidate (2026-09-12)
 
 - **A room that follows your day.** Home uses Warm Day, Amber Dusk or Teal Night from the local clock, with a saved manual override. Lighting updates after sleep and while open without replacing the room or touching poker/needs rules.

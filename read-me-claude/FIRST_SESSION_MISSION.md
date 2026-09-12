@@ -1,6 +1,6 @@
 # Railbird — first-session playtest mission
 
-Approved by Jens in task 01a0961a-a3d3-7531-b69c-6dc1ac8faec9 on 12 September 2026. This is the active mission for this run; the previous Home-first four-job list, expired deadline and absolute one-run test limits are historical.
+Approved by Jens in task 01a0961a-a3d3-7531-b69c-6dc1ac8faec9 on 12 September 2026, with his later correction below taking precedence over earlier practice and belongings proposals. This is the active mission for this run; the previous Home-first four-job list, expired deadline and absolute one-run test limits are historical.
 
 ## Outcome
 
@@ -14,10 +14,12 @@ Jens authorized targeted new guidance, navigation/copy, readability/brightness a
 
 One coherent journey is the priority. Player-owned casinos, 3D, full messaging platforms, economy redesign and replacement artwork are outside this milestone. Existing limits and needs rules stay in place pending product decisions.
 
+Do not add speculative mechanics or room objects to make the design feel fuller. A new object needs an agreed purpose, interaction, state and place in the room before it is introduced. A notebook without a useful function and a considered placement is not part of the approved work. Improve the existing game and its real controls first.
+
 ## Ordered work
 
 1. Establish current baseline and make the chosen first journey truthful: creation, finding/seating the agent, watch/play identity, navigation, conversation errors, results and return. Explain whether play continues when the viewing screen closes. Do not expand into a codebase-wide audit.
-2. Offer skippable, replayable and resumable practice after meeting the agent at Home. Contextual pointers explain only the current moment. Use the existing engine and felt; clearly identify the practice example and keep its outcomes separate from wallets, statistics and live tables. Human action controls must never wait behind spectator pacing.
+2. Begin brief contextual guidance automatically once the first arrival is complete. Put the tutorial inside the actual game and its real journey, with a pointer anchored to the relevant visible control or state. Show one short sentence and, when needed, one action at a time. Make it skippable and remember completion or dismissal so returning Home, changing views or reloading does not nag the player again. Remove the persistent Learn bar and repeated practice invitations. A separate ten-step lesson, replay/resume entry and synthetic hand are no longer mission requirements. Follow actual game state and preserve human action timing, card privacy and real outcomes.
 3. Make actions/results and personal conversation readable. Preserve known-card privacy, reveal order, split pots and opponent wins. Use existing conversation routes/budgets. Movement requests must never claim an action happened if it did not; offer the real control instead. No extra paid model tests/calls without authorization.
 4. Produce a verified candidate and a concise five-person human playtest script. Improve the affected phone/desktop screens without a wholesale redesign.
 
@@ -25,7 +27,9 @@ One coherent journey is the priority. Player-owned casinos, 3D, full messaging p
 
 Use isolated codex branches/worktrees and preserve unrelated dirty work. Jens pushes. No assistant push, VPS access, env-file changes, key operations or secret output. Keep local versus deployed status explicit.
 
-Develop with focused meaningful regressions, then required source and built-browser gates before integration. Avoid repeating unchanged green gates; fixes or integration changes justify affected reruns. Do not weaken tests or merge unfinished work for a deadline. Use isolated data and owned processes. Observe normal-speed behavior separately from accelerated tests. Capture useful affected-state evidence instead of regenerating the design inventory.
+Develop with focused meaningful regressions, then required source and built-browser gates before integration. Actual visual and interaction review is part of each affected development loop: run the built interface, inspect desktop and phone at their real sizes, use the controls and follow the transitions at normal speed. Check pointer placement, short copy, readable labels, reachable targets and the absence of competing or repeated prompts. Fix problems found in that review before presenting the slice as ready; passing source tests or reviewing a separate proposal is not a substitute.
+
+Avoid repeating unchanged green gates; fixes or integration changes justify affected reruns. Do not weaken tests or merge unfinished work for a deadline. Use isolated data and owned processes. Observe normal-speed behavior separately from accelerated tests. Capture useful affected-state evidence instead of regenerating the design inventory.
 
 Keep changes, decisions, commits, actual gates, remaining problems and resume point in FIRST_SESSION_HANDOFF.md, with CHANGELOG.md and BUGS.md updated as appropriate.
 
@@ -47,4 +51,8 @@ After the verified candidate, Jens asked this task to continue: playtest the des
 
 Jens approved the visual direction and asked to keep building it. Auto local-time Warm Day / Amber Dusk / Teal Night with manual choices, brighter room materials, a wall-mounted casino doorway, a repositioned fridge, a clear TV and a real wooden kitchen table are within scope. The fridge is the interaction itself, not a navigation tab. Newspaper reading belongs in the room/belongings, not a permanent column. Refine mobile alongside desktop. Preserve existing character identity while proposing a later ghost facelift.
 
-Make the implementation concrete and playtest it locally; distinguish shipped behavior from the interactive proposal. The first slice implements appearance and readability without altering agent energy, heat, economy or autonomy. Recommend clear condition words and meaningful belongings; consult on changes to the underlying needs rules. Real newspaper content must come from actual public events. The prior release at 1607de6 completed Actions successfully (run 34706649580), so the deployment-gate interruption is resolved.
+Make the implementation concrete and playtest it locally; distinguish shipped behavior from the interactive proposal. The first slice implements appearance and readability without altering agent energy, heat, economy or autonomy. Recommend clear condition words; consult on changes to the underlying needs rules. Any future newspaper content must come from actual public events. The prior release at 1607de6 completed Actions successfully (run 34706649580), so the deployment-gate interruption is resolved.
+
+## Latest correction — teach the real game, once
+
+Jens rejected the persistent Learn bar, repeated tutorial prompts and speculative additions without a functional design. This overrides the earlier separate-practice and belongings direction. The first arrival should lead into a short, skippable introduction using the actual interface, followed by guidance at the relevant moment inside the real game. One sentence or action at a time; no second onboarding journey and no nag on return. Do not add a notebook or other spatial object before agreeing what it does and where it belongs. Review the actual visuals and interactions during development, not only after the code or a proposal is finished.

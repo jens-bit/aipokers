@@ -38,10 +38,12 @@
 // owner ends up unsure which one is the price. `lockedSeatLine` is where that
 // sentence lives (lib/slots.js), and both surfaces read it from there.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { lockedSeatLine } from '../../lib/slots.js';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { HomeTablePreview } from './HomeTablePreview.jsx';
+import { ContextHint } from '../onboarding/ContextHint.jsx';
+import { useFirstRunGuide } from '../onboarding/FirstRunGuide.jsx';
 
 const ORDINALS = ['1ST', '2ND', '3RD', '4TH'];
 
@@ -92,7 +94,11 @@ export function useSlots() {
  *                  anyone can pull a chair up to it, and a SIT DOWN that stands
  *                  a table up would be a second way to start a home game.
  */
-export function TableSheet({ slots = null, seated = 0, maxSeats = null, game = null, gameKnown = true, liveTable = null, agents = [], onDraft, onSit = null, onWatch = null }) {
+export function TableSheet({ slots = null, seated = 0, maxSeats = null, game = null, gameKnown = true, liveTable = null, agents = [], onDraft, onSit = null, onWatch = null, onClose = null }) {
+  const guide = useFirstRunGuide();
+  const guideRoot = useRef(null);
+  const watchGame = () => { guide.advance('live'); onWatch?.(); };
+  const showDoor = () => { guide.advance('door'); onClose?.(); };
   const cap = slots?.cap ?? 4;
   const used = slots?.used ?? 0;
   const next = slots?.next ?? null;
@@ -103,7 +109,12 @@ export function TableSheet({ slots = null, seated = 0, maxSeats = null, game = n
     : 'Reading the home game…';
 
   return (
-    <div className="table-sheet" data-testid="home-table-sheet">
+    <div ref={guideRoot} className="table-sheet" data-testid="home-table-sheet">
+      {guide.stage === 'watch' && gameKnown && <ContextHint rootRef={guideRoot}
+        selector={onWatch ? '[data-testid="home-table-watch"]' : '[data-testid="home-table-seated"]'}
+        text={onWatch ? 'Watch the kitchen game here.' : 'The kitchen is quiet; the casino has more tables.'}
+        preferredSide="above" nextLabel={onWatch ? null : 'Show door'}
+        onNext={onWatch ? watchGame : showDoor} onDismiss={guide.dismiss} />}
       {/* The felt, as it is right now. No money on it, and FIX-6 job 4: no money
           WORDS on it either. This carried the same FOR NOTHING the kitchen table
           did, on the same theory, and design 52's rule takes both — the sheet is
@@ -125,7 +136,7 @@ export function TableSheet({ slots = null, seated = 0, maxSeats = null, game = n
           <button
             type="button"
             className="table-sheet__watch"
-            onClick={onWatch}
+            onClick={watchGame}
             data-testid="home-table-watch"
           >
             WATCH
@@ -149,7 +160,7 @@ export function TableSheet({ slots = null, seated = 0, maxSeats = null, game = n
           <button
             type="button"
             className="table-sheet__sit-go"
-            onClick={onSit}
+            onClick={() => { guide.dismiss(); onSit?.(); }}
             disabled={gameFull}
             data-testid="home-table-sit"
           >

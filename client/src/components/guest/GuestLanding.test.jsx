@@ -15,13 +15,15 @@
 // a screenshot.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 
 import { GuestLanding } from './GuestLanding.jsx';
 import { fetchMock, telegram } from '../../test/harness.js';
 import { _resetForTests } from '../../lib/guest.js';
 import { pendingVisitorName, rememberPendingVisitor, clearPendingVisitor } from '../../lib/visit.js';
+import { restingAgent } from '../../test/fixtures/agents.js';
 
 const openLanding = async () => {
   let out;
@@ -96,6 +98,55 @@ describe('GUEST-1 · and the room, directly under it', () => {
     // Still one page. Nothing was replaced, nothing was linked away to.
     expect(screen.getByRole('heading', { name: 'Deal him in.' })).toBeInTheDocument();
     expect(screen.getByTestId('draft-input')).toBeInTheDocument();
+  });
+
+  it('FIRST-RUN-1: Go home aligns the mounted room once after birth, then leaves ordinary reading alone', async () => {
+    const user = userEvent.setup();
+    const newborn = { ...restingAgent, id: 'guest-newborn', name: 'Pebble', nature: { name: 'Rock', line: 'He waits.' }, firstWords: 'Ready when you are.' };
+    const ready = { draftId: 'guest-ready', draftStep: 'ready', draftName: newborn.name, ready: true, chat: [] };
+    let born = false;
+    fetchMock.route('/api/agents?', () => ({ agents: born ? [newborn] : [] }));
+    fetchMock.route('/api/agents/draft', ready, { method: 'POST' });
+    fetchMock.route('/api/agents/chat', () => {
+      born = true;
+      return { ...ready, draftStep: 'created', agentId: newborn.id, agentName: newborn.name, createdAgent: newborn, firstAgent: true };
+    }, { method: 'POST' });
+    const view = render(<StrictMode><GuestLanding showDetails /></StrictMode>);
+    const room = view.container.querySelector('.guest-landing__room');
+    const arrivals = [];
+    room.scrollIntoView = vi.fn(function (options) {
+      // This is a navigation request after Home commits, not a scroll of the
+      // disappearing birth card or a guide target. Browser tests own geometry.
+      arrivals.push({ options, home: this.querySelector('[data-testid="home-screen"]'), draft: this.querySelector('[data-testid="draft-screen"]') });
+    });
+    const deal = await screen.findByRole('button', { name: 'Deal him in', exact: true });
+    await waitFor(() => expect(deal).toBeEnabled(), { timeout: 2500 });
+    // Advance only the known nature-reveal delay; the request, card and
+    // acknowledgment still use the actual production components.
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(deal);
+      await act(async () => {});
+      await act(async () => { await vi.advanceTimersByTimeAsync(2200); });
+    } finally { vi.useRealTimers(); }
+    const goHome = screen.getByRole('button', { name: 'Go home', exact: true });
+    expect(room.scrollIntoView).not.toHaveBeenCalled();
+    await user.click(goHome);
+    const home = await screen.findByTestId('home-screen');
+    expect(room.scrollIntoView).toHaveBeenCalledOnce();
+    expect(arrivals).toEqual([{ options: { behavior: 'instant', block: 'start' }, home, draft: null }]);
+    expect(view.container.querySelector('.guest-landing__room')).toBe(room);
+    expect(screen.getByRole('heading', { name: 'Thirty seconds of conversation, and he exists.' })).toBeInTheDocument();
+
+    // Scrolling marketing copy, updating the landing and opening/closing a
+    // normal Home sheet must not take the reader back to the anchor again.
+    fireEvent.scroll(window);
+    view.rerender(<StrictMode><GuestLanding showDetails ctaNote="Free · play money only" /></StrictMode>);
+    await user.click(within(home).getByRole('button', { name: 'Your agents', exact: true }));
+    const roster = await screen.findByTestId('roster-sheet');
+    await user.click(within(roster.querySelector('.roster__head')).getByRole('button', { name: 'Close', exact: true }));
+    expect(room.scrollIntoView).toHaveBeenCalledOnce();
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(1);
   });
 
   it('BUG-101: waits for a long page scroll to end before focusing the recruiter', async () => {

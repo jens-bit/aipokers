@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { usePacedTable } from './hooks/usePacedTable.js';
 import { useDeepLink } from './hooks/useDeepLink.js';
@@ -26,9 +26,8 @@ import { useGuestSession } from './hooks/useGuestSession.js';
 import { ClaimWall } from './components/guest/ClaimWall.jsx';
 import { VisitNotice } from './components/home/VisitorToast.jsx';
 import { visitErrorText } from './lib/visit.js';
-import { GuidedPractice } from './components/practice/GuidedPractice.jsx';
-import { openClaimWall } from './lib/guest.js';
 import { HomeAppearanceProvider } from './components/home/HomeAppearance.jsx';
+import { FirstRunGuideProvider } from './components/onboarding/FirstRunGuide.jsx';
 
 // BUGS-C job 1: the Telegram entry has to load a home shell, not the whole
 // app. These four are screens a session may never visit in a given sitting
@@ -72,12 +71,14 @@ function agentHandsApiUrl(agentId) {
 // a profile overlay, the room — and AppShell returns from four different
 // places. So the guest session is held out here, one level up, and the shell
 // is handed what it needs. Nothing else about the shell moved.
-export default function App({ guestBoot = null, initialVisitNotice = null, initialVisitHandled = false }) {
+export default function App({ guestBoot = null, initialVisitNotice = null, initialVisitHandled = false, onBirthHome = null }) {
   const guest = useGuestSession({ guestBoot });
   const [visitNotice, setVisitNotice] = useState(initialVisitNotice);
   return (
     <HomeAppearanceProvider>
-      <AppShell guest={guest} guestBoot={guestBoot} onVisitNotice={setVisitNotice} initialVisitHandled={initialVisitHandled} />
+      <FirstRunGuideProvider ownerId={getUserId()} enabled={!guest.wall && !visitNotice}>
+      <AppShell guest={guest} guestBoot={guestBoot} onVisitNotice={setVisitNotice} initialVisitHandled={initialVisitHandled} onBirthHome={onBirthHome} />
+      </FirstRunGuideProvider>
       <VisitNotice notice={visitNotice} onDismiss={() => setVisitNotice(null)} />
       {guest.wall && (
         <ClaimWall
@@ -92,7 +93,7 @@ export default function App({ guestBoot = null, initialVisitNotice = null, initi
   );
 }
 
-function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
+function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirthHome }) {
   const table = useTable({ wsUrl: WS_URL });
   const {
     game, mySeat, legalActions, history,
@@ -163,8 +164,15 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
   // and not a button that opens one.
   const [isCreating, setIsCreating]       = useState(guest.draftOnBoot);
   const [newlyBornAgent, setNewlyBornAgent] = useState(null);
-  const [practiceAgent, setPracticeAgent] = useState(null);
-  const [practiceReturn, setPracticeReturn] = useState(null);
+  const arrivedBirth = useRef(null);
+  useLayoutEffect(() => {
+    const id = newlyBornAgent?.id;
+    if (id == null || isCreating || activeTab !== 'home' || arrivedBirth.current === id || !onBirthHome) return;
+    arrivedBirth.current = id;
+    // The welcome page owns the outer scroll. Notify it after the Go home
+    // acknowledgment has replaced the birth card with the actual room.
+    onBirthHome();
+  }, [newlyBornAgent?.id, isCreating, activeTab, onBirthHome]);
   const [lastAgentHand, setLastAgentHand] = useState(null);
   const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
   const lastResultKeyRef = useRef(null);
@@ -256,11 +264,6 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     setAgentChatTarget(null);
     setYouMoneyOpen(false);
     setHomeTableOpen(0);
-  }
-
-  function startPractice(agent) {
-    setPracticeReturn(null);
-    setPracticeAgent(agent);
   }
 
   function navigateToMoney() {
@@ -648,23 +651,6 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     );
   }
 
-  if (practiceAgent) {
-    const leavePractice = () => { setPracticeAgent(null); setPracticeReturn(null); navigateTo('home'); };
-    return <GuidedPractice key={`${getUserId()}:${practiceAgent.id}`} agent={practiceAgent} ownerId={getUserId()} isGuest={guest.isGuest}
-      onExit={leavePractice}
-      onChat={agent => {
-        if (guest.isGuest) { openClaimWall('chat'); return; }
-        setPracticeAgent(null);
-        if (isDesktop) setPracticeReturn({ kind: 'chat', agentId: agent.id });
-        else openAgentChat(agent, { tab: 'home', profileAgent: null });
-      }}
-      onCasino={() => {
-        setPracticeAgent(null);
-        if (isDesktop) setPracticeReturn({ kind: 'casino' });
-        else navigateTo('casino');
-      }} />;
-  }
-
   if (isDesktop) {
     const watchPayload = (payload, agent) => {
       setDesktopWatchAgent(agent || null);
@@ -686,8 +672,6 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     return (
       <Suspense fallback={null}>
       <DesktopHome
-        onPractice={startPractice}
-        practiceReturn={practiceReturn}
         birthHandledId={newlyBornAgent?.id ?? null}
         tableConfig={config}
         sessionEnd={findSessionEnd(history)}
@@ -890,7 +874,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
               still draws it — it just is not a mobile tab any more. */}
           {activeTab === 'home' && (
             <HomeScreen
-              onPractice={startPractice}
+              guideEnabled={!rosterOpen && !guest.wall}
               onReplay={(agent, hand) => replayEvent({agentIds:[agent.id],handNumber:hand.handNumber,origin:'home'})}
               wsUrl={WS_URL}
               onOpenRoster={() => setRosterOpen(true)}

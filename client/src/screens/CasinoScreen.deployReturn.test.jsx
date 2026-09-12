@@ -40,8 +40,10 @@ async function deployInto(room, scope = screen) {
 describe('FIRST-HOUSE-2: the deployed table keeps its room', () => {
   it.each([upstairsRoom, backRoom])('desktop returns to $id after deployment, replacing earlier spectator context', async room => {
     const onDeployed = vi.fn();
-    const props = { onDeployed, onSpectate: vi.fn(), onLeave: vi.fn(), practiceReturn: { kind: 'casino' } };
+    const props = { onDeployed, onSpectate: vi.fn(), onLeave: vi.fn() };
     const view = render(<DesktopHome {...props} />);
+    const home = await screen.findByTestId('home-screen');
+    fireEvent.click(within(home).getByRole('button', { name: 'The door — the casino', exact: true }));
     const floor = await screen.findByTestId('floor-view');
     expect(floor).toHaveAttribute('data-room', 'floor');
     fireEvent.click(await within(floor).findByRole('button', { name: /Watch table table-floor/ }));

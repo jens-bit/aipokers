@@ -15,7 +15,7 @@ const beforeDeal = { ...restingAgent, status: 'playing', activeTableId: tableId,
 const atTable = { ...beforeDeal, presence: 'playing', routine: null,
   location: { where: 'table', tableId, room: 'backroom' }, liveGame: { tableId, blinds: '50/100' } };
 const game = { ...midHandGame, tableId, seats: [{ ...midHandGame.seats[0], playerId: `agent_${beforeDeal.id}` }, midHandGame.seats[1]] };
-const props = { practiceReturn: { kind: 'casino' }, isWatching: true, watchingAgent: beforeDeal,
+const props = { isWatching: true, watchingAgent: beforeDeal,
   tableConfig: { tableId, isSpectator: true }, game: null };
 const roster = () => within(screen.getByTestId('desk-roster'));
 const reads = () => fetchMock.requestsMatching('/api/agents').length;
@@ -28,8 +28,10 @@ beforeEach(() => {
 
 async function initialHome(viewProps = props) {
   const view = render(<DesktopHome {...viewProps} />);
-  await screen.findByTestId('casino-stage');
+  const home = await screen.findByTestId('home-screen');
   await waitFor(() => expect(roster().getByText('home')).toBeInTheDocument());
+  fireEvent.click(within(home).getByRole('button', { name: 'The door — the casino', exact: true }));
+  await screen.findByTestId('casino-stage');
   return view;
 }
 

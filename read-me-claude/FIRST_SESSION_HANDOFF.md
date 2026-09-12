@@ -2,6 +2,8 @@
 
 12 September 2026. [Approved mission](FIRST_SESSION_MISSION.md) · [Five-person playtest](FIRST_SESSION_PLAYTEST.md).
 
+Current local status, validation and Jens's replacement of the separate practice flow are recorded in [In-game introduction](FIRST_RUN_GUIDE_HANDOFF.md). The candidate and integration history below describe earlier revisions; their separate-practice requirements are retired.
+
 ## Local status
 
 Built on the other Astra's completed Home-first/SHOW main `67880fc`, in `artifacts/worktrees/first-session` on `codex/first-session`. The clean local main worktree at `artifacts/worktrees/astra-show` now contains onboarding/chat `5ac7558` and casino/room fixes `23424db`. The unrelated dirty root on `fix/guest-cap` is untouched. The candidate is verified locally. Nothing was pushed or deployed by this task.

@@ -80,6 +80,8 @@ import { useTableReactions } from '../hooks/useTableReactions.js';
 import { BustedName, HandFireworks, resultCelebration, useCelebrationAudio } from './system/HandCelebration.jsx';
 import { PotAward, useWinnerSpeech } from './system/PotAward.jsx';
 import { ActionNarrator } from './system/ActionNarrator.jsx';
+import { ContextHint } from './onboarding/ContextHint.jsx';
+import { useFirstRunGuide } from './onboarding/FirstRunGuide.jsx';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -1448,6 +1450,8 @@ export function WatchScreen({
   // (table.js: "the home game pushes nothing").
   threadRows: threadRowsProp = null,
 }) {
+  const guide = useFirstRunGuide();
+  const guideRoot = useRef(null);
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
   if (!displayNames)  displayNames  = {};
@@ -2083,8 +2087,12 @@ export function WatchScreen({
   }
 
   return (
-    <div className="watch-screen"
+    <div className="watch-screen" ref={guideRoot}
       data-pace-lag={Number.isFinite(paceLag) ? Math.round(paceLag) : 0}>
+
+      {guide.stage === 'live' && game && !seated && !sessionEnd && !error && selectedSeat == null && !threadOpen && !sitOutPending && <ContextHint
+        rootRef={guideRoot} selector=".watch-felt__board" targetChildren=".watch-felt__card" text="You’re watching; players use these shared cards."
+        nextLabel="Got it" onNext={guide.dismiss} onDismiss={guide.dismiss}/>}
 
       <div className="watch-screen__header">
         <button type="button" className="watch-screen__back" onClick={onLeave} aria-label="Leave table">

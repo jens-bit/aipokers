@@ -749,16 +749,13 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
         await pair.screenshot({ path: 'e2e/shots/railbird-home-reference-pair.png' });
         await pair.close();
       }
-      // Practice remains available without consuming the felt's hit area on
-      // short phones. Both choices keep a full touch target at either height.
-      const learn = page.getByRole('button', { name: 'Learn with Loose Cannon', exact: true });
-      for (const control of [learn, page.getByRole('button', { name: 'Not now', exact: true })]) {
-        await expect(control).toBeInViewport({ ratio: 1 });
-        expect((await control.boundingBox()).height).toBeGreaterThanOrEqual(44);
-      }
-      await learn.click();
-      await expect(page.getByTestId('guided-practice')).toHaveAttribute('data-step', 'deal');
-      await expect(page.getByTestId('practice-role')).toHaveText('You are watching. Loose Cannon is playing.');
+      // The old persistent practice bar has been retired. Guidance must not
+      // reserve another row or replace this actual room with a sample hand.
+      await expect(page.locator('.practice-entry')).toHaveCount(0);
+      await expect(page.getByTestId('guided-practice')).toHaveCount(0);
+      const headerBox = await page.getByTestId('room-header').boundingBox();
+      const roomBox = await page.locator('.home1__room').boundingBox();
+      expect(Math.abs(roomBox.y - (headerBox.y + headerBox.height))).toBeLessThanOrEqual(1);
     });
   }
   test('BUG-51: the first-agent action stays clear of the TV and can be clicked', async ({ page }) => {

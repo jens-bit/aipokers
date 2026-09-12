@@ -304,16 +304,6 @@
   color: var(--home-ink);
   border-color: var(--home-edge);
 }
-.home1[data-home-theme] > .practice-entry,
-.home1[data-home-theme] > .home1__practice-column > .practice-entry {
-  background: var(--home-chrome-soft);
-  border-color: var(--home-edge);
-  color: var(--home-ink);
-}
-.home1[data-home-theme] .practice-entry__copy span { color: var(--home-muted); }
-.home1[data-home-theme] .practice-entry .practice-quiet,
-.home1[data-home-theme] .practice-entry .practice-entry__link { color: var(--home-accent); }
-
 /* The conversation is an intentional dark surface even beside a sunlit room. */
 .home1[data-home-theme] > .home-thread .home-thread__band,
 .home1[data-home-theme] > .home-thread .home-thread__sheet,

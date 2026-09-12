@@ -61,7 +61,7 @@ export function DeskHome({
   onDeploy,
   onCasino,
   onCreateAgent,
-  onPractice,
+  guideEnabled = true,
   onFocusTable,
   onWatchTable,
   onSitAtTable,
@@ -105,7 +105,7 @@ export function DeskHome({
       onDeploy={onDeploy}
       onCasino={onCasino}
       onCreateAgent={onCreateAgent}
-      onPractice={onPractice}
+      guideEnabled={guideEnabled}
       panel={panel}
       onPanel={onPanel}
       focusId={focusId}
@@ -163,6 +163,7 @@ export function DeskHome({
               onClose={backToRoom}
             >
               <TableSheet slots={slots} seated={seated} maxSeats={homeGame?.state === 'running' ? homeGame.maxSeats : null} onDraft={onCreateAgent}
+                onClose={backToRoom}
                 game={homeGame} gameKnown={gameKnown} liveTable={liveHomeTable} agents={agents}
                 onWatch={homeGame?.state === 'running' && homeGame.tableId && onWatchTable ? () => { backToRoom(); onWatchTable(homeGame.tableId); } : null}
                 onSit={homeGame?.state === 'running' && homeGame.tableId && onSitAtTable ? () => { backToRoom(); onSitAtTable(homeGame.tableId); } : null}
