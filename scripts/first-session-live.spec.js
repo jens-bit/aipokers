@@ -235,5 +235,15 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   if (!desktop) await expect(page.locator('.watch-screen__header')).toBeInViewport({ ratio: 1 });
   await expect(page.getByTestId('context-hint')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('real-casino-entry.png') });
+  // BUG-143: inspect the real deployed agent without leaving its session.
+  const watchesBeforePanel = gameCommands.filter(type => type === 'watch').length;
+  await page.getByRole('button', { name: 'View your agent at the table', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stats', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Stack at this table', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: desktop ? 'Back to chat' : 'Conversation', exact: true }).click();
+  if (!guestFlow) await expect(page.getByText('I am already home.', { exact: true })).toBeVisible();
+  if (!desktop) await page.getByRole('button', { name: 'Back to table', exact: true }).click();
+  await expect(felt).toBeVisible();
+  expect(gameCommands.filter(type => type === 'watch').length).toBe(watchesBeforePanel);
   expect(errors).toEqual([]);
 });

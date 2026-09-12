@@ -1105,21 +1105,9 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
         threadLines={threadLines}
         onLeave={handleLeave}
         onSitOut={sitOut}
-        // CLEAN-1 (W4-5): Chat leaves the watch screen and lands in his thread,
-        // the same one the floor and the roster open. Only offered when there
-        // is a person to open — without it WatchScreen keeps talking in its own
-        // TABLE tab, which is the behaviour that existed before.
-        onOpenThread={watchedAgent ? () => {
-          // Leaving queues a return; this handler still sees the Watch render,
-          // including the casino passed through during a deployment.
-          const origin = watchOriginRef.current;
-          const resumesThread = origin?.tab === 'chats' && origin.chatAgent?.id === watchedAgent.id;
-          const chatOrigin = resumesThread
-            ? (chatOriginRef.current ?? { tab: 'home', profileAgent: null })
-            : { tab: origin?.tab ?? activeTab, profileAgent: null };
-          handleLeave();
-          openAgentChat(watchedAgent, chatOrigin);
-        } : undefined}
+        // Inspection and private chat belong to the live game. Only the
+        // explicit Leave action disconnects and consumes the Watch origin.
+        privateChatInPlace={!!config.agentId}
         // WATCH-7: the ceremony, once, when the session is over — and the two
         // ways out of the evening it offers. Funding him is the wallet, which
         // is where YOU already keeps the buy-in.

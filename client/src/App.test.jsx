@@ -601,24 +601,22 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
     }
   });
 
-  // W4-5 left WatchScreen's onOpenThread optional and nobody handed it in, so
-  // the button that says Chat opened a tab inside the same screen. It is the
-  // same navigation the floor and the roster use: his thread, by his id.
-  it('CLEAN-1: leaves the watch screen and opens the thread for that agent', async () => {
+  // Jens's in-game correction supersedes CLEAN-1's old leave-before-chat rule.
+  it('BUG-143: private chat and Back keep the same watched table mounted', async () => {
     const user = userEvent.setup();
     render(<App />);
     await watchTheGrinder(user);
 
     await user.click(screen.getByRole('button', { name: 'Chat' }));
 
-    // Off the watch screen, and into his thread — the roster is not what we
-    // land on. CASINO-1: a thread is a person and not a tab, and HOME-2 job 1
-    // left no bar for one to be lit in; what proves we arrived is his composer,
-    // over a room that is no longer on screen.
-    await waitFor(() => expect(document.querySelector('.watch-screen')).toBeNull());
+    const table = document.querySelector('.watch-screen');
+    expect(table).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'The Grinder at the table' })).toBeVisible();
     expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument();
     expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
-    expect(await screen.findByRole('button', { name: 'Back' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to table', exact: true }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.querySelector('.watch-screen')).toBe(table);
     expect(screen.getAllByText('The Grinder').length).toBeGreaterThan(0);
     expect(screen.queryByText('Loose Cannon')).not.toBeInTheDocument();
   });

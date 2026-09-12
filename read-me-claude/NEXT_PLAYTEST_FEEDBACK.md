@@ -20,6 +20,8 @@ Acceptance for the immediate slice: on phone and desktop, enter the casino, expl
 
 ## Next — reported game and navigation problems
 
+12 September implementation update: the in-game agent panel now keeps phone Watch mounted, with private Conversation and Stats; Back/Close returns to the same table. Desktop uses its existing rail for Chat, Hand log and Stats. Private Chat excludes opponent/table chatter, saved history is retained, and draft/pending-reply state survives inspection. Stats show the current served stack and existing attributes with unknown values labeled honestly; they do not reinterpret STAMINA as remaining energy. The live board stays visible above the phone panel. These changes do not complete the remaining Home/funding menu, hand-clarity, timing or broader design work below. Validation and the current resume point are recorded in [CASINO_ENTRY_HANDOFF.md](CASINO_ENTRY_HANDOFF.md).
+
 | Feedback to preserve | Action and acceptance | Status / decision boundary |
 |---|---|---|
 | Clicking the agent should reveal useful stats while the live game remains visible. Jens recalls a glass sheet that folds up; he is unsure whether the game should shrink. | Use the existing in-game sheet pattern as the first design to inspect. Show current session, relevant stats, stamina/heat explanations and contextual actions. Keep the hand running and visible. | Contextual inspection is desired; exact sheet composition and any game resizing are proposals. Prefer no table resize. |

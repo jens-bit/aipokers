@@ -1,0 +1,19 @@
+.thread-sheet.watch-agent-sheet { top: min(calc(var(--wv-board, 37.5%) + 73px), max(0px, calc(100% - 200px))); height: auto; z-index: 11; padding: 8px 14px 12px; background: var(--bg-secondary); }
+.watch-agent-sheet__head { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.watch-agent-sheet__head > div { flex: 1; min-width: 0; }
+.watch-agent-sheet__head strong { display: block; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.watch-agent-sheet__head small { display: block; font-size: 11px; margin-top: 2px; color: var(--text-secondary); }
+.watch-agent-sheet__head button, .watch-agent-sheet__views button { min-height: 44px; padding: 7px 12px; border: 1px solid var(--v5-edge-up); border-radius: 8px; color: var(--text-primary); background: transparent; cursor: pointer; }
+.watch-agent-sheet__views { display: flex; gap: 8px; margin: 6px 0 10px; flex-shrink: 0; }
+.watch-agent-sheet__views button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.watch-agent-sheet__empty { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.watch-agent-sheet .thread-sheet__body { padding-bottom: 8px; scroll-padding-block: 8px; }
+.watch-agent-sheet .watch-agent-stats dl > div:last-child { scroll-margin-bottom: 8px; }
+.watch-agent-sheet .thread-row__text,
+.dsk-panel--watch.is-conversation .thread-row__text { min-width: 0; overflow-wrap: anywhere; }
+.watch-agent-stats { color: var(--text-primary); font-size: 13px; }
+.watch-agent-stats__stack { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0 12px; }
+.watch-agent-stats dl { margin: 0; }
+.watch-agent-stats dl > div { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 0; border-top: 1px solid var(--v5-edge-up); }
+.watch-agent-stats dt small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; }
+.watch-agent-stats dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }

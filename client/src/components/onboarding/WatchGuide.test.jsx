@@ -54,7 +54,7 @@ it('LIVE-GUIDE: OK explains watching, whisper, own agent and opponent without ac
   expect(screen.getByTestId('context-hint-target')).toHaveStyle({ top: '40px', height: '44px' });
   ok(); expect(hint()).toHaveTextContent('Talk to your agent here.');
   expect(guide.stage).toBe('live-chat');
-  ok(); expect(hint()).toHaveTextContent('This is Pebble. Tap to talk.');
+  ok(); expect(hint()).toHaveTextContent('This is Pebble. Tap for stats and chat.');
   expect(guide.stage).toBe('live-agent');
   expect(screen.getByTestId('context-hint-target')).toHaveStyle({ width: '100px', height: '44px' });
   ok(); expect(hint()).toHaveTextContent('An opponent. Tap to see what is known about them.');
@@ -104,7 +104,7 @@ it('LIVE-GUIDE: a guest owner keeps the real chat pointer with an honest sign-in
     expect(screen.getByTestId('context-hint-target')).toHaveStyle({ left: '410px' });
     expect(screen.getByRole('textbox', { name: 'Whisper' })).not.toHaveFocus();
     ok();
-    expect(hint()).toHaveTextContent('This is Pebble. Tap to talk.');
+    expect(hint()).toHaveTextContent('This is Pebble. Tap for stats and chat.');
     expect(onInteract).not.toHaveBeenCalled();
     expect(claim).not.toHaveBeenCalled();
     expect(network).not.toHaveBeenCalled();

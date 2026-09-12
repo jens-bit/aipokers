@@ -23,7 +23,7 @@ const COPY = {
   board: 'You are watching. The AI players make their own decisions.',
   owned: 'You are watching. Your AI agent is playing.',
   chat: 'Talk to your agent here.',
-  ownAgent: `This is ${AGENT.name}. Tap to talk.`,
+  ownAgent: `This is ${AGENT.name}. Tap for stats and chat.`,
   opponent: 'An opponent. Tap to see what is known about them.',
 };
 const VIEWPORTS = [
@@ -31,7 +31,7 @@ const VIEWPORTS = [
   { width: 390, height: 844 }, { width: 1440, height: 900 },
 ];
 
-async function installSession(page, { guest = false, running = true, legacy = false, casino = null } = {}) {
+async function installSession(page, { guest = false, running = true, legacy = false, casino = null, privateChat = false } = {}) {
   const ownerId = guest ? 'guest_first_session' : OWNER;
   const tableId = `home-${ownerId}`;
   const casinoTableId = 'casino-first-session';
@@ -40,6 +40,7 @@ async function installSession(page, { guest = false, running = true, legacy = fa
     blinds: '10/20', smallBlind: 10, bigBlind: 20, seated: 2, pot: 20, board: ['5c', '4h', '8c'],
     seats: [{ seat: 0, name: 'Granite', stack: 2000 }, { seat: 1, name: 'Moss', stack: 2000 }] }] : [];
   const atCasino = { ...AGENT, activeTableId: casinoTableId,
+    chatHistory: privateChat ? [{ role: 'user', content: 'x'.repeat(280) }] : [],
     location: { where: 'table', tableId: casinoTableId, room: rooms[0].id },
     liveGame: { tableId: casinoTableId, blinds: '10/20', pot: 20, street: 'flop' } };
   let record = casino === 'owned' ? atCasino : running ? AGENT : { ...AGENT, routine: { key: 'counts', label: 'counting chips' } };
@@ -59,6 +60,11 @@ async function installSession(page, { guest = false, running = true, legacy = fa
       return route.fulfill({ json: { tableId: casinoTableId, agentId: AGENT.id, agentName: AGENT.name,
         room: rooms[0].id, smallBlind: rooms[0].stakes.smallBlind, bigBlind: rooms[0].stakes.bigBlind,
         stakes: rooms[0].stakes, strategy: {}, sessionStarted: true, joinedExisting: casino === 'join' } });
+    }
+    if (privateChat && request.method() === 'POST' && path === '/api/agents/chat') {
+      expect(request.postDataJSON()).toMatchObject({ existingAgentId: AGENT.id, content: 'Be patient.' });
+      record = { ...record, chatHistory: [{ role: 'user', content: 'Be patient.' }, { role: 'assistant', content: 'I will wait for my spot.' }] };
+      return route.fulfill({ json: { chat: record.chatHistory } });
     }
     if (request.method() !== 'GET') {
       unexpected.push(`${request.method()} ${path}`);
@@ -89,11 +95,15 @@ async function installSession(page, { guest = false, running = true, legacy = fa
     return route.fulfill({ json });
   });
   await page.addInitScript(({ ownerId, guest, initData, agents, rooms, homeGame, legacy, casino, casinoTableId, floorTables }) => {
+    const telegramEvents = new Map();
+    window.__firstSessionViewportChanged = () => telegramEvents.get('viewportChanged')?.forEach(fn => fn({ isStateStable: true }));
     window.Telegram = { WebApp: {
       initData: guest ? '' : initData,
       initDataUnsafe: guest ? {} : { user: { id: Number(ownerId), first_name: 'Jens' } },
       get viewportHeight() { return innerHeight; },
-      ready() {}, expand() {}, disableVerticalSwipes() {}, onEvent() {}, offEvent() {},
+      ready() {}, expand() {}, disableVerticalSwipes() {},
+      onEvent(name, fn) { if (!telegramEvents.has(name)) telegramEvents.set(name, new Set()); telegramEvents.get(name).add(fn); },
+      offEvent(name, fn) { telegramEvents.get(name)?.delete(fn); },
     } };
     if (legacy) localStorage.setItem(`railbird.practice.v1:${JSON.stringify([ownerId, agents[0].id])}`,
       JSON.stringify({ version: 1, step: 3 }));
@@ -386,10 +396,11 @@ test('FIRST-SESSION: guest guidance sends no automatic message or claim request'
 
 for (const { viewport, guest = false, casino = 'start' } of [
   { viewport: { width: 390, height: 590 } }, { viewport: { width: 1440, height: 900 } },
+  { viewport: { width: 390, height: 844 } }, { viewport: { width: 320, height: 590 } },
   { viewport: { width: 390, height: 844 }, guest: true },
   { viewport: { width: 390, height: 590 }, casino: 'join' }, { viewport: { width: 1440, height: 900 }, casino: 'join' },
 ]) {
-  test(`CASINO-ENTRY-1: ${guest ? 'guest' : 'owner'} ${casino === 'join' ? 'populated' : 'quiet'} floor starts the named agent and guides owned Watch at ${viewport.width}`, async ({ page }, testInfo) => {
+  test(`CASINO-ENTRY-1: ${guest ? 'guest' : 'owner'} ${casino === 'join' ? 'populated' : 'quiet'} floor starts the named agent and guides owned Watch at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const fixture = await installSession(page, { running: false, casino, guest });
     await openHome(page); await advanceToTable(page);
@@ -441,9 +452,9 @@ for (const { viewport, guest = false, casino = 'start' } of [
     expect(fixture.unexpected).toEqual([]); expect(fixture.errors).toEqual([]);
     expect((await page.evaluate(() => window.__firstSessionWire)).filter(message => ['join', 'action', 'deal', 'chat'].includes(message.type))).toEqual([]);
   });
-  if (!guest && casino === 'start') test(`CASINO-ENTRY-2: opening an owned table preserves ownership at ${viewport.width}`, async ({ page }, testInfo) => {
+  if (!guest && casino === 'start') test(`CASINO-ENTRY-2: opening an owned table preserves ownership at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    const fixture = await installSession(page, { running: false, casino: 'owned', legacy: true });
+    const fixture = await installSession(page, { running: false, casino: 'owned', legacy: true, privateChat: true });
     await page.goto('/');
     await expect(page.getByTestId('home-screen')).toBeVisible();
     await page.getByTestId('home-door').click();
@@ -457,7 +468,56 @@ for (const { viewport, guest = false, casino = 'start' } of [
     await expect(felt.locator('.seat-ghost')).toContainText('Granite');
     expect(await page.evaluate(() => window.__firstSessionWire.filter(message => message.type === 'watch')))
       .toContainEqual(expect.objectContaining({ tableId: fixture.casinoTableId, agentId: AGENT.id }));
-    expect(fixture.requests.filter(request => request.method !== 'GET')).toEqual([]);
+    await page.evaluate(() => { window.__companionFelt = document.querySelector('.watch-felt'); });
+    const beforeBounds = await felt.boundingBox();
+    const beforeWatch = await page.evaluate(() => window.__firstSessionWire.filter(m => m.type === 'watch').length);
+    const composer = page.getByPlaceholder('Whisper to him…', { exact: true });
+    await composer.fill('Be patient.');
+    await page.getByRole('button', { name: 'View your agent at the table', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Stats', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByText('Stack at this table', { exact: true })).toBeVisible();
+    if (viewport.width < 1100) {
+      const panel = page.locator('.watch-agent-sheet');
+      await expect(panel).toHaveCSS('opacity', '1');
+      expect(await panel.evaluate(el => Number(getComputedStyle(el).zIndex)), 'agent information sits above the decorative hero')
+        .toBeGreaterThan(await felt.locator('.watch-hero').evaluate(el => Number(getComputedStyle(el).zIndex)));
+      const panelBounds = await panel.boundingBox(), boardBounds = await felt.locator('.watch-felt__board').boundingBox();
+      expect(panelBounds.y, 'the board stays above the agent panel').toBeGreaterThanOrEqual(boardBounds.y + boardBounds.height);
+    }
+    await page.screenshot({ path: testInfo.outputPath('in-game-agent-stats.png') });
+    const desktop = viewport.width >= 1100;
+    if (!desktop) {
+      const lastStat = page.locator('.watch-agent-stats dl > div').last();
+      await lastStat.scrollIntoViewIfNeeded();
+      await expect(lastStat).toBeInViewport({ ratio: 1 });
+      await expect(page.getByRole('button', { name: 'Back to table', exact: true })).toBeInViewport({ ratio: 1 });
+    }
+    await page.getByRole('button', { name: desktop ? 'Back to chat' : 'Conversation', exact: true }).click();
+    if (!desktop) await expect.poll(() => page.locator('.watch-agent-sheet .thread-sheet__body')
+      .evaluate(el => el.scrollWidth - el.clientWidth), 'long private messages wrap within the phone panel').toBeLessThanOrEqual(1);
+    await expect(composer).toHaveValue('Be patient.');
+    await composer.press('Enter');
+    await expect(page.getByText('I will wait for my spot.', { exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('in-game-agent-chat.png') });
+    if (!desktop && viewport.height === 844) {
+      // A keyboard can leave only this much height for the Mini App.
+      await page.setViewportSize({ width: viewport.width, height: 420 });
+      await page.evaluate(() => window.__firstSessionViewportChanged());
+      await expect(composer).toBeInViewport({ ratio: 1 });
+      await expect(page.getByRole('button', { name: 'Back to table', exact: true })).toBeInViewport({ ratio: 1 });
+      await expect.poll(() => page.locator('.watch-agent-sheet .thread-sheet__body')
+        .evaluate(el => el.clientHeight), 'the conversation remains readable above the keyboard').toBeGreaterThanOrEqual(40);
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => window.__firstSessionViewportChanged());
+    }
+    if (!desktop) {
+      await page.getByRole('button', { name: 'Back to table', exact: true }).click();
+      await expect(page.getByRole('dialog', { name: `${AGENT.name} at the table` })).toHaveCount(0);
+    }
+    expect(await felt.boundingBox()).toEqual(beforeBounds);
+    expect(await page.evaluate(() => window.__companionFelt === document.querySelector('.watch-felt'))).toBe(true);
+    expect(await page.evaluate(() => window.__firstSessionWire.filter(m => m.type === 'watch').length)).toBe(beforeWatch);
+    expect(fixture.requests.filter(request => request.method !== 'GET')).toEqual([expect.objectContaining({ method: 'POST', path: '/api/agents/chat' })]);
     expect(fixture.unexpected).toEqual([]); expect(fixture.errors).toEqual([]);
     await expect(page.getByTestId('context-hint')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('floor-owned-watch.png') });

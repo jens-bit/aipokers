@@ -563,6 +563,8 @@ export function DesktopHome({
 function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut, guideBlocked = false, sessionEnd = null }) {
   const { chat, sending, send, error } = useAgentThread(agent);
   const composerRef=useRef(null);
+  const [railView, setRailView] = useState('chat');
+  useEffect(() => setRailView('chat'), [agent?.id, game?.sessionId, game?.tableId]);
   const heroSeat = heroSeatOf(game,agent.name,mySeat);
 
   // WATCH-8 job 3: the stored record of this stay. At 1440 the rail is always
@@ -586,12 +588,12 @@ function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines,
       <div className="dsk-stage dsk-stage--felt">
         <DeskCasinoTable
           guideChatRef={composerRef}
-          onTapHero={()=>composerRef.current?.focus()}
+          onTapHero={() => setRailView('stats')}
           game={game}
           agent={agent}
           mySeat={mySeat}
           lastDecision={lastDecision}
-          guideBlocked={guideBlocked}
+          guideBlocked={guideBlocked || railView === 'stats'}
           sessionEnd={sessionEnd}
           onBack={onBack}
           onSitOut={onSitOut}
@@ -600,6 +602,8 @@ function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines,
       <WatchRail
         composerRef={composerRef}
         conversationOnly
+        view={railView}
+        onViewChange={setRailView}
         agent={agent}
         game={game}
         lastDecision={lastDecision}

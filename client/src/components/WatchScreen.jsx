@@ -50,6 +50,7 @@ import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
 import { OwnerHero } from './system/OwnerHero.jsx';
 import { SitStrip } from './system/SitStrip.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
+import { WatchAgentSheet } from './system/WatchAgentSheet.jsx';
 import { handResult, seatName } from '../lib/handResult.js';
 // WATCH-10 job 4: ONE THOUSANDS SEPARATOR ON THE FELT. Every figure on this
 // screen went through toLocaleString, which groups by the device's locale — so
@@ -1431,6 +1432,7 @@ export function WatchScreen({
   // this is what keeps an open sheet current without it polling.
   threadLines = null,
   onOpenThread,
+  privateChatInPlace = false,
   paceFrame,
   paceLag,
   // WATCH-7 · the session-finished signal, and the two ways out of the evening
@@ -1482,6 +1484,8 @@ export function WatchScreen({
   // ---- Agent mood polling (the header chip, and now his face on the felt) ----
   var agentId = config ? config.agentId : null;
   var publicWatch = !seated && !agentId;
+  const privateAgent = String(guideOwner.id) === String(agentId) ? guideOwner.agent : null;
+  const privateSeed = useRef(null);
   useEffect(function() {
     if (!agentId) return;
     var cancelled = false;
@@ -1502,6 +1506,14 @@ export function WatchScreen({
     var id = setInterval(load, 10000);
     return function() { cancelled = true; clearInterval(id); };
   }, [agentId]);
+
+  useEffect(() => {
+    if (!privateChatInPlace || !privateAgent || privateSeed.current === agentId) return;
+    privateSeed.current = agentId;
+    const history = (Array.isArray(privateAgent.chatHistory) ? privateAgent.chatHistory : []).filter(m =>
+      m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string');
+    setAgentThread(prev => prev.length ? prev : history.map((m, i) => ({ ...m, _id: `saved-${i}` })));
+  }, [privateChatInPlace, privateAgent, agentId]);
 
   // ── WATCH-8 · job 1 · THE THREAD SURVIVES ────────────────────────────────
   // The sheet used to be assembled from whatever the socket happened to be
@@ -1604,6 +1616,7 @@ export function WatchScreen({
   var whisperTimers = useRef([]);
   useEffect(function() {
     var token = ++agentConversation.current;
+    privateSeed.current = null;
     agentSendBusy.current = false;
     setAgentLoading(false);
     setAgentThread([]);
@@ -1923,6 +1936,7 @@ export function WatchScreen({
   // one closes the other. The felt itself never moves.
   var [selectedSeat, setSelectedSeat] = useState(null);
   var [threadOpen, setThreadOpen] = useState(false);
+  const [agentView, setAgentView] = useState('chat');
 
   var toggleSeat = useCallback(function(seat) {
     setThreadOpen(false);
@@ -1933,10 +1947,11 @@ export function WatchScreen({
   }, []);
 
   var openChat = useCallback(function(ctx) {
-    if (onOpenThread) { onOpenThread(ctx || null); return; }
+    if (onOpenThread && !privateChatInPlace) { onOpenThread(ctx || null); return; }
+    setAgentView(ctx?.view === 'stats' ? 'stats' : 'chat');
     setSelectedSeat(null);
     setThreadOpen(true);
-  }, [onOpenThread]);
+  }, [onOpenThread, privateChatInPlace]);
 
   // Opening the sheet is the moment the record has to be current; a reconnect
   // is the other one, and the hook owns both.
@@ -2060,6 +2075,10 @@ export function WatchScreen({
         onClose={function() { setSelectedSeat(null); }}
       />
     );
+  } else if (threadOpen && privateChatInPlace && agentId) {
+    overlay = <WatchAgentSheet agent={privateAgent} name={agentName || 'Your agent'}
+      seat={heroSeatRow} chat={agentThread} pending={agentLoading}
+      view={agentView} onView={setAgentView} onClose={() => setThreadOpen(false)}/>;
   } else if (threadOpen) {
     // Everything the felt has no room for lives in the sheet's own furniture:
     // the sound switch, the prediction beat behind its flag, and — between
@@ -2113,7 +2132,9 @@ export function WatchScreen({
         blocked={(!!agentId && String(guideOwner.id) !== String(agentId)) || seated || !!sessionEnd || !!error || selectedSeat != null || threadOpen || sitOutPending || connection === 'reconnecting'}/>
 
       <div className="watch-screen__header">
-        <button type="button" className="watch-screen__back" onClick={onLeave} aria-label="Leave table">
+        <button type="button" className="watch-screen__back"
+          onClick={threadOpen && privateChatInPlace ? () => setThreadOpen(false) : onLeave}
+          aria-label={threadOpen && privateChatInPlace ? 'Close agent panel' : 'Leave table'}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
@@ -2124,7 +2145,7 @@ export function WatchScreen({
         </span>
         {!seated && !publicWatch && <MoodChip mood={mood} small />}
         <StateTag state={state} compact />
-        {onOpenThread && <MuteToggle compact/>}
+        {(onOpenThread || privateChatInPlace) && <MuteToggle compact/>}
         <div style={{ flex: 1 }} />
         <button
           type="button"
@@ -2143,8 +2164,8 @@ export function WatchScreen({
         agentFatigue={heroFatigueStage}
         cost={pinnedCost}
         whispers={whispers}
-        onTapHero={publicWatch ? () => toggleSeat(heroSeatIdx) : function() { openChat(); }}
-        heroActionLabel={publicWatch && heroSeatRow ? 'Read ' + seatName(heroSeatIdx, game.seats) : undefined}
+        onTapHero={publicWatch ? () => toggleSeat(heroSeatIdx) : function() { openChat({ view: 'stats' }); }}
+        heroActionLabel={publicWatch && heroSeatRow ? 'Read ' + seatName(heroSeatIdx, game.seats) : privateChatInPlace ? 'View your agent at the table' : undefined}
         overlay={ceremonyNode ? null : overlay}
         toast={toastNode}
         heroStackShown={queued ? null : heroStackTicked}
@@ -2176,7 +2197,7 @@ export function WatchScreen({
           // BUGS-A job 11: while he is answering, and at a table where there is
           // no agent of yours to answer. A composer that takes a line and drops
           // it is worse than one that says it cannot take it.
-          disabled={agentLoading || !agentId}
+          disabled={agentLoading || !agentId || (privateChatInPlace && !privateAgent)}
         />
       )}
 

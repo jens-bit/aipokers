@@ -12,6 +12,7 @@ import { equityPct, phaseOf } from './DeskTableStage.jsx';
 import { RiverAttrPanel } from '../AnalysisPanel.jsx';
 import { ThreadRow } from '../system/ThreadSheet.jsx';
 import { mergeThread } from '../../lib/thread.js';
+import { WatchAgentStats } from '../system/WatchAgentStats.jsx';
 
 export function AnalysisPanel({ title, action, onAction, children }) {
   return (
@@ -54,9 +55,17 @@ export function WatchRail({
   // be awake for, so a reconnect emptied it exactly as it emptied the phone's.
   stored = [], readOnly = false, conversationOnly = false,
   draft, onDraftChange, onSend, sending, onClose, composerRef, error = '',
+  view, onViewChange,
 }) {
-  const [handLog, setHandLog] = useState(false);
-  useEffect(() => setHandLog(false), [agent?.id, game?.sessionId, game?.tableId]);
+  const [localView, setLocalView] = useState('chat');
+  useEffect(() => setLocalView('chat'), [agent?.id, game?.sessionId, game?.tableId]);
+  const canShowStats = conversationOnly && !readOnly && !!agent;
+  const requestedView = view ?? localView;
+  const activeView = requestedView === 'hand-log' ? 'hand-log'
+    : requestedView === 'stats' && canShowStats ? 'stats' : 'chat';
+  const handLog = activeView === 'hand-log', showStats = activeView === 'stats';
+  const privateChat = canShowStats && activeView === 'chat';
+  const changeView = next => { setLocalView(next); onViewChange?.(next); };
   const between = phaseOf(game) === 'between';
   const heroDecision = lastDecision?.seat === heroSeat ? lastDecision : null;
 
@@ -70,14 +79,12 @@ export function WatchRail({
   const stats = agent?.careerStats;
   const lastHand = Array.isArray(hands) && hands.length ? hands[0] : null;
 
-  // HIM / YOU / TABLE, in the order it happened — the same four registers the
-  // phone's sheet draws, from the same component, so the two cannot disagree
-  // about who said what.
-  const liveRows = [
-    ...(heroDecision?.reasoning
-      ? [{ id: 'live', kind: 'him', category: 'decision', who: 'HIM', text: heroDecision.reasoning, t: Date.now() }]
-      : []),
-    ...(Array.isArray(thread) ? thread : []).map((m, i) => {
+  // Only saved private messages and this conversation's pending turn belong
+  // in owner Chat. Table speech can share a category or ID with these lines;
+  // neither makes it part of the private conversation.
+  const privateRows = (Array.isArray(thread) ? thread : [])
+    .filter(m => ['user', 'assistant'].includes(m?.role) && typeof m.content === 'string')
+    .map((m, i) => {
       const you = m.role === 'user';
       return {
         id: m._id ?? `t${i}`,
@@ -87,15 +94,20 @@ export function WatchRail({
         text: m.content,
         t: m.t ?? null,
       };
-    }),
+    });
+  const liveRows = [
+    ...(heroDecision?.reasoning
+      ? [{ id: 'live', kind: 'him', category: 'decision', who: 'HIM', text: heroDecision.reasoning, t: Date.now() }]
+      : []),
+    ...privateRows,
   ];
 
   // The record and what is being said now, in one order — by id, stored copy
   // wins. The same merge the phone's sheet runs, from the same module.
   const tableRows = mergeThread(Array.isArray(stored) ? stored : [], liveRows);
-  // Only explicitly routine events are hidden. A historical or unfamiliar
-  // line can be speech, so it remains visible along with every cost/result.
-  const visibleRows = conversationOnly && !handLog
+  // Public Chat keeps speech, results and unknown events. The complete table
+  // record remains available in Hand log for both viewers.
+  const visibleRows = privateChat ? privateRows : conversationOnly && !handLog
     ? tableRows.filter(row => row.cost || !['action', 'decision'].includes(row.category))
     : tableRows;
 
@@ -105,18 +117,18 @@ export function WatchRail({
         title={agent?.name || 'At the table'}
         sub={agent?.name ? (between ? 'BETWEEN HANDS' : 'AT THE TABLE') : null}
         actions={<MuteToggle compact/>}
-        onClose={onClose}
+        onClose={showStats ? () => changeView('chat') : onClose}
       />
       {conversationOnly && <div style={{ padding: '8px 14px', flexShrink: 0, borderBottom: '1px solid var(--sys-border, #303034)' }}>
         <div style={{ fontSize: 11, color: 'var(--sys-muted, #B8B8BF)', marginBottom: 8 }}>
           {agent && !readOnly ? 'Watching your agent' : 'Watching this table'}
         </div>
         <div role="group" aria-label="Table conversation view" style={{ display: 'flex', gap: 6 }}>
-          {[['Chat', false], ['Hand log', true]].map(([label, log]) => <button
-            key={label} type="button" aria-pressed={handLog === log} onClick={() => setHandLog(log)}
+          {[['Chat', 'chat'], ['Hand log', 'hand-log'], ...(canShowStats ? [['Stats', 'stats']] : [])].map(([label, tab]) => <button
+            key={label} type="button" aria-pressed={activeView === tab} onClick={() => changeView(tab)}
             style={{ minHeight: 32, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', font: 'inherit', fontSize: 12,
               border: '1px solid var(--sys-border, #303034)', color: 'var(--sys-text, #EDEDED)',
-              background: handLog === log ? 'var(--sys-panel-2, #24242B)' : 'transparent' }}
+              background: activeView === tab ? 'var(--sys-panel-2, #24242B)' : 'transparent' }}
           >{label}</button>)}
         </div>
       </div>}
@@ -125,12 +137,16 @@ export function WatchRail({
             here, in order, whoever said it. On the phone this is a sheet you
             pull up; at 1440 there is room for it to be always open, which is
             what the ref says on it. */}
-        <AnalysisPanel title={conversationOnly ? null : "The table"}>
+        {showStats ? <>
+          <AnalysisPanel action="Back to chat" onAction={() => changeView('chat')}>
+            <WatchAgentStats agent={agent} seat={game?.seats?.[heroSeat]} />
+          </AnalysisPanel>
+        </> : <AnalysisPanel title={conversationOnly ? null : "The table"}>
           {visibleRows.length === 0
-            ? <div className="dsk-apanel__empty">{conversationOnly && !handLog && tableRows.length
+            ? <div className="dsk-apanel__empty">{privateChat ? 'No private messages yet.' : conversationOnly && !handLog && tableRows.length
               ? 'No conversation yet. Follow each action in Hand log.' : 'Nothing said at this table yet.'}</div>
             : visibleRows.map((r) => <ThreadRow key={r.id} row={r} />)}
-        </AnalysisPanel>
+        </AnalysisPanel>}
 
         {!readOnly && !conversationOnly && <><AnalysisPanel title="Live analysis">
           {heroDecision?.reasoning && !between && (

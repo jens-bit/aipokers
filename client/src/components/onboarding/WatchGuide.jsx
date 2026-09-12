@@ -28,7 +28,7 @@ export function WatchGuide({ rootRef, game, heroSeat, ownedAgent = null, private
       ? 'You are watching. Your AI agent is playing.'
       : `You are watching. The ${seats.some(isAI) ? 'AI players' : 'players'} make their own decisions.` },
     'live-chat': owned ? { root: chatRoot, selector: chatRef ? 'input, textarea' : '.watch-composer__input', text: isGuest() ? 'Sign in to talk to your agent here.' : 'Talk to your agent here.' } : null,
-    'live-agent': owned ? { root: rootRef, selector: `.watch-felt[data-watch-hero-seat="${ownedSeat}"] .watch-hero__body > .mood-ghost`, text: `This is ${ownedAgent.name || 'your agent'}. Tap to talk.` } : null,
+    'live-agent': owned ? { root: rootRef, selector: `.watch-felt[data-watch-hero-seat="${ownedSeat}"] .watch-hero__body > .mood-ghost`, text: `This is ${ownedAgent.name || 'your agent'}. Tap for stats and chat.` } : null,
     'live-opponent': opponentSeat >= 0 ? { root: rootRef, selector: `.watch-felt__seat[data-watch-seat="${opponentSeat}"] .seat-ghost`, text: 'An opponent. Tap to see what is known about them.' } : null,
   };
   const index = order.indexOf(guide.stage);

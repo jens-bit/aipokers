@@ -182,7 +182,7 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     expect(await screen.findByTestId('home-screen')).toBeVisible();
   });
 
-  it('Watch Chat after deployment resumes the original thread and returns Home', async () => {
+  it('BUG-143: Watch Chat closes to the game, then Leave restores the original thread and Home', async () => {
     const user = userEvent.setup();
     render(<App />);
     await openHomeAgent(user, restingAgent.name);
@@ -191,8 +191,13 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     await user.click(await screen.findByRole('button', { name: 'Deploy', exact: true }));
     await user.click(await screen.findByRole('button', { name: 'Deal him in' }));
     await waitForWatch();
+    const watchedTable = document.querySelector('.watch-screen');
     await user.click(screen.getByRole('button', { name: 'Chat', exact: true }));
     await screen.findByPlaceholderText('Whisper to him…');
+    await user.click(screen.getByRole('button', { name: 'Close agent panel', exact: true }));
+    expect(document.querySelector('.watch-screen')).toBe(watchedTable);
+    await user.click(screen.getByRole('button', { name: 'Leave table', exact: true }));
+    expect(draft()).toHaveValue('Finish writing after the game.');
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
     expect(await screen.findByTestId('home-screen')).toBeVisible();
     await openHomeAgent(user, restingAgent.name);
@@ -205,11 +210,20 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     await openHomeAgent(user, playingAgent.name);
     await user.click(screen.getByRole('button', { name: 'Watch live game' }));
     await waitForWatch();
+    let watchSocket;
+    await waitFor(() => {
+      act(() => {
+        for (const socket of socketMock.instances) if (socket.readyState === 0) socket.open();
+      });
+      // Home also has a floor socket. Deliver the table's final event to the
+      // connection that actually watched it, regardless of creation order.
+      watchSocket = socketMock.instances.findLast(socket => socket.readyState === 1 &&
+        socket.sent.some(message => message.type === 'watch' && message.tableId === playingAgent.activeTableId));
+      expect(watchSocket).toBeTruthy();
+    });
     act(() => {
-      const socket = socketMock.last();
-      socket.open();
-      socket.emit({ type: 'state', yourSeat: 0, state: midHandGame });
-      socket.emit({ type: 'table_closed', reason: 'Session complete' });
+      watchSocket.emit({ type: 'state', yourSeat: 0, state: midHandGame });
+      watchSocket.emit({ type: 'table_closed', reason: 'Session complete' });
     });
     await waitFor(() => expect(document.querySelector('.watch-ceremony')).toBeTruthy());
     const exit = await screen.findByRole('button', { name: 'Back home', exact: true });

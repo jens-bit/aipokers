@@ -789,7 +789,7 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     await expect.poll(()=>page.evaluate(()=>window.__casinoWatchSent.some(m=>m.type==='watch'))).toBe(true);
     const sent=await page.evaluate(()=>window.__casinoWatchSent.find(m=>m.type==='watch'));
     expect(sent.tableId).toBe(tableId);
-    if(owned){expect(sent.agentId).toBe('a3');await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await page.getByRole('button',{name:'Open the thread',exact:true}).click();await expect(page.getByPlaceholder('Whisper to him…')).toBeFocused();}
+    if(owned){expect(sent.agentId).toBe('a3');await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await page.getByRole('button',{name:'View your agent at the table',exact:true}).click();await expect(page.getByRole('button',{name:'Stats',exact:true})).toHaveAttribute('aria-pressed','true');await page.getByRole('button',{name:'Back to chat',exact:true}).click();await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();}
     else {expect(sent.agentId).toBeNull();await expect(page.getByPlaceholder('Whisper to him…')).toHaveCount(0);await expect(page.getByText('Live analysis',{exact:true})).toHaveCount(0);await expect(page.locator('.watch-hero__cards')).toHaveText('');}
     await page.getByRole('button',{name:'Sound on',exact:true}).click();
     await expect(page.getByRole('button',{name:'Sound off',exact:true})).toHaveAttribute('aria-pressed','true');

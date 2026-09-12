@@ -28,7 +28,7 @@ export function DeskCasinoTable({ game, agent, mySeat, lastDecision, notice, onB
       blocked={seated || !!sessionEnd || !!notice || guideBlocked || selectedSeat != null}/>
     <section className="dsk-casino-table" data-testid="desk-casino-table" aria-label={name ? name+' at the table' : 'The casino table'} style={{width:900*scale,height:648*scale}}>
       <div className="dsk-casino-table__scene" style={{transform:'scale('+scale+')'}}>
-        <WatchFelt heroActionLabel={onTapHero ? "Open the thread" : "Read this player"} onTapHero={onTapHero ?? (()=>setSelectedSeat(heroSeat))} bubbles={bubbles} game={game} mySeat={heroSeat} lastDecision={lastDecision}
+        <WatchFelt heroActionLabel={onTapHero ? "View your agent at the table" : "Read this player"} onTapHero={onTapHero ?? (()=>setSelectedSeat(heroSeat))} bubbles={bubbles} game={game} mySeat={heroSeat} lastDecision={lastDecision}
           agentMood={typeof mood==='string'?mood:mood?.state} agentHeat={mood?.heat}
           agentAccent={hero?.accentColor ?? agent?.accentColor} agentFatigue={hero?.fatigue ?? agent?.fatigue}
           selectedSeat={selectedSeat} onSelectSeat={seat=>setSelectedSeat(selectedSeat===seat?null:seat)}
