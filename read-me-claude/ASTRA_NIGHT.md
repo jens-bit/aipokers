@@ -102,3 +102,5 @@ Resume from: run single HOME-3 test:all, record gates and merge locally if green
 HOME-3 final gate on f0dc718: single test:all passed. Server134 passed/two skips, client2634 passed/two existing todo, gameplay7 passed (89.51s). All six affected built journeys passed on their first run; no new comparison pair or native abort. Root inspected the phone Profile, human hand, Upstairs return and desktop Watch. Source/support hashes and actual paths are above.
 
 Resume from: record HOME-3 local merge, then finish the fourth job only: SHOW-4. Existing candidate and reviewed followups remain on their isolated branches. No fifth job; original18:28UTC deadline retained. Nothing pushed.
+
+HOME-3 local main merge: d37506d. Resume from: SHOW-4, the final revised job.
