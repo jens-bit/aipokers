@@ -173,6 +173,7 @@ export function HomeOne({
   // queueing his line would be the same as swallowing it.
   news = false,
   dealt = false,
+  homeItem = null,
   walking = false,
   crossing = null,
   away = false,
@@ -184,7 +185,9 @@ export function HomeOne({
   carryHandlers = null,
   onClick,
 }) {
-  const r = presentRoutine(agent);
+  const fetching = homeItem && !carried && !away;
+  // Transient accepted action from HOME_STATE, not another server routine.
+  const r = fetching ? { key: 'fridge', label: 'at the fridge', pose: 'rest' } : presentRoutine(agent);
   const mood = agent?.mood?.state ?? 'neutral';
   const heat = agent?.mood?.heat ?? 45;
   const fatigue = fatigueOf(agent);
@@ -206,6 +209,7 @@ export function HomeOne({
       className={`home-one${refusing ? ' is-refusing' : ''}${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
       data-agent={agent?.id}
       data-routine={r.key}
+      data-home-item-phase={fetching ? homeItem.phase : undefined}
       data-spot={at?.spot}
       data-walking={walking ? 'true' : 'false'}
       data-crossing={crossing}
@@ -221,7 +225,7 @@ export function HomeOne({
       // is held, or he would lag a frame behind the thumb.
       style={{ ...(carried ? { left: carried.x, top: carried.y, zIndex: 950 }
         : { left: at.x, top: at.y, zIndex: Math.round(at.y) }),
-        '--home-idle-phase': `${walking || carried || away ? 0 : idlePhase(agent?.id)}ms`,
+        '--home-idle-phase': `${walking || carried || away || fetching ? 0 : idlePhase(agent?.id)}ms`,
         '--home-speech-top': (size * .65) + 'px', '--home-bubble-offset': (size / 2 + 8) + 'px',
         '--home-room-speech-top': (size / 2) + 'px', '--home-room-bubble-offset': roomBubbleOffset(size) + 'px' }}
       onClick={away ? undefined : onClick}
@@ -285,6 +289,14 @@ export function HomeOne({
 
         {(!r.back || carried) ? <GhostHandLayer className="home-one__hands" pose={pose} size={size} grip={SEAT_GRIP} /> : null}
         {!walking && !carried && r.prop ? <RoutineProp kind={r.prop} size={size} /> : null}
+        {fetching && homeItem.phase === 'back' && homeItem.item === 'snack' ? <span data-testid="home-item-snack" aria-hidden style={{
+          position: 'absolute', right: -5, top: size * 0.5, width: 12, height: 8,
+          borderRadius: 2, background: '#C9A227', border: '1px solid #7A6217',
+        }} /> : null}
+        {fetching && homeItem.phase === 'back' && homeItem.item === 'beer' ? <span data-testid="home-item-beer" aria-hidden style={{
+          position: 'absolute', left: size / 2 + 24, top: size - 12, width: 6, height: 15,
+          borderRadius: '2px 2px 3px 3px', background: 'rgba(122,168,138,0.8)', borderTop: '2px solid #7AA88A', zIndex: 40,
+        }} /> : null}
       </span>
       </span>
     </button>

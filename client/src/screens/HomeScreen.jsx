@@ -65,6 +65,7 @@ import { accentFor } from '../components/floor/atoms.jsx';
 import { identitiesFor } from '../lib/identity.js';
 import { placeAgent } from '../lib/place.js';
 import { useCarry } from '../hooks/useCarry.js';
+import { HOME_WALK_MS, useHomeItemMotion } from '../components/home/homeItemMotion.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
@@ -72,7 +73,7 @@ import { useWallet } from '../hooks/useWallet.js';
 import '../styles/home1.css';
 
 // Later mood-home2 WALKS: departure 2.2s, homecoming 1.9s; an ordinary room crossing stays 1.6s.
-export const WALK_MS = 1600;
+export const WALK_MS = HOME_WALK_MS;
 export const CROSSING_MS = { room: WALK_MS, out: 2200, home: 1900 };
 
 // How long the money line rides above a returning agent. The ref: "the session
@@ -187,7 +188,8 @@ export function useBirthWalk(agents, positions, doorSpot = DOOR_SPOT) {
 // thing this function should ever be able to produce.
 // F10/HomeGame keeps the near player larger than the others. Bubble geometry
 // uses this same size, so reducing artwork never leaves a second collision box.
-function homeBodySize(agent, at, geometry) {
+function homeBodySize(agent, at, geometry, fetching = false) {
+  if (fetching) return geometry.width === PHONE_ROOM.width ? 44 : geometry.bodySize;
   const seated = at?.seat != null;
   if (geometry.width !== PHONE_ROOM.width) return seated ? geometry.seatedSize : geometry.bodySize;
   if (seated) return at.seat === 0 ? 50 : 44;
@@ -457,7 +459,10 @@ export function HomeScreen({
   );
   // BUG-32: a newborn stands in the doorway for one beat first, so the walk
   // machinery below has a previous position to cross him from.
-  const positions = useBirthWalk(agents, settled, geometry.doorSpot);
+  const birthPositions = useBirthWalk(agents, settled, geometry.doorSpot);
+  const [roomCarryId, setRoomCarryId] = useState(null);
+  const itemMotion = useHomeItemMotion({ agents, positions: birthPositions, geometry, ownerScope: getUserId(), carriedId: roomCarryId });
+  const positions = itemMotion.positions;
   const walking = useWalks(positions);
 
   useEffect(() => {
@@ -491,10 +496,10 @@ export function HomeScreen({
     // `nickname` is what the pill writes when the name is too long for it
     // (HOME-2 job 2), so the queue has to measure the same box the room draws.
     return {
-      id: String(agent.id), x: at.x, y: at.y, size: homeBodySize(agent, at, geometry),
+      id: String(agent.id), x: at.x, y: at.y, size: homeBodySize(agent, at, geometry, itemMotion.active?.id === String(agent.id)),
       name: agent.name, nickname: agent.nickname ?? null, guest: !!agent.guest,
     };
-  }).filter(Boolean), [home, positions, geometry]);
+  }).filter(Boolean), [home, positions, geometry, itemMotion.active]);
 
   // ONE line per man, ranked. He can easily have three at once — an unanswered
   // want, a session he has not been told about, and a subject he is studying —
@@ -571,6 +576,9 @@ export function HomeScreen({
     onRefuse: id => setSaidOnDrop({ id: String(id), text: 'I am in a hand.', gold: true, refused: true }),
     enabled: true,
   });
+  // Carry needs the room's drop callback; mirror its identity before paint so
+  // a pickup cancels the trip without a second body or a competing walk.
+  useLayoutEffect(() => { setRoomCarryId(carry?.id ?? null); }, [carry?.id]);
 
   useEffect(() => {
     if (!carryAgentId || !flatEl || !home.some(a => String(a.id) === String(carryAgentId))) return;
@@ -689,6 +697,7 @@ export function HomeScreen({
       // every other fixture's, and it is the SAME surface either door opens.
       onSafe={desktop ? () => setRail('safe') : () => setSafeOpen(true)}
       onFridge={desktop ? () => setRail('fridge') : () => setFridgeOpen(true)}
+      fridgeLit={itemMotion.fridgeLit}
       // C9: the room's door is the casino destination on phone and desktop.
       onDoor={onCasino ? () => onCasino() : undefined}
       // THE TABLE HAS ONE DESTINATION, and it is the sheet.
@@ -770,7 +779,8 @@ export function HomeScreen({
         const id = String(agent.id);
         const isAway = (agent.location?.where ?? 'home') !== 'home';
         const seated = at.seat !== null && at.seat !== undefined;
-        const size = homeBodySize(agent, at, geometry);
+        const homeItem = itemMotion.active?.id === id ? itemMotion.active : null;
+        const size = homeBodySize(agent, at, geometry, !!homeItem);
         const held = carry?.id === id ? carry : null;
         const dropped = saidOnDrop?.id === id ? saidOnDrop : null;
         const bubble = dropped
@@ -784,6 +794,7 @@ export function HomeScreen({
             identity={identities.get(id) ?? null}
             accent={accentFor(agent, agents.indexOf(agent))}
             size={size}
+            homeItem={homeItem}
             dealt={seated && !held && !walking.has(id)}
             walking={walking.has(id)}
             crossing={walking.get(id) ?? null}
