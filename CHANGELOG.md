@@ -2,6 +2,8 @@
 
 ## 0.14.0 — THE SHOW (2026-09-12)
 
+- **SHOW-4 — the result follows the winner.** Board26's raised result, amount punch, moving chips, winner reaction and bust treatment now follow actual payouts, including opponent wins and split pots. Effects wait for the visible all-in reveal and do not replay on reopening a completed hand. Real speech keeps the two-bubble limit. The working Watch composition remains intact; source-caption contradictions and remaining visual differences are labelled in the two named comparisons.
+
 - **HOME-3 — journeys keep their place.** Profile fills in real career/skill readings from the authenticated detail route, including a compact Home entry. Unsent Chat drafts survive Profile and Watch by owner/agent. Chat returns to its original Home or casino room; Watch preserves the selected casino floor. Home table Watch, actual human cards/actions, returning guests and desktop returns are verified in the built app.
 
 - **HOME-2 — believable room behaviour.** Returning Home no longer repeats an already displayed recap; new news still speaks. Character idles start at distinct phases, and ordinary greetings use their existing nature voices. Accepted snacks and beers drive the authored fridge trip once, with one pickup space, reserved neighbours, cancellation on carry/play/departure, and no invented activity.

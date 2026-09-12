@@ -1,6 +1,7 @@
 // Per-viewer mute plus original synthesized effects. Audio starts only after
 // a user gesture; silent/blocked browsers do not report a sound as played.
 import { playEffect, resetEngine, stopSounds, unlockEngine } from './audioEngine.js';
+export { withSoundGroup } from './audioEngine.js';
 
 export const SOUNDS = {
   cardDealt: { file: 'deal-tick', ms: 12, note: 'one per card, 90ms apart' },

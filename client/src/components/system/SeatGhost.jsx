@@ -95,7 +95,7 @@ export function SeatGhost({
   name, stack = null, accent = '#00D4AA', mood = 'neutral', heat = 45, event = null, brow = null,
   folded, acting, selected,
   dealt = true, reveal, show, history, timer, timerOf = 12, mucking = false,
-  dealer = false, action = null,
+  dealer = false, action = null, settledPose = null,
   // WATCH-8 job 2: the body, on his own name pill. `fatigue` is null for a seat
   // with no agent behind it and `drinking` is FRIDGE-1's field, which may not
   // exist yet — both are absent rather than defaulted, so neither invents a
@@ -111,7 +111,8 @@ export function SeatGhost({
   // the dim of the folded state waits until they have landed — a seat that
   // greys out while its cards are still in the air reads as two events.
   const dimmed = folded && !mucking;
-  const pose = seatPose({ folded: dimmed, mucking, dealt, action });
+  const pose = settledPose === 'raise' || settledPose === 'rest' ? settledPose
+    : seatPose({ folded: dimmed, mucking, dealt, action });
 
   return (
     <button

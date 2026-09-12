@@ -1,3 +1,4 @@
+import { BustedName } from './HandCelebration.jsx';
 // WATCH v6 — the hero, seated at the bottom of the felt.
 // Port of design-refs/mood-watch5.jsx `V5Hero` (52a–f, 52k).
 //
@@ -111,7 +112,7 @@ function CostToast({ cost }) {
 }
 
 export function WatchHero({
-  hood = null, glow = null,
+  hood = null, glow = null, bustedName = null, animateBust = false,
   says, mood = 'neutral', accent = '#00D4AA', heat = 45, pose = 'hold', bet, event, brow, won,
   hole, landed = 2, mucking = false, between = false,
   equity, villain, bigRope, deadRope,
@@ -138,10 +139,11 @@ export function WatchHero({
 
       {/* Him. Twice an opponent, facing the viewer, cards face up in FRONT —
           over the lower third of his body, never behind it. */}
-      <button type="button" className="watch-hero__body" onClick={onTapFace}
+      <button type="button" className={`watch-hero__body${bustedName ? ' is-busted' : ''}`} onClick={onTapFace}
         aria-label={actionLabel}>
         <span className="watch-hero__aura" aria-hidden
           style={{ background: `radial-gradient(circle, ${accent}${heat > 66 ? '2E' : '1A'}, transparent 68%)` }} />
+        {bustedName && <><span className="hand-busted-scrim" aria-hidden="true"/>{animateBust && <BustedName name={bustedName}/>}</>}
         <MoodGhost hood={hood} glow={glow} mood={mood} accent={accent} size={HERO_GHOST} heat={heat}
           event={event} brow={brow} won={won} ring={false} />
         <span className="watch-hero__cards watch-felt__hero-cards" aria-hidden={false}>

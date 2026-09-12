@@ -89,7 +89,8 @@ describe('BUGS-A job 12 · the felt names the hand', () => {
   });
   it('C8: a big win uses actual big blinds and a busted seat gets its own falling name',()=>{
     const game=settled({type:'showdown',pot:3000,winners:[{seat:0,amount:3000}],showdown:[{seat:0,holeCards:['Ks','Kd']}]});
-    const {rerender}=render(<WatchScreen {...base} game={game}/>);
+    const {rerender}=render(<WatchScreen {...base} game={{...game,street:'river',result:null}}/>);
+    rerender(<WatchScreen {...base} game={game}/>);
     expect(screen.getByTestId('hand-fireworks')).toBeInTheDocument();
     expect(pillText()).toContain('WON 150 BB');
     rerender(<WatchScreen {...base} game={{...game,seats:game.seats.map((s,i)=>i===2?{...s,stack:0}:s)}}/>);
@@ -112,11 +113,11 @@ describe('BUGS-A job 12 · the felt names the hand', () => {
       showdown: [{ seat: 2, holeCards: ['9h', 'Ad'] }],
     })} />);
 
-    expect(pillText()).toContain('Granite took');
+    expect(pillText()).toContain('Granite WON');
     expect(pillText()).toContain('$30');
     expect(pillText()).toContain('with a pair of nines');
     // The whole sentence is on the pill for anyone who cannot see the parts.
-    expect(pill().getAttribute('aria-label')).toBe('Granite took $30 with a pair of nines');
+    expect(pill().getAttribute('aria-label')).toBe('Granite won $30 with a pair of nines');
   });
 
   it('a pot nobody called says uncontested rather than naming a hand nobody saw', () => {
