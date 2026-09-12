@@ -1458,6 +1458,8 @@ export function WatchScreen({
   // ---- Owner↔agent DM thread (PORT-6) ----
   var [agentThread,   setAgentThread]   = useState([]);
   var [agentLoading,  setAgentLoading]  = useState(false);
+  var agentSendBusy = useRef(false);
+  var agentConversation = useRef(0);
 
   // ---- Agent mood polling (the header chip, and now his face on the felt) ----
   var agentId = config ? config.agentId : null;
@@ -1579,10 +1581,19 @@ export function WatchScreen({
   var whisperIdRef = useRef(0);
   var whisperTimers = useRef([]);
   useEffect(function() {
-    return function() { whisperTimers.current.forEach(clearTimeout); };
-  }, []);
+    var token = ++agentConversation.current;
+    agentSendBusy.current = false;
+    setAgentLoading(false);
+    setAgentThread([]);
+    setWhispers([]);
+    return function() {
+      if (agentConversation.current === token) agentConversation.current++;
+      whisperTimers.current.forEach(clearTimeout);
+      whisperTimers.current = [];
+    };
+  }, [agentId]);
 
-  function sendToAgent(text) {
+  async function sendToAgent(text) {
     // BUGS-A job 11 · NOTHING IS SHOWN THAT IS NOT RECORDED.
     //
     // The bubble used to rise first and the guard came after it, so a whisper
@@ -1594,7 +1605,9 @@ export function WatchScreen({
     // The guard is first now, and the composer is disabled while a reply is in
     // flight, so the whisper on the felt and the YOU line in the thread are one
     // event with two drawings of it.
-    if (!agentId || agentLoading) return;
+    if (!agentId || !text.trim() || agentSendBusy.current) return false;
+    agentSendBusy.current = true;
+    var token = agentConversation.current;
 
     var now = Date.now();
     var id = 'w' + (++whisperIdRef.current);
@@ -1603,32 +1616,33 @@ export function WatchScreen({
       setWhispers(function(prev) { return prev.filter(function(w) { return w.id !== id; }); });
     }, WHISPER_MS));
 
-    setAgentThread(function(prev) { return prev.concat([{ role: 'user', content: text, t: now }]); });
+    setAgentThread(function(prev) { return prev.concat([{ role: 'user', content: text, t: now, _id: id }]); });
     setAgentLoading(true);
-    fetch('/api/agents/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-      body: JSON.stringify({ userId: getUserId(), content: text, existingAgentId: agentId }),
-    })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var serverChat = data.chat || [];
-        var newAi = null;
-        for (var j = serverChat.length - 1; j >= 0; j--) {
-          if (serverChat[j].role === 'assistant') { newAi = serverChat[j]; break; }
-        }
-        if (newAi) {
-          setAgentThread(function(prev) {
-            return prev.concat([{ role: 'assistant', content: newAi.content, t: Date.now() }]);
-          });
-        }
-      })
-      .catch(function() {
-        setAgentThread(function(prev) {
-          return prev.concat([{ role: 'assistant', content: 'Something went wrong — try again.', t: Date.now() }]);
-        });
-      })
-      .finally(function() { setAgentLoading(false); });
+    try {
+      var response = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+        body: JSON.stringify({ userId: getUserId(), content: text, existingAgentId: agentId }),
+      });
+      if (!response.ok) throw new Error('Whisper refused');
+      var data = await response.json();
+      if (agentConversation.current !== token) return true;
+      var newAi = (Array.isArray(data?.chat) ? data.chat : []).filter(function(m) { return m?.role === 'assistant'; }).at(-1);
+      if (typeof newAi?.content !== 'string' || !newAi.content.trim()) throw new Error('Whisper reply missing');
+      setAgentThread(function(prev) { return prev.concat([{ role: 'assistant', content: newAi.content, t: Date.now() }]); });
+      return true;
+    } catch {
+      if (agentConversation.current !== token) return true;
+      setAgentThread(function(prev) { return prev.filter(function(m) { return m._id !== id; }); });
+      setWhispers(function(prev) { return prev.filter(function(w) { return w.id !== id; }); });
+      // The composer restores the draft and displays an application error.
+      return false;
+    } finally {
+      if (agentConversation.current === token) {
+        agentSendBusy.current = false;
+        setAgentLoading(false);
+      }
+    }
   }
 
   var between = !handActive(game);
@@ -2127,6 +2141,7 @@ export function WatchScreen({
         />
       ) : (
         <WhisperComposer
+          key={agentId || 'no-agent'}
           onSend={sendToAgent}
           onOpenThread={function() { openChat(); }}
           agentName={agentName}

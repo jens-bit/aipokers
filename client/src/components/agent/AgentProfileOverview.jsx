@@ -71,9 +71,15 @@ export function AgentProfileOverview({ agent, attrLog, actions, career, onBack, 
   const [conversation, setConversation] = useState(null);
   const [localMood, setLocalMood] = useState(null);
   const [expandedSkill, setExpandedSkill] = useState(null);
-  const alive = useRef(true);
+  const conversationVersion = useRef(0);
   const sending = useRef(false);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => {
+    const token = ++conversationVersion.current;
+    sending.current = false;
+    setDraft(''); setBusy(false); setError('');
+    setReply(null); setConversation(null); setLocalMood(null);
+    return () => { if (conversationVersion.current === token) conversationVersion.current++; };
+  }, [agent.id]);
   const mood = localMood?.state ?? moodOf(agent);
   const heat = localMood?.heat ?? heatOf(agent);
   const stamina = Number.isFinite(agent.attrs?.STAMINA) ? character.attrs.STAMINA : null;
@@ -90,6 +96,7 @@ export function AgentProfileOverview({ agent, attrLog, actions, career, onBack, 
     event.preventDefault();
     const text = draft.trim();
     if (!text || sending.current) return;
+    const token = conversationVersion.current;
     sending.current = true; setBusy(true); setError(''); setDraft('');
     try {
       // An embedded desktop profile shares its companion's live thread.
@@ -99,9 +106,10 @@ export function AgentProfileOverview({ agent, attrLog, actions, career, onBack, 
         if (!res.ok) throw new Error('Whisper refused');
         return res.json();
       })();
-      if (!alive.current) return;
-      const answer = data.chat?.filter(m => m.role === 'assistant' && typeof m.content === 'string').at(-1);
-      setReply(answer?.content ?? null);
+      if (conversationVersion.current !== token) return;
+      const answer = (Array.isArray(data?.chat) ? data.chat : []).filter(m => m?.role === 'assistant').at(-1);
+      if (typeof answer?.content !== 'string' || !answer.content.trim()) throw new Error('Whisper reply missing');
+      setReply(answer.content);
       // The chat endpoint returns this answer, not the whole conversation.
       // Returning to Chat must keep the earlier thread and our sent message.
       setConversation(previous => [
@@ -111,10 +119,9 @@ export function AgentProfileOverview({ agent, attrLog, actions, career, onBack, 
       ]);
       setLocalMood({ state: data.pepTalk?.newState ?? data.mood?.state ?? mood, heat: Number.isFinite(data.mood?.heat) ? data.mood.heat : heat });
     } catch {
-      if (alive.current) { setDraft(text); setError('Could not send your whisper. Please try again.'); }
+      if (conversationVersion.current === token) { setDraft(text); setError('Could not send your whisper. Please try again.'); }
     } finally {
-      sending.current = false;
-      if (alive.current) setBusy(false);
+      if (conversationVersion.current === token) { sending.current = false; setBusy(false); }
     }
   }
   return <section className="agent-view profile-overview" aria-label={`${agent.name}'s profile`}>

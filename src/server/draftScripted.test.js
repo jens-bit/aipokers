@@ -206,3 +206,30 @@ test('BUG-198: an emptied name field takes the suggestion rather than asking aga
   const last = recruiterLines(r.body.chat).at(-1);
   assert.ok(!/\?$/.test(last), `the last word must not be another question: "${last}"`);
 });
+
+test('FIRST-HOME-1: a fresh guest birth publishes its durable household exactly once', async () => {
+  const made = await post('/api/guest', {});
+  const userId = made.body.ownerId;
+  const auth = `${guest.GUEST_COOKIE}=${made.body.token}`;
+  const answer = content => post('/api/agents/chat', { userId, content }, auth);
+  assert.equal(store.loadProfile(userId)?.agents?.length ?? 0, 0);
+  for (const content of ['Tight', 'Rarely', 'Fold', 'Robin']) {
+    const response = await answer(content);
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+  }
+  const changes = [];
+  profiles.setAgentChangeListener(ownerId => {
+    changes.push({ownerId, agents:store.loadProfile(ownerId)?.agents?.map(a=>a.id) ?? []});
+  });
+  try {
+    const born = await answer('lets go');
+    assert.equal(born.status, 200, JSON.stringify(born.body));
+    assert.ok(born.body.agentId);
+    assert.deepEqual(changes, [{ownerId:userId, agents:[born.body.agentId]}]);
+    const replay = await answer('lets go');
+    assert.equal(replay.body.agentId, born.body.agentId, 'a retried finish replays the existing birth');
+    assert.equal(changes.length, 1, 'a replay does not publish a second birth');
+  } finally {
+    profiles.setAgentChangeListener(null);
+  }
+});

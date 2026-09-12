@@ -66,6 +66,14 @@ export const ThreadKind = Object.freeze({
 
 const KINDS = new Set(Object.values(ThreadKind));
 
+// FIRST-WATCH-1: event origin is independent of speaker and privacy. Only a
+// writer that knows what happened assigns a category; historical rows remain
+// unclassified so a conversation view never guesses from somebody's words.
+export const ThreadCategory = Object.freeze({
+  DECISION: 'decision', ACTION: 'action', RESULT: 'result', CHAT: 'chat', SESSION: 'session',
+});
+const CATEGORIES = new Set(Object.values(ThreadCategory));
+
 // ── WATCH-9 · the push ──────────────────────────────────────────────────────
 //
 // SERVER-3 made the thread survive by storing it, and the sheet read the store
@@ -159,9 +167,10 @@ export const LINE_MAX = 280;
 //
 // The table half does its own shaping, and a smaller one — a socket already
 // watching that seat has the table and the session and needs neither.
-export function wireLine({ id, sessionId, tableId = null, ts, kind, who, text, source, from = null, to = null, lines = null, cost = false }) {
+export function wireLine({ id, sessionId, tableId = null, ts, kind, who, text, source, from = null, to = null, lines = null, cost = false, category = null }) {
   const line = { id, sessionId: String(sessionId), tableId: tableId ?? null, ts, kind, who, text, source, from, to };
   if (cost) line.cost = true;
+  if (CATEGORIES.has(category)) line.category = category;
   if (Array.isArray(lines)) line.lines = lines;
   return line;
 }
@@ -191,7 +200,7 @@ export function wireLine({ id, sessionId, tableId = null, ts, kind, who, text, s
  *              opponent. It was a client-side flag on a live row until now, so
  *              the gold went grey the moment the thread was refetched.
  */
-export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null, source = ThreadSource.TABLE, from = null, to = null, cost = false } = {}) {
+export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, who, text, ts = null, source = ThreadSource.TABLE, from = null, to = null, cost = false, category = null } = {}) {
   if (!sessionId || !agentId) return null;
   if (!KINDS.has(kind)) return null;
   if (typeof text !== 'string') return null;
@@ -211,6 +220,7 @@ export function appendLine({ sessionId, agentId, ownerId, tableId = null, kind, 
     from: participant(from),
     to: participant(to),
     cost: !!cost,
+    ...(CATEGORIES.has(category) ? { category } : {}),
   };
 
   let id = null;

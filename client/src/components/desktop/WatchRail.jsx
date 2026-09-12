@@ -1,4 +1,5 @@
 import { MuteToggle } from '../WatchScreen.jsx';
+import { useEffect, useState } from 'react';
 // Analysis, as rail panels rather than tabs under the felt.
 // Ported from design-refs/mood-desktop3.jsx AnalysisPanel / ARow / WatchRail
 // (screens D3WatchScreenM, D3WatchBetweenScreenM).
@@ -52,8 +53,10 @@ export function WatchRail({
   // server's timestamps. The rail used to hold only what the socket happened to
   // be awake for, so a reconnect emptied it exactly as it emptied the phone's.
   stored = [], readOnly = false, conversationOnly = false,
-  draft, onDraftChange, onSend, sending, onClose, composerRef,
+  draft, onDraftChange, onSend, sending, onClose, composerRef, error = '',
 }) {
+  const [handLog, setHandLog] = useState(false);
+  useEffect(() => setHandLog(false), [agent?.id, game?.sessionId, game?.tableId]);
   const between = phaseOf(game) === 'between';
   const heroDecision = lastDecision?.seat === heroSeat ? lastDecision : null;
 
@@ -72,13 +75,14 @@ export function WatchRail({
   // about who said what.
   const liveRows = [
     ...(heroDecision?.reasoning
-      ? [{ id: 'live', kind: 'him', who: 'HIM', text: heroDecision.reasoning, t: Date.now() }]
+      ? [{ id: 'live', kind: 'him', category: 'decision', who: 'HIM', text: heroDecision.reasoning, t: Date.now() }]
       : []),
     ...(Array.isArray(thread) ? thread : []).map((m, i) => {
       const you = m.role === 'user';
       return {
         id: m._id ?? `t${i}`,
         kind: you ? 'you' : 'him',
+        category: 'chat',
         who: you ? 'YOU' : 'HIM',
         text: m.content,
         t: m.t ?? null,
@@ -89,6 +93,11 @@ export function WatchRail({
   // The record and what is being said now, in one order — by id, stored copy
   // wins. The same merge the phone's sheet runs, from the same module.
   const tableRows = mergeThread(Array.isArray(stored) ? stored : [], liveRows);
+  // Only explicitly routine events are hidden. A historical or unfamiliar
+  // line can be speech, so it remains visible along with every cost/result.
+  const visibleRows = conversationOnly && !handLog
+    ? tableRows.filter(row => row.cost || !['action', 'decision'].includes(row.category))
+    : tableRows;
 
   return (
     <div className={"dsk-panel dsk-panel--watch"+(conversationOnly?" is-conversation":"")}>
@@ -98,15 +107,29 @@ export function WatchRail({
         actions={<MuteToggle compact/>}
         onClose={onClose}
       />
+      {conversationOnly && <div style={{ padding: '8px 14px', flexShrink: 0, borderBottom: '1px solid var(--sys-border, #303034)' }}>
+        <div style={{ fontSize: 11, color: 'var(--sys-muted, #B8B8BF)', marginBottom: 8 }}>
+          {agent && !readOnly ? 'Watching your agent' : 'Watching this table'}
+        </div>
+        <div role="group" aria-label="Table conversation view" style={{ display: 'flex', gap: 6 }}>
+          {[['Chat', false], ['Hand log', true]].map(([label, log]) => <button
+            key={label} type="button" aria-pressed={handLog === log} onClick={() => setHandLog(log)}
+            style={{ minHeight: 32, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', font: 'inherit', fontSize: 12,
+              border: '1px solid var(--sys-border, #303034)', color: 'var(--sys-text, #EDEDED)',
+              background: handLog === log ? 'var(--sys-panel-2, #24242B)' : 'transparent' }}
+          >{label}</button>)}
+        </div>
+      </div>}
       <RailBody>
         {/* WATCH-6, board 31: the rail leads with THE TABLE — everything said
             here, in order, whoever said it. On the phone this is a sheet you
             pull up; at 1440 there is room for it to be always open, which is
             what the ref says on it. */}
         <AnalysisPanel title={conversationOnly ? null : "The table"}>
-          {tableRows.length === 0
-            ? <div className="dsk-apanel__empty">Nothing said at this table yet.</div>
-            : tableRows.map((r) => <ThreadRow key={r.id} row={r} />)}
+          {visibleRows.length === 0
+            ? <div className="dsk-apanel__empty">{conversationOnly && !handLog && tableRows.length
+              ? 'No conversation yet. Follow each action in Hand log.' : 'Nothing said at this table yet.'}</div>
+            : visibleRows.map((r) => <ThreadRow key={r.id} row={r} />)}
         </AnalysisPanel>
 
         {!readOnly && !conversationOnly && <><AnalysisPanel title="Live analysis">
@@ -157,6 +180,7 @@ export function WatchRail({
         </>}
       </RailBody>
 
+      {!readOnly && error && <div className="agent-view__error" role="alert">{error}</div>}
       {!readOnly && <PComposer
         compact={conversationOnly}
         inputRef={composerRef}

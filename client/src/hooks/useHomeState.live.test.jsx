@@ -15,6 +15,44 @@ async function boot(roster=[agent()]){
 }
 const delta=(extra={})=>({type:'floor_game',agentId:'bird',tableId:'casino-a',street:'turn',board:['Ah','Kd','2c','9s'],pot:180,handNumber:7,...extra});
 
+it('FIRST-HOME-1: a fresh REST roster can bring a newborn home after an initial empty snapshot',async()=>{
+  const {result,socket}=await boot([]);
+  act(()=>socket.emit({type:'home_state',agents:[],game:null}));
+  fetchMock.route('/api/agents',{agents:[agent('newborn',{location:{where:'home'},activeTableId:null,liveGame:null})]});
+  await act(()=>result.current.refresh());
+  expect(result.current.home.map(a=>a.id)).toEqual(['newborn']);
+});
+
+it('FIRST-HOME-1: FLOOR_STATE inserts a newborn into an initially empty home immediately',async()=>{
+  const {result,socket}=await boot([]);
+  act(()=>socket.emit({type:'home_state',agents:[],game:null}));
+  act(()=>socket.emit({type:'floor_state',agents:[agent('newborn',{location:{where:'home'},activeTableId:null,liveGame:null})]}));
+  expect(result.current.home.map(a=>a.id)).toEqual(['newborn']);
+});
+
+it('FIRST-HOME-1: a REST response started before birth cannot erase the pushed newborn',async()=>{
+  const {result,socket}=await boot([]);let release;
+  act(()=>socket.emit({type:'home_state',agents:[],game:null}));
+  fetchMock.route('/api/agents',()=>new Promise(resolve=>{release=resolve;}));
+  const pending=result.current.refresh();await waitFor(()=>expect(release).toBeTypeOf('function'));
+  act(()=>socket.emit({type:'home_state',agents:[agent('newborn',{location:{where:'home'},activeTableId:null,liveGame:null})],game:null}));
+  await act(async()=>{release({agents:[]});await pending;});
+  expect(result.current.home.map(a=>a.id)).toEqual(['newborn']);
+});
+
+it('FIRST-HOME-1: accepting a new REST arrival cannot restore an agent removed by the socket',async()=>{
+  const {result,socket}=await boot();
+  act(()=>socket.emit({type:'home_state',agents:[],game:null}));
+  fetchMock.route('/api/agents',{agents:[agent(),agent('newborn',{location:{where:'home'},activeTableId:null,liveGame:null})]});
+  await act(()=>result.current.refresh());
+  expect(result.current.agents.map(a=>a.id)).toEqual(['newborn']);
+  let release;fetchMock.route('/api/agents',()=>new Promise(resolve=>{release=resolve;}));
+  const pending=result.current.refresh();await waitFor(()=>expect(release).toBeTypeOf('function'));
+  act(()=>socket.emit({type:'floor_state',agents:[]}));
+  await act(async()=>{release({agents:[agent('newborn'),agent('stale-unknown')]});await pending;});
+  expect(result.current.agents).toEqual([]);
+});
+
 it('BUG-168: existing FLOOR_GAME updates Home board/pot without another request or socket',async()=>{
   const {result,socket}=await boot();const requests=vi.mocked(fetch).mock.calls.length;
   act(()=>socket.emit(delta({heroHole:['Qc','Qd']})));

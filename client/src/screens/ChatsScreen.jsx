@@ -606,6 +606,9 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
   const setDraft = onDraftChange ?? setLocalDraft;
   const [loading, setLoading]       = useState(false);
   const [proposalAccepting, setProposalAccepting] = useState(false);
+  const [sendError, setSendError] = useState('');
+  const sendBusy = useRef(false);
+  const conversation = useRef(0);
   const feedRef   = useRef(null);
   const inputRef  = useRef(null);
   const msgIdRef  = useRef(0);
@@ -628,6 +631,10 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
 
   useEffect(() => {
     let alive = true;
+    const token = ++conversation.current;
+    sendBusy.current = false;
+    setLoading(false); setSendError(''); setChat([]); setLocalDraft('');
+    setLocalMood(moodOf(agent)); setLocalHeat(heatOf(agent));
     const startedAtId = msgIdRef.current;
     const initialMessages = () => {
       const history = companion && Array.isArray(agent.chatHistory) ? agent.chatHistory.filter(m => (m.role === 'assistant' || m.role === 'user') && typeof m.content === 'string') : [];
@@ -679,7 +686,7 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
         if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
         setChat(prev => [...msgs, ...prev.filter(m => m._id > startedAtId)]);
       });
-    return () => { alive = false; };
+    return () => { alive = false; if (conversation.current === token) conversation.current++; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent.id]);
 
@@ -692,10 +699,14 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
 
   async function send(content = draft) {
     const text = content.trim();
-    if (!text || loading) return;
+    if (!text || sendBusy.current) return;
+    sendBusy.current = true;
+    const token = conversation.current;
+    const pendingMessage = mkMsg('user', text);
     setDraft('');
+    setSendError('');
     setLoading(true);
-    setChat((prev) => [...prev, mkMsg('user', text)]);
+    setChat((prev) => [...prev, pendingMessage]);
     try {
       const res = await fetch('/api/agents/chat', {
         method: 'POST',
@@ -704,16 +715,24 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
       });
       if (!res.ok) throw new Error('Chat request failed');
       const data = await res.json();
-      const newAi = (data.chat || []).filter((m) => m.role === 'assistant').pop();
-      if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
+      if (conversation.current !== token) return;
+      const newAi = (Array.isArray(data?.chat) ? data.chat : []).filter((m) => m?.role === 'assistant').pop();
+      if (typeof newAi?.content !== 'string' || !newAi.content.trim()) throw new Error('Chat reply missing');
+      setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
       if (Number.isFinite(data.mood?.heat)) setLocalHeat(data.mood.heat);
       if (data.pepTalk?.soothed && data.pepTalk.newState) {
         setLocalMood(data.pepTalk.newState);
       }
     } catch {
-      setChat((prev) => [...prev, { ...mkMsg('assistant', 'Something went wrong — please try again.'), error: true }]);
+      if (conversation.current !== token) return;
+      setChat(prev => prev.filter(message => message._id !== pendingMessage._id));
+      setDraft(text);
+      setSendError('Could not send your message. Please try again.');
     } finally {
-      setLoading(false);
+      if (conversation.current === token) {
+        sendBusy.current = false;
+        setLoading(false);
+      }
     }
   }
 
@@ -763,7 +782,7 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
     );
   }
 
-  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} />;
+  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} externalError={sendError} />;
 
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
@@ -792,6 +811,7 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
       )}
 
       {/* Chat feed */}
+      {sendError && <div className="agent-view__error" role="alert">{sendError}</div>}
       {/* FIX-1a: `overflow: hidden auto`, never a bare overflowY — a box that
           declares one axis has the other computed from `visible` to `auto`,
           which made the thread draggable sideways on any long token. */}

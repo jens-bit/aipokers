@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
+import { spokenOwnerReply } from './ownerReply.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 // GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
 // only enforced here — see the note at the top of that file for why the two
@@ -3338,6 +3339,8 @@ HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat regist
 
 Answer what your owner actually said. Small talk can be about life at home; do not turn every message into poker coaching. Do not default to "yo" or another stock greeting. Do not call the tables soft without evidence from the current game. Let your nature, your own memories and today's mood distinguish your reply from the other agents.
 
+Speak directly to your owner. No stage directions or narrated gestures in asterisks, brackets or parentheses. Never claim that chat moved you, deployed you, bought anything or transferred chips. Those actions require the existing game controls; explain the control when relevant, without pretending it has been used.
+
 You already exist. Never ask what kind of poker agent to create. Mention hands or opponents only when the supplied facts support them; admit when you do not know.`;
 }
 
@@ -3379,6 +3382,23 @@ function unavailableOwnerReply(agent, content, table) {
     return { message: `I am ${ownerChatScene(agent, table).description}.`, unavailable: false };
   }
   return { message: 'I cannot answer that right now. Try me again in a moment.', unavailable: true };
+}
+
+// A few explicit requests get factual control guidance, never a side effect.
+// Whole-message matching keeps discussion of movement in ordinary conversation.
+function ownerControlReply(agent, content, table) {
+  const home = /^\s*(?:please\s+)?(?:go|come|head|return)(?:\s+back)?\s+home(?:\s+please)?\s*[.!?]*\s*$/i.test(content);
+  const casino = /^\s*(?:please\s+)?(?:go|head)(?:\s+back)?\s+to\s+(?:the\s+)?casino(?:\s+please)?\s*[.!?]*\s*$/i.test(content);
+  if (!home && !casino) return null;
+  if (agent.visiting) return 'I am visiting another home. Chat does not move me or end the visit.';
+  const scene = ownerChatScene(agent, table);
+  if (home) {
+    if (scene.atHome) return 'I am already home.';
+    return `Open my profile and choose "Call him in".${table?.inHand ? ' I will finish this hand first.' : ' That brings me home.'}`;
+  }
+  if (!scene.atHome) return 'I am already at the casino. Open my profile to see my current game.';
+  return table ? 'I am at the kitchen table. Use Deploy when I am free to choose my casino game.'
+    : 'Use Deploy to choose my casino game. Sending a message does not seat me.';
 }
 
 // BUGS-B/2: the felt, in the two or three lines he would actually have in his
@@ -3654,6 +3674,8 @@ async function createDraftAgent(profile, active, userId, { attemptId = null, all
           saveStore(userId);
         }
       } catch (err) { console.error('[agents] birth listener failed:', err.message); }
+      // Refresh subscribed Home/Floor rosters after the newborn is durable.
+      emitAgentChange(userId);
       return draftProjection(profile, done);
     } catch (err) {
       reloadOwners(userId);
@@ -3953,23 +3975,26 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     };
   }
 
-  const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx });
-  let reply = null;
-  try {
-    reply = await callClaude([{ role: 'user', content }], systemText, 100,
-      { ownerId: userId, kind: MeterKind.CHAT });
-  } catch (err) {
-    console.error('[agentProfiles] agent-chat error:', err.message);
+  let reply = ownerControlReply(existingAgent, content, tableCtx);
+  if (!reply) {
+    const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx });
+    try {
+      reply = await callClaude([{ role: 'user', content }], systemText, 100,
+        { ownerId: userId, kind: MeterKind.CHAT });
+    } catch (err) {
+      console.error('[agentProfiles] agent-chat error:', err.message);
+    }
   }
+  const spoken = spokenOwnerReply(reply);
   const fallback = unavailableOwnerReply(existingAgent, content, tableCtx);
-  const msg = reply?.trim() || fallback.message;
+  const msg = spoken || fallback.message;
   existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
   if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
   saveStore(userId);
   const seat = deliverWhisper(table, existingAgent.id, msg);
   return {
     chat: [{ role: 'assistant', content: msg }],
-    ...(!reply?.trim() && fallback.unavailable ? { replyUnavailable: true } : {}),
+    ...(!spoken && fallback.unavailable ? { replyUnavailable: true } : {}),
     // BUGS-B/2: where his answer landed, so a client can tell "he said it at
     // the table" from "he said it in the thread". Null when he is not seated.
     whisper: whisperView && seat !== null ? whisperView : null,

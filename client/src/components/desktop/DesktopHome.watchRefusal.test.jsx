@@ -16,8 +16,16 @@ async function openOwnTable(entry = 'away frame') {
   fetchMock.route('/api/agents', { agents: [agent] });
   fetchMock.route('/memory', { memoryContext: '' });
   render(<App/>);
-  // App lazy-loads its desktop shell on the first case.
-  await userEvent.click(await screen.findByTestId(entry === 'television' ? 'home-tv' : `home-frame-${agent.id}`, {}, { timeout: 5000 }));
+  // The TV mounts before the roster gives it a live target. Wait for the
+  // actual control to become available before attempting the watch journey.
+  const testId = entry === 'television' ? 'home-tv' : `home-frame-${agent.id}`;
+  await screen.findByTestId(testId, {}, { timeout: 5000 });
+  const target = await waitFor(() => {
+    const button = screen.getByTestId(testId);
+    expect(button).toBeEnabled();
+    return button;
+  });
+  await userEvent.click(target);
   let socket;
   await waitFor(() => {
     act(() => { for (const candidate of socketMock.instances) if (candidate.readyState === 0) candidate.open(); });

@@ -30,6 +30,13 @@ export const ThreadKind = Object.freeze({
   OPPONENT: 'opponent',
 });
 
+// Optional event metadata. Untyped historical lines remain unclassified: their
+// words and speaker never decide whether the conversation filter hides them.
+export const ThreadCategory = Object.freeze({
+  DECISION: 'decision', ACTION: 'action', RESULT: 'result', CHAT: 'chat', SESSION: 'session',
+});
+const CATEGORIES = new Set(Object.values(ThreadCategory));
+
 // How far apart two identical lines have to be before they are two lines and
 // not one line heard twice. A reconnect refetches the store while the socket is
 // still delivering, so the same sentence can arrive down both paths within a
@@ -78,6 +85,7 @@ export function rowFromLine(line) {
   // thread came back with the line in the room's ordinary grey. The server
   // stores it now; this carries it through.
   if (line.cost) row.cost = true;
+  if (CATEGORIES.has(line.category)) row.category = line.category;
   return row;
 }
 
@@ -116,7 +124,7 @@ export function mergeThread(stored = [], live = []) {
     out.set(String(r.id), r);
     const k = echoKey(r);
     const at = echoes.get(k) || [];
-    at.push(Number.isFinite(r.t) ? r.t : 0);
+    at.push({ t: Number.isFinite(r.t) ? r.t : 0, category: r.category });
     echoes.set(k, at);
   }
 
@@ -127,7 +135,10 @@ export function mergeThread(stored = [], live = []) {
     const heard = echoes.get(echoKey(r));
     if (heard) {
       const t = Number.isFinite(r.t) ? r.t : 0;
-      if (heard.some((ts) => Math.abs(ts - t) <= ECHO_WINDOW_MS)) continue;
+      // A private reply can repeat a decision verbatim. Explicitly different
+      // origins are different events; legacy echo matching stays compatible.
+      if (heard.some((entry) => !(entry.category && r.category && entry.category !== r.category)
+        && Math.abs(entry.t - t) <= ECHO_WINDOW_MS)) continue;
     }
     out.set(id, r);
   }

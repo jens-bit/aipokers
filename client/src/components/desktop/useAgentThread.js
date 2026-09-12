@@ -47,12 +47,16 @@ export function useAgentThread(agent) {
   const [cause, setCause] = useState(null);
   const [error, setError] = useState('');
   const sendBusy = useRef(false);
+  const conversation = useRef(0);
   const msgIdRef = useRef(0);
   const mkMsg = (role, content) => ({ role, content, _id: ++msgIdRef.current });
 
   const agentId = agent?.id ?? null;
 
   useEffect(() => {
+    const token = ++conversation.current;
+    sendBusy.current = false;
+    setSending(false);
     if (!agentId) return undefined;
     let cancelled = false;
     setChat([]); setHasHands(false);
@@ -77,7 +81,7 @@ export function useAgentThread(agent) {
       .then(data => { if(!cancelled) setHasHands(Array.isArray(data?.recentHands) && data.recentHands.length>0); seed(); })
       .catch(() => seed());
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; if (conversation.current === token) conversation.current++; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
@@ -85,6 +89,7 @@ export function useAgentThread(agent) {
     const content = text.trim();
     if (!content || !agentId || sendBusy.current) return false;
     sendBusy.current = true;
+    const token = conversation.current;
     setError('');
     setSending(true);
     const pendingMessage = mkMsg('user', content);
@@ -97,8 +102,12 @@ export function useAgentThread(agent) {
       });
       if (!res.ok) throw new Error('Chat refused');
       const data = await res.json();
-      const reply = (data.chat || []).filter((m) => m.role === 'assistant').pop();
-      if (reply) setChat((prev) => [...prev, mkMsg('assistant', reply.content)]);
+      // The old panel must not restore its draft over another conversation.
+      // The server still owns the saved turn; ignore only this stale UI update.
+      if (conversation.current !== token) return true;
+      const reply = (Array.isArray(data?.chat) ? data.chat : []).filter((m) => m?.role === 'assistant').pop();
+      if (typeof reply?.content !== 'string' || !reply.content.trim()) throw new Error('Chat reply missing');
+      setChat((prev) => [...prev, mkMsg('assistant', reply.content)]);
       if (data.pepTalk?.soothed && data.pepTalk.newState) {
         setMood(data.pepTalk.newState);
         setCause('feeling better');
@@ -106,15 +115,18 @@ export function useAgentThread(agent) {
       onResult?.(data);
       return true;
     } catch {
+      if (conversation.current !== token) return true;
       // The composer restores the draft for retry; an unsent line is not history.
       setChat(prev => prev.filter(message => message._id !== pendingMessage._id));
       setError('Could not send your message. Please try again.');
       return false;
     } finally {
-      sendBusy.current = false;
-      setSending(false);
+      if (conversation.current === token) {
+        sendBusy.current = false;
+        setSending(false);
+      }
     }
-  }, [agentId, userId, sending]);
+  }, [agentId, userId]);
 
   const acceptProposal = useCallback(async (msgId) => {
     if (!agentId) return;

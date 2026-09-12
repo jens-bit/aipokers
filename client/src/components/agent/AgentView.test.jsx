@@ -12,6 +12,38 @@ beforeEach(() => {
 });
 const show = (props = {}) => render(<AgentThread agent={agent} companion onBack={() => {}} onDeploy={() => {}} onCarry={() => {}} onOpenProfile={() => {}} {...props} />);
 
+it('FIRST-CHAT-1: mobile restores a refused draft and shows an application error, then retries once', async () => {
+  fetchMock.route('/api/agents/chat', { status: 503, body: {} });
+  show();
+  const input = screen.getByPlaceholderText('Whisper to him…');
+  await userEvent.type(input, 'Are you there?');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/try again/i);
+  expect(input).toHaveValue('Are you there?');
+  expect(screen.queryByText('Are you there?')).not.toBeInTheDocument();
+  fetchMock.route('/api/agents/chat', { chat: [{ role: 'assistant', content: 'I heard you.' }], replyUnavailable: true });
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(screen.getByText('Are you there?')).toBeInTheDocument());
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(input).toHaveValue('');
+});
+
+it('FIRST-CHAT-1: mobile treats empty success as retryable and ignores a reply after changing agent', async () => {
+  fetchMock.route('/api/agents/chat', { chat: [{ role: 'assistant', content: '  ' }] });
+  const view = show();
+  await userEvent.type(screen.getByPlaceholderText('Whisper to him…'), 'Hello');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/try again/i);
+  let release;
+  fetchMock.route('/api/agents/chat', () => new Promise(resolve => { release = resolve; }));
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  view.rerender(<AgentThread agent={{ ...agent, id: 'a2', name: 'Other', opener: 'New conversation.', chatHistory: [] }} companion />);
+  await waitFor(() => expect(screen.getByPlaceholderText('Whisper to him…')).toBeEnabled());
+  await act(async () => release({ chat: [{ role: 'assistant', content: 'Old response.' }] }));
+  expect(screen.queryByText('Old response.')).not.toBeInTheDocument();
+  expect(screen.getByPlaceholderText('Whisper to him…')).toHaveValue('');
+});
+
 it('AGENT-1: opens board 42 with the large character, four real actions and a quiet composer', async () => {
   const onDeploy = vi.fn(), onCarry = vi.fn(), onOpenProfile = vi.fn();
   show({ onDeploy, onCarry, onOpenProfile });
@@ -81,7 +113,7 @@ it('BUG-62: a rejected chat request shows a retryable error rather than silently
   show();
   await userEvent.type(screen.getByPlaceholderText('Whisper to him…'), 'Hello');
   await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-  expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument();
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not send your message. Please try again.');
   expect(screen.getByPlaceholderText('Whisper to him…')).toBeEnabled();
 });
 it('BUG-63: reopening the agent shows the conversation the server kept', async () => {

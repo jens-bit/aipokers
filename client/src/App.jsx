@@ -26,6 +26,8 @@ import { useGuestSession } from './hooks/useGuestSession.js';
 import { ClaimWall } from './components/guest/ClaimWall.jsx';
 import { VisitNotice } from './components/home/VisitorToast.jsx';
 import { visitErrorText } from './lib/visit.js';
+import { GuidedPractice } from './components/practice/GuidedPractice.jsx';
+import { openClaimWall } from './lib/guest.js';
 
 // BUGS-C job 1: the Telegram entry has to load a home shell, not the whole
 // app. These four are screens a session may never visit in a given sitting
@@ -160,6 +162,8 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
   // and not a button that opens one.
   const [isCreating, setIsCreating]       = useState(guest.draftOnBoot);
   const [newlyBornAgent, setNewlyBornAgent] = useState(null);
+  const [practiceAgent, setPracticeAgent] = useState(null);
+  const [practiceReturn, setPracticeReturn] = useState(null);
   const [lastAgentHand, setLastAgentHand] = useState(null);
   const [lastAgentHandOpen, setLastAgentHandOpen] = useState(false);
   const lastResultKeyRef = useRef(null);
@@ -251,6 +255,11 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     setAgentChatTarget(null);
     setYouMoneyOpen(false);
     setHomeTableOpen(0);
+  }
+
+  function startPractice(agent) {
+    setPracticeReturn(null);
+    setPracticeAgent(agent);
   }
 
   function navigateToMoney() {
@@ -638,6 +647,23 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     );
   }
 
+  if (practiceAgent) {
+    const leavePractice = () => { setPracticeAgent(null); setPracticeReturn(null); navigateTo('home'); };
+    return <GuidedPractice key={`${getUserId()}:${practiceAgent.id}`} agent={practiceAgent} ownerId={getUserId()} isGuest={guest.isGuest}
+      onExit={leavePractice}
+      onChat={agent => {
+        if (guest.isGuest) { openClaimWall('chat'); return; }
+        setPracticeAgent(null);
+        if (isDesktop) setPracticeReturn({ kind: 'chat', agentId: agent.id });
+        else openAgentChat(agent, { tab: 'home', profileAgent: null });
+      }}
+      onCasino={() => {
+        setPracticeAgent(null);
+        if (isDesktop) setPracticeReturn({ kind: 'casino' });
+        else navigateTo('casino');
+      }} />;
+  }
+
   if (isDesktop) {
     const watchPayload = (payload, agent) => {
       setDesktopWatchAgent(agent || null);
@@ -659,6 +685,9 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
     return (
       <Suspense fallback={null}>
       <DesktopHome
+        onPractice={startPractice}
+        practiceReturn={practiceReturn}
+        birthHandledId={newlyBornAgent?.id ?? null}
         tableConfig={config}
         sessionEnd={findSessionEnd(history)}
         onRebuy={() => { const nextGame = { ...config }; disconnect(); connect(nextGame); }}
@@ -731,7 +760,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
           <BirthScreen
             scrollOnFocus={guestBoot !== 'new'}
             onBack={() => setIsCreating(false)}
-            onBirth={(_agent, outcome) => { setIsCreating(false); showBirthVisitOutcome(outcome); }}
+            onBirth={(agent, outcome) => { setIsCreating(false); setNewlyBornAgent(agent); navigateTo('home'); showBirthVisitOutcome(outcome); }}
             onSeeTable={navigateToTable}
           />
         ) : null}
@@ -860,6 +889,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled }) {
               still draws it — it just is not a mobile tab any more. */}
           {activeTab === 'home' && (
             <HomeScreen
+              onPractice={startPractice}
               onReplay={(agent, hand) => replayEvent({agentIds:[agent.id],handNumber:hand.handNumber,origin:'home'})}
               wsUrl={WS_URL}
               onOpenRoster={() => setRosterOpen(true)}

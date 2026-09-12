@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -49,6 +49,20 @@ describe('the whisper itself', () => {
 });
 
 describe('the composer', () => {
+  it('FIRST-CHAT-1: blocks duplicate sends in flight and restores rejected drafts', async () => {
+    let reject;
+    const onSend = vi.fn(() => new Promise((_resolve, fail) => { reject = fail; }));
+    const { container } = render(<WhisperComposer onSend={onSend}/>);
+    const input = container.querySelector('input');
+    fireEvent.change(input, { target: { value: 'Keep going.' } });
+    act(() => { fireEvent.submit(input.closest('form')); fireEvent.submit(input.closest('form')); });
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(input).toBeDisabled();
+    await act(async () => { reject(new Error('offline')); });
+    expect(input).toHaveValue('Keep going.');
+    expect(input).toBeEnabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not send your whisper. Please try again.');
+  });
   it('asks for a whisper', () => {
     const { container } = render(<WhisperComposer onSend={() => {}} />);
     expect(container.querySelector('.watch-composer__input').placeholder)

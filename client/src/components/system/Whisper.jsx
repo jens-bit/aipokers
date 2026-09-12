@@ -30,6 +30,11 @@ export function Whisper({ text }) {
 
 export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
   const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const sendBusy = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const gesture = useRef(null);
   const openRef = useRef(onOpenThread);
   openRef.current = onOpenThread;
@@ -51,12 +56,25 @@ export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
   // first place.
   const [dragging, setDragging] = useState(false);
 
-  function submit(e) {
+  async function submit(e) {
     if (e) e.preventDefault();
     const t = text.trim();
-    if (!t || disabled) return;
-    onSend(t);
+    if (!t || disabled || sendBusy.current) return;
+    sendBusy.current = true;
+    setSending(true);
+    setError('');
     setText('');
+    try {
+      if (await onSend(t) === false) throw new Error('Whisper refused');
+    } catch {
+      if (alive.current) {
+        setText(t);
+        setError('Could not send your whisper. Please try again.');
+      }
+    } finally {
+      sendBusy.current = false;
+      if (alive.current) setSending(false);
+    }
   }
 
   // A drag that starts in the text field is the caret being placed, never a
@@ -120,14 +138,14 @@ export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
             placeholder="Whisper to him…"
             aria-label={agentName ? `Whisper to ${agentName}` : 'Whisper to him'}
             maxLength={280}
-            disabled={disabled}
+            disabled={disabled || sending}
           />
           <button type="button" className="watch-composer__thread" onClick={onOpenThread}
             aria-label="Open the thread">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.8" strokeLinecap="round" aria-hidden><path d="M12 19V5M5 12l7-7 7 7" /></svg>
           </button>
-          <button type="submit" className="watch-composer__send" disabled={!text.trim() || disabled}
+          <button type="submit" className="watch-composer__send" disabled={!text.trim() || disabled || sending}
             aria-label="Send">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0A"
               strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -136,6 +154,7 @@ export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
           </button>
         </Glass>
       </form>
+      {error && <div className="agent-view__error" role="alert">{error}</div>}
 
       {/* WATCH-7 made the hint a control instead of a line of dead text.
           BUGS-A job 6 finishes the job by deleting the words.

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { AgentProfileOverview, profileRecent, profileSession } from './AgentProfileOverview.jsx';
@@ -56,6 +56,47 @@ it('C4 restores a refused whisper for retry', async () => {
   await user.click(screen.getByRole('button',{name:'Send whisper'}));
   await waitFor(()=>expect(screen.getByRole('alert')).toHaveTextContent('Could not send'));
   expect(screen.getByRole('textbox')).toHaveValue('Keep going.');
+});
+
+it.each([{}, { chat: [] }, { chat: [{ role: 'assistant', content: '   ' }] }, { chat: [{ role: 'assistant', content: 12 }] }])('FIRST-CHAT-1: a malformed profile reply preserves the draft and saved history (%j)', async response => {
+  const onOpenChat = vi.fn();
+  const history = [{ role: 'assistant', content: 'An earlier answer.' }];
+  fetchMock.route('/api/agents/chat', response);
+  render(<AgentProfileOverview agent={{ ...agent, chatHistory: history }} attrLog={[]} onOpenChat={onOpenChat}/>);
+  const input = screen.getByRole('textbox');
+  fireEvent.change(input, { target: { value: 'Keep going.' } });
+  fireEvent.submit(input.closest('form'));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not send your whisper. Please try again.');
+  expect(input).toHaveValue('Keep going.');
+  fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }));
+  expect(onOpenChat.mock.lastCall[0].chatHistory).toEqual(history);
+
+  fetchMock.route('/api/agents/chat', { chat: [{ role: 'assistant', content: 'I cannot answer that right now.' }], replyUnavailable: true });
+  fireEvent.submit(input.closest('form'));
+  expect(await screen.findByText('I cannot answer that right now.')).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(input).toHaveValue('');
+  fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }));
+  expect(onOpenChat.mock.lastCall[0].chatHistory).toEqual([...history, { role: 'user', content: 'Keep going.' }, { role: 'assistant', content: 'I cannot answer that right now.' }]);
+  expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(2);
+});
+
+it('FIRST-CHAT-1: a late profile reply cannot replace another agent conversation or draft', async () => {
+  let release;
+  fetchMock.route('/api/agents/chat', () => new Promise(resolve => { release = resolve; }));
+  const onOpenChat = vi.fn();
+  const { rerender } = render(<AgentProfileOverview agent={agent} attrLog={[]} onOpenChat={onOpenChat}/>);
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Old question.' } });
+  fireEvent.submit(screen.getByRole('textbox').closest('form'));
+  const next = { ...agent, id: 'next-profile', chatHistory: [{ role: 'assistant', content: 'New conversation.' }] };
+  rerender(<AgentProfileOverview agent={next} attrLog={[]} onOpenChat={onOpenChat}/>);
+  expect(screen.getByRole('textbox')).toBeEnabled();
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'New draft.' } });
+  await act(async () => { release({ chat: [{ role: 'assistant', content: 'Old answer.' }] }); });
+  expect(screen.getByRole('textbox')).toHaveValue('New draft.');
+  expect(screen.queryByText('Old answer.')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }));
+  expect(onOpenChat.mock.lastCall[0].chatHistory).toEqual(next.chatHistory);
 });
 
 it('BUG-143: returning to Chat preserves prior messages and both sides of repeated profile whispers', async () => {

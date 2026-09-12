@@ -1,0 +1,517 @@
+{
+  "schema": "railbird.practice-lesson",
+  "version": 1,
+  "practiceOnly": true,
+  "id": "kings-full",
+  "heroSeat": 0,
+  "initialStack": 200,
+  "frames": [
+    {
+      "id": "deal",
+      "title": "Meet your agent",
+      "narration": "Your agent sits nearest you. The other player is a practice opponent. Your agent plays this example hand; you guide the lesson at your own pace.",
+      "target": "hero",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "preflop",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 0,
+        "pot": 3,
+        "community": [],
+        "currentBet": 2,
+        "lastRaiseSize": 2,
+        "toAct": 0,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 199,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 1,
+            "contribThisStreet": 1,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 198,
+            "holeCards": [],
+            "contribTotal": 2,
+            "contribThisStreet": 2,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": null
+      },
+      "lastAction": null,
+      "madeHand": null
+    },
+    {
+      "id": "preflop-call",
+      "title": "Two cards of his own",
+      "narration": "Your agent holds two kings. These are his private cards. He calls one more chip to match the two-chip blind.",
+      "target": "cards",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "preflop",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 0,
+        "pot": 4,
+        "community": [],
+        "currentBet": 2,
+        "lastRaiseSize": 2,
+        "toAct": 1,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 198,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 2,
+            "contribThisStreet": 2,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": true,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 198,
+            "holeCards": [],
+            "contribTotal": 2,
+            "contribThisStreet": 2,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": null
+      },
+      "lastAction": {
+        "seat": 0,
+        "action": {
+          "type": "call"
+        }
+      },
+      "madeHand": null
+    },
+    {
+      "id": "flop",
+      "title": "The shared cards",
+      "narration": "The first three shared cards are the flop. Everyone can use them. This king joins his two kings to make three of a kind.",
+      "target": "board",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "flop",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 0,
+        "pot": 4,
+        "community": [
+          "Ks",
+          "7c",
+          "2h"
+        ],
+        "currentBet": 0,
+        "lastRaiseSize": 2,
+        "toAct": 1,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 198,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 2,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 198,
+            "holeCards": [],
+            "contribTotal": 2,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": null
+      },
+      "lastAction": {
+        "seat": 1,
+        "action": {
+          "type": "check"
+        }
+      },
+      "madeHand": "three kings"
+    },
+    {
+      "id": "flop-bet",
+      "title": "He makes a bet",
+      "narration": "The opponent checks. With three kings, your agent bets four practice chips. The opponent must match the bet to stay in the hand.",
+      "target": "action",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "flop",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 0,
+        "pot": 8,
+        "community": [
+          "Ks",
+          "7c",
+          "2h"
+        ],
+        "currentBet": 4,
+        "lastRaiseSize": 4,
+        "toAct": 1,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 194,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 6,
+            "contribThisStreet": 4,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": true,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 198,
+            "holeCards": [],
+            "contribTotal": 2,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": null
+      },
+      "lastAction": {
+        "seat": 0,
+        "action": {
+          "type": "bet",
+          "amount": 4
+        }
+      },
+      "madeHand": "three kings"
+    },
+    {
+      "id": "turn",
+      "title": "A full house",
+      "narration": "The opponent calls. The fourth shared card, the turn, is another seven. Three kings and two sevens make a full house: kings full of sevens.",
+      "target": "board",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "turn",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 0,
+        "pot": 12,
+        "community": [
+          "Ks",
+          "7c",
+          "2h",
+          "7h"
+        ],
+        "currentBet": 0,
+        "lastRaiseSize": 2,
+        "toAct": 1,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 194,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 6,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 194,
+            "holeCards": [],
+            "contribTotal": 6,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": null
+      },
+      "lastAction": {
+        "seat": 1,
+        "action": {
+          "type": "call"
+        }
+      },
+      "madeHand": "kings full of sevens"
+    },
+    {
+      "id": "river",
+      "title": "The final shared card",
+      "narration": "Both players check, adding no chips. The river is the fifth and final shared card. Your agent still has kings full of sevens.",
+      "target": "board",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "river",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 0,
+        "pot": 12,
+        "community": [
+          "Ks",
+          "7c",
+          "2h",
+          "7h",
+          "9c"
+        ],
+        "currentBet": 0,
+        "lastRaiseSize": 2,
+        "toAct": 1,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 194,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 6,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 194,
+            "holeCards": [],
+            "contribTotal": 6,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": null
+      },
+      "lastAction": {
+        "seat": 0,
+        "action": {
+          "type": "check"
+        }
+      },
+      "madeHand": "kings full of sevens"
+    },
+    {
+      "id": "river-bet",
+      "title": "One last bet",
+      "narration": "The opponent checks again. Your agent bets eight practice chips with his full house. The next step shows whether the opponent calls.",
+      "target": "action",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "river",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 0,
+        "pot": 20,
+        "community": [
+          "Ks",
+          "7c",
+          "2h",
+          "7h",
+          "9c"
+        ],
+        "currentBet": 8,
+        "lastRaiseSize": 8,
+        "toAct": 1,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 186,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 14,
+            "contribThisStreet": 8,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": true,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 194,
+            "holeCards": [],
+            "contribTotal": 6,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": null
+      },
+      "lastAction": {
+        "seat": 0,
+        "action": {
+          "type": "bet",
+          "amount": 8
+        }
+      },
+      "madeHand": "kings full of sevens"
+    },
+    {
+      "id": "showdown",
+      "title": "The hand, explained",
+      "narration": "The opponent calls and both hands are shown. Kings full of sevens wins the 28-chip pot. Your agent put in 14 chips, so his profit is 14 practice chips.",
+      "target": "result",
+      "game": {
+        "tableId": "practice-kings-full",
+        "handNumber": 1,
+        "street": "complete",
+        "smallBlind": 1,
+        "bigBlind": 2,
+        "dealerSeat": 1,
+        "pot": 0,
+        "community": [
+          "Ks",
+          "7c",
+          "2h",
+          "7h",
+          "9c"
+        ],
+        "currentBet": 0,
+        "lastRaiseSize": 2,
+        "toAct": null,
+        "seats": [
+          {
+            "playerId": "practice-hero",
+            "stack": 214,
+            "holeCards": [
+              "Kh",
+              "Kd"
+            ],
+            "contribTotal": 14,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Your agent"
+          },
+          {
+            "playerId": "practice-opponent",
+            "stack": 186,
+            "holeCards": [
+              "Qh",
+              "Qd"
+            ],
+            "contribTotal": 14,
+            "contribThisStreet": 0,
+            "folded": false,
+            "allIn": false,
+            "actedThisStreet": false,
+            "displayName": "Practice opponent"
+          }
+        ],
+        "result": {
+          "type": "showdown",
+          "pot": 28,
+          "winners": [
+            {
+              "seat": 0,
+              "playerId": "practice-hero",
+              "amount": 28,
+              "descr": "Full House, K's over 7's",
+              "name": "Full House",
+              "hand": "kings full of sevens"
+            }
+          ],
+          "showdown": [
+            {
+              "seat": 0,
+              "holeCards": [
+                "Kh",
+                "Kd"
+              ]
+            },
+            {
+              "seat": 1,
+              "holeCards": [
+                "Qh",
+                "Qd"
+              ]
+            }
+          ],
+          "deltas": {
+            "0": 14,
+            "1": -14
+          }
+        }
+      },
+      "lastAction": {
+        "seat": 1,
+        "action": {
+          "type": "call"
+        }
+      },
+      "madeHand": "kings full of sevens"
+    }
+  ],
+  "result": {
+    "winnerSeat": 0,
+    "hand": "kings full of sevens",
+    "pot": 28,
+    "payout": 28,
+    "net": 14,
+    "balances": [
+      214,
+      186
+    ]
+  }
+}

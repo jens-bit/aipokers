@@ -7,8 +7,9 @@
 // It also holds rows open for reads the engine does not produce yet, rather
 // than swapping in different content — the DSK2-3 placeholder pattern.
 
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { useState } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
 import { WatchRail } from './WatchRail.jsx';
 import { playingAgent } from '../../test/fixtures/agents.js';
@@ -113,5 +114,61 @@ it('DkWatch: the current conversation rail retains speech and whisper without th
   expect(screen.getByPlaceholderText('Whisper to him…')).toBeVisible();
   expect(screen.queryByText('Live analysis')).toBeNull();
   expect(screen.queryByText('History')).toBeNull();
+  expect(screen.queryByText('He is capped.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Hand log' }));
   expect(screen.getByText('He is capped.')).toBeVisible();
+});
+
+const categorized = [
+  { id: 'action', kind: 'table', who: 'TABLE', text: 'Granite bet 10.', category: 'action', t: 1 },
+  { id: 'decision', kind: 'him', who: 'HIM', text: 'Stored routine reasoning.', category: 'decision', t: 2 },
+  { id: 'reply', kind: 'him', who: 'HIM', text: 'Yes, I heard you.', category: 'chat', t: 3 },
+  { id: 'result', kind: 'table', who: 'TABLE', text: 'Your agent won 40.', category: 'result', t: 4 },
+  { id: 'session', kind: 'table', who: 'TABLE', text: 'This session ended.', category: 'session', t: 5 },
+  { id: 'cost', kind: 'table', who: 'TABLE', text: 'A costly mistake.', category: 'action', cost: true, t: 6 },
+  { id: 'legacy', kind: 'him', who: 'HIM', text: 'Older speech without metadata.', t: 7 },
+  { id: 'future', kind: 'table', who: 'TABLE', text: 'An event this client cannot classify.', category: 'future-kind', t: 8 },
+];
+
+it('FIRST-WATCH-1: Chat defaults to speech, results and important events while retaining unknown history', () => {
+  renderRail({ conversationOnly: true, stored: categorized });
+  expect(screen.getByText('Watching your agent')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Chat' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Hand log' })).toHaveAttribute('aria-pressed', 'false');
+  for (const row of categorized.slice(2)) expect(screen.getByText(row.text)).toBeVisible();
+  expect(screen.queryByText('Granite bet 10.')).toBeNull();
+  expect(screen.queryByText('Stored routine reasoning.')).toBeNull();
+  expect(screen.queryByText('He is capped.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Hand log' }));
+  for (const row of categorized) expect(screen.getByText(row.text)).toBeVisible();
+  expect(screen.getByText('He is capped.')).toBeVisible();
+});
+
+it('FIRST-WATCH-1: switching views preserves the draft, submit action and incoming speech', () => {
+  const send = vi.fn();
+  function ControlledRail() {
+    const [draft, setDraft] = useState('A message in progress');
+    return <WatchRail conversationOnly agent={playingAgent} game={midHandGame} heroSeat={0}
+      stored={categorized} thread={[{ _id: 'new-reply', role: 'assistant', content: 'I am listening.' }]}
+      draft={draft} onDraftChange={setDraft} onSend={send} />;
+  }
+  render(<ControlledRail />);
+  const composer = screen.getByPlaceholderText('Whisper to him…');
+  fireEvent.change(composer, { target: { value: 'Take your time.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Hand log' }));
+  expect(screen.getByPlaceholderText('Whisper to him…')).toBe(composer);
+  expect(composer).toHaveValue('Take your time.');
+  fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+  expect(screen.getByText('I am listening.')).toBeVisible();
+  fireEvent.keyDown(composer, { key: 'Enter' });
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(send).toHaveBeenCalledWith('Take your time.');
+});
+
+it('FIRST-WATCH-1: a public observer keeps unknown table speech and gets no private composer', () => {
+  renderRail({ conversationOnly: true, readOnly: true, agent: null, lastDecision: null,
+    stored: [{ id: 'untyped', kind: 'opponent', who: 'Granite', text: 'A real public remark.', t: 1 }] });
+  expect(screen.getByText('Watching this table')).toBeVisible();
+  expect(screen.getByText('“A real public remark.”')).toBeVisible();
+  expect(screen.queryByPlaceholderText('Whisper to him…')).toBeNull();
 });

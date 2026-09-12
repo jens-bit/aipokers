@@ -36,6 +36,17 @@ describe('the request', () => {
 });
 
 describe('a stored line', () => {
+  it('FIRST-WATCH-1: carries only explicit known event categories without changing attribution', () => {
+    for (const category of ['decision', 'action', 'result', 'chat', 'session']) {
+      const row = rowFromLine(line({ kind: 'him', category }));
+      expect(row.category).toBe(category);
+      expect(row.kind).toBe('him');
+    }
+    for (const category of [undefined, null, 'unknown', { type: 'action' }]) {
+      expect(rowFromLine(line({ category }))).not.toHaveProperty('category');
+    }
+  });
+
   // TABLE / HIM / YOU / the opponent's own name — unchanged from what the felt
   // has always drawn.
   it('keeps the four registers', () => {
@@ -90,6 +101,13 @@ describe('the merge', () => {
     rowFromLine(line({ id: 1, ts: 100, kind: 'table', text: 'Granite raised to 240' })),
     rowFromLine(line({ id: 2, ts: 200, kind: 'him', who: 'HIM', text: 'He checked twice.' })),
   ];
+
+  it('FIRST-WATCH-1: equal words in a private reply and a decision are separate typed events', () => {
+    const reasoning = rowFromLine(line({ kind: 'him', who: 'HIM', text: 'I will call.', category: 'decision', ts: 200 }));
+    const reply = { id: 'reply-1', kind: 'him', who: 'HIM', text: 'I will call.', category: 'chat', t: 210 };
+    expect(mergeThread([reasoning], [reply])).toHaveLength(2);
+    expect(mergeThread([reasoning], [{ ...reply, category: 'decision' }])).toHaveLength(1);
+  });
 
   it('puts the record and what is being said now in one order', () => {
     const live = [{ id: 'd7', who: 'HIM', kind: 'him', text: 'He is done.', t: 300 }];

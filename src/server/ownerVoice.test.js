@@ -10,7 +10,7 @@ import express from 'express';
 import { NATURES } from '../agent/attributes.js';
 import { deriveRoles } from '../agent/bio.js';
 import { saveProfile, loadProfile, _closeForTests } from './store.js';
-import { buildAgentChatSystem, installAgentProfileRoutes, setLiveTableProvider, reloadOwners, restAgent } from './agentProfiles.js';
+import { buildAgentChatSystem, installAgentProfileRoutes, setLiveTableProvider, reloadOwners, restAgent, ownerChatTurn, agentsOf } from './agentProfiles.js';
 
 function character(nature = 'Rock', extra = {}) {
   return {
@@ -24,6 +24,58 @@ function character(nature = 'Rock', extra = {}) {
 
 const emptyRegistry = { hasTable: () => false, getTable: () => null, homeTableOf: () => null };
 after(() => { setLiveTableProvider(null); _closeForTests(); });
+
+test('FIRST-CHAT-1: chat offers existing movement controls without calling a model or moving money or seats', async t => {
+  process.env.ANTHROPIC_API_KEY = 'test-must-not-call';
+  t.after(() => { delete process.env.ANTHROPIC_API_KEY; setLiveTableProvider(null); });
+  const network = t.mock.method(globalThis, 'fetch', () => { throw new Error('Movement guidance must not call a model'); });
+  setLiveTableProvider(emptyRegistry);
+  const home = character();
+  const balance = home.pocket.balance;
+  assert.match((await ownerChatTurn(home, 'chat-guidance', 'go home')).chat[0].content, /already.*home/i);
+  assert.match((await ownerChatTurn(home, 'chat-guidance', 'Please go to the casino.')).chat[0].content, /Deploy/);
+  assert.equal(home.pocket.balance, balance);
+  assert.equal(home.activeTableId, null);
+  const heard = [];
+  const table = { tableId: 'casino', closed: false, seatOfAgent: () => 0,
+    whisperContext: () => ({ tableId: 'casino', inHand: true, blinds: '1/2', opponents: [] }),
+    receiveWhisper: () => {}, whisperReply: (_, text) => { heard.push(text); return 0; } };
+  setLiveTableProvider({ ...emptyRegistry, hasTable: () => true, getTable: () => table });
+  const away = character('Rock', { activeTableId: 'casino' });
+  const reply = await ownerChatTurn(away, 'chat-guidance', 'come home');
+  assert.match(reply.chat[0].content, /profile.*Call him in.*finish.*hand/i);
+  assert.equal(away.activeTableId, 'casino');
+  assert.equal(away.pocket.balance, balance);
+  assert.deepEqual(heard, [reply.chat[0].content]);
+  setLiveTableProvider(emptyRegistry);
+  const visit = await ownerChatTurn(character('Rock', { visiting: { hostOwnerId: 'friend' } }), 'chat-guidance', 'go home');
+  assert.equal(visit.chat[0].content, 'I am visiting another home. Chat does not move me or end the visit.');
+  assert.equal(network.mock.callCount(), 0);
+});
+
+test('FIRST-CHAT-1: generated owner speech is normalized once and saved exactly as delivered', async t => {
+  process.env.ANTHROPIC_API_KEY = 'test-intercepted';
+  t.after(() => { delete process.env.ANTHROPIC_API_KEY; setLiveTableProvider(null); });
+  setLiveTableProvider(emptyRegistry);
+  let generated = '*leans against the wall*';
+  const network = t.mock.method(globalThis, 'fetch', () => Promise.resolve(new Response(JSON.stringify({
+    id: 'test', type: 'message', role: 'assistant', model: 'test', stop_reason: 'end_turn',
+    content: [{ type: 'text', text: generated }], usage: { input_tokens: 1, output_tokens: 1 },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+  saveProfile('chat-normalize', { userId: 'chat-normalize', agents: [character()] });
+  reloadOwners('chat-normalize');
+  const agent = agentsOf('chat-normalize')[0];
+  const unavailable = await ownerChatTurn(agent, 'chat-normalize', 'Tell me something.');
+  assert.equal(unavailable.replyUnavailable, true);
+  assert.match(unavailable.chat[0].content, /cannot answer.*right now/i);
+  generated = '*nods* I heard you.';
+  const spoken = await ownerChatTurn(agent, 'chat-normalize', 'Tell me about going home tomorrow.');
+  assert.equal(spoken.chat[0].content, 'I heard you.');
+  assert.equal(agent.chatHistory.at(-1).content, 'I heard you.');
+  assert.equal(loadProfile('chat-normalize').agents[0].chatHistory.at(-1).content, 'I heard you.');
+  assert.equal(network.mock.callCount(), 2, 'one call per ordinary message; no repair calls or broad movement interception');
+  assert.match(buildAgentChatSystem(agent), /never claim.*chat.*(?:moved|move)/i);
+});
 
 test('BUG-142: couch rest acknowledgements have each nature’s cadence without inventing a bar', () => {
   setLiveTableProvider(emptyRegistry);

@@ -937,6 +937,9 @@ for(const width of [390,1440])test('BUG-123: retirement keeps the room and remai
     };
   },[GRANITE]);
   await page.goto(HOME);await expect(page.getByTestId('home-screen')).toBeVisible();
+  // The desktop shell can mount before its lazy room. Measure the actual
+  // room, not null while that child is still loading.
+  await expect(page.locator('.home-flat')).toBeVisible();
   const room=await page.locator('.home-flat').boundingBox();
   if(width<1100)await page.locator('.home-one[data-agent="a1"]').click();else await rosterRow(page,'Balance').click();
   await page.getByRole('button',{name:'Profile',exact:true}).click();

@@ -30,7 +30,25 @@ import { fileURLToPath } from 'node:url';
 
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as tableHook from './hooks/useTable.js';
+import * as pacedHook from './hooks/usePacedTable.js';
+
+// The ordinary shell tests still render the real desktop. This probe exposes
+// the stream that App hands that shell, independently of the pacing algorithm.
+const desktopStreamProbe = vi.hoisted(() => ({ enabled: false }));
+vi.mock('./components/desktop/DesktopHome.jsx', async importOriginal => {
+  const actual = await importOriginal();
+  return { ...actual, DesktopHome: props => desktopStreamProbe.enabled ? (
+    <section aria-label="Desktop visible table">
+      <p>Board: {props.game.community.join(' ')}</p>
+      <p>Action: {props.lastDecision.action.type}</p>
+      <p>Chat: {props.chatMessages.map(message => message.text).join(' ')}</p>
+      <p>Thread: {props.threadLines.map(line => line.text).join(' ')}</p>
+      <button type="button" onClick={() => props.onAct({ type: 'check' })}>Play check</button>
+    </section>
+  ) : <actual.DesktopHome {...props}/> };
+});
 
 import App from './App.jsx';
 import { agentsResponse, playingAgent, restingAgent } from './test/fixtures/agents.js';
@@ -493,6 +511,54 @@ describe('WIRE-1 the app shell wiring', () => {
     // Through the door, like anyone arriving — not materialised in a chair.
     const him = await screen.findByRole('button', { name: /^Fresh Meat — / });
     expect(him).toHaveAttribute('data-spot', 'door:born');
+  });
+});
+
+describe('FIRST-1: desktop stream consistency', () => {
+  const realMatchMedia = window.matchMedia;
+  afterEach(() => {
+    desktopStreamProbe.enabled = false;
+    window.matchMedia = realMatchMedia;
+    vi.restoreAllMocks();
+  });
+
+  it.each([true, false])('keeps the live board, decision, chat and thread together for spectator=%s without delaying human actions', async isSpectator => {
+    telegram.signIn();
+    desktopStreamProbe.enabled = true;
+    window.matchMedia = query => ({ matches: query.includes('1100'), media: query,
+      addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+    const actNow = vi.fn();
+    const raw = {
+      game: { tableId: 'pacing-table', handNumber: 1, street: 'river', toAct: null, seats: [], community: ['Ah', 'Kd', '2s', '3c', '4h'] },
+      lastDecision: { seat: 0, action: { type: 'raise', amount: 12 } },
+      chatMessages: [{ text: 'The river is here.' }], paceFrame: null,
+    };
+    const paced = {
+      game: { ...raw.game, street: 'flop', community: ['Ah', 'Kd', '2s'] },
+      lastDecision: { seat: 0, action: { type: 'call' } },
+      chatMessages: [{ text: 'I called on the flop.' }], paceFrame: null,
+    };
+    vi.spyOn(tableHook, 'useTable').mockReturnValue({ ...raw, config: { tableId: 'pacing-table', isSpectator },
+      mySeat: 0, legalActions: [{ type: 'check' }], history: [], status: 'connected', error: null, reads: [],
+      threadLines: [{ id: 'river-result', text: 'The river action is recorded.' }],
+      act: actNow, connect: vi.fn(), watch: vi.fn(), disconnect: vi.fn(), dismissError: vi.fn(), sitOut: vi.fn(),
+    });
+    vi.spyOn(pacedHook, 'usePacedTable').mockReturnValue(paced);
+    render(<App/>);
+    const table = within(await screen.findByRole('region', { name: 'Desktop visible table' }));
+    // The desktop record is live. Holding only its felt would let that record
+    // announce an outcome before the matching action/board appears.
+    const visible = raw;
+    expect(table.getByText(`Board: ${visible.game.community.join(' ')}`)).toBeInTheDocument();
+    expect(table.getByText(`Action: ${visible.lastDecision.action.type}`)).toBeInTheDocument();
+    expect(table.getByText(`Chat: ${visible.chatMessages[0].text}`)).toBeInTheDocument();
+    expect(table.getByText('Thread: The river action is recorded.')).toBeInTheDocument();
+    expect(table.queryByText('Chat: I called on the flop.')).not.toBeInTheDocument();
+    if (!isSpectator) {
+      await userEvent.click(table.getByRole('button', { name: 'Play check' }));
+      expect(actNow).toHaveBeenCalledOnce();
+      expect(actNow).toHaveBeenCalledWith({ type: 'check' });
+    }
   });
 });
 

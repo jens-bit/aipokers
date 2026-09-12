@@ -2,6 +2,15 @@
 Last updated: 2026-09-12 (Home-first run); statuses and evidence below.
 Named BUG headings: 191, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
 
+### FIRST-HOME-1 — first birth leaves Home empty and duplicates the birth card — fixed locally
+An actual fresh guest desktop walkthrough reproduced a header with one resident beside an empty room, plus a second desktop birth card over the draft's own card. Durable draft creation did not publish the household; the Home hook permanently filtered newer REST residents through the old empty snapshot and could not insert a FLOOR_STATE newcomer. Creation now publishes once, the hook accepts actual arrivals while guarding newer removals against stale REST, and the desktop recognizes births already presented by the draft. Four hook regressions, a real guest route publication/replay regression, and both early/late desktop poll cases failed before their fixes and passed after them. Built fresh-account evidence is recorded in the handoff.
+
+### FIRST-CHAT-1 — failed replies disappear, malformed replies pass, and UI errors speak as the agent — fixed locally
+The conversation routes now validate actual assistant text, restore failed drafts, guard duplicate sends and discard UI completions from obsolete conversations. Application failures are displayed as failures, not fabricated agent speech. No automatic retry or second model call is added. Narrow movement requests give factual guidance and never mutate whereabouts; recognized wrapped stage directions are removed without stripping ordinary emphasis. Focused regression and final gate results are in the handoff.
+
+### FIRST-GUIDE-1 — newcomers have no safe way to learn at their own pace — local playtest candidate
+Home now offers a skippable, resumable, replayable practice hand. Browser checks caught and repaired a zero-height felt, off-screen phone navigation, completed lessons reopening at the end, a stale desktop casino return, missing first-step pointers and a clipped short-phone result pointer. The checked lesson uses legal engine states and isolated outcomes. Human comprehension and desire to continue remain unverified; see `read-me-claude/FIRST_SESSION_PLAYTEST.md`.
+
 ### SHOW-4 — wrong result emphasis, premature effects, excess speech and lingering audio — fixed locally, verified
 Result presentation now follows actual positive payouts, aggregates side pots per seat and names opponent winners; shared awards stay explicit. Visible all-in completion gates transient effects and sound, and cold entry/replay/camera changes do not replay a result. A red-first regression caught three bubbles when the winner joined two live speakers; existing speech now retains both slots and placement priority. Eight audio cancellation regressions reproduced delayed reports/knock/room ducking after leaving the result; earned sources and their own duck window now cancel while repeated snapshots and unrelated sounds remain intact.
 

@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopHome } from './DesktopHome.jsx';
 import { agentsResponse, playingAgent, restingAgent } from '../../test/fixtures/agents.js';
+import { midHandGame } from '../../test/fixtures/game.js';
 import { fetchMock, telegram } from '../../test/harness.js';
 
 function renderHome(props = {}) {
@@ -41,7 +42,7 @@ function rosterRow(name) {
 // they pin (the roster is complete, a row opens his thread, the draft map
 // survives a switch, Escape backs out) are unchanged.
 async function openStandup() {
-  await userEvent.click(screen.getByRole('button', { name: /Standup/ }));
+  await userEvent.click(within(document.querySelector('.dsk-top')).getByRole('button', { name: /Standup/ }));
   await waitFor(() => rosterRow(playingAgent.name));
 }
 
@@ -62,6 +63,29 @@ describe('DesktopHome roster', () => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
     fetchMock.route('/hands', { recentHands: [] });
+  });
+
+  it('FIRST-CHAT-1: a refused live table whisper restores its draft and shows an application alert outside the conversation', async () => {
+    const liveAgent = { ...playingAgent, location: { where: 'table', tableId: playingAgent.liveGame.tableId, room: 'floor' } };
+    fetchMock.route('/api/agents', { agents: [liveAgent] });
+    fetchMock.route('/api/agents/chat', { status: 503, body: {} });
+    const { container } = renderHome({ isWatching: true, watchingAgent: liveAgent, game: midHandGame });
+    fireEvent.click(await screen.findByTestId('home-tv'));
+    const input = await screen.findByPlaceholderText('Whisper to him…');
+    fireEvent.change(input, { target: { value: 'Take your time.' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not send your message. Please try again.');
+    expect(alert.closest('.thread-row')).toBeNull();
+    expect(input).toHaveValue('Take your time.');
+    expect([...container.querySelectorAll('.thread-row')].some(row => row.textContent.includes('Take your time.'))).toBe(false);
+
+    fetchMock.route('/api/agents/chat', { chat: [{ role: 'assistant', content: 'I cannot answer that right now.' }], replyUnavailable: true });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await screen.findByText('I cannot answer that right now.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(input).toHaveValue('');
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(2);
   });
 
   it.each(['television', 'away frame'])('BUG-172: the %s puts the selected live table on the desktop stage and Back restores the room', async (entry) => {
@@ -192,22 +216,25 @@ describe('DesktopHome panel', () => {
   });
 
   it('keeps a half-typed draft when the open agent changes', async () => {
+    // Search the real conversation rail. Walking every decorative room SVG
+    // for each accessible-role query obscures this draft-preservation check.
+    const rail = () => within(screen.getByTestId('home-rail'));
     renderHome();
     await openAgent(restingAgent.name);
 
-    const composer = await screen.findByRole('textbox');
+    const composer = await rail().findByRole('textbox');
     await userEvent.type(composer, 'tighten up');
     expect(composer).toHaveValue('tighten up');
 
     // Away to the other agent — his composer is his own, and empty.
-    await userEvent.click(screen.getByRole('button', { name: /close panel/i }));
+    await userEvent.click(rail().getByRole('button', { name: /close panel/i }));
     await openAgent(playingAgent.name);
-    expect(await screen.findByRole('textbox')).toHaveValue('');
+    expect(await rail().findByRole('textbox')).toHaveValue('');
 
     // Back again — the draft is where it was left.
-    await userEvent.click(screen.getByRole('button', { name: /close panel/i }));
+    await userEvent.click(rail().getByRole('button', { name: /close panel/i }));
     await openAgent(restingAgent.name);
-    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('tighten up'));
+    await waitFor(() => expect(rail().getByRole('textbox')).toHaveValue('tighten up'));
   });
 
   it('closes the panel on Escape', async () => {
@@ -239,4 +266,19 @@ it('BUG-107: a newly arrived agent opens his birth card and can be dealt in', as
   await userEvent.click(deal);
   expect(onDeployAgent).toHaveBeenCalledWith(expect.objectContaining({ id: newborn.id }));
   expect(screen.queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+});
+
+it.each([true, false])('a birth handled by the draft never opens a second birth card (draft still open: %s)', async (stillDrafting) => {
+  telegram.signIn();
+  fetchMock.route('/api/agents', { agents: [] });
+  const draft = <div data-testid="first-recruiter">One open seat.</div>;
+  const { rerender } = renderHome({ draft });
+  await waitFor(() => expect(screen.getByTestId('home-rail')).toHaveAttribute('data-panel', 'draft'));
+  const newborn = { ...restingAgent, id: 'first-newborn', name: 'New Arrival' };
+  if (!stillDrafting) rerender(<DesktopHome birthHandledId={newborn.id} />);
+  fetchMock.route('/api/agents', { agents: [newborn] });
+  fireEvent.focus(window);
+  await waitFor(() => expect(document.querySelector('.dsk-top')).toHaveTextContent('1 home'));
+  expect(screen.queryByText('The card he was born with')).not.toBeInTheDocument();
+  if (stillDrafting) expect(screen.getByTestId('first-recruiter')).toBeInTheDocument();
 });

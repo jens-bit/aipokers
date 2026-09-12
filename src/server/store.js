@@ -370,6 +370,10 @@ function applySchema(d) {
   // line came back in the room's ordinary grey. A stored line has to be able to
   // say what it is; this is the column that lets it.
   addColumnIfMissing(d, 'session_thread', 'cost', 'INTEGER');
+  // FIRST-WATCH-1: optional origin for the calm conversation view. Old rows
+  // stay null; no text-based backfill can safely distinguish speech from play.
+  addColumnIfMissing(d, 'session_thread', 'category',
+    "TEXT CHECK(category IN ('decision', 'action', 'result', 'chat', 'session'))");
 
   // SLOTS-1: what this owner's agents have won, ever — the sum of positive
   // session nets, and the only currency an agent slot can be unlocked with.
@@ -1007,21 +1011,21 @@ export const THREAD_CAP_PER_SESSION = 500;
  * Returns the row id, which is monotonic per database and therefore also the
  * order the sheet renders in.
  */
-export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table', from = null, to = null, lines = null, cost = false }) {
+export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, ts, kind, who, text, source = 'table', from = null, to = null, lines = null, cost = false, category = null }) {
   const d = conn();
   const sid = String(sessionId);
   let id = null;
   d.transaction(() => {
     const info = d.prepare(`
-      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO session_thread (session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost, category)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(sid, String(agentId), String(ownerId), tableId ?? null,
            Number.isFinite(ts) ? Math.floor(ts) : Date.now(),
            String(kind), String(who), String(text), String(source ?? 'table'),
            from == null ? null : String(from),
            to == null ? null : String(to),
            Array.isArray(lines) ? JSON.stringify(lines) : null,
-           cost ? 1 : 0);
+           cost ? 1 : 0, category);
     id = info.lastInsertRowid;
     d.prepare(`
       DELETE FROM session_thread
@@ -1038,7 +1042,7 @@ export function appendThreadLine({ sessionId, agentId, ownerId, tableId = null, 
  */
 export function readThreadLines(sessionId, { limit = THREAD_CAP_PER_SESSION } = {}) {
   return conn().prepare(`
-    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost
+    SELECT id, session_id, agent_id, owner_id, table_id, ts, kind, who, text, source, from_id, to_id, lines, cost, category
       FROM session_thread
      WHERE session_id = ?
      ORDER BY id ASC
@@ -1089,6 +1093,7 @@ function threadRow(r) {
   // and a lie about how many kinds of line there are — there is one register
   // that is gold, and a line either is it or says nothing.
   if (r.cost) line.cost = true;
+  if (r.category != null) line.category = r.category;
   return line;
 }
 

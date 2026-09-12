@@ -71,6 +71,7 @@ import { fetchWallet, signedMoney } from '../lib/wallet.js';
 import { SafeSheet } from '../components/wallet/SafeSheet.jsx';
 import { useWallet } from '../hooks/useWallet.js';
 import '../styles/home1.css';
+import { PracticeEntry } from '../components/practice/PracticeEntry.jsx';
 
 // Later mood-home2 WALKS: departure 2.2s, homecoming 1.9s; an ordinary room crossing stays 1.6s.
 export const WALK_MS = HOME_WALK_MS;
@@ -303,6 +304,7 @@ export function HomeScreen({
   onProfile,
   onDeploy,
   onCreateAgent,
+  onPractice,
   // HOME-2 job 1 · the casino is the door. There is no bottom bar to reach it
   // by any more, so the room carries the only way in — and the phone is the
   // only shell that needs it: the desk has the building beside it in a rail.
@@ -843,7 +845,10 @@ export function HomeScreen({
   if (desktop) {
     return (
       <div className="home1 home1--desk" data-testid="home-screen">
-        {roomBox}
+        {onPractice && loaded && agents.some(a => !a.visiting && !a.guest) ? <div className="home1__practice-column">
+          <PracticeEntry key={agents.find(a => !a.visiting && !a.guest).id} agent={agents.find(a => !a.visiting && !a.guest)} ownerId={getUserId()} onStart={onPractice}/>
+          {roomBox}
+        </div> : roomBox}
         {rail === 'none' ? null : (
         <div className="home1__rail" data-testid="home-rail" data-panel={rail}>
           {renderRail?.({
@@ -880,6 +885,7 @@ export function HomeScreen({
   return (
     <div className="home1" data-testid="home-screen">
       <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} rosterUnread={agents.some(a => a.want || a.unseenRecap)} />
+      {onPractice && loaded && agents.some(a => !a.visiting && !a.guest) && <PracticeEntry key={agents.find(a => !a.visiting && !a.guest).id} agent={agents.find(a => !a.visiting && !a.guest)} ownerId={getUserId()} onStart={onPractice}/>}
       {roomBox}
 
       {carry && <div className="home-carry-help"><span>Place him on the couch, table, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}

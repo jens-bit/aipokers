@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 
 import {
   loadAgentStore, saveProfile,
@@ -21,6 +22,7 @@ import {
   loadNotificationState, saveNotificationState,
   loadWallet, saveWallet, deleteOwner,
   openStore, _closeForTests, _dbPath,
+  appendThreadLine, readThreadLines,
 } from './store.js';
 
 const ORIGINAL_CWD = process.cwd();
@@ -46,6 +48,33 @@ test.after(() => {
   for (const dir of scratchDirs) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
   }
+});
+
+test('FIRST-WATCH-1: a pre-category database migrates once and preserves untyped legacy lines', () => {
+  const dir = freshCwd();
+  fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
+  const filename = path.join(dir, 'data', 'app.db');
+  const legacy = new Database(filename);
+  legacy.exec(`CREATE TABLE session_thread (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, agent_id TEXT NOT NULL,
+    owner_id TEXT NOT NULL, table_id TEXT, ts INTEGER NOT NULL, kind TEXT NOT NULL,
+    who TEXT NOT NULL, text TEXT NOT NULL
+  ); INSERT INTO session_thread (session_id, agent_id, owner_id, ts, kind, who, text)
+     VALUES ('legacy-category', 'a1', 'u1', 100, 'him', 'HIM', 'Keep this old conversation.');`);
+  legacy.close();
+
+  openStore();
+  const [before] = readThreadLines('legacy-category');
+  assert.equal(before.text, 'Keep this old conversation.');
+  assert.equal('category' in before, false);
+  appendThreadLine({ sessionId: 'legacy-category', agentId: 'a1', ownerId: 'u1',
+    ts: 200, kind: 'table', who: 'TABLE', text: 'A new result.', category: 'result' });
+  _closeForTests();
+  openStore();
+  const rows = readThreadLines('legacy-category');
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[0], before, 'repeated migration must not classify old speech');
+  assert.equal(rows[1].category, 'result', 'new metadata survives reopening the database');
 });
 
 // ── cwd isolation ────────────────────────────────────────────────────────────

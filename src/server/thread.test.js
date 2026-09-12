@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { _closeForTests, THREAD_CAP_PER_SESSION } from './store.js';
-import { appendLine, readThread, latestSessionFor, setLineListener, ThreadKind, LINE_MAX } from './thread.js';
+import { appendLine, readThread, latestSessionFor, setLineListener, wireLine, ThreadKind, LINE_MAX } from './thread.js';
 
 const ORIGINAL_CWD = process.cwd();
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aipoker-thread-'));
@@ -28,6 +28,27 @@ process.on('exit', () => {
 const line = (over = {}) => ({
   sessionId: 's1', agentId: 'a1', ownerId: 'u1', tableId: 't1',
   kind: ThreadKind.TABLE, who: 'TABLE', text: 'something happened', ...over,
+});
+
+test('FIRST-WATCH-1: optional categories survive push, fetch and reconnect without widening private access', () => {
+  const seen = [];
+  setLineListener(row => seen.push(wireLine(row)));
+  try {
+    for (const category of ['decision', 'action', 'result', 'chat', 'session']) {
+      appendLine(line({ sessionId: 'categories', kind: category === 'decision' ? 'him' : 'table',
+        category, text: `${category} line` }));
+    }
+    appendLine(line({ sessionId: 'categories', category: 'untrusted', text: 'Unknown origin.' }));
+    appendLine(line({ sessionId: 'categories', text: 'Legacy origin.' }));
+  } finally { setLineListener(null); }
+  const owner = readThread('categories', { owner: true, agentId: 'a1', ownerId: 'u1' });
+  assert.deepEqual(owner, seen);
+  assert.deepEqual(owner.slice(0, 5).map(row => row.category), ['decision', 'action', 'result', 'chat', 'session']);
+  assert.ok(owner.slice(5).every(row => !('category' in row)));
+  _closeForTests();
+  assert.deepEqual(readThread('categories', { owner: true, agentId: 'a1', ownerId: 'u1' }), owner);
+  assert.ok(readThread('categories', { owner: false }).every(row => row.kind !== 'him'));
+  assert.deepEqual(readThread('categories', { owner: true, ownerId: 'somebody-else' }), []);
 });
 
 test('SERVER-3: the four kinds come back in the order they were said', () => {

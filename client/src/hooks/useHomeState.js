@@ -115,6 +115,19 @@ export function useHomeState({
   // stats the compact push does not — and the newest push is re-laid over it.
   const pushRef = useRef(new Map());
   const rosterIdsRef = useRef(null);
+  const rosterRevisionRef = useRef(0);
+  const removedIdsRef = useRef(new Set());
+
+  // A snapshot can remove a known resident, but an old empty snapshot must
+  // not permanently veto the first agent arriving through a later REST call.
+  const recordRoster = incoming => {
+    const ids=new Set(incoming.filter(a=>!a.guest).map(a=>String(a.id)));
+    const known=new Set([...(rosterIdsRef.current ?? []),...agentsRef.current.filter(a=>!a.guest).map(a=>String(a.id))]);
+    for(const id of known) if(!ids.has(id)) removedIdsRef.current.add(id);
+    for(const id of ids) removedIdsRef.current.delete(id);
+    rosterIdsRef.current=ids;
+    rosterRevisionRef.current+=1;
+  };
 
   // REST backfill. Never clobbers with an empty list on a failed request — the
   // room going momentarily empty because a fetch 500'd is worse than a stale
@@ -123,6 +136,7 @@ export function useHomeState({
     if (!wireUserId) return;
     const scope=scopeRef.current;
     if (!aliveRef.current || !scope || scope.userId!==String(wireUserId) || scope.initData!==wireInitData) return;
+    const rosterRevision=rosterRevisionRef.current;
     try {
       const res = await fetch(`/api/agents?userId=${encodeURIComponent(wireUserId)}`, {
         headers: wireInitData ? { 'X-Telegram-Init-Data': wireInitData } : undefined,
@@ -134,15 +148,20 @@ export function useHomeState({
       if (!Array.isArray(body?.agents)) return;
       setLoaded(true);
       const pushed = pushRef.current;
+      const newerRoster=rosterRevisionRef.current!==rosterRevision;
       // GET /api/agents has no home game in it — only HOME_STATE does — so the
       // REST path deliberately leaves `game` alone rather than nulling it.
       setAgents(prev => {
-        const residents=body.agents.filter(a=>!rosterIdsRef.current || rosterIdsRef.current.has(String(a.id)))
+        const residents=body.agents.filter(a=>!removedIdsRef.current.has(String(a.id))
+          && (!newerRoster || rosterIdsRef.current?.has(String(a.id))))
           .map(a=>mergeHomeAgent(a,pushed.get(String(a.id)) ?? {}));
         // REST is only this owner's roster. It cannot remove a guest whose
-        // presence was confirmed by the latest HOME_STATE.
+        // presence was confirmed by HOME_STATE, or a resident who arrived in
+        // a snapshot after this request started.
         const ids=new Set(residents.map(a=>String(a.id)));
-        return residents.concat(prev.filter(a=>a.guest && pushed.get(String(a.id))?.guest && !ids.has(String(a.id))));
+        return residents.concat(prev.filter(a=>!ids.has(String(a.id)) && (a.guest
+          ? pushed.get(String(a.id))?.guest
+          : newerRoster && rosterIdsRef.current?.has(String(a.id)))));
       });
     } catch {
       // The socket is the primary path.
@@ -195,14 +214,19 @@ export function useHomeState({
       if (msg?.type === ServerMsg.FLOOR_STATE && Array.isArray(msg.agents)) {
         const cards=msg.agents.map(a=>({...a,liveGame:homeTablePreview(a.liveGame)}));
         const floorById=new Map(cards.map(a=>[String(a.id),a]));
-        rosterIdsRef.current=new Set(floorById.keys());
+        setLoaded(true);
+        recordRoster(cards);
         for (const [id,card] of floorById) {
           if (pushRef.current.get(id)?.guest) continue;
           pushRef.current.set(id,mergeHomeAgent(pushRef.current.get(id),card));
         }
         for(const [id,old] of pushRef.current) if(!old.guest&&!floorById.has(id)) pushRef.current.delete(id);
-        setAgents(prev=>prev.filter(a=>a.guest||floorById.has(String(a.id)))
-          .map(a=>a.guest?a:mergeHomeAgent(a,floorById.get(String(a.id)))));
+        setAgents(prev=>{
+          const retained=prev.filter(a=>a.guest||floorById.has(String(a.id)))
+            .map(a=>a.guest?a:mergeHomeAgent(a,floorById.get(String(a.id))));
+          const ids=new Set(retained.map(a=>String(a.id)));
+          return retained.concat(cards.filter(a=>!ids.has(String(a.id))));
+        });
         return;
       }
 
@@ -236,7 +260,7 @@ export function useHomeState({
       if (msg?.type === ServerMsg.HOME_STATE) {
         if (Array.isArray(msg.agents)) {
           setLoaded(true);
-          rosterIdsRef.current=new Set(msg.agents.filter(a=>!a.guest).map(a=>String(a.id)));
+          recordRoster(msg.agents);
           pushRef.current = new Map(msg.agents.map(a => [String(a.id),mergeHomeAgent(pushRef.current.get(String(a.id)),a)]));
           setAgents((prev) => mergeHome(prev, msg.agents));
         }
@@ -290,6 +314,8 @@ export function useHomeState({
       ownerIdRef.current=ownerId;
       pushRef.current=new Map();
       rosterIdsRef.current=null;
+      rosterRevisionRef.current=0;
+      removedIdsRef.current=new Set();
       setAgents([]);
       setGame(null);setGameKnown(false);setLoaded(false);
       setVisitor(null);setArrival(null);setOwnerLines([]);

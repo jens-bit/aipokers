@@ -114,7 +114,7 @@ import {
   TALK_INTERVAL_HANDS,
 } from '../agent/tableTalk.js';
 import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js';
-import { appendLine as appendThreadLine, ThreadKind, ThreadSource, OWNER as THREAD_OWNER, ROOM as THREAD_ROOM } from './thread.js';
+import { appendLine as appendThreadLine, ThreadKind, ThreadCategory, ThreadSource, OWNER as THREAD_OWNER, ROOM as THREAD_ROOM } from './thread.js';
 import { homeSessionId } from './homeNight.js';
 import { canAffordTable } from './wallet.js';
 
@@ -1776,7 +1776,7 @@ export class Table {
   // a seat with no session (a House regular, a human) simply has nowhere to
   // write, which is the same thing as not writing.
 
-  _threadTo(seat, kind, who, text, { from = null, to = null, cost = false } = {}) {
+  _threadTo(seat, kind, who, text, { from = null, to = null, cost = false, category = null } = {}) {
     const sessionId = this.seatSessionIds[seat];
     if (!sessionId) return;
     appendThreadLine({
@@ -1794,13 +1794,14 @@ export class Table {
       to,
       // WATCH-9: and the room says when an attribute cost him the hand.
       cost,
+      category,
     });
   }
 
   // A fact about the felt, in the room's voice — it lands in every agent's
   // thread, because it happened to all of them.
-  _threadTable(text) {
-    for (let seat = 0; seat < this.maxSeats; seat++) this._threadTo(seat, ThreadKind.TABLE, 'TABLE', text);
+  _threadTable(text, category = null) {
+    for (let seat = 0; seat < this.maxSeats; seat++) this._threadTo(seat, ThreadKind.TABLE, 'TABLE', text, { category });
   }
 
   // One seat spoke. His own thread records HIM (or YOU, when the voice is the
@@ -1810,8 +1811,8 @@ export class Table {
     for (let s = 0; s < this.maxSeats; s++) {
       // BUGS-B/2: from/to belong to the SPEAKER's own line. The other seats
       // overheard it; nobody said it to them.
-      if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text, { from, to });
-      else this._threadTo(s, ThreadKind.OPPONENT, displayName, text);
+      if (s === seat) this._threadTo(s, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', text, { from, to, category: ThreadCategory.CHAT });
+      else this._threadTo(s, ThreadKind.OPPONENT, displayName, text, { category: ThreadCategory.CHAT });
     }
     // BUG-163: a kitchen's public speech is also the Home conversation, once
     // for the actual host room. Seat histories above still belong to their
@@ -1848,11 +1849,11 @@ export class Table {
     const amount = Number.isFinite(action.amount) ? Math.round(action.amount) : null;
     const allIn = this.game?.seats?.[seat]?.allIn;
     if (allIn && (action.type === 'bet' || action.type === 'raise' || action.type === 'call')) {
-      this._threadTable(`${name} is all in for ${amount ?? this._seatFinalStack(seat)}`);
+      this._threadTable(`${name} is all in for ${amount ?? this._seatFinalStack(seat)}`, ThreadCategory.ACTION);
       return;
     }
-    if (action.type === 'bet' && amount !== null) this._threadTable(`${name} bet ${amount}`);
-    else if (action.type === 'raise' && amount !== null) this._threadTable(`${name} raised to ${amount}`);
+    if (action.type === 'bet' && amount !== null) this._threadTable(`${name} bet ${amount}`, ThreadCategory.ACTION);
+    else if (action.type === 'raise' && amount !== null) this._threadTable(`${name} raised to ${amount}`, ThreadCategory.ACTION);
   }
 
   // RIDERS-1 (REPLAY-1's two exactness gaps): the pot as it stands once the
@@ -2740,6 +2741,7 @@ export class Table {
       result.type === 'showdown'
         ? `${names} won ${pot} at showdown`
         : `${names} took ${pot} uncontested`,
+      ThreadCategory.RESULT,
     );
   }
 
@@ -3609,6 +3611,7 @@ export class Table {
         who: line.who,
         text: line.text,
         ...(line.cost ? { cost: true } : {}),
+        ...(line.category ? { category: line.category } : {}),
       },
     });
 
@@ -4077,7 +4080,7 @@ export class Table {
     // same content the sanitized payload withholds, and readThread applies the
     // same ownership rule on the way back out.
     if (typeof reasoning === 'string' && reasoning.trim()) {
-      this._threadTo(seat, ThreadKind.HIM, 'HIM', reasoning);
+      this._threadTo(seat, ThreadKind.HIM, 'HIM', reasoning, { category: ThreadCategory.DECISION });
     }
     for (const ws of this.connections) {
       if (ws && ws.readyState === ws.OPEN) ws.send(sanitizedPayload);
@@ -4206,7 +4209,7 @@ export class Table {
   receiveWhisper(agentId, text) {
     const seat = this.seatOfAgent(agentId);
     if (seat === null || typeof text !== 'string' || !text.trim()) return null;
-    this._threadTo(seat, ThreadKind.YOU, 'YOU', text, { from: THREAD_OWNER, to: agentId });
+    this._threadTo(seat, ThreadKind.YOU, 'YOU', text, { from: THREAD_OWNER, to: agentId, category: ThreadCategory.CHAT });
     return seat;
   }
 
@@ -4613,6 +4616,7 @@ export class Table {
           kind: target.seat === line.seat ? ThreadKind.HIM : ThreadKind.OPPONENT,
           who: target.seat === line.seat ? 'HIM' : line.name,
           text: line.text,
+          category: ThreadCategory.SESSION,
         });
       }
     }

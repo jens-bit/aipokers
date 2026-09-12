@@ -61,6 +61,7 @@ export function DeskHome({
   onDeploy,
   onCasino,
   onCreateAgent,
+  onPractice,
   onFocusTable,
   onWatchTable,
   onSitAtTable,
@@ -104,6 +105,7 @@ export function DeskHome({
       onDeploy={onDeploy}
       onCasino={onCasino}
       onCreateAgent={onCreateAgent}
+      onPractice={onPractice}
       panel={panel}
       onPanel={onPanel}
       focusId={focusId}

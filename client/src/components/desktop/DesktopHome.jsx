@@ -35,6 +35,7 @@ export function DesktopHome({
   tableConfig = null, tableError = null, chatMessages = [], mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
   sessionEnd = null, onRebuy,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
+  onPractice, practiceReturn = null, birthHandledId = null,
   // WATCH-8: the socket's own status, so the desk's rail refetches the stored
   // thread when the connection comes back — the same rule the phone's sheet
   // follows, from the same hook.
@@ -97,6 +98,14 @@ export function DesktopHome({
   // is: the collapsed roster strip is one of the ways it changes, and the strip
   // is the shell's, not the room's.
   const [homeFocusId, setHomeFocusId] = useState(null);
+  useEffect(() => {
+    if (!practiceReturn) return;
+    setStage(practiceReturn.kind === 'casino' ? 'casino' : 'floor');
+    if (practiceReturn.kind === 'chat') {
+      setHomeFocusId(practiceReturn.agentId);
+      setHomePanel('agent');
+    }
+  }, [practiceReturn]);
   const homeStage = stage !== 'casino';
 
   useEffect(() => { if (deployAgent) setStage('casino'); }, [deployAgent]);
@@ -157,6 +166,12 @@ export function DesktopHome({
     };
   }, [load]);
 
+  useEffect(() => {
+    if (!birthHandledId) return;
+    load();
+    setBornId(id => id === birthHandledId ? null : id);
+  }, [birthHandledId, load]);
+
   // DESK-2: an agent the room's rail is pointed at who has been deleted
   // elsewhere must not strand the panel. This is the old selectedId guard,
   // following the rail's focus now that the rail is where a thread opens.
@@ -193,12 +208,14 @@ export function DesktopHome({
     if (knownIds.current === null) { knownIds.current = ids; return; }
     const fresh = agents.find((a) => !knownIds.current.has(a.id));
     knownIds.current = ids;
-    if (fresh) {
+    // The draft already presents its own birth card. Only an arrival from
+    // elsewhere needs this rail; a delayed poll after completion is covered too.
+    if (fresh && !draft && fresh.id !== birthHandledId) {
       setBornId(fresh.id);
       setHomeFocusId(null);
       setHomePanel('thread');
     }
-  }, [agents, loading]);
+  }, [agents, loading, draft, birthHandledId]);
 
   const liveCount = agents.filter((a) => a.activeTableId || a.liveGame?.tableId).length;
   const watchedId = isWatching ? watchingAgent?.id ?? null : null;
@@ -460,6 +477,7 @@ export function DesktopHome({
               onProfile={openProfile}
               onDeploy={onDeployAgent}
               onCreateAgent={onCreateAgent}
+              onPractice={onPractice}
               onFocusTable={openTable}
               onOpenFlagged={(agent, hand) => {
                 // A row names its hand: that one goes to the theatre. VIEW ALL
@@ -560,7 +578,8 @@ function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines,
         lastDecision={lastDecision}
         heroSeat={heroSeat}
         hands={agent.recentHands}
-        thread={error ? [...chat,{role:'assistant',content:error,_id:'send-error'}] : chat}
+        thread={chat}
+        error={error}
         stored={stored}
         draft={draft}
         sending={sending}

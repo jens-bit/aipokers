@@ -5,7 +5,7 @@
 // cards face up. Between hands the felt holds a calm state rather than
 // swapping itself out for a spinner.
 
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -1426,5 +1426,64 @@ describe('WATCH-6 the whisper', () => {
     await user.click(screen.getByRole('button', { name: 'Chat' }));
     expect(container.querySelector('.read-sheet')).toBeNull();
     expect(container.querySelector('.thread-sheet')).toBeTruthy();
+  });
+});
+
+describe('FIRST-CHAT-1 live whisper delivery', () => {
+  beforeEach(() => {
+    telegram.signIn();
+    fetchMock.route('/api/agents', agentsResponse);
+  });
+
+  it.each([
+    ['refused HTTP response', { status: 503, body: { chat: [{ role: 'assistant', content: 'Not a saved reply.' }] } }],
+    ['missing reply', { chat: [] }],
+    ['non-text reply', { chat: [{ role: 'assistant', content: 12 }] }],
+    ['network failure', () => { throw new Error('offline'); }],
+  ])('restores a %s for retry without adding a fake conversation line', async (_name, response) => {
+    fetchMock.route('/api/agents/chat', response);
+    const { container } = renderWatch(midHandGame);
+    const input = container.querySelector('.watch-composer__input');
+    fireEvent.change(input, { target: { value: 'Wait for value.' } });
+    fireEvent.submit(input.closest('form'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not send your whisper. Please try again.');
+    expect(input).toHaveValue('Wait for value.');
+    expect(input).toBeEnabled();
+    expect(container.querySelector('.watch-whisper')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+    const sheet = within(container.querySelector('.thread-sheet'));
+    expect(sheet.queryByText('Wait for value.')).not.toBeInTheDocument();
+    expect(sheet.queryByText(/Something went wrong|Not a saved reply/)).not.toBeInTheDocument();
+
+    // The server saved this fallback as a complete turn; do not retry it.
+    fetchMock.route('/api/agents/chat', { chat: [{ role: 'assistant', content: 'I cannot answer that right now.' }], replyUnavailable: true });
+    fireEvent.submit(input.closest('form'));
+    await waitFor(() => expect(sheet.getByText('I cannot answer that right now.')).toBeInTheDocument());
+    expect(sheet.getAllByText('Wait for value.')).toHaveLength(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(input).toHaveValue('');
+    const requests = fetchMock.requestsMatching('/api/agents/chat');
+    expect(requests).toHaveLength(2);
+    expect(requests[0].headers['x-telegram-init-data']).toBe(window.Telegram.WebApp.initData);
+    expect(requests[0].body).toMatchObject({ existingAgentId: spectatorConfig.agentId, content: 'Wait for value.' });
+  });
+
+  it('drops an old agent response when the watched companion changes', async () => {
+    let release;
+    fetchMock.route('/api/agents/chat', () => new Promise(resolve => { release = resolve; }));
+    const { container, rerender } = renderWatch(midHandGame);
+    const input = container.querySelector('.watch-composer__input');
+    fireEvent.change(input, { target: { value: 'Old question.' } });
+    fireEvent.submit(input.closest('form'));
+    rerender(<WatchScreen game={midHandGame} mySeat={0} config={{ ...spectatorConfig, agentId: 'other-agent' }} chatMessages={[]} />);
+    const nextInput = container.querySelector('.watch-composer__input');
+    expect(nextInput).toBeEnabled();
+    fireEvent.change(nextInput, { target: { value: 'New draft.' } });
+    await act(async () => { release({ chat: [{ role: 'assistant', content: 'Old reply.' }] }); });
+    expect(nextInput).toHaveValue('New draft.');
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+    const sheet = within(container.querySelector('.thread-sheet'));
+    expect(sheet.queryByText('Old question.')).not.toBeInTheDocument();
+    expect(sheet.queryByText('Old reply.')).not.toBeInTheDocument();
   });
 });
