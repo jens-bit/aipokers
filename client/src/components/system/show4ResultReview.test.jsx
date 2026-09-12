@@ -41,6 +41,14 @@ it.each([false,true])('SHOW-4: an opponent major win sounds its bursts and a her
   if(bust) expect(container.querySelector('.watch-hero .hand-busted-name')).toHaveTextContent('Big Slick');
 });
 
+it.each([1,2])('SHOW-4: an opponent win names the winner before its %s busted seats',count=>{
+  const game=done(1,3000,true);
+  if(count===2) game.seats.push({...live.seats[0],playerId:'third',displayName:'Doyle',stack:0});
+  const {container}=render(<WatchFelt game={game} mySeat={0}/>);
+  expect(container.querySelector('.watch-felt__won-to')).toHaveTextContent(
+    count===1 ? 'Granite WON · Big Slick IS OUT' : 'Granite WON · 2 OPPONENTS OUT');
+});
+
 it('SHOW-4: split pots visibly identify sharing while retaining the camera award and all recipients',()=>{
   const game=done();
   game.result.winners=[{seat:1,amount:2000},{seat:0,amount:600},{seat:0,amount:400}];

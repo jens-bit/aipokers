@@ -908,8 +908,10 @@ export function WatchFelt({
     ordinaryAmount == null ? '' : potMoney(ordinaryAmount),
     celebration.shared ? 'in a shared pot' : handLine?.tail,
   ].filter(Boolean).join(' ') : null;
-  var winLabel = majorWin ? (celebration.busted.length>1 ? `${celebration.busted.length} OPPONENTS OUT`
-    : celebration.busted.length===1 ? `${celebration.busted[0].name} IS OUT`
+  var bustLabel = celebration?.busted.length>1 ? `${celebration.busted.length} OPPONENTS OUT`
+    : celebration?.busted.length===1 ? `${celebration.busted[0].name} IS OUT` : null;
+  var winLabel = majorWin ? (bustLabel
+    ? `${awardSeat === heroSeat ? '' : seatName(awardSeat,game.seats) + ' WON · '}${bustLabel}`
     : `${awardSeat === heroSeat ? '' : seatName(awardSeat,game.seats) + ' '}WON ${Math.round(celebration.bb)} BB`)
     // Desktop kitchen Watch has a room title instead of the phone's agent
     // header. Preserve its formerly visible winner identity (Jens's win clarity).
