@@ -193,11 +193,13 @@ const HAND_PAUSE_MS = Number(process.env.HAND_PAUSE_MS ?? 3000);
 // which is also what it is supposed to look like. The moment somebody attaches
 // a spectator it snaps back to today's pacing, mid-session, on the next deal.
 //
-// An explicit HAND_PAUSE_MS (env, or the constructor argument the home game
-// uses) always wins: a caller who named a tempo means it, and the e2e scripts
-// that deal a hundred hands in ten seconds are exactly that caller.
+// Explicit faster tempos still win. SHOW-2 caps a watched automatic table's
+// result pause at three seconds, including an old, slower deployment setting.
+// Unwatched cost throttles and the separately staged runout are unchanged.
 const UNWATCHED_HAND_PAUSE_MS = Number(process.env.UNWATCHED_HAND_PAUSE_MS ?? 25_000);
 const HAND_PAUSE_EXPLICIT = process.env.HAND_PAUSE_MS !== undefined;
+const WATCHED_HAND_PAUSE_MAX_MS = 3000;
+const FLOOR_CHAT_MS = 4000;
 // Hands one deployment is allowed to play before the agent gracefully sits
 // out. Bounds the LLM spend of a table nobody is watching.
 const SESSION_MAX_HANDS = Number(process.env.SESSION_MAX_HANDS ?? 100);
@@ -434,6 +436,10 @@ export class Table {
     // Rolling chat history (last 20, newest last). Used only by sendChat ÔÇö
     // not replayed to clients on reconnect for simplicity.
     this.chatHistory = [];                         // [{ seat, displayName, text, isAI, timestamp }]
+    // The public floor must not copy chatHistory: whisper replies use that
+    // transport too. Only explicitly room-addressed speech enters this slot.
+    this._recentFloorChat = null;
+    this._floorChatSeq = 0;
 
     // Spectators: users who watch their AI play from its seat's POV
     this.spectators = [];                          // [{ ws, spectatorSeat }]
@@ -505,6 +511,7 @@ export class Table {
     // same seat, still to act" from "the same seat, to act again on the next
     // street" — which heads-up happens on every hand.
     this._actionSeq = 0;
+    this._lastPublicAction = null;
     // The turn _maybeRunAiTurn has already claimed, so one turn is never
     // driven twice. See the guard there.
     this._aiTurnKey = null;
@@ -1921,10 +1928,13 @@ export class Table {
     // A legacy spectator-created AI table that never became autonomous keeps
     // its old 2.5s tempo — it exists because somebody is looking at it.
     if (!this.autoPlay) return 2500;
-    // The kitchen table has its own tempo (HOME_PAUSE_MS, set by homeGame) and
-    // its own reason for it. Nothing here second-guesses it.
+    // Watching a completed automatic hand gets the next deal within three
+    // seconds. This never schedules a deal on a manually dealt human table,
+    // and _nextHandResultAt keeps a staged all-in runout ahead of this pause.
+    if (this.isWatched()) return Math.min(this.handPauseMs, WATCHED_HAND_PAUSE_MAX_MS);
+    // Unwatched kitchen and explicitly configured tables retain their tempo.
     if (this.home || this._handPauseNamed) return this.handPauseMs;
-    return this.isWatched() ? this.handPauseMs : UNWATCHED_HAND_PAUSE_MS;
+    return UNWATCHED_HAND_PAUSE_MS;
   }
 
   // Attach a watcher to the table.
@@ -2164,6 +2174,8 @@ export class Table {
       pot: inHand ? Math.round(g.pot) : 0,
       toAct: inHand ? g.toAct : null,
       handNumber: g ? g.handNumber : 0,
+      lastAction: this._publicLastAction(g?.handNumber),
+      recentChat: this._publicRecentChat(),
       hot: isHot(this.tableId),
       seated: this.seatedCount(),
       maxSeats: this.maxSeats,
@@ -2352,6 +2364,7 @@ export class Table {
     this._streetAtActionCapture = null;
     this.pace = PACE.CALM;
     this._boardBeforeAct = [];
+    this._lastPublicAction = null;
     this._heroEquity.clear();
     this.actionTimer = null;      // SERVER-3: a new hand, a new clock
     this.game.startHand();
@@ -2371,9 +2384,10 @@ export class Table {
     if (seat === -1) throw new Error('connection not seated');
     const streetBefore = this.game.street;
     this._boardBeforeAct = [...this.game.community];
+    const actionBefore = this._actionViewBefore(seat);
     this.game.act(seat, action);
     this._incrementRaiseCountIfAggressive(action);
-    this._logAction(seat, streetBefore, action);
+    this._logAction(seat, streetBefore, action, actionBefore);
     this._resetAiInactivityTimer();
     this._broadcastPace();
     this._broadcastState();
@@ -2461,12 +2475,47 @@ export class Table {
   }
   // Capture actionType against the street it was DECIDED on (not the street
   // Game may have advanced to). Feeds opponentStats in _handCompleted.
-  _logAction(seat, street, action) {
+  _actionViewBefore(seat) {
+    const player = this.game?.seats[seat];
+    return player ? {
+      stack: player.stack, contribution: player.contribThisStreet,
+      currentBet: this.game.currentBet,
+    } : null;
+  }
+
+  _publicLastAction(handNumber = this.game?.handNumber) {
+    const action = this._lastPublicAction;
+    return action && this.game?.street !== Streets.WAITING && action.handNumber === handNumber ? { ...action } : null;
+  }
+
+  _publicRecentChat(now = Date.now()) {
+    const recent = this._recentFloorChat;
+    if (!recent || now >= recent.expiresAt || this.pending[recent.seat]?.playerId !== recent.playerId) return null;
+    const { seq, seat, displayName, text, isAI, timestamp, expiresAt } = recent;
+    return { seq, seat, displayName, text, isAI, timestamp, expiresAt };
+  }
+
+  _logAction(seat, street, action, before = null) {
     if (!action?.type) return;
     // SERVER-3: every accepted action moves the clock on. Heads-up the same
     // seat can be to act twice in a row across a street boundary, and this is
     // what tells those two turns apart -- see _armActionTimer.
     this._actionSeq++;
+    // Every producer calls this AFTER an accepted engine action, with only
+    // public betting facts captured before it. A call's client-supplied amount
+    // is ignored by the engine; it must not become a fictional chip push here.
+    // Pre-action facts also survive street resets, uncalled refunds and a
+    // winning all-in's stack being paid back before this function runs.
+    if (before) {
+      const chips = action.type === 'call' ? Math.min(before.stack, Math.max(0, before.currentBet - before.contribution))
+        : action.type === 'raise' ? action.amount - before.contribution
+          : action.type === 'bet' ? action.amount : 0;
+      this._lastPublicAction = {
+        seq: this._actionSeq, handNumber: this.game.handNumber, seat, street,
+        type: action.type, amount: action.type === 'raise' ? action.amount : chips,
+        chips, allIn: chips > 0 && chips === before.stack, pot: this.game.pot,
+      };
+    }
     this.currentHandActionLog.push({ seat, street, actionType: action.type });
     this._threadAction(seat, action);
   }
@@ -3756,6 +3805,7 @@ export class Table {
     // GET /api/agents/:id/thread are both filed under, so a client that
     // reconnects mid-session can ask for the thread it was reading.
     state.sessionId = Number.isInteger(forSeat) ? (this.seatSessionIds[forSeat] ?? null) : null;
+    state.lastAction = this._publicLastAction(state.handNumber);
     return state;
   }
 
@@ -4028,6 +4078,16 @@ export class Table {
     });
     if (entry.isAI && this.aiSeats[seat] && this.pending[seat]) {
       this._lastPublicAiLine[seat] = trimmed;
+    }
+    // An owner-addressed whisper reply is not room speech, even though the
+    // legacy table CHAT transport above also carries it. Never widen its
+    // audience to the casino floor or retain owner/thread metadata here.
+    if (this.pending[seat] && (to == null || to === THREAD_ROOM)) {
+      this._recentFloorChat = {
+        ...entry, seq: ++this._floorChatSeq, expiresAt: entry.timestamp + FLOOR_CHAT_MS,
+        playerId: this.pending[seat].playerId,
+      };
+      this._notifyStateChange();
     }
   }
 
@@ -4738,9 +4798,10 @@ export class Table {
     // hand completes.
     if (this._foldsOutOfHand(aiSeat)) {
       const streetBefore = g.street;
+      const actionBefore = this._actionViewBefore(aiSeat);
       try {
         this.game.act(aiSeat, { type: 'fold' });
-        this._logAction(aiSeat, streetBefore, { type: 'fold' });
+        this._logAction(aiSeat, streetBefore, { type: 'fold' }, actionBefore);
         this._broadcastState();
         if (this.game.street === Streets.COMPLETE) this._handCompleted();
       } catch (err) {
@@ -4894,6 +4955,7 @@ export class Table {
 
     const streetBefore = this.game.street;
     this._boardBeforeAct = [...this.game.community];
+    const actionBefore = this._actionViewBefore(aiSeat);
     // SERVER-3: what he is reacting to, read off the table as it stands BEFORE
     // the action. Whether the action itself commits his stack is only knowable
     // once the engine has applied it, which is why allIn is decided below.
@@ -4905,7 +4967,7 @@ export class Table {
       this.game.act(aiSeat, action);
       this._stampDecisionOutcome(decisionIdx, aiSeat);
       this._incrementRaiseCountIfAggressive(action);
-      this._logAction(aiSeat, streetBefore, action);
+      this._logAction(aiSeat, streetBefore, action, actionBefore);
       this._broadcastPace();
       this._broadcastDecision({
         seat: aiSeat,
@@ -4940,7 +5002,7 @@ export class Table {
       try {
         this.game.act(aiSeat, fallbackAction);
         this._stampDecisionOutcome(decisionIdx, aiSeat);
-        this._logAction(aiSeat, streetBefore, fallbackAction);
+        this._logAction(aiSeat, streetBefore, fallbackAction, actionBefore);
         // Replace the recorded decision with the action that actually played
         // out so stats reflect the engine's view.
         const lastIdx = this.currentHandDecisions.length - 1;

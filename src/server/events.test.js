@@ -234,3 +234,16 @@ test('EVENT-1: GET /api/events?since=<id> serves the same ring the socket pushes
   const res = await fetch(`${base}/api/events`);
   assert.equal(res.headers.get('cache-control'), 'no-store', 'a ticker is never cached');
 });
+
+test('SHOW-2: REST can seed the latest twenty real events and then catch up by cursor', async () => {
+  for (let i = 0; i < 30; i++) emitCasinoEvent({ type: EventType.BUST, tableId: 'seed', headline: `real event ${i}` });
+  const seeded = await fetch(`${base}/api/events?limit=20`).then(r => r.json());
+  assert.equal(seeded.events.length, 20);
+  assert.equal(seeded.events[0].headline, 'real event 10');
+  assert.equal(seeded.events.at(-1).headline, 'real event 29');
+  emitCasinoEvent({ type: EventType.BIG_POT, tableId: 'seed', headline: 'new real event' });
+  const later = await fetch(`${base}/api/events?since=${seeded.lastId}&limit=20`).then(r => r.json());
+  assert.deepEqual(later.events.map(e => e.headline), ['new real event']);
+  const invalid = await fetch(`${base}/api/events?limit=garbage`).then(r => r.json());
+  assert.equal(invalid.events.length, 31, 'invalid caps keep the existing bounded-ring default');
+});

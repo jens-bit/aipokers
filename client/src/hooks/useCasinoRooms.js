@@ -134,6 +134,33 @@ function seatIdentity(seat) {
   return look ? { hood: look.hood.id, glow: look.glow.id } : null;
 }
 
+// Motion is a public, accepted action, never a model decision. Copy an explicit
+// field list so private extras on a malformed/older wire cannot enter a felt.
+function publicAction(raw, handNumber) {
+  if (!raw || !Number.isInteger(raw.seq) || raw.seq < 1
+    || !Number.isInteger(raw.seat) || raw.seat < 0
+    || raw.handNumber !== handNumber
+    || !['fold', 'check', 'call', 'bet', 'raise'].includes(raw.type)) return null;
+  return {
+    seq: raw.seq, handNumber, seat: raw.seat, street: String(raw.street ?? ''), type: raw.type,
+    amount: Math.max(0, num(raw.amount)), chips: Math.max(0, num(raw.chips)),
+    allIn: raw.allIn === true, pot: Math.max(0, num(raw.pot)),
+  };
+}
+
+function publicChat(raw) {
+  if (!raw || !Number.isInteger(raw.seq) || raw.seq < 1
+    || !Number.isInteger(raw.seat) || raw.seat < 0
+    || typeof raw.text !== 'string' || !raw.text.trim()
+    || !Number.isFinite(raw.timestamp) || !Number.isFinite(raw.expiresAt)
+    || raw.expiresAt <= raw.timestamp) return null;
+  return {
+    seq: raw.seq, seat: raw.seat, displayName: typeof raw.displayName === 'string' ? raw.displayName : '',
+    text: raw.text.slice(0, 280), isAI: raw.isAI === true,
+    timestamp: raw.timestamp, expiresAt: raw.expiresAt,
+  };
+}
+
 /**
  * Normalise the felts off ROOM_TABLES. Same law as normalizeRooms: a frame
  * that cannot be read is an empty floor, never a throw.
@@ -157,6 +184,8 @@ export function normalizeFelts(raw) {
       pot: Math.max(0, num(t.pot)),
       toAct: Number.isInteger(t.toAct) ? t.toAct : null,
       handNumber: Math.max(0, num(t.handNumber)),
+      lastAction: publicAction(t.lastAction, Math.max(0, num(t.handNumber))),
+      recentChat: publicChat(t.recentChat),
       hot: !!t.hot,
       seated: Math.max(0, num(t.seated)),
       maxSeats: Math.max(0, num(t.maxSeats, 6)),
