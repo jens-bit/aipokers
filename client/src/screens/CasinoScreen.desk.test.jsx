@@ -62,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
   try { sessionStorage.removeItem('agentic_casino_view'); } catch { /* n/a */ }
+  try { sessionStorage.removeItem('agentic_casino_room'); } catch { /* n/a */ }
 });
 
 describe('DESK-2 · the casino on the desk', () => {

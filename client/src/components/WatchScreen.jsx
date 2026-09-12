@@ -455,8 +455,8 @@ function useFlyTo(rootRef, targets, deps) {
 // happen sooner. What there is instead is where his money stands, and the two
 // ways out of the evening.
 //
-//   BUSTED    "Fund him again"  ·  "Back to the floor"
-//   OTHERWISE "Back to the floor"  ·  "Talk to him about tonight"
+//   BUSTED    "Fund him again"  ·  "Back home"
+//   OTHERWISE "Back home"  ·  "Talk to him about tonight"
 //
 // It does not time out. A session ending is worth a tap.
 export function SessionCeremony({
@@ -557,14 +557,14 @@ export function SessionCeremony({
               </button>
               <button type="button" className="watch-btn watch-btn--ghost watch-ceremony__floor"
                 onClick={onFloor}>
-                Back to the floor
+                Back home
               </button>
             </>
           ) : (
             <>
               <button type="button" className="watch-btn watch-btn--primary watch-ceremony__floor"
                 onClick={onFloor}>
-                Back to the floor
+                Back home
               </button>
               <button type="button" className="watch-btn watch-btn--ghost watch-ceremony__talk"
                 onClick={onTalk}>

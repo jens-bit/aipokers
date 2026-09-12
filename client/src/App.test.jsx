@@ -60,6 +60,7 @@ it('C7: the home TV opens its saved hand with credentials and returns to Home',a
 // into whichever one runs next.
 afterEach(() => {
   try { sessionStorage.removeItem('agentic_casino_view'); } catch { /* n/a */ }
+  try { sessionStorage.removeItem('agentic_casino_room'); } catch { /* n/a */ }
 });
 
 // HOME-1: the app boots into the room. This is what `Standup` used to be.
@@ -268,7 +269,7 @@ describe('BUGS-A job 4 · back out of a thread goes to the door you came in by',
     expect(await bootedOnHome()).toBeInTheDocument();
   });
 
-  it('a thread opened from a profile goes back to that profile', async () => {
+  it('Chat on the same agent profile resumes the original room conversation', async () => {
     const user = userEvent.setup();
     render(<App />);
     await bootedOnHome();
@@ -282,8 +283,9 @@ describe('BUGS-A job 4 · back out of a thread goes to the door you came in by',
     expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    // The card he was reading, not the room and not a list.
-    expect(await screen.findByRole('button', { name: 'More actions' })).toBeInTheDocument();
+    // HOME-3: this profile was opened from this very thread. Chat resumes it;
+    // backing out keeps the original Home destination instead of adding a loop.
+    expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
   });
 
   it('the CHATS list is not reachable from the tab flow at all', async () => {
