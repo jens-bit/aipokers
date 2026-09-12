@@ -49,6 +49,7 @@ import { useTable } from '../hooks/useTable.js';
 import { HomeFlat } from '../components/home/HomeFlat.jsx';
 import { activityKeys } from '../components/system/RailMotion.jsx';
 import { RoomHeader } from '../components/Header.jsx';
+import { HomeAppearanceControl, useHomeAppearance } from '../components/home/HomeAppearance.jsx';
 import { AwayWall } from '../components/home/AwayWall.jsx';
 import { HomeGameTable, TableChairs, useHomeTable, homeBoardFor } from '../components/home/HomeGame.jsx';
 import { HomeOne, HomeBubble, CarryTargets } from '../components/home/atoms.jsx';
@@ -341,6 +342,7 @@ export function HomeScreen({
   // `true` still works for a caller that has only one ask to make.
   openTable = false,
 }) {
+  const { theme } = useHomeAppearance();
   const [phoneRoomHeight, setPhoneRoomHeight] = useState(PHONE_ROOM.height);
   // HomeFlat in the reference fills its wrapper, with a 612px minimum. The
   // furniture keeps its authored coordinates; extra height belongs to the room.
@@ -844,7 +846,7 @@ export function HomeScreen({
   // to it here rather than fetched again beside it.
   if (desktop) {
     return (
-      <div className="home1 home1--desk" data-testid="home-screen">
+      <div className="home1 home1--desk" data-testid="home-screen" data-home-theme={theme}>
         {onPractice && loaded && agents.some(a => !a.visiting && !a.guest) ? <div className="home1__practice-column">
           <PracticeEntry key={agents.find(a => !a.visiting && !a.guest).id} agent={agents.find(a => !a.visiting && !a.guest)} ownerId={getUserId()} onStart={onPractice}/>
           {roomBox}
@@ -883,8 +885,8 @@ export function HomeScreen({
   }
 
   return (
-    <div className="home1" data-testid="home-screen">
-      <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} rosterUnread={agents.some(a => a.want || a.unseenRecap)} />
+    <div className="home1" data-testid="home-screen" data-home-theme={theme}>
+      <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} rosterUnread={agents.some(a => a.want || a.unseenRecap)} appearance={<HomeAppearanceControl />} />
       {onPractice && loaded && agents.some(a => !a.visiting && !a.guest) && <PracticeEntry key={agents.find(a => !a.visiting && !a.guest).id} agent={agents.find(a => !a.visiting && !a.guest)} ownerId={getUserId()} onStart={onPractice}/>}
       {roomBox}
 

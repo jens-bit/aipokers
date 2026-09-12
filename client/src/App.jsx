@@ -28,6 +28,7 @@ import { VisitNotice } from './components/home/VisitorToast.jsx';
 import { visitErrorText } from './lib/visit.js';
 import { GuidedPractice } from './components/practice/GuidedPractice.jsx';
 import { openClaimWall } from './lib/guest.js';
+import { HomeAppearanceProvider } from './components/home/HomeAppearance.jsx';
 
 // BUGS-C job 1: the Telegram entry has to load a home shell, not the whole
 // app. These four are screens a session may never visit in a given sitting
@@ -75,7 +76,7 @@ export default function App({ guestBoot = null, initialVisitNotice = null, initi
   const guest = useGuestSession({ guestBoot });
   const [visitNotice, setVisitNotice] = useState(initialVisitNotice);
   return (
-    <>
+    <HomeAppearanceProvider>
       <AppShell guest={guest} guestBoot={guestBoot} onVisitNotice={setVisitNotice} initialVisitHandled={initialVisitHandled} />
       <VisitNotice notice={visitNotice} onDismiss={() => setVisitNotice(null)} />
       {guest.wall && (
@@ -87,7 +88,7 @@ export default function App({ guestBoot = null, initialVisitNotice = null, initi
           onClaimed={guest.onClaimed}
         />
       )}
-    </>
+    </HomeAppearanceProvider>
   );
 }
 

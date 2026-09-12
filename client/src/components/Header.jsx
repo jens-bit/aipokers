@@ -141,7 +141,7 @@ export function RosterButton({ onOpenRoster, liveCount, unread = false }) {
   </>;
 }
 
-export function RoomHeader({ title, subtitle, onOpenRoster, liveCount, news = null, rosterUnread = false }) {
+export function RoomHeader({ title, subtitle, onOpenRoster, liveCount, news = null, rosterUnread = false, appearance = null }) {
   return (
     <header className="room-header" data-testid="room-header">
       <RailMotion size={20} news={news} />
@@ -149,6 +149,7 @@ export function RoomHeader({ title, subtitle, onOpenRoster, liveCount, news = nu
         <h1>{title}</h1>
         {subtitle && <div className="room-header__sub">{subtitle}</div>}
       </div>
+      {appearance}
       {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} liveCount={liveCount} unread={rosterUnread} />}
     </header>
   );

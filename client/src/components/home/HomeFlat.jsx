@@ -61,6 +61,9 @@ export function HomeFlat({
 
       {/* the wall the frames hang on */}
       <div className="home-flat__wall" style={{ height: geometry.wallHeight }} aria-hidden />
+      <div className="home-flat__window" aria-hidden style={F_W === 560
+        ? { left: 202, top: 130, width: 104, height: 72 }
+        : { left: 138, top: 99, width: 82, height: 56 }} />
 
       {/* the couch */}
       <div className="home-flat__couch" style={{ left: FLAT.couch.x, top: FLAT.couch.y, width: FLAT.couch.w, height: FLAT.couch.h }} aria-hidden>
@@ -138,6 +141,7 @@ export function HomeFlat({
         data-testid="home-tv"
       >
         <span className="home-flat__tv-screen" aria-hidden>{tvScreen}</span>
+        <span className="home-flat__fixture-label" aria-hidden>TV</span>
       </button>
       <div
         className="home-flat__tv-chair"
@@ -190,6 +194,7 @@ export function HomeFlat({
         <span className="home-flat__fridge-handle" aria-hidden />
         <span className="home-flat__fridge-handle home-flat__fridge-handle--freezer" aria-hidden />
         <span className="home-flat__fridge-stock" aria-hidden><i /><i /><i /><b /></span>
+        <span className="home-flat__fixture-label" aria-hidden>Fridge</span>
       </button>
 
       {/* mood-home2.jsx FRIDGE_WALK: the accepted pickup lights the door. */}

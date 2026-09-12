@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getTelegramDisplayName, getWebLogin, clearWebLogin } from '../../lib/telegram.js';
 import { RailMotion } from '../system/RailMotion.jsx';
+import { HomeAppearanceControl } from '../home/HomeAppearance.jsx';
 
 function initialsOf(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
@@ -23,7 +24,7 @@ export function desktopRoomSummary(agents, loading = false) {
   return [home + ' home', casino ? casino + ' at the casino' : null, visiting ? visiting + ' visiting' : null].filter(Boolean).join(' · ');
 }
 
-export function DesktopTopBar({ news = null, liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel, stage = null, onStage = null, room = null, onHome = null, roomPortalRef = null }) {
+export function DesktopTopBar({ news = null, liveCount, standupLine, net, flagged, onStandup, onWallet, walletLabel, stage = null, onStage = null, room = null, onHome = null, roomPortalRef = null, homeAppearance = false }) {
   const [clock, setClock] = useState(() => new Date().toLocaleTimeString('en-US', { hour12: false }));
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export function DesktopTopBar({ news = null, liveCount, standupLine, net, flagge
     <RailMotion size={24} news={news}/>
     <div className="dsk-top__portal" ref={roomPortalRef} hidden={!roomPortalRef}/>
     {!roomPortalRef && <><div className="dsk-top__room"><h1>{room.title}</h1><p>{room.subtitle}</p></div><div className="dsk-top__spacer"/></>}
+    {homeAppearance && <HomeAppearanceControl />}
     <button type="button" className="dsk-top__result" aria-label="Standup — all-time result" onClick={onStandup} disabled={!onStandup}>
       <span>All time</span><strong className={net?.startsWith('−') ? 'is-loss' : ''}>{net ?? '—'}</strong>
     </button>

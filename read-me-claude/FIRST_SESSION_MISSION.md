@@ -42,3 +42,9 @@ Jens extended the goal through `C:/Users/Jens/.codex/attachments/8ebe9135-caa1-4
 ## Continuation — desktop and companion direction
 
 After the verified candidate, Jens asked this task to continue: playtest the desktop birth actions, improve the Home composition and brightness, compare light/dark appearances, and show a concrete direction for inventory, newspaper reading and bringing items. Repair confirmed journey bugs and present the broader design for joint decisions. The failed deployment gate takes priority before this work resumes. See DESKTOP_NEXT_DIRECTION.md for the proposal and observed gaps; the original human success criteria still apply. New autonomy, economy, fatigue rules and ongoing model costs still require a concrete product decision.
+
+## Approved continuation — inhabited Home, desktop and phone
+
+Jens approved the visual direction and asked to keep building it. Auto local-time Warm Day / Amber Dusk / Teal Night with manual choices, brighter room materials, a wall-mounted casino doorway, a repositioned fridge, a clear TV and a real wooden kitchen table are within scope. The fridge is the interaction itself, not a navigation tab. Newspaper reading belongs in the room/belongings, not a permanent column. Refine mobile alongside desktop. Preserve existing character identity while proposing a later ghost facelift.
+
+Make the implementation concrete and playtest it locally; distinguish shipped behavior from the interactive proposal. The first slice implements appearance and readability without altering agent energy, heat, economy or autonomy. Recommend clear condition words and meaningful belongings; consult on changes to the underlying needs rules. Real newspaper content must come from actual public events. The prior release at 1607de6 completed Actions successfully (run 34706649580), so the deployment-gate interruption is resolved.

@@ -5,6 +5,14 @@ import { FridgeSheet } from './FridgeSheet.jsx';
 import { fetchMock, telegram } from '../../test/harness.js';
 const fridge = { items: [{ id: 'beer', label: 'Beer', count: 0, price: 12 }, { id: 'snack', label: 'Snack', count: 2, price: 8 }] };
 beforeEach(() => { telegram.signIn(); fetchMock.route('/api/fridge', fridge); });
+it('HOME-CARE-1: the fridge explains the beer tradeoff before stocking', async () => {
+  render(<FridgeSheet variant="rail" onClose={() => {}}/>);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Buy 6 beer' })).toBeEnabled());
+  const care = screen.getByText(/A beer cools/);
+  expect(care).toHaveTextContent('temporarily lowers discipline and makes bluffs more likely in his next casino session');
+  expect(screen.getByTestId('fridge-shelf-snack')).toHaveTextContent('gentler cooling');
+  expect(fetchMock.requestsMatching('/api/fridge/stock')).toHaveLength(0);
+});
 it('BUG-64: an empty fridge can be restocked from the safe, six at a time', async () => {
   fetchMock.route('/api/fridge/stock', { stocked: 'beer', qty: 6, spent: 72, fridge: { beer: 6, snack: 2 } });
   const onStocked = vi.fn();

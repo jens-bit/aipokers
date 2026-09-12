@@ -1,6 +1,6 @@
 # The next desktop experience
 
-12 September 2026. Direction for Jens to review; the broader redesign is a proposal, not a shipped feature. The first-session mission remains: a newcomer arrives unaided, understands their agent's choices and wants another visit.
+12 September 2026. Jens approved the brighter Home direction and asked for continued desktop and mobile implementation. The revised composition remains an interactive proposal; the first actual implementation is Home appearance and furniture readability. The first-session mission remains: a newcomer arrives unaided, understands their agent's choices and wants another visit.
 
 ## What the playtest actually found
 
@@ -8,11 +8,13 @@ The current desktop build has one literal Deal him in control at a time. Creatio
 
 The room is already laid out specifically for desktop, but remains a narrow, dark room between large rails. Furniture labels often require hover. A wider screen does not yet make the game easier to understand. The previous candidate added practice guidance and brighter lesson surfaces; it did not deliver a full Home facelift or theme system.
 
-## Recommended visual direction
+## Approved visual direction
 
-Make Home feel like a small, inhabited poker clubhouse. Use a warm daylight appearance by default, with an optional readable teal night appearance. Amber dusk is an alternative to compare. Preserve the agent's saved hood and glow in every appearance.
+Make Home feel like a small, inhabited poker clubhouse. Auto appearance follows the device's local clock: Warm Day 06:00–17:00, Amber Dusk 17:00–20:00, Teal Night 20:00–06:00. These are clock bands, not location-based sunrise/sunset. Allow a saved manual override. Re-evaluate after device sleep/focus and while open, without remounting the room. This changes lighting only; night players face no different rules. Preserve the agent's saved hood and glow in every appearance.
 
-Give the room most of the desktop width. Keep a compact resident list at the left and one predictable detail panel at the right. Choosing the agent, fridge or newspaper changes that panel in place. Label the kitchen table, fridge, newspaper and casino entrance without hover. Keep the kitchen table as the social centre, with a separate lounge and television.
+Give the room most of the desktop width, with compact companion presence and one contextual detail panel. The casino door belongs in a wall. Put the fridge in the kitchen area and make the TV recognizable. The kitchen table is wooden household furniture where people play, not a second casino felt. Keep mobile room-first, with reachable objects and contextual details rather than shrinking the desktop columns.
+
+The fridge itself opens its contents; it is not a permanent navigation tab. The newspaper belongs in the room/belongings, not a permanent column or top-level tab. Personal belongings can include clothing, a notebook and the paper. Keep these objects meaningful before expanding their economy.
 
 Watching an agent must say whose hand this is. Playing yourself must explicitly identify You and show your own holding and available actions. Practice can advance manually; live play needs one coherent timeline for cards, captions and results before any slower playback is introduced.
 
@@ -28,10 +30,12 @@ The next companion slice should complete one care conversation: an existing want
 
 Sleep and wants exist today. Sleep is rarely reached under the current fatigue thresholds and session caps, and autonomous fridge consumption is not an implemented general loop. Their tuning needs a product decision; describe the current behavior honestly rather than pretending the needs are already compelling.
 
+Stamina is an endurance trait; fatigue is the current condition. Home's existing bar approximates fatigue stages, while Profile's stamina number is the underlying trait. Proposed Home presentation is Energy: Rested / Tiring / Worn plus the existing mood word, with endurance in traits. Heat represents emotional pressure with real poker consequences, not body temperature or time of day. Keep these mechanics, but explain causes and recovery before changing their rules. Beer cools heat while temporarily reducing discipline and increasing bluff frequency in the next casino session; the fridge must disclose that tradeoff.
+
 ## Sequence and decisions
 
 1. Repair the deployment gate, then the competing birth/practice journey; retest desktop and phone.
-2. Choose the brighter Home composition and implement its complete first-arrival and returning-agent states.
+2. Build out the approved brighter Home composition on desktop and phone. First slice: real Auto/manual appearance, wooden furniture and readable TV/fridge; revised interactive room placement and belongings remain reviewable proposals until implemented against authoritative state.
 3. Complete one care loop with existing inventory, clear stock and truthful acknowledgment. Decide whether agents may consume stocked items autonomously and under which owner-controlled limits.
 4. Synchronize the live hand's cards, explanation and result, then test a slower viewing cadence. Human action controls must remain immediate.
 5. Add the readable paper and modest personal belongings once the central journey works unaided.

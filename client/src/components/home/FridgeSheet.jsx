@@ -7,7 +7,7 @@ import { money } from '../../lib/wallet.js';
 
 export const STOCK = [
   { id: 'beer', label: 'BEER', note: 'cools heat' },
-  { id: 'snack', label: 'SNACK', note: 'soothes a bad mood' },
+  { id: 'snack', label: 'SNACK', note: 'gentler cooling' },
 ];
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getTelegramInitData() });
 
@@ -71,7 +71,7 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
       </ul>
       {error && <div className="fridge-stock__error" role="alert">{error}{!items && <button type="button" onClick={load} disabled={loading}>Try again</button>}</div>}
       {said && <p className="home-sheet__said" role="status">{said}</p>}
-      <p className="fridge-stock__foot">A beer cools <b>heat</b>; a snack soothes a <b>bad mood</b>. Neither moves a skill, and an empty fridge is not a punishment — he will simply say so.</p>
+      <p className="fridge-stock__foot">A beer cools <b>heat</b>, but temporarily lowers <b>discipline</b> and makes bluffs more likely in his next casino session. A snack offers gentler cooling. If the fridge is empty, he will say so.</p>
     </div>
   </div>;
 }

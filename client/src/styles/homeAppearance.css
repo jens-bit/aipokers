@@ -1,0 +1,362 @@
+/* Home's light changes the room, not its coordinate space or the live felt.
+   Keep these colours local: existing conversation and wallet glass stays dark. */
+[data-home-theme='day'] {
+  --home-stage: #e8e1d1;
+  --home-chrome: #f4efe3;
+  --home-chrome-soft: #e8e2d4;
+  --home-ink: #283d32;
+  --home-muted: #617064;
+  --home-edge: #bbc2ad;
+  --home-accent: #2c6651;
+  --home-floor-light: #d9b78e;
+  --home-floor: #c59e74;
+  --home-floor-deep: #ad805b;
+  --home-grain: rgba(87, 55, 31, .17);
+  --home-wall: #e1e2cb;
+  --home-wall-low: #c7d0b6;
+  --home-trim: #8d7253;
+  --home-couch: #8da48a;
+  --home-couch-deep: #607d66;
+  --home-table-wood: #ebc48c;
+  --home-table-wood-deep: #c99155;
+  --home-table-grain: rgba(117, 70, 32, .18);
+  --home-table-ink: #51321d;
+  --home-table-rim: #91613e;
+  --home-fridge: #fff6dd;
+  --home-fridge-side: #d4d5b9;
+  --home-metal: #70806d;
+  --home-safe: #596c60;
+  --home-safe-deep: #3b5144;
+  --home-shadow: rgba(67, 47, 29, .25);
+  --home-window-sky: #bddbd0;
+  --home-window-horizon: #f9eac0;
+  --home-window-glow: rgba(255, 238, 173, .38);
+  --home-lamp: rgba(255, 245, 191, .25);
+  --home-positive: #296347;
+  --home-negative: #a44935;
+}
+
+[data-home-theme='dusk'] {
+  --home-stage: #c5ad8c;
+  --home-chrome: #ece0c8;
+  --home-chrome-soft: #dbcaad;
+  --home-ink: #433d2e;
+  --home-muted: #736851;
+  --home-edge: #bcaa8b;
+  --home-accent: #586849;
+  --home-floor-light: #c99361;
+  --home-floor: #ad754d;
+  --home-floor-deep: #82543b;
+  --home-grain: rgba(72, 37, 24, .23);
+  --home-wall: #d2bd93;
+  --home-wall-low: #ada281;
+  --home-trim: #806044;
+  --home-couch: #89946d;
+  --home-couch-deep: #596c50;
+  --home-table-wood: #d9aa71;
+  --home-table-wood-deep: #ab7445;
+  --home-table-grain: rgba(100, 51, 26, .21);
+  --home-table-ink: #3b2419;
+  --home-table-rim: #795133;
+  --home-fridge: #f0dcb4;
+  --home-fridge-side: #b7b08d;
+  --home-metal: #766e54;
+  --home-safe: #586355;
+  --home-safe-deep: #374b3b;
+  --home-shadow: rgba(52, 30, 20, .33);
+  --home-window-sky: #bf8f81;
+  --home-window-horizon: #ffd091;
+  --home-window-glow: rgba(255, 193, 102, .36);
+  --home-lamp: rgba(255, 210, 133, .30);
+  --home-positive: #3d6140;
+  --home-negative: #99492f;
+}
+
+[data-home-theme='night'] {
+  --home-stage: #142c29;
+  --home-chrome: #1c3631;
+  --home-chrome-soft: #27473e;
+  --home-ink: #f0ead4;
+  --home-muted: #b4c4ad;
+  --home-edge: #466259;
+  --home-accent: #b8d3ac;
+  --home-floor-light: #596956;
+  --home-floor: #40574a;
+  --home-floor-deep: #2c4138;
+  --home-grain: rgba(9, 30, 24, .30);
+  --home-wall: #45665b;
+  --home-wall-low: #2b4d42;
+  --home-trim: #8c8567;
+  --home-couch: #658171;
+  --home-couch-deep: #3b5c4b;
+  --home-table-wood: #856747;
+  --home-table-wood-deep: #554030;
+  --home-table-grain: rgba(30, 20, 13, .25);
+  --home-table-ink: #fff2d2;
+  --home-table-rim: #817050;
+  --home-fridge: #c8cfb3;
+  --home-fridge-side: #829984;
+  --home-metal: #405d4b;
+  --home-safe: #506d5c;
+  --home-safe-deep: #304d3c;
+  --home-shadow: rgba(3, 18, 14, .38);
+  --home-window-sky: #183e43;
+  --home-window-horizon: #5b8280;
+  --home-window-glow: rgba(159, 209, 197, .13);
+  --home-lamp: rgba(255, 218, 145, .19);
+  --home-positive: #afd7ab;
+  --home-negative: #ffb5a0;
+}
+
+.home1[data-home-theme], .dsk-root[data-home-theme] {
+  background: var(--home-stage);
+}
+.home1[data-home-theme] { --home-wall-depth: 180px; }
+.home1[data-home-theme].home1--desk { --home-wall-depth: 250px; }
+.home1[data-home-theme] .home1__room {
+  background: radial-gradient(ellipse at 48% 38%, var(--home-chrome), var(--home-stage) 78%);
+}
+.home1[data-home-theme] .home1__scale {
+  background: var(--home-floor);
+}
+.home1[data-home-theme].home1--desk .home1__scale {
+  box-shadow: 0 24px 55px var(--home-shadow), 0 0 0 1px var(--home-edge);
+}
+.home1[data-home-theme] .home-flat {
+  background:
+    radial-gradient(ellipse at 38% 25%, var(--home-floor-light), transparent 62%),
+    linear-gradient(125deg, var(--home-floor), var(--home-floor-deep));
+}
+.home1[data-home-theme] .home-flat__boards span {
+  background: var(--home-grain);
+  box-shadow: 0 1px 0 rgba(255, 248, 219, .12);
+}
+.home1[data-home-theme] .home1__room::after {
+  background-image: repeating-linear-gradient(180deg, var(--home-grain) 0 1px, transparent 1px 42px);
+}
+.home1[data-home-theme] .home-flat__wall {
+  /* Paint extends behind the window; fixture and agent coordinates stay put. */
+  height: var(--home-wall-depth) !important;
+  background: linear-gradient(180deg, var(--home-wall), var(--home-wall-low));
+  border-bottom: 3px solid var(--home-trim);
+  box-shadow: 0 5px 9px var(--home-shadow);
+}
+.home1[data-home-theme] .home-flat__right-wall,
+.home1[data-home-theme] .home-flat[data-layout='desktop']::before,
+.home1[data-home-theme] .home-flat[data-layout='desktop']::after {
+  top: var(--home-wall-depth);
+  background: var(--home-trim);
+  border-color: var(--home-grain);
+}
+.home1[data-home-theme] .home-flat .home-wall__hook {
+  background: var(--home-wall-low);
+  border-color: var(--home-trim);
+  box-shadow: inset 0 0 0 3px var(--home-wall);
+}
+.home1[data-home-theme] .home-flat .home-wall__hook i { border-color: var(--home-edge); }
+.home1[data-home-theme] .home-frame { border-color: var(--home-trim); }
+.home1[data-home-theme] .home-flat__couch {
+  background: linear-gradient(120deg, var(--home-couch), var(--home-couch-deep));
+  border-color: var(--home-couch-deep);
+  box-shadow: 0 7px 14px var(--home-shadow);
+}
+.home1[data-home-theme] .home-flat__couch-back,
+.home1[data-home-theme] .home-flat__couch-arm {
+  background: linear-gradient(100deg, var(--home-couch), var(--home-couch-deep));
+}
+.home1[data-home-theme] .home-flat .home-flat__table {
+  background:
+    repeating-linear-gradient(8deg, transparent 0 7px, var(--home-table-grain) 8px, transparent 9px 17px),
+    repeating-linear-gradient(90deg, transparent 0 52px, var(--home-table-grain) 52px 53px, transparent 53px 106px),
+    radial-gradient(ellipse at 43% 28%, var(--home-table-wood), var(--home-table-wood-deep) 95%);
+  border: 5px solid var(--home-table-rim);
+  box-shadow: 0 9px 20px var(--home-shadow), inset 0 0 0 1px rgba(240, 233, 184, .28);
+}
+.home1[data-home-theme] .home-game__label--empty {
+  color: var(--home-table-ink);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.home1[data-home-theme] .home-flat__safe {
+  background: linear-gradient(130deg, var(--home-safe), var(--home-safe-deep));
+  border-color: var(--home-trim);
+  box-shadow: 0 5px 11px var(--home-shadow);
+}
+.home1[data-home-theme] .home-flat__safe-balance { color: #fff0bc; }
+.home1[data-home-theme] .home-flat__fridge {
+  background: linear-gradient(100deg, var(--home-fridge), var(--home-fridge) 66%, var(--home-fridge-side));
+  border-color: var(--home-metal);
+  box-shadow: 0 6px 12px var(--home-shadow), inset 2px 0 0 rgba(255, 255, 237, .40);
+}
+.home1[data-home-theme] .home-flat__fridge-split,
+.home1[data-home-theme] .home-flat__fridge-handle { background: var(--home-metal); }
+.home1[data-home-theme] .home-flat__tv-chair {
+  background: linear-gradient(120deg, var(--home-couch), var(--home-couch-deep));
+  border-color: var(--home-couch-deep);
+}
+.home1[data-home-theme] .home-flat__door {
+  background: linear-gradient(90deg, var(--home-table-rim), var(--home-trim));
+  border-color: var(--home-trim);
+}
+.home1[data-home-theme] .home-flat__lamp {
+  background: radial-gradient(ellipse, var(--home-lamp), transparent 68%);
+}
+
+/* An empty window element supplies its panes and light without adding a hit target. */
+.home1[data-home-theme] .home-flat__window {
+  position: absolute;
+  border: 5px solid var(--home-trim);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--home-window-sky), var(--home-window-horizon));
+  box-shadow: 0 4px 0 var(--home-table-rim), 0 6px 12px var(--home-shadow);
+  pointer-events: none;
+}
+.home1[data-home-theme] .home-flat__window::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 47%, var(--home-trim) 47% 53%, transparent 53%),
+    linear-gradient(180deg, transparent 46%, var(--home-trim) 46% 54%, transparent 54%);
+}
+.home1[data-home-theme] .home-flat__window::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + 5px);
+  left: -10%;
+  width: 180%;
+  height: 105px;
+  transform: skewX(-24deg);
+  transform-origin: top left;
+  background: linear-gradient(180deg, var(--home-window-glow), transparent);
+  pointer-events: none;
+}
+.home1[data-home-theme] .home-flat__fixture-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2px 1px;
+  font: 600 11px/1.15 Inter, system-ui, sans-serif;
+  text-align: center;
+  color: #fff4d5;
+  background: #294337;
+  pointer-events: none;
+}
+.home1[data-home-theme] .home-flat__fridge .home-flat__fixture-label {
+  bottom: 3px;
+  color: #304d3b;
+  background: var(--home-fridge);
+}
+.home1[data-home-theme] .home-tv__recording-empty {
+  color: #d7e3ce;
+  font-size: 8.5px;
+  line-height: 1.2;
+}
+.home1[data-home-theme] .home-tv__recording-caption { color: #d7e3ce; }
+
+/* Surrounding Home chrome shares the room palette. Dark rails keep their own
+   text variables; changing global --text-* would make their copy disappear. */
+.home1[data-home-theme] > .room-header,
+.dsk-root[data-home-theme] > .dsk-top {
+  background: var(--home-chrome);
+  border-color: var(--home-edge);
+  color: var(--home-ink);
+}
+.home1[data-home-theme] > .room-header h1,
+.dsk-root[data-home-theme] .dsk-top__room h1 { color: var(--home-ink); }
+.home1[data-home-theme] > .room-header .room-header__copy { min-width: 44px; }
+.home1[data-home-theme] > .room-header .room-header__sub,
+.home1[data-home-theme] > .room-header .room-header__live.is-quiet > span,
+.dsk-root[data-home-theme] .dsk-top__room p { color: var(--home-muted); }
+.home1[data-home-theme] > .room-header .room-header__roster,
+.home1[data-home-theme] > .room-header .room-header__live.is-quiet {
+  background: var(--home-chrome-soft);
+  border-color: var(--home-edge);
+  color: var(--home-ink);
+}
+.dsk-root[data-home-theme] .dsk3-roster {
+  --dsk-panel: var(--home-chrome);
+  --dsk-text: var(--home-ink);
+  --dsk-dim: var(--home-muted);
+  --dsk-muted: var(--home-muted);
+  --dsk-border: var(--home-edge);
+  --dsk-teal: var(--home-accent);
+  --dsk-red: var(--home-negative);
+  background: var(--home-chrome);
+  border-color: var(--home-edge);
+  color: var(--home-ink);
+}
+.dsk-root[data-home-theme] .dsk3-roster .dsk-roster-row.is-active,
+.dsk-root[data-home-theme] .dsk3-roster .dsk-roster-row:hover { background: var(--home-chrome-soft); }
+.dsk-root[data-home-theme] .dsk3-roster .dsk-roster-row__name,
+.dsk-root[data-home-theme] .dsk3-roster .dsk-roster-place { color: var(--home-ink); }
+.dsk-root[data-home-theme] .dsk-top__account {
+  border-color: var(--home-edge);
+  color: var(--home-ink);
+}
+.dsk-root[data-home-theme] .dsk-top__result span { color: var(--home-muted); }
+.dsk-root[data-home-theme] .dsk-top__result strong { color: var(--home-positive); }
+.dsk-root[data-home-theme] .dsk-top__result strong.is-loss { color: var(--home-negative); }
+.dsk-root[data-home-theme] .dsk-top__avatar {
+  background: var(--home-chrome-soft);
+  color: var(--home-ink);
+  border-color: var(--home-edge);
+}
+.home1[data-home-theme] > .practice-entry,
+.home1[data-home-theme] > .home1__practice-column > .practice-entry {
+  background: var(--home-chrome-soft);
+  border-color: var(--home-edge);
+  color: var(--home-ink);
+}
+.home1[data-home-theme] .practice-entry__copy span { color: var(--home-muted); }
+.home1[data-home-theme] .practice-entry .practice-quiet,
+.home1[data-home-theme] .practice-entry .practice-entry__link { color: var(--home-accent); }
+
+/* The conversation is an intentional dark surface even beside a sunlit room. */
+.home1[data-home-theme] > .home-thread .home-thread__band,
+.home1[data-home-theme] > .home-thread .home-thread__sheet,
+.home1[data-home-theme] > .home-thread > .home-want {
+  background: #17332b;
+  border-color: #49695a;
+}
+.home1[data-home-theme] > .home-thread .home-thread__text,
+.home1[data-home-theme] > .home-thread .home-thread__sentence { color: #d7e3d1; }
+.home1[data-home-theme] > .home-thread .home-thread__who { color: #e0ce9a; }
+.home1[data-home-theme] > .home-thread .home-thread__composer {
+  background: #234437;
+  border-color: #617c68;
+}
+.home1[data-home-theme] > .home-thread .home-thread__input { color: #f0f2e2; }
+.home1[data-home-theme] > .home-thread .home-thread__input::placeholder { color: #bacbb8; opacity: 1; }
+
+.home-appearance { display: inline-flex; align-items: center; flex: 0 0 auto; }
+.home-appearance__label {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.home-appearance select {
+  width: 114px;
+  min-height: 44px;
+  padding: 6px 7px;
+  border: 1px solid var(--home-edge, #466259);
+  border-radius: 9px;
+  background: var(--home-chrome-soft, #27473e);
+  color: var(--home-ink, #f0ead4);
+  font: 600 12px/1.2 Inter, system-ui, sans-serif;
+  cursor: pointer;
+  color-scheme: light;
+}
+[data-home-theme='night'] .home-appearance select { color-scheme: dark; }
+.home-appearance select:focus-visible {
+  outline: 2px solid var(--home-accent, #b8d3ac);
+  outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .home1[data-home-theme] > .room-header { gap: 5px; padding: 0 8px; }
+  .home1[data-home-theme] > .room-header .room-header__live.is-quiet { display: none; }
+}
+@media (min-width: 1100px) {
+  .dsk-root .home-appearance select { min-height: 38px; }
+}

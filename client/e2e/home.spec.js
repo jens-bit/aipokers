@@ -196,6 +196,48 @@ async function room(page, cast, viewport = VIEWPORT) {
   await page.waitForTimeout(600);
 }
 
+for (const viewport of [{ width: 320, height: 590 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test('Home appearance: three readable palettes preserve the room at ' + viewport.width, async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await room(page, viewport.width === 320 ? CASTS.household : CASTS.alone, viewport);
+    const home = page.getByTestId('home-screen');
+    const appearance = page.getByRole('combobox', { name: 'Home appearance' });
+    const body = page.locator('.home-one[data-agent="a1"]');
+    const originalBody = await body.elementHandle();
+    const composer = page.getByPlaceholder('Say something to the room…', { exact: true });
+    await composer.fill('Tell me about that hand.');
+    const paint = [];
+    for (const theme of ['day', 'dusk', 'night']) {
+      await appearance.selectOption(theme);
+      await expect(home).toHaveAttribute('data-home-theme', theme);
+      expect(await body.evaluate((element, original) => element === original, originalBody)).toBe(true);
+      await expect(composer).toHaveValue('Tell me about that hand.');
+      const metrics = await appearance.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, right: box.right, height: box.height, width: innerWidth, scroll: document.documentElement.scrollWidth };
+      });
+      expect(metrics.left).toBeGreaterThanOrEqual(0);
+      expect(metrics.right).toBeLessThanOrEqual(viewport.width);
+      expect(metrics.scroll).toBeLessThanOrEqual(viewport.width);
+      if (viewport.width < 1100) expect(metrics.height).toBeGreaterThanOrEqual(44);
+      if (viewport.width < 1100) {
+        const title = await page.locator('.room-header h1').boundingBox();
+        expect(title.x + title.width).toBeLessThanOrEqual(metrics.left);
+      }
+      paint.push(await page.locator('.home-flat').evaluate(element => getComputedStyle(element).background));
+      await page.screenshot({ path: `../artifacts/desktop-next/actual-${viewport.width}-${theme}.png` });
+    }
+    expect(new Set(paint).size).toBe(3);
+    await page.reload();
+    await expect(appearance).toHaveValue('night');
+    await expect(home).toHaveAttribute('data-home-theme', 'night');
+    await page.getByTestId('home-fridge').click();
+    await expect(page.getByTestId('fridge-shelf-beer')).toContainText('× 4');
+    expect(errors).toEqual([]);
+  });
+}
+
 for (const viewport of [{width:390,height:590},{width:390,height:844},{width:1440,height:900}]) {
   test('BUG-146/147: the safe retries real UI reads and seats explain earned chips at '+viewport.width+'x'+viewport.height, async ({page}) => {
     await stub(page, CASTS.alone);
