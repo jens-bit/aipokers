@@ -1,69 +1,57 @@
 # First-session playtest candidate
 
-12 September 2026. Mission: [FIRST_SESSION_MISSION.md](FIRST_SESSION_MISSION.md). Human session: [FIRST_SESSION_PLAYTEST.md](FIRST_SESSION_PLAYTEST.md).
+12 September 2026. [Approved mission](FIRST_SESSION_MISSION.md) · [Five-person playtest](FIRST_SESSION_PLAYTEST.md).
 
 ## Local status
 
-Based on main/origin/main `67880fc`, the completed Home-first/SHOW run. Isolated worktree `artifacts/worktrees/first-session`, branch `codex/first-session`. The unrelated dirty root on `fix/guest-cap` is untouched. Final client/browser checks and local integration are in progress. Nothing has been pushed or deployed by this task.
+Built on the other Astra's completed Home-first/SHOW main `67880fc`, in `artifacts/worktrees/first-session` on `codex/first-session`. The clean local main worktree at `artifacts/worktrees/astra-show` now contains onboarding/chat `5ac7558` and casino/room fixes `23424db`. The unrelated dirty root on `fix/guest-cap` is untouched. The candidate is verified locally. Nothing was pushed or deployed by this task.
 
 ## What changed
 
-- Home offers optional practice, Not now, owner/agent-scoped resume and replay. The real engine generates eight legal snapshots; the existing felt uses the saved agent appearance. Pointers track the current target, progression is manual, and explanations distinguish a 28-chip pot from 14 chips of profit. Practice changes no wallet, statistics, live table or agent memory and makes no model calls.
-- The lesson ends with labelled guided questions and deliberate next actions. Signed-in owners can open real private chat. Guests see the existing sign-in requirement and can dismiss it or continue exploring. Jens was asked about a small guest allowance; no access/cost change is assumed without an answer.
-- Durable first birth now publishes the household. Home accepts actual newcomers after empty snapshots, inserts FLOOR_STATE arrivals and guards newer removals/arrivals against stale REST. Desktop creation no longer opens a second birth card. A real fresh guest walkthrough exposed both defects before repair.
-- Failed private messages retain drafts and show application errors across the main thread, desktop thread/Watch rail, phone profile and Watch whisper. Malformed replies, duplicate submits and stale conversation completions are guarded. Valid saved fallback replies still complete a turn. No automatic retries or extra model calls.
-- Narrow movement requests give factual control guidance without changing location or chips. The owner prompt forbids narrated gestures and false movement claims; a conservative normalizer removes recognizable wrapped gestures while retaining ordinary emphasis.
-- Desktop Watch offers Chat and Hand log. An additive nullable `session_thread.category` stores known event origins. Chat hides only typed actions/decisions; costs, results, session lines, speech and unclassified historical rows remain accessible. Ownership filters remain and there is no historical text-based backfill.
+- **Meet and learn.** A completed draft publishes its resident immediately. Home accepts newcomers after empty snapshots and guards newer changes against stale REST. Desktop no longer presents two birth cards. Home offers optional practice with the saved agent appearance, actual-control pointers, manual progression, leave/resume and replay.
+- **An honest practice hand.** Eight legal snapshots come from the real engine and reuse the existing felt. Hidden cards stay hidden until showdown; the lesson distinguishes the 28-chip pot from 14 chips of profit. It changes no wallet, career, live table or agent memory, and makes no model calls. Labelled guided questions lead to actual chat, replay, Home or deliberate casino entry.
+- **Recoverable conversation.** Failed or malformed replies retain the draft and show application errors. Duplicate submits and stale conversation completions are guarded. Narrow movement requests explain real controls without claiming to move the agent. Wrapped stage directions are removed conservatively. Desktop Watch has Chat and Hand log; explicit nullable event categories hide routine actions/decisions while preserving results, costs, speech and unclassified history.
+- **A ready opponent.** First casino WATCH seats one House and starts the server loop without depending on a viewer staying connected. A busted House is replaced after the shown result, keeping the owned session, winnings, hand numbering and existing hand cap. Other owners can join free chairs.
+- **Truthful admission.** Failed fresh deployments return a retryable error and restore unspent pocket/wallet/drink state, without consuming a guest session or inventing a result. Explicit room choices keep separate pending matches, and leaving Watch returns to the actual deployed room.
+- **Whereabouts agree.** The first matching owned table snapshot refreshes the desktop roster, fixing the pre-deal Home label. Older in-flight roster requests cannot undo the confirmed arrival, and subsequent hands do not add refreshes.
 
-## Decisions and limits
+## Decisions and remaining limits
 
-Home-first, kitchen table, four-stage draft, human play, character artwork and working Watch remain. Brighter guidance surfaces, arrows and manual lesson navigation are deliberate scoped departures from old port-only rules. Design references were not edited.
+Home-first, kitchen table, four-stage draft, human play, artwork and Watch composition remain. Brighter guidance surfaces, arrows and manual lesson navigation are scoped departures from the old port-only rule; original references are untouched.
 
-Normal live timing is unchanged. An attempted desktop delay was removed after review found that raw fetched/pushed thread results could overtake a delayed felt. The App regression preserves a consistent live desktop bundle and immediate human actions; phone's existing pacing remains. Slower live desktop playback requires synchronizing the record as well as the felt.
+Guests still need sign-in for private chat. The lesson says this before the request and supports dismissing the sign-in offer. Jens's optional question about a small guest allowance remains open; access and ongoing model budgets were not changed.
 
-Source inspection identified an older all-in record-order issue: `_handCompleted` calls `_threadResult` before `_paceHold` in `src/server/table.js`, so a stored/pushed winner can precede the staged runout. This also exists in baseline and is not repaired or claimed repaired here. It is a separate follow-up from deterministic practice.
+**Normal live timing is unchanged.** A desktop delay was removed when review found raw thread results could overtake a delayed felt. Practice provides time to read; slower live desktop playback requires synchronizing its record too. Human action controls remain immediate.
 
-At 390x590, practice instructions and navigation remain reachable; the felt is compact and longer coach content scrolls. The initial Home offer can place the agent's normal low room position below the fold; the room scrolls. Stable copy space prevents a room jump when the selected agent's name changes. Check small-screen comprehension with humans.
+An older all-in record-order issue remains: `_handCompleted` writes `_threadResult` before `_paceHold`, so a stored/pushed winner can precede the staged runout. This exists in the baseline and is not claimed fixed. The separate desktop whereabouts polling gap found in the final browser review is repaired in this candidate.
 
-## Verification
+At 390×590 the felt is compact, longer instructions scroll, and navigation remains reachable. The initial Home offer can put the agent's usual position below the fold. Human readability and comprehension need the playtest.
 
-All work used isolated local data and synthetic/keyless providers. No paid model calls, VPS access, env-file changes or key operations.
+## Actual validation
 
-- Engine: seven meaningful regressions failed first then passed, covering legal actions, unique deck, conservation, card privacy, hand labels, independent snapshots and generated JSON parity.
-- Arrival: four hook regressions and a real guest birth publication/replay regression failed first; 22 hook and eight server tests passed. Both early/late desktop poll cases failed before the duplicate-card fix and passed afterward.
-- Chat: initial 77 server/59 client focused passes, then 11 new whisper/profile regressions failed first and 152 affected-surface tests passed. Desktop error regression failed first, then DesktopHome/WatchRail passed 31.
-- `npm test`: 137 passed, two intentional live/data skips, 20.9s. `npm run test:e2e`: seven passed, 111.1s. No native SQLite abort.
-- Broad client run initially hit 18 timing failures while unbounded Vitest workers and browser gates ran together: 17 five-second deadlines and one television socket wait. Serial diagnosis/final bounded result below. No assertion or timeout is relaxed to reach green.
-- Build: 229 modules, entry `index-klAtvSed.js`, 576.84 kB /181.66 kB gzip. Existing 500 kB warning remains; WatchScreen stays eager; no dependency added.
-- Existing built gates: smoke eight passed; Home2 twenty passed; desk52/54 initially passed. Both retirement cases then passed with exact room geometry assertions after stable invitation copy height and waiting for the actual room before measurement. Original tracked PNGs restored; new review captures in `artifacts/first-session/desk-shots`.
-- Practice six built cases cover three sizes, manual progression, contained pointers, privacy, reachable result, resume/replay, guest sign-in/casino and desktop return. Practice API writes/game commands are forbidden in the tests. Earlier failures and screenshots are retained.
-- Real development-owner journeys passed on phone/desktop: normal draft, immediate Home arrival without reload, practice, then actual `/api/agents/chat` answering 'I am already home.' No API/WS mocks. This verifies local mechanics, not model quality or production sign-in.
-- Root manually observed normal-speed local live play, then Home after leaving Watch: the agent remained at the casino with a live TV entry and empty Home chair.
+All runs used isolated local data and keyless/synthetic providers. No paid model tests, VPS access, env-file changes or key operations.
 
-Final client, guest and affected Watch results: pending final record. Logs/screenshots are under ignored `artifacts/first-session/`.
+- Red-first engine, arrival and conversation regressions passed. House lifecycle: 10/10 plus existing loneliness, timing, reveal, seat and session checks. Admission: 11/11; focused wallet/ownership/guest/matchmaking gate: 194 passed.
+- Full final server/queue source: `npm test` passed 140 harness cases, with two intentional live/data skips (23.1s). Gameplay `npm run test:e2e`: seven passed (93.7s). New queue cases passed 7/7; room-return client cases 8/8 plus 111 adjacent passes.
+- Final full client: 220 files, 2722 passed, two existing todo, 251.9s with `npm test -- --maxWorkers=2 --minWorkers=1`. An earlier unbounded run under browser load hit 17 timeouts and a TV readiness race. Its helper now waits for the actual enabled control; no assertion or timeout was relaxed.
+- Existing desktop coverage: 54/54 across initial and repaired affected runs; final eight affected casino/Watch/Home cases passed again (22.2s). Two initial retirement geometry cases exposed unstable practice-copy height; stable height and waiting for the actual room preserved the exact assertions. Tracked screenshots were restored.
+- Practice: six built cases across 390×590, 390×844 and 1440×900, covering progression, privacy, pointers, results, resume/replay, guest sign-in and casino/Home returns. Three affected desktop Watch smoke cases passed.
+- Four real first-session journeys passed without API/WS mocks: development-owner and guest on phone/desktop, normal draft, immediate Home arrival, practice and actual conversation-route behavior. Guest403 retains the draft without fabricated history. Guided explanations are not counted as private chat. Production sign-in and live-model quality remain unverified.
+- Normal-speed manual observation: actual casino play, closing Watch, and Home showing the agent still away with a live TV entry. Accelerated runs do not certify pacing.
+- High-stakes: original API/WS reproduction failed at all three tiers; built backroom showed SHUFFLING. After the House and room fixes, all four built cases passed (41.9s): each tier starts with a House, survives leave/return, admits another owner into a later three-handed deal, and simultaneous room choices stay distinct. Root inspected the actual upper-room and multiplayer felt captures.
+- Final room build also passed smoke 8/8 (48.2s) and Home2 20/20 (16.3s). A preceding smoke attempt never launched Chromium because of sandbox EPERM; rerunning with browser-launch permission completed normally. No product assertion failed in that attempt.
+- Final whereabouts fix: five new red-first regressions and 29 adjacent checks passed. Final build: 229 modules, entry `index-yJ4PcmBp.js` (576.84 kB /181.66 kB gzip), desktop `DesktopHome-h8LmEgXA.js`. Existing 500 kB build warning remains; Watch stays eager and no dependency was added.
+- The final built backroom case passed again (14.2s) with a 1.5-second assertion for the roster's At the casino update. Root inspected the House and three-handed captures: roster, 50/100 stakes and actual game agree.
 
-## Human validation
+Evidence lives under ignored `artifacts/first-session/`. Key logs are `client-final-room.log`, `server-final-room.log`, `e2e-final-room.log`, `highstakes-browser-final.log`, `smoke-final-room-verified.log`, `home2-final-room.log` and `desk-final-room.log`. Final whereabouts captures are in `highstakes-browser-presence`. All owned temporary servers and browser tabs are stopped; no full design inventory was regenerated.
 
-Use five newcomers, aiming for four to complete and explain the journey unaided in roughly ten minutes. Guest sign-in friction, understanding, live-model quality, voluntary continuation and actual return remain human checks. Record guest and signed-in results separately. No human outreach or automation was created.
+## Handoff and resume point
 
-## Integration and push
+Origin was fetched before integration and remained at `67880fc`. Local main was fast-forwarded; there were no conflicts or source changes during integration. This final handoff adds documentation only. Jens can push from the clean main worktree:
 
-Pending final green checks and local commit. Jens pushes. Do not switch or push from the dirty shared root. Exact verified main-worktree commands follow after integration.
+```powershell
+Set-Location 'C:\Projects\ai-poker\artifacts\worktrees\astra-show'
+git push origin main
+```
 
-### Final browser record
-
-The final bundle passed all six practice cases and three affected desktop Watch smoke cases (normal navigation, kitchen human actions, casino deployment/Watch). Fresh real guest journeys passed on both phone and desktop: sign-in is offered before a chat request, dismissal returns to completed practice, and an actual private-chat403 retains the draft without inventing a reply. Together with the two development-owner passes, all four real first-session journeys passed. Guest full-page captures have a tall blank tail; viewport captures are configured for future runs, and no unchanged behavior test was rerun solely for that artifact.
-
-The television client-test failure was a readiness race: its test clicked the initial disabled TV before the live control replaced it. The helper now re-queries and waits for the enabled control, preserving its five-second lazy-mount allowance, one-second socket wait and all behavior assertions. Serial diagnosis passed79/80; the corrected four-case file passed4/4. Full two-worker client gate pending below.
-
-One immediate deployment screenshot shows a stale Home label in the desktop roster while the live casino hand is already open. The root's normal-speed walkthrough observed that label update to At the casino on the subsequent roster poll; returning Home correctly shows the away agent. This short polling lag is retained as a playtest observation, not claimed fixed.
-
-All temporary browser servers and root manual-test tabs are stopped. No production deployment status was verified.
-
-### Active goal extension
-
-Before final integration, Jens added a blocking live-play requirement: high-stakes deployments must not remain on SHUFFLING for lack of an opponent. Provide a ready house agent for at least heads-up play on every offered tier while allowing later joins. Server reproduction/fix and real built-browser coverage are now in progress. The candidate is not complete until this addition is verified; the prior onboarding/chat work and its evidence are retained.
-
-### Verified onboarding/chat checkpoint
-
-Final full client gate: all218 files passed,2709 tests passed,two existing todo;255.7s with two workers (`cd client; npm test -- --maxWorkers=2 --minWorkers=1`). All assertions and timeouts remain. This completes the prior onboarding/chat slice and is being committed separately before the newly requested house-opponent repair. The expanded goal remains active and is not ready to push yet.
+Then deploy and run the linked five-person playtest. Aim for four unaided journeys in roughly ten minutes, with correct explanations of roles, whereabouts, result and next action. Record guest sign-in friction, voluntary continuation and actual later return separately. Human understanding, retention and broad release readiness are not established by local tests.
