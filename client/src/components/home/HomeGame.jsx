@@ -100,7 +100,7 @@ export function HomeBoard({ board = [], desktop = false }) {
   if (!board.length) {
     return (
       <span className="home-game__board" data-testid="home-board">
-        {[0, 1].map((i) => <CardBack key={i} w={desktop ? 20 : 14} h={desktop ? 28 : 19} />)}
+        {[0, 1].map((i) => <CardBack key={i} marked={!desktop} w={desktop ? 20 : 14} h={desktop ? 28 : 19} />)}
       </span>
     );
   }
