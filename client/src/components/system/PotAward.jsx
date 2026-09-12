@@ -38,8 +38,8 @@ export function PotAward({ rootRef, seat, amount, bigBlind }) {
 // A brief result reaction requested by SHOW-4, using the existing speech atom.
 // Existing speech takes precedence at the call site. Human seats never acquire
 // an invented quote. This is local flavor, not a chat message or model request.
-export function useWinnerSpeech(game, settled) {
-  const key = settled ? `${game.tableId}:${game.handNumber}` : null;
+export function useWinnerSpeech(game, watchedKey) {
+  const key = watchedKey || null;
   const [expired, setExpired] = useState(null);
   useEffect(() => {
     if (!key) return;

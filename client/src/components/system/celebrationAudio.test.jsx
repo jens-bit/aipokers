@@ -71,6 +71,17 @@ it('SHOW-4: disabled replay consumes the visible result without playing it when 
   expect(play).not.toHaveBeenCalled();
 });
 
+it('SHOW-4: disabling a pending reveal discards it before playback is re-enabled',()=>{
+  const play=vi.spyOn(audio,'play').mockReturnValue(null);
+  const {result,rerender}=renderHook(watchedAudio,{initialProps:{game:live}});
+  rerender({game:busted,settled:false});
+  rerender({game:busted,settled:false,enabled:false});
+  rerender({game:busted,settled:false,enabled:true});
+  rerender({game:busted,settled:true});
+  expect(result.current).toBeNull();
+  expect(play).not.toHaveBeenCalled();
+});
+
 it('SHOW-4: muting during runout discards the result instead of playing it after unmute',()=>{
   audio.resetAudio();
   window.localStorage.clear();

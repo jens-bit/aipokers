@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { WatchFelt } from '../WatchScreen.jsx';
 import { midHandGame } from '../../test/fixtures/game.js';
 import * as audio from '../../lib/audio.js';
+import { BACKS_DELAY_MS } from '../../lib/deal.js';
 
 const board=['Ks','7d','7s','3h','9c'];
 const live={...midHandGame,street:'river',community:board,seats:midHandGame.seats.slice(0,2).map((s,i)=>({...s,displayName:i?'Granite':'Big Slick',isAI:true,holeCards:i?[]:['Kh','Kd'],contribTotal:1500,stack:1500})),bigBlind:20};
@@ -10,7 +11,9 @@ const done=(winner=0,bust=false)=>({...live,street:'complete',pace:'showdown',se
 afterEach(()=>{vi.restoreAllMocks();vi.useRealTimers();});
 
 it('SHOW-4 chips follow the actual opponent winner, with winner hands raised and loser hands down',()=>{
-  const {container,rerender}=render(<WatchFelt game={done(1)} mySeat={0} lastDecision={{seat:0,action:{type:'raise',amount:1500}}}/>);
+  vi.useFakeTimers();
+  const {container,rerender}=render(<WatchFelt game={live} mySeat={0}/>);
+  rerender(<WatchFelt game={done(1)} mySeat={0} lastDecision={{seat:0,action:{type:'raise',amount:1500}}}/>);
   expect(container.querySelector('[data-pot-award="1"]')).not.toBeNull();
   expect(container.querySelector('[data-pot-award="0"]')).toBeNull();
   expect(container.querySelector('.watch-felt__seat .seat-ghost__hands [data-pose]')).toHaveAttribute('data-pose','raise');
@@ -21,12 +24,15 @@ it('SHOW-4 chips follow the actual opponent winner, with winner hands raised and
   expect(container.querySelector('[data-pot-award="1"]')).toBe(chips);
   rerender(<WatchFelt game={{...live,handNumber:2}} mySeat={0}/>);
   expect(container.querySelector('[data-pot-award]')).toBeNull();
+  expect(container.querySelector('.watch-felt__seat .seat-ghost__hands [data-pose]')).toHaveAttribute('data-pose','rest');
+  act(()=>vi.advanceTimersByTime(BACKS_DELAY_MS));
   expect(container.querySelector('.watch-felt__seat .seat-ghost__hands [data-pose]')).toHaveAttribute('data-pose','hold');
 });
 
 it('SHOW-4 aggregates side-pot awards per winner and never pays a seat with a zero award',()=>{
   const game=done();game.result.winners=[{seat:0,amount:1000},{seat:1,amount:1000},{seat:0,amount:1000},{seat:7,amount:0}];
-  const {container}=render(<WatchFelt game={game} mySeat={0}/>);
+  const {container,rerender}=render(<WatchFelt game={live} mySeat={0}/>);
+  rerender(<WatchFelt game={game} mySeat={0}/>);
   expect(container.querySelectorAll('[data-pot-award]')).toHaveLength(2);
   expect(container.querySelector('[data-pot-award="0"]')).toHaveAttribute('data-award-amount','2000');
   expect(container.querySelectorAll('.hand-busted-name')).toHaveLength(0);
@@ -35,7 +41,8 @@ it('SHOW-4 aggregates side-pot awards per winner and never pays a seat with a ze
 it('SHOW-4 bust darkens the actual lost seat and shows brief winner speech once',()=>{
   vi.useFakeTimers();
   const game=done(0,true);
-  const {container,rerender}=render(<WatchFelt game={game} mySeat={0}/>);
+  const {container,rerender}=render(<WatchFelt game={live} mySeat={0}/>);
+  rerender(<WatchFelt game={game} mySeat={0}/>);
   expect(container.querySelector('.watch-felt__seat.is-busted .hand-busted-scrim')).not.toBeNull();
   expect(container.querySelector('.hand-busted-name')).toHaveTextContent('Granite');
   expect(container.querySelector('.watch-felt__won-to')).toHaveTextContent('Granite IS OUT');

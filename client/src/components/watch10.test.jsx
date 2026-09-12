@@ -215,7 +215,7 @@ describe('WATCH-10 job 3 · the result line names the hand wherever it is said',
   it('names it on the felt pill', () => {
     render(<WatchScreen {...base} game={settled(SHOWDOWN)} />);
     expect(document.querySelector('.watch-felt__won-pill').getAttribute('aria-label'))
-      .toBe('Granite took $30 with a pair of nines');
+      .toBe('Granite won $30 with a pair of nines');
   });
 
   it('names it in the ceremony, in the same words', () => {

@@ -77,8 +77,8 @@ import { attrCostOf } from '../lib/attributes.js';
 import { mergeThread } from '../lib/thread.js';
 import { useTableThread } from '../hooks/useTableThread.js';
 import { useTableReactions } from '../hooks/useTableReactions.js';
-import { BustedName, HandFireworks, handCelebration, useCelebrationAudio } from './system/HandCelebration.jsx';
-import { PotAward, potAwards, useWinnerSpeech } from './system/PotAward.jsx';
+import { BustedName, HandFireworks, resultCelebration, useCelebrationAudio } from './system/HandCelebration.jsx';
+import { PotAward, useWinnerSpeech } from './system/PotAward.jsx';
 import { ActionNarrator } from './system/ActionNarrator.jsx';
 
 // ---- helpers ---------------------------------------------------------------
@@ -877,7 +877,8 @@ export function WatchFelt({
   // stack with an em dash rather than the "$--" this used to print.
   var heroStack = potMoney(heroStackRaw);
   var heroMuck  = !!mucking[heroSeat];
-  var winnerSpeech = useWinnerSpeech(game, !geom && settled);
+  var watchedResult = useCelebrationAudio(game,heroSeat,!geom,settled);
+  var winnerSpeech = useWinnerSpeech(game, watchedResult);
   if (winnerSpeech && !bubbles.some(b => b.seat === winnerSpeech.seat || (b.mine && winnerSpeech.seat === heroSeat))) {
     bubbles = [...bubbles, {...winnerSpeech, mine:winnerSpeech.seat === heroSeat}];
   }
@@ -895,27 +896,25 @@ export function WatchFelt({
   // snapshot lands, which is the same order his mood already resolves in.
   var heroFatigue = (heroData && heroData.fatigue) || agentFatigue || null;
   var heroDrinking = isDrinking(heroData);
-  var awards = !geom && settled ? potAwards(game) : [];
-  var awardSeat = heroWon ? heroSeat : awards.slice().sort((a,b)=>b.amount-a.amount || a.seat-b.seat)[0]?.seat;
-  var celebration = !geom && settled && awardSeat != null ? handCelebration(game,awardSeat) : null;
-  useCelebrationAudio(game,heroSeat,!geom,settled);
+  var celebration = !geom && settled ? resultCelebration(game,heroSeat) : null;
+  var awards = celebration?.awards ?? [];
+  var awardSeat = celebration?.seat;
   var majorWin = celebration?.won && (celebration.big || celebration.busted.length>0);
   // BUG-173 / Design 58 C8a: the ordinary hero win gets the same raised glass
   // card, with its smaller amount and no fireworks. Replay keeps its geometry.
-  var ordinaryWin = celebration?.won && heroWon && !majorWin;
-  var ordinaryAwards = ordinaryWin ? result.winners.filter(w => w.seat === heroSeat) : [];
-  var ordinaryAmount = ordinaryAwards.length && ordinaryAwards.every(w => Number.isFinite(w.amount) && w.amount >= 0)
-    ? ordinaryAwards.reduce((sum, w) => sum + w.amount, 0) : null;
-  var ordinaryLabel = ordinaryWin ? [seatName(heroSeat, game.seats), 'won',
+  var ordinaryWin = celebration?.won && !majorWin;
+  var ordinaryAmount = ordinaryWin ? celebration.amount : null;
+  var ordinaryLabel = ordinaryWin ? [seatName(awardSeat, game.seats), 'won',
     ordinaryAmount == null ? '' : potMoney(ordinaryAmount),
-    new Set(result.winners.map(w => w.seat)).size > 1 ? 'in a shared pot' : handLine?.tail,
+    celebration.shared ? 'in a shared pot' : handLine?.tail,
   ].filter(Boolean).join(' ') : null;
   var winLabel = majorWin ? (celebration.busted.length>1 ? `${celebration.busted.length} OPPONENTS OUT`
     : celebration.busted.length===1 ? `${celebration.busted[0].name} IS OUT`
     : `${awardSeat === heroSeat ? '' : seatName(awardSeat,game.seats) + ' '}WON ${Math.round(celebration.bb)} BB`)
     // Desktop kitchen Watch has a room title instead of the phone's agent
     // header. Preserve its formerly visible winner identity (Jens's win clarity).
-    : ordinaryWin ? (ownerVariant === 'desktop' ? `${seatName(heroSeat, game.seats)} WON` : 'WON') : null;
+    : ordinaryWin ? (ownerVariant === 'desktop' || awardSeat !== heroSeat ? `${seatName(awardSeat, game.seats)} WON` : 'WON') : null;
+  var displayedPot = settled ? result.pot : pot;
 
   useFlyTo(feltRef, { muck: muckRef, pot: potRef },
     [mucking, sweep, slots.length, live, settled]);
@@ -923,11 +922,12 @@ export function WatchFelt({
   return (
     <div ref={feltRef}
       className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
-        + (majorWin ? ' is-major-result' : '') + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')}
+        + (majorWin ? ' is-major-result' : '') + (watchedResult ? ' is-result-moment' : '')
+        + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')}
       style={feltStyle} data-pace={pace}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
-      {majorWin && <HandFireworks key={`${game.tableId}:${handNo}`}/>}
+      {majorWin && watchedResult && <HandFireworks key={watchedResult}/>}
 
       {opponentSeats.slice(0, slots.length).map(function(o, i) {
         var slot = slots[i];
@@ -964,7 +964,7 @@ export function WatchFelt({
               timerOf={clock && clock.seat === o.seat ? clock.of : 12}
               onSelect={function() { if (onSelectSeat) onSelectSeat(o.seat); }}
             />
-            {celebration?.busted.some(b=>b.seat===o.seat) && <span key={`${handNo}:${o.seat}`}><span className="hand-busted-scrim" aria-hidden="true"/><BustedName name={o.name}/></span>}
+            {celebration?.busted.some(b=>b.seat===o.seat) && <span key={`${handNo}:${o.seat}`}><span className="hand-busted-scrim" aria-hidden="true"/>{watchedResult && <BustedName name={o.name}/>}</span>}
             {/* His bank stands beside his name chip, on the felt side: top
                 corners bank BELOW the pill, the rails bank BESIDE the body,
                 inside. Never under the name — that was the pile-up 52m ends.
@@ -1044,9 +1044,9 @@ export function WatchFelt({
             {/* "The pot pill grows one step per band", so a table that has been
                 betting big looks different from one that has been limping
                 before you read a figure. */}
-            {!between && <PotChip band={potBand(pot, game ? game.bigBlind : null)} w={13} />}
+            {!between && <PotChip band={potBand(displayedPot, game ? game.bigBlind : null)} w={13} />}
             <span className={'watch-felt__pot-amt' + (between ? ' is-between' : '')}>
-              {between ? '—' : potMoney(settled ? result.pot : pot)}
+              {between ? '—' : potMoney(displayedPot)}
             </span>
           </div>
         </div>
@@ -1082,7 +1082,7 @@ export function WatchFelt({
 
       {settled ? (
         <>
-          {geom ? <div className="watch-felt__pot-trail"/> : awards.map(award => <PotAward key={`${game.tableId}:${handNo}:${award.seat}`} rootRef={feltRef} {...award} bigBlind={game.bigBlind}/>)}
+          {geom ? <div className="watch-felt__pot-trail"/> : watchedResult && awards.map(award => <PotAward key={`${watchedResult}:${award.seat}`} rootRef={feltRef} {...award} bigBlind={game.bigBlind}/>)}
           {/* BUGS-A job 12: the hand, named. "$30 → Granite" said how much and
               to whom and nothing about WHY, on a screen whose whole subject is
               watching somebody play poker. The felt already knows — the
@@ -1095,6 +1095,7 @@ export function WatchFelt({
               {(!ordinaryWin || ordinaryAmount != null) && <span className="watch-felt__won-amt">
                 {potMoney(ordinaryWin ? ordinaryAmount : majorWin ? celebration.amount : result.pot || 0)}
               </span>}
+              {celebration?.shared && <span className="watch-felt__won-shared">SHARED POT</span>}
               {handLine && handLine.tail
                 ? <span className="watch-felt__won-with">{handLine.tail}</span>
                 : null}
@@ -1181,6 +1182,7 @@ export function WatchFelt({
         ) : (
         <WatchHero
           bustedName={celebration?.busted.some(b=>b.seat===heroSeat) ? heroData?.displayName : null}
+          animateBust={!!watchedResult}
           won={heroWon}
           says={heroSays}
           mood={agentMood || 'neutral'}

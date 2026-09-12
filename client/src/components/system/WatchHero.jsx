@@ -112,7 +112,7 @@ function CostToast({ cost }) {
 }
 
 export function WatchHero({
-  hood = null, glow = null, bustedName = null,
+  hood = null, glow = null, bustedName = null, animateBust = false,
   says, mood = 'neutral', accent = '#00D4AA', heat = 45, pose = 'hold', bet, event, brow, won,
   hole, landed = 2, mucking = false, between = false,
   equity, villain, bigRope, deadRope,
@@ -143,7 +143,7 @@ export function WatchHero({
         aria-label={actionLabel}>
         <span className="watch-hero__aura" aria-hidden
           style={{ background: `radial-gradient(circle, ${accent}${heat > 66 ? '2E' : '1A'}, transparent 68%)` }} />
-        {bustedName && <><span className="hand-busted-scrim" aria-hidden="true"/><BustedName name={bustedName}/></>}
+        {bustedName && <><span className="hand-busted-scrim" aria-hidden="true"/>{animateBust && <BustedName name={bustedName}/>}</>}
         <MoodGhost hood={hood} glow={glow} mood={mood} accent={accent} size={HERO_GHOST} heat={heat}
           event={event} brow={brow} won={won} ring={false} />
         <span className="watch-hero__cards watch-felt__hero-cards" aria-hidden={false}>
