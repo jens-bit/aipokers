@@ -54,6 +54,10 @@ export const ServerMsg = Object.freeze({
   //   sessionId — the id of the stay the seat this snapshot is filtered for
   //     is on, or null for a seat with no agent behind it. It is the key
   //     GET /api/agents/:id/thread and SESSION_END are filed under.
+  // SHOW-3 (additive): heroHand is the acting owner's holding at the instant of
+  // the accepted action: { seq, handNumber, seat, street, label }. It matches
+  // state.lastAction, uses that action's original board and is null for other
+  // owners, public spectators and queued seats. It never rides ROOM_TABLES.
   STATE: 'state',           // { type, state }   (filtered for this seat)
   HAND_START: 'hand_start', // { type, handNumber }
   // SERVER-3 (additive): `result` now carries two more fields.

@@ -31,3 +31,13 @@ Focused support gates:84 server and14 normalization assertions. UI/event gates52
 `npm run test:all` ran once. It found two old tests explicitly expecting8seconds when a spectator arrives (table.route.test.js and verify-cost-router.js). Their exact expectation is deliberately3seconds now, because SHOW-2 changes that product rule; no assertion weakened. The remaining server suites passed. The two affected scripts passed via isolated runScript (24 route checks and39 verifier checks). The unreached client stage passed:205 files,2574 tests,two existing todo. Gameplay passed all7 checks (78.44 s). The final built-phone check including long-message bounds passed again. Logs artifacts/show/show-2-*.log. No native abort. Resume from: record the SHOW-2 local merge, then SHOW-3 commentary.
 
 SHOW-2 source commit: d8ce90e. Local main merge: 7db96ae. Completed server gate with the two requested tempo assertions corrected, 2574 client passes/two todo,7 gameplay passes,final built phone floor check. Resume from: SHOW-3.
+
+## SHOW-3 — integrated, final gate running
+
+Branch codex/show-3 from main8569ecf; reviewed server checkpoint16bb37b applied without a separate integration commit. ActionNarrator is under the felt on phone, desktop and public Watch. Pre-action labels use the existing server cardPhrase/evaluate/plainHandName; public cameras and other owners receive null. Labels are bound to accepted action, hand and player identity and cleared for a new deal/replacement. A staged all-in cannot announce its result before the last visible card. Watch stays eager.
+
+Four built-browser checks passed (owner/public at390x590 and1440x900). Root inspected the short-phone owner and desktop public screenshots; caption clears the felt and Whisper. Focused client156 passed; server nine new regressions red then green and71 adjacent passes. The new caption regression found and fixes two older handResult naming errors: board-only evaluation overwrote an unrevealed canonical server hand, and a label already beginning with an article got a second one. No evaluator or model added. Pair count remains0/3.
+
+Resume from: SHOW-3 test:all is running once, logged to artifacts/show/show-3-test-all.log. Record final gates and local merge, then SHOW-4 only.
+
+SHOW-3 final gate: test:all passed on its single run. Server132 passes/two skips (134 total), client206 files/2579 tests/two todo, gameplay7 passed (91.44s). Four built-browser checks and focused gates above are green. No native abort. Resume from: record SHOW-3 merge, then SHOW-4 celebration; only two reference captures requested, no pairs yet.

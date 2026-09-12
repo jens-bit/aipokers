@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { WatchFelt, readFor, seatSummary } from '../WatchScreen.jsx';
 import { ReadSheet } from '../system/ReadSheet.jsx';
 import { heroSeatOf, phaseOf } from './DeskTableStage.jsx';
+import { ActionNarrator } from '../system/ActionNarrator.jsx';
 
 // DkWatchScreenM: the shared live felt, in the reference's 900 × 648 space.
 // The public camera chooses a seat, but can only draw cards the server served.
@@ -27,6 +28,7 @@ export function DeskCasinoTable({ game, agent, mySeat, lastDecision, notice, onB
           agentAccent={hero?.accentColor ?? agent?.accentColor} agentFatigue={hero?.fatigue ?? agent?.fatigue}
           selectedSeat={selectedSeat} onSelectSeat={seat=>setSelectedSeat(selectedSeat===seat?null:seat)}
           overlay={selectedSeat==null?null:<ReadSheet entry={readFor(game,selectedSeat)} seat={seatSummary(game,selectedSeat)} onClose={()=>setSelectedSeat(null)}/>}/>
+        <ActionNarrator game={game} mySeat={mySeat} />
         <button type="button" className="dsk-casino-table__back" aria-label="BACK TO THE FLOOR" onClick={onBack}>‹ BACK TO THE FLOOR</button>
         {name && !agent && <span className="dsk-casino-table__name">{name}</span>}
         {notice && <div className="dsk-casino-table__notice" role="status">{notice}</div>}

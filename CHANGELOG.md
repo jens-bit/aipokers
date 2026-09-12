@@ -2,6 +2,8 @@
 
 ## 0.14.0 — THE SHOW (2026-09-12)
 
+- **SHOW-3 — the action has a sentence.** Phone, desktop and public Watch now explain accepted bets, calls, checks, folds and the visible result under the felt. Owner-only holding labels reuse server hand naming and describe the board at the moment of the action; spectators never receive them. All-in winners wait for the last visible card. Existing result naming now respects canonical server hand names when showdown cards are absent and avoids doubled articles.
+
 - **SHOW-2 — the floor shows the hand.** Its miniatures flip real community cards, move actual bets and briefly show public table speech. Recent event history seeds the ticker. A watched automatic table resumes within three seconds after its visible result, preserving staged runout and unwatched cost controls. Private replies are excluded from the new floor projection.
 
 - **SHOW-1 — the first screen is already playing.** The login illustration and welcome hero show a labelled, deterministic heads-up demo: bets, moving chips, table talk, showdown and another deal. It uses the existing game artwork and makes no requests. The guest room and Telegram doors keep their behavior; the demo has pause and reduced-motion support. Verified on tall/short phone and desktop. Local work only; Jens pushes.
