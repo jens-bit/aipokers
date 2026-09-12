@@ -729,7 +729,7 @@ export function HomeScreen({
         geometry={geometry}
         away={visibleAway}
         accentFor={(a) => accentFor(a, agents.indexOf(a))}
-        hooks={Math.max(0, AGENT_CAP - (desktop ? visibleAway.length : agents.length))}
+        hooks={Math.max(0, (desktop ? AGENT_CAP : 3) - visibleAway.length)}
         onWatch={onWatch}
         onOpenAgent={onProfile}
       />

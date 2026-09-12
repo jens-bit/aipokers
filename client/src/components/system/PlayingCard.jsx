@@ -48,16 +48,21 @@ export function PlayingCard({ rank, suit, w, h }) {
   );
 }
 
-export function CardBack({ w, h, branded }) {
-  const r = Math.round(w * 0.1);
+export function CardBack({ w, h, branded, marked = false }) {
+  // The current Home reference uses the unbranded marked back from cards.jsx.
+  // Keep other surfaces' existing plain/branded treatments explicit.
+  const r = marked ? w * .14 : Math.round(w * 0.1);
   return (
     <div style={{
       width: w, height: h, borderRadius: r,
-      background: 'linear-gradient(135deg, #1a1a22 0%, #0d0d14 100%)',
-      border: '1px solid rgba(255,255,255,0.14)',
+      background: marked ? 'linear-gradient(135deg, #2a2a30 0%, #1a1a20 100%)' : 'linear-gradient(135deg, #1a1a22 0%, #0d0d14 100%)',
+      border: `1px solid rgba(255,255,255,${marked ? '0.18' : '0.14'})`,
       flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
+      {marked && !branded && <svg width={w*.5} height={w*.5} viewBox="0 0 24 24" style={{display:'block',opacity:.7}} aria-hidden="true">
+        <path d="M12 2.4 C12 2.4 4.6 8.8 4.6 13.9 C4.6 16.7 6.5 18.7 9 18.7 C10.1 18.7 11 18.3 11.6 17.6 C11.7 19.6 11 21.2 9.4 22.2 L14.6 22.2 C13 21.2 12.3 19.6 12.4 17.6 C13 18.3 13.9 18.7 15 18.7 C17.5 18.7 19.4 16.7 19.4 13.9 C19.4 8.8 12 2.4 12 2.4 Z" fill="#7a8a9a"/>
+      </svg>}
       {branded && (
         <svg width={Math.round(w * 0.52)} height={Math.round(h * 0.46)} viewBox="0 0 22 26"
           style={{ display: 'block', opacity: 0.5 }} aria-hidden>
