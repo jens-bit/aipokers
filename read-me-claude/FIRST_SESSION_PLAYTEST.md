@@ -20,6 +20,7 @@ Observe quietly for roughly ten minutes. If they ask for help, record the point 
 | --- | --- |
 | Entry and birth | Time to find the draft; confusing choices; whether they notice their created agent at Home |
 | First hand | How they find practice or real Watch; confusion over who makes decisions; whether pointers help |
+| Casino entry and return | Whether a chosen room deals with an opponent; whether leaving Watch and returning makes the agent easy to find |
 | Result | Their explanation of who won and why; whether they distinguish the 28-chip pot from the 14-chip profit |
 | Conversation | Their own question, response understood, failed sends/recovery and whether the reply answers them |
 | Next step | What they choose without a suggestion: chat, another hand, human play, casino, Home, or stopping |

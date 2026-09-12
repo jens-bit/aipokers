@@ -40,7 +40,7 @@ import { FloorBoard } from '../components/casino/FloorBoard.jsx';
 import { YourTables } from '../components/casino/YourTables.jsx';
 import { FloorView } from '../components/casino/FloorView.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
-import { useCasinoRooms, roomForTable, agentsByRoom, feltsIn, totalSeated } from '../hooks/useCasinoRooms.js';
+import { useCasinoRooms, roomForBlinds, roomForTable, agentsByRoom, feltsIn, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
 import { fetchWallet, fundAgent, money, pocketOf } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
@@ -350,13 +350,9 @@ export function CasinoScreen({
 
   // "Deal him in" — the existing deploy path, with the room's stakes attached.
   //
-  // `rung` and `stakes` ride the body because the room is the owner's actual
-  // choice and this is where it belongs on the wire. The route ignores both
-  // today: /queue takes only a userId, and /deploy (which does have the pocket
-  // gate) derives the rung from the pocket rather than from a request. Until
-  // one of them reads these fields, the room picked here is where he is SHOWN
-  // to sit down, not necessarily the blinds he lands on — see the CASINO-1
-  // report.
+  // `rung` and `stakes` carry the owner's room choice. The successful queue
+  // response states the actual table's room and blinds; remember that place
+  // for the return from Watch on both the phone and the desktop shell.
   async function dealHimIn(into = null) {
     const room = into ?? selectedRoom;
     if (!trayAgent || !room || busy) return;
@@ -374,7 +370,13 @@ export function CasinoScreen({
       });
       if (!res.ok) return;
       const payload = await res.json();
-      onDeployed?.(payload, trayAgent, room);
+      const smallBlind = payload.smallBlind ?? payload.stakes?.smallBlind;
+      const bigBlind = payload.bigBlind ?? payload.stakes?.bigBlind;
+      const queuedRoom = rooms.find(candidate => candidate.id === payload.room)
+        ?? roomForBlinds(rooms, `${smallBlind}/${bigBlind}`)
+        ?? room;
+      lookIntoRoom(queuedRoom);
+      onDeployed?.(payload, trayAgent, queuedRoom);
     } catch { /* he stays in the tray */ }
     finally { setBusy(false); }
   }

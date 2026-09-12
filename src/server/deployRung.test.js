@@ -99,13 +99,13 @@ test('SERVER-4: the queue takes a rung, and hands back the blinds to WATCH with'
   assert.equal(body.bigBlind, UPSTAIRS.bigBlind);
 });
 
-test('SERVER-4: the second man in inherits the slot\'s stakes — one table, one rung', async () => {
+test('SERVER-4: without a requested rung the second man inherits the slot\'s stakes', async () => {
   const base = await server();
-  const second = await queue(base, 'own-q2', 'a-q2', { rung: FLOOR.rung });
+  const second = await queue(base, 'own-q2', 'a-q2');
   assert.equal(second.matched, true);
-  // He asked for the floor. He is sitting down with somebody who is already at
-  // a $25/$50 game, and a table cannot be at two rungs.
-  assert.equal(second.stakes.rung, UPSTAIRS.rung, 'the slot\'s stakes, not his request');
+  // An omitted room retains automatic matching. An explicit room is covered
+  // by FIRST-SEAT-1 in queueAdmission.test.js and must stay exact.
+  assert.equal(second.stakes.rung, UPSTAIRS.rung, 'the waiting slot\'s stakes');
   assert.equal(second.room, 'upstairs');
 });
 

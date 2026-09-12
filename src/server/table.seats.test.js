@@ -255,24 +255,23 @@ header('Test 7: a busted seat is removed and the rest carry on');
 // ---------------------------------------------------------------------------
 header('Test 8: WV2-1 — an AI-only table nobody is driving gets adopted');
 {
-  // The shape that used to hang: two owned agents assembled at one felt by
-  // WATCH alone. The first watcher seats its agent and arms the House
-  // fallback; the second CANCELS that fallback and seats a second agent, so
-  // no House ever arrives and nothing owns the tempo. The table is AI-only,
-  // which is what liveGameView reads as "playing" -- a ghost at WAITING.
+  // FIRST-HOUSE-1: the first WATCH now gets a ready House opponent. A later
+  // owner still takes a free chair, and the server owns both deals.
   const table = newTable({ tableId: 'adopt-test' });
   const wsA = fakeWs();
   const seatA = table.addSpectator(wsA, { agentId: 'agent-a', displayName: 'Alpha', agentStrategy: '' });
   assert.strictEqual(seatA, 0);
-  assert.strictEqual(table.autoPlay, false, 'one seat is not enough to adopt');
+  assert.strictEqual(table.autoPlay, false, 'seating alone does not deal');
   table.maybeStartHand({ clientDriven: true });
-  assert.strictEqual(table.autoPlay, false, 'still below MIN_TO_DEAL');
+  assert.strictEqual(table.autoPlay, true, 'one ready House makes the first agent playable');
+  assert.strictEqual(table.liveSeatCount(), 2);
+  assert.strictEqual(table._houseFallbackTimer, null, 'adoption removes the delayed fallback');
 
   const wsB = fakeWs();
   const seatB = table.addSpectator(wsB, { agentId: 'agent-b', displayName: 'Beta', agentStrategy: '' });
-  assert.strictEqual(seatB, 1);
-  assert.strictEqual(table._houseFallbackTimer, null, 'the second agent cancels the House fallback');
-  assert.ok(table.isAiOnly(), 'agent vs agent, no House');
+  assert.strictEqual(seatB, 2);
+  assert.strictEqual(table.seatedCount(), 3, 'both agents play at the same felt with the ready House');
+  assert.ok(table.isAiOnly(), 'all three seats stay server-driven');
 
   table.maybeStartHand({ clientDriven: true });
   assert.strictEqual(table.autoPlay, true, 'the server takes the tempo');

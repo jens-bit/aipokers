@@ -775,7 +775,9 @@ export class Table {
   }
 
   _rebuildGame(roster) {
-    const handNumber = this.game?.handNumber ?? 0;
+    // A lone-survivor reconcile temporarily clears Game. The next opponent
+    // must not restart this table's hand numbering at one.
+    const handNumber = this.game?.handNumber ?? this.handsThisSession;
     this._lastActionHolding = null;
     if (roster.length < MIN_TO_DEAL) {
       this.game = null;
@@ -956,6 +958,17 @@ export class Table {
     this._noteLoneliness();
     return heroSeat;
   }
+  // A failed fresh deploy has not paid a buy-in or played a hand. Remove its
+  // seats before closing so cleanup cannot cash out chips or invent a session.
+  // Existing games are never eligible for this startup-only rollback.
+  abortSessionStart() {
+    if (this.closed) return true;
+    if (this.handsThisSession !== 0 || (this.game?.handNumber ?? 0) > 0 || this.hasHumanPlayer()) return false;
+    for (let seat = 0; seat < this.maxSeats; seat++) this._clearSeat(seat);
+    this.closeTable('session could not start');
+    return true;
+  }
+
   // MST-1/MST-2: seat an agent at a table that is ALREADY running. The seat is
   // occupied immediately -- so the floor stops claiming the agent is resting --
   // but the Game only learns about it at the next reconcile, which is what
@@ -1010,13 +1023,19 @@ export class Table {
   // nobody owns the tempo. Heads-up-vs-House survived only because the House
   // timer's own maybeStartHand() is not clientDriven.
   //
-  // So: whenever a client-driven call finds an undriven AI-only table that
-  // could deal, the server adopts it. Idempotent; a no-op on a table that
-  // already has a loop, has a human seat, or is short of MIN_TO_DEAL.
+  // So: whenever a client-driven call finds an undriven AI-only table, the
+  // server adopts it. A lone casino agent gets one ready House opponent;
+  // later owners can join the remaining chairs. Home and human tables keep
+  // their own rules. The initial deal still belongs to the server timer.
   _adoptUndrivenTable() {
     if (this.closed || this.autoPlay) return false;
     if (!this.isAiOnly()) return false;
+    if (!this.home && this.liveSeatCount() < MIN_TO_DEAL) {
+      this._reconcileSeats();
+      if (this.liveSeatCount() === 1) this._seatHouseRegulars(MIN_TO_DEAL);
+    }
     if (this._survivingSeats().length < MIN_TO_DEAL) return false;
+    if (this._houseFallbackTimer) { clearTimeout(this._houseFallbackTimer); this._houseFallbackTimer = null; }
     console.log(`[table:${this.tableId}] adopting an undriven AI-only table (${this.seatedCount()} seated) — starting the session loop`);
     return this.startSessionLoop({ delayMs: 250 });
   }
@@ -1108,17 +1127,18 @@ export class Table {
   }
 
   /**
-   * Seat House regulars until the table has LONELY_SEATS live seats.
+   * Seat House regulars up to the requested live count. The delayed repair
+   * keeps its three-seat default; normal casino readiness needs just two.
    *
    * Never two of the same regular: a cast seat's playerId is `house_<id>` and
    * both the button and opponentStats are keyed on it, so a duplicate would
    * break the table's own uniqueness invariant. Returns how many sat down.
    */
-  _seatHouseRegulars() {
+  _seatHouseRegulars(targetSeats = LONELY_SEATS) {
     let seated = 0;
     // Bounded by the seats there are: nothing here may spin.
     for (let guard = 0; guard < this.maxSeats; guard++) {
-      if (this.closed || this.liveSeatCount() >= LONELY_SEATS || !this.hasFreeSeat()) break;
+      if (this.closed || this.liveSeatCount() >= targetSeats || !this.hasFreeSeat()) break;
       const opposing = this._survivingSeats()
         .map((seat) => this.agentProfiles[seat])
         .filter(Boolean);
@@ -2664,9 +2684,21 @@ export class Table {
       // sending regulars over, and only a table that stays alone is closed.
       const strandedAgent = !this.home && survivors.some((seat) => this.agentIds[seat]);
       if (strandedAgent) {
+        if (this.autoPlay && this.handsThisSession >= this.maxHands) {
+          this.closeTable('session hand limit reached', { recap: RECAP_MAX_HANDS });
+          return;
+        }
         this._reconcileSeats();
+        // An owned AI who just won the House's stack keeps his session and
+        // gets another opponent before the usual next-hand pause. This runs
+        // only after a held showdown has finished showing its original seats.
+        if (this.isAiOnly()) this._seatHouseRegulars(MIN_TO_DEAL);
         this._notifyStateChange();
         this._noteLoneliness();
+        if (this.isAiOnly() && this.liveSeatCount() >= MIN_TO_DEAL) {
+          if (this.autoPlay) this._scheduleNextHand(this._dealPauseMs(), { resultAt: Date.now() });
+          else this.startSessionLoop({ delayMs: this._dealPauseMs() });
+        }
         return;
       }
       const byChoice = leaving && survivors.length + 1 >= MIN_TO_DEAL;

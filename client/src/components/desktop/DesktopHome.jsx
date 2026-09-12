@@ -135,16 +135,27 @@ export function DesktopHome({
     setDrafts((prev) => ({ ...prev, [draftKey]: text }));
   }, [draftKey]);
 
+  const rosterRead = useRef(0);
   const load = useCallback(() => {
+    const request = ++rosterRead.current;
     fetch(`/api/agents?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
-        if (!Array.isArray(data?.agents)) return;
+        if (request !== rosterRead.current || !Array.isArray(data?.agents)) return;
         setAgents(data.agents);
         setLoading(false);
       })
       .catch(() => {});
   }, []);
+
+  // The queue response can precede the table's creation, so its roster read
+  // still says Home. Refresh as soon as STATE proves this owner is seated;
+  // later hands at the same table do not create more roster requests.
+  const confirmedWatch = isWatching && watchingAgent?.id && game?.tableId
+    && game.tableId === tableConfig?.tableId
+    && game.seats?.some(seat => seat.playerId === `agent_${watchingAgent.id}`)
+    ? `${watchingAgent.id}:${game.tableId}` : null;
+  useEffect(() => { if (confirmedWatch) load(); }, [confirmedWatch, load]);
 
   // DP-2: after a fund or a collect, re-read both sides of the transfer rather
   // than guessing at either locally.
@@ -446,7 +457,12 @@ export function DesktopHome({
               initialRoomId={casinoReturnRoomId}
               wsUrl={wsUrl}
               deployAgent={deployAgent}
-              onDeployed={(payload,agent)=>{setDeskTableId(agent.id);load();onDeployed?.(payload,agent);}}
+              onDeployed={(payload,agent,room)=>{
+                setCasinoReturnRoomId(room?.id ?? null);
+                setDeskTableId(agent.id);
+                load();
+                onDeployed?.(payload,agent,room);
+              }}
               onSpectate={(tableId,context)=>{
                 setCasinoReturnRoomId(context?.roomId ?? null);
                 const owner=agents.find(a=>(a.activeTableId || a.liveGame?.tableId)===tableId);

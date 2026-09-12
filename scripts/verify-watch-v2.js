@@ -7,7 +7,7 @@
 //      spectator: they get a table EACH (MATCH-1 refuses a stable a shared
 //      felt) and both advance hands unattended.
 //   2. WV2-1 — the shape that actually hung: two agents assembled at one felt
-//      by WATCH alone (agent vs agent, no House). Nothing owned the tempo, the
+//      by WATCH alone. Nothing owned the tempo, the
 //      table sat at WAITING forever, and the floor still reported it as
 //      playing because liveGameView only asks isAiOnly(). Two OWNERS now, plus
 //      MATCH-1's other door: a second agent of the first owner is turned away.
@@ -195,8 +195,8 @@ console.log('\n[verify] 1) WV2-1/MATCH-1 — two agents of one owner deploy, no 
   check('both agents report playing', (await getAgent(a))?.status === 'playing' && (await getAgent(b))?.status === 'playing');
 }
 
-// ── 2) WV2-1: the hang — two agents assembled by WATCH, no House ─────────────
-console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no House)');
+// ── 2) WV2-1 / FIRST-HOUSE-1: ready House, then another owner's agent ───────
+console.log('\n[verify] 2) WV2-1 / FIRST-HOUSE-1 — WATCH starts heads-up, another owner joins');
 {
   // MATCH-1: two OWNERS. A WATCH-assembled table is still a casino table, so
   // the same rule holds on it — a stable cannot assemble a felt of its own
@@ -236,9 +236,13 @@ console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no Hou
 
   const table = registry.getTable(tableId);
   check('the WATCH-assembled table exists', !!table);
-  check('it seats exactly the two agents, no House', table?.seatedCount() === 2, describeTable(table));
+  // The user now requires a ready heads-up opponent on first arrival. Keep
+  // verifying both owners join and play; the House occupies only one chair.
+  check('it seats both owners and one ready House', table?.seatedCount() === 3
+    && table.agentIds.includes(a) && table.agentIds.includes(b)
+    && table.pending.filter(p => p?.playerId.startsWith('house_')).length === 1, describeTable(table));
   check('it is AI-only', table?.isAiOnly() === true);
-  check('the House fallback was cancelled by the second agent', table?._houseFallbackTimer == null);
+  check('the ready opponent needs no delayed House fallback', table?._houseFallbackTimer == null);
   check('the server adopted the undriven table', table?.autoPlay === true, describeTable(table));
 
   const advanced = await waitFor(
@@ -254,7 +258,7 @@ console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no Hou
   const live = registry.getLiveGame(tableId, { agentId: a });
   check('liveGameView reports a real street, not WAITING', !!live && live.street !== Streets.WAITING,
         `street=${live?.street ?? 'null'}`);
-  check('liveGameView reports both seats', (live?.seatCount ?? 0) === 2, `seatCount=${live?.seatCount}`);
+  check('liveGameView reports both owned seats and the House', (live?.seatCount ?? 0) === 3, `seatCount=${live?.seatCount}`);
   // SEAT-1a: the floor polls this projection, so the posture rides it too.
   check('liveGameView seats carry a mood posture',
         (live?.seats ?? []).length > 0 &&
@@ -292,7 +296,7 @@ console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no Hou
     const one = await openWatch(first);
     await sleep(250);
     const solo = registry.getTable(soloTableId);
-    check('the first of the pair took a seat', solo?.seatedCount() === 1, describeTable(solo));
+    check('the first owner has a seat and a ready House', solo?.seatedCount() === 2, describeTable(solo));
 
     const two = await openWatch(second);
     const refused = await waitFor('the refusal',
@@ -301,7 +305,7 @@ console.log('\n[verify] 2) WV2-1 — two agents assembled by WATCH alone (no Hou
           JSON.stringify(two.seen.map((m) => m.type)));
     check('and told why', /already at this table/i.test(refused.value?.message ?? ''),
           refused.value?.message);
-    check('no seat was taken doing it', solo?.seatedCount() === 1, describeTable(solo));
+    check('no seat was taken doing it', solo?.seatedCount() === 2, describeTable(solo));
 
     one.ws.close();
     two.ws.close();

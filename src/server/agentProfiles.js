@@ -503,9 +503,9 @@ function roomIdForStakes(stakes) {
     ?? null;
 }
 
-// ── Matchmaking queue (single slot, 5-min TTL) ───────────────────────────────
-// { tableId, expiresAt }
-let matchmakingSlot = null;
+// ── Matchmaking queue (one slot per rung, 5-min TTL) ─────────────────────────
+// Map insertion order retains oldest-peer matching when no room is requested.
+const matchmakingSlots = new Map();
 
 // ── Conversation constants ───────────────────────────────────────────────────
 
@@ -4148,6 +4148,10 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   pocket.agentId = agent.id;
   let deployBuyIn = 0;
   let stakes = null;
+  const admissionBefore = {
+    wallet: structuredClone(wallet), pocket: structuredClone(pocket),
+    drinkPending: agent.drinkPending,
+  };
 
   if (liveTables) {
     // Cut off is cut off — he finishes nothing and starts nothing. Not a
@@ -4197,6 +4201,11 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
       userId,
       room: roomForBigBlind(stakes.bigBlind)?.id ?? null,
     });
+    // An explicit destination is a constraint. Default matchmaking can still
+    // choose another affordable room, but a requested rung cannot move him.
+    if (rungRequested(body) && candidate?.table && candidate.table.bigBlind !== stakes.bigBlind) {
+      candidate = null;
+    }
     // A table stays at the lowest rung any seated agent could afford, so he
     // may only join one whose buy-in his pocket already covers.
     if (candidate?.table && !canAffordTable(pocket.balance, candidate.table.bigBlind)) {
@@ -4218,7 +4227,7 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
         memoryContext: getAgentMemoryContext(agent),
         agentProfile: agent.profile ?? null,
       });
-      if (seat !== null) {
+      if (Number.isInteger(seat) && seat >= 0) {
         tableId = candidate.table.tableId;
         joinedExisting = true;
         sessionStarted = true;
@@ -4246,13 +4255,14 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     // table only came into being when a client sent WATCH, which is why an
     // agent could show as "playing" while its game was frozen (BUG-16/17).
     if (liveTables) {
+      let freshTable = null;
       try {
         // WALLET-1: pocket size sets the stakes. getOrCreateTable already
         // takes blinds, so this needs no change in table.js.
-        const table = liveTables.getOrCreateTable(tableId, stakes
+        freshTable = liveTables.getOrCreateTable(tableId, stakes
           ? { smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind }
           : {});
-        seat = table.startAgentSession({
+        seat = freshTable.startAgentSession({
           agentId: agent.id,
           userId,
           displayName: agent.name || 'Agent',
@@ -4260,9 +4270,25 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
           memoryContext: getAgentMemoryContext(agent),
           agentProfile: agent.profile ?? null,
         });
-        sessionStarted = seat !== null;
+        sessionStarted = Number.isInteger(seat) && seat >= 0;
+        if (!sessionStarted) throw new Error('No session seat was created');
       } catch (err) {
         console.error('[agents] failed to start server-side session:', err.message);
+        // Only this newly created, unplayed table is ours to discard. Normal
+        // session close would cash out chips whose buy-in was never debited.
+        try { freshTable?.abortSessionStart?.(); }
+        catch (cleanupError) { console.error('[agents] failed startup cleanup:', cleanupError.message); }
+        for (const [target, previous] of [[wallet, admissionBefore.wallet], [pocket, admissionBefore.pocket]]) {
+          for (const key of Object.keys(target)) delete target[key];
+          Object.assign(target, previous);
+        }
+        if (admissionBefore.drinkPending === undefined) delete agent.drinkPending;
+        else agent.drinkPending = admissionBefore.drinkPending;
+        saveStore(userId);
+        return { status: 503, body: {
+          error: 'Could not start his game. Please try again.',
+          sessionStarted: false,
+        } };
       }
     }
   }
@@ -5078,11 +5104,9 @@ export function installAgentProfileRoutes(app) {
   // from deploy, both because a queued agent has no felt yet:
   //
   //   * THE STAKES TRAVEL WITH THE SLOT, not with a table, because the table
-  //     does not exist until somebody watches it. The second man into the slot
-  //     inherits the first man's stakes rather than his own request: they are
-  //     sitting down together, and one table cannot be at two rungs. He is
-  //     still gated on affording it, so the pairing can be refused rather than
-  //     seating somebody who cannot cover the felt he was matched onto.
+  //     does not exist until somebody watches it. An explicit rung only pairs
+  //     with that rung's waiting player. Without a requested rung, the oldest
+  //     waiting slot still supplies the stakes and the same affordability gate.
   //   * `room` comes back in the response and is remembered on the agent as
   //     `headingTo`, which is what lets his card say where he is walking to
   //     during the window where there is nothing to derive it from.
@@ -5096,13 +5120,19 @@ export function installAgentProfileRoutes(app) {
     if (agent.archived) return res.status(410).json({ error: 'agentRetired' });
     if (agent.retiring) return res.status(409).json({ error: 'agentRetiring' });
 
-    // Clear expired slot (5-min TTL).
-    if (matchmakingSlot && Date.now() > matchmakingSlot.expiresAt) {
-      matchmakingSlot = null;
+    // Each room keeps its own waiting player for the same five-minute window.
+    for (const [rung, slot] of matchmakingSlots) {
+      if (Date.now() > slot.expiresAt) matchmakingSlots.delete(rung);
     }
 
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;
+    const asked = rungRequested(req.body);
+    const chosen = asked ? stakesForRequest(req.body, pocket.balance) : null;
+    if (chosen?.status) return res.status(chosen.status).json(chosen.body);
+    const matchmakingSlot = asked
+      ? matchmakingSlots.get(chosen.stakes.rung)
+      : matchmakingSlots.values().next().value;
 
     let tableId;
     let matched;
@@ -5125,16 +5155,16 @@ export function installAgentProfileRoutes(app) {
       }
       tableId = matchmakingSlot.tableId;
       opponentName = matchmakingSlot.agentName;
-      matchmakingSlot = null;
+      matchmakingSlots.delete(stakes?.rung ?? null);
       matched = true;
       console.log(`[agents] matched ${agent.name} vs ${opponentName} on table ${tableId} (PvP)`);
     } else {
-      const chosen = stakesForRequest(req.body, pocket.balance);
-      if (chosen.status) return res.status(chosen.status).json(chosen.body);
-      stakes = chosen.stakes;
+      stakes = chosen?.stakes ?? stakesFor(pocket.balance);
       // No one waiting — create a table and queue it.
       tableId = 'table-' + randomUUID().slice(0, 8);
-      matchmakingSlot = { tableId, agentName: agent.name, stakes, expiresAt: Date.now() + 5 * 60_000 };
+      matchmakingSlots.set(stakes?.rung ?? null, {
+        tableId, agentName: agent.name, stakes, expiresAt: Date.now() + 5 * 60_000,
+      });
       matched = false;
       console.log(`[agents] ${agent.name} queued on table ${tableId}${stakes ? ` at ${stakes.label}` : ''}, waiting for opponent`);
     }

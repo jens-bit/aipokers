@@ -6,6 +6,9 @@
 - **A truthful arrival.** A completed draft publishes the newborn to the subscribed Home roster. Delayed REST responses preserve newer arrivals and removals; desktop creation no longer opens a second birth card or leaves the room looking empty.
 - **Conversation that can recover.** Rejected or malformed private replies show an application error and retain the draft. Stale replies cannot overwrite another agent's conversation. Owner replies discourage and conservatively remove narrated gestures; narrow movement requests explain real controls without pretending to move the agent. Desktop Watch separates Chat from the full Hand log using explicit optional event categories, retaining historical unclassified lines.
 - **Practice readability.** The existing felt and character identity remain, with brighter guidance surfaces and manual pacing scoped to practice. Live table timing and immediate human actions are preserved. Guests see the existing sign-in requirement before choosing real chat. Candidate evidence and remaining human checks are recorded in `read-me-claude/FIRST_SESSION_HANDOFF.md`.
+- **A ready casino opponent.** A lone casino agent gets one House opponent and a server-driven first deal, including after leaving Watch. A busted House is replaced after the result, within the existing session cap. Free chairs remain available to other owners. Failed fresh deployments return a retryable error and restore unspent funds instead of claiming play started.
+- **Keep the chosen room.** Explicit room choices have separate waiting matches instead of inheriting another room's stakes. Watch returns to the actual deployed room on phone and desktop, including upstairs and the back room.
+- **Whereabouts agree with play.** Desktop refreshes its roster when the live table confirms the agent has arrived, instead of showing an earlier Home label until the next poll. Older roster responses cannot undo the update.
 
 ## 0.14.0 — THE SHOW (2026-09-12)
 
