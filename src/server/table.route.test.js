@@ -111,7 +111,8 @@ test('COST-1: an unwatched autonomous table deals at a walking pace', () => {
   assert.equal(table._dealPauseMs(), 25_000, 'nobody is there');
 
   table.spectators.push({ ws: fakeWs(), spectatorSeat: 0 });
-  assert.equal(table._dealPauseMs(), 8000, 'and it snaps back the moment somebody is');
+  // SHOW-2 deliberately supersedes the old eight-second watched pause.
+  assert.equal(table._dealPauseMs(), 3000, 'a watcher gets the next hand within three seconds');
 });
 
 test('COST-1: a tempo somebody asked for is never second-guessed', () => {

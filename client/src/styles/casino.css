@@ -674,9 +674,28 @@
 .csn-felt58__pot {
   position: absolute;
   left: 50%;
-  top: 46%;
+  top: 62%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
+}
+
+/* SHOW-2: public cards and actual accepted bets, at the existing floor scale. */
+.csn-felt58__board { position:absolute; left:50%; top:35%; transform:translateX(-50%); display:flex; gap:2px; pointer-events:none; }
+.csn-felt58__card { position:relative; width:6px; height:9px; border-radius:1px; background:#E8E6E0; animation:floor-card-flip .3s ease-out; }
+.csn-felt58__card::after { content:''; position:absolute; width:2px; height:3px; right:1px; bottom:1px; background:var(--suit); }
+.csn-felt58__backs { position:absolute; display:flex; gap:1px; top:9px; left:50%; transform:translateX(-50%); pointer-events:none; animation:floor-card-flip .3s ease-out; }
+.csn-felt58__backs i { display:block; width:4px; height:6px; border:1px solid #8DA99D66; border-radius:1px; background:#13211D; }
+.csn-felt58__push { position:absolute; left:50%; top:62%; display:flex; gap:1px; pointer-events:none; animation:floor-chip-push .9s ease-out both; }
+.csn-felt58__push i { display:block; width:5px; height:3px; border-radius:50%; background:#CDB380; box-shadow:0 1px #514326; }
+.csn-felt58__bubble { position:absolute; z-index:3; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%); width:max-content; max-width:94px; box-sizing:border-box; padding:5px 6px; border:1px solid #CDB38055; border-radius:6px; background:#122019EE; color:#C3C3C6; font:8px/1.35 Inter,sans-serif; text-transform:none; letter-spacing:normal; pointer-events:none; overflow-wrap:anywhere; animation:floor-bubble-in .2s ease-out; }
+.csn-felt58__bubble::after { content:''; position:absolute; left:50%; bottom:-4px; width:6px; height:6px; background:#122019; border-right:1px solid #CDB38055; border-bottom:1px solid #CDB38055; transform:rotate(45deg); }
+.csn-felt58__bubble > span { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+@keyframes floor-card-flip { from { opacity:0; rotate:y 80deg; } to { opacity:1; rotate:y 0deg; } }
+@keyframes floor-chip-push { from { opacity:1; transform:translate(var(--from-x),var(--from-y)); } 75% { opacity:1; } to { opacity:0; transform:translate(-50%,-50%); } }
+@keyframes floor-bubble-in { from { opacity:0; translate:0 3px; } to { opacity:1; translate:0 0; } }
+@media (prefers-reduced-motion:reduce) {
+  .csn-felt58__card,.csn-felt58__backs,.csn-felt58__bubble { animation:none; }
+  .csn-felt58__push { animation:none; opacity:0; }
 }
 
 .csn-felt58__seat {

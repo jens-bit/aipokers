@@ -2,6 +2,9 @@
 Last updated: 2026-09-10 (Railbird design completion); statuses and evidence below.
 Named BUG headings: 191, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
 
+### SHOW-2 — static floor and long watched pauses — fixed locally, verified for SHOW-2
+Real public cards, action-sequenced chips and expiring public table speech now animate the existing floor. Initial event backfill requests20 events; no fabricated history. Watching an automatic table caps its result wait at3seconds after staged all-in runout; the old8second expectations in COST-1's route test and verifier are intentionally replaced with exact3second expectations under the founder's SHOW-2 instruction. Long one-word speech was found during review and clamped to two visible lines; its tail and Watch hit target remain. Focused84 server +14 normalization +52 UI/event assertions, built phone floor interaction and root screenshot review completed. Final staged gate/SHAs in ASTRA_NIGHT.md.
+
 ### SHOW-1 — welcome and login show no hand in progress — fixed locally, verified for SHOW-1
 The empty login ring and static hero are now the requested labelled client-only demonstration. It opens on the flop, alternates two scripted hands and winners, moves chips and reveals opponents only at showdown. Root's first browser review caught hands covering its commentary; the caption now clears them. Guest draft/auth behavior remains covered. New LandingDemo tests and four built-browser cases pass. Full test:all server stage passed; a single unchanged App round-trip test exceeded 5 seconds under the default parallel run, then passed alone in 4.05 seconds. The full affected client stage passed with two workers: 203 files and 2570 tests, two existing todo; gameplay separately passed all seven checks. No native abort or production operation. See ASTRA_NIGHT.md for final gates/SHAs.
 
