@@ -35,13 +35,13 @@ for (const viewport of [{ width: 390, height: 700 }, { width: 390, height: 590 }
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const hero = await page.locator('.guest-hero').boundingBox();
     const room = await page.locator('.guest-landing__room').boundingBox();
-    expect(hero.height).toBe(viewport.height - 26);
-    expect(room.y).toBe(viewport.height - 26);
+    // SHOW-1: the moving hand and unchanged door can scroll on short phones.
+    expect(hero.height).toBeGreaterThanOrEqual(viewport.height - 26);
+    expect(room.y).toBeCloseTo(hero.height, 0);
     expect(room.height).toBeGreaterThanOrEqual(viewport.height);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
-    const cards = page.locator('.guest-hero__card');
-    await expect(cards).toHaveCount(2);
-    expect(await cards.first().evaluate(el => parseFloat(getComputedStyle(el).width))).toBe(viewport.width > 700 ? 85 : 54);
+    await expect(page.locator('.landing-demo [data-seat]')).toHaveCount(2);
+    await expect(page.locator('.landing-demo [data-opponent-card]')).toHaveCount(2);
     const head = await page.locator('.guest-hero__head').boundingBox();
     const art = await page.locator('.guest-hero__creature').boundingBox();
     if (viewport.width > 700) expect(art.x).toBeGreaterThan(head.x + head.width);

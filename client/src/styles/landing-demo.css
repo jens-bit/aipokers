@@ -1,0 +1,47 @@
+/* SHOW-1: the existing felt, ghost, card and chip atoms play a local demo. */
+.landing-demo { position:relative; width:100%; max-width:470px; height:350px; flex-shrink:0; color:#EDEDED; isolation:isolate; font-family:Inter,sans-serif; }
+.landing-demo__caption { position:absolute; inset:0 0 auto; display:flex; justify-content:space-between; align-items:center; font:9px 'JetBrains Mono',monospace; color:#CDB380; letter-spacing:.08em; }
+.landing-demo__caption button { font:10px Oswald,sans-serif; letter-spacing:.1em; color:inherit; background:none; border:0; padding:8px; min-width:44px; min-height:44px; cursor:pointer; }
+.landing-demo__felt { position:absolute; inset:57px 3% 72px; border-radius:50%; border:1px solid #CDB38030; background:radial-gradient(ellipse,#29463F,#132721 74%); box-shadow:0 0 44px #CDB3800A; }
+.landing-demo__seat { position:absolute; left:50%; transform:translateX(-50%); display:flex; align-items:center; flex-direction:column; width:96px; }
+.landing-demo__seat--0 { top:187px; }
+.landing-demo__seat--1 { top:28px; }
+.landing-demo__name { position:relative; z-index:2; font:10px Oswald,sans-serif; background:#0B1311; border:1px solid #CDB38055; border-radius:5px; padding:2px 7px; line-height:1.2; }
+.landing-demo__holes { position:absolute; top:70px; left:50%; transform:translateX(-50%); display:flex; }
+.landing-demo__seat--1 .landing-demo__holes { top:51px; }
+.landing-demo__card { display:block; transform:rotate(var(--fan)); animation:landing-demo-deal .32s ease-out; }
+.landing-demo__stack { position:absolute; left:-27px; bottom:4px; }
+.landing-demo__stack .chip-stack__amt { font-size:9px; }
+.landing-demo__bubble { position:absolute; left:85px; top:44px; width:75px; padding:6px 7px; box-sizing:border-box; border-radius:8px; border:1px solid #CDB38050; background:#16211EEB; color:#C3C3C6; font-size:10px; line-height:1.3; animation:landing-demo-deal .2s ease-out; }
+.landing-demo__bubble::before { content:''; position:absolute; top:8px; left:-5px; width:8px; height:8px; transform:rotate(45deg); background:#16211E; border-left:1px solid #CDB38050; border-bottom:1px solid #CDB38050; }
+.landing-demo__board { position:absolute; top:130px; left:50%; transform:translateX(-50%); display:flex; gap:4px; }
+.landing-demo__board-slot { display:block; }
+.landing-demo__reveal { display:block; animation:landing-demo-flip .35s ease-out; }
+.landing-demo__deck { display:block; opacity:.4; }
+.landing-demo__pot { position:absolute; top:45px; left:50%; transform:translateX(-50%); white-space:nowrap; font:10px 'JetBrains Mono',monospace; color:#CDB380; }
+.landing-demo__pot--won { animation:landing-demo-punch .45s ease-out; }
+.landing-demo__chips { position:absolute; left:50%; top:165px; pointer-events:none; }
+.landing-demo__chips--from-0 { animation:landing-demo-bet-bottom .65s ease-out both; }
+.landing-demo__chips--from-1 { animation:landing-demo-bet-top .65s ease-out both; }
+.landing-demo__chips--winner-0 { animation:landing-demo-win-bottom .8s ease-in both; }
+.landing-demo__chips--winner-1 { animation:landing-demo-win-top .8s ease-in both; }
+.landing-demo__line { position:absolute; bottom:0; margin:0; width:100%; text-align:center; color:#C3C3C6; font-size:11px; line-height:1.4; }
+@keyframes landing-demo-deal { from { opacity:0; translate:0 -8px; } to { opacity:1; translate:0 0; } }
+@keyframes landing-demo-flip { from { transform:rotateY(90deg); } to { transform:rotateY(0); } }
+@keyframes landing-demo-punch { 45% { scale:1.14; } }
+@keyframes landing-demo-bet-bottom { from { transform:translate(-30px,70px); } to { transform:translate(-30px,8px); opacity:0; } }
+@keyframes landing-demo-bet-top { from { transform:translate(-30px,-74px); } to { transform:translate(-30px,8px); opacity:0; } }
+@keyframes landing-demo-win-bottom { to { transform:translate(-70px,90px); opacity:0; } }
+@keyframes landing-demo-win-top { to { transform:translate(-65px,-65px); opacity:0; } }
+.ftu-login__room { min-height:370px; display:flex; align-items:center; justify-content:center; padding:10px 22px; box-sizing:border-box; }
+.guest-hero__creature:has(.landing-demo) { height:350px; }
+@media (max-width:700px) {
+  .guest-hero:has(.landing-demo) { height:auto; min-height:calc(var(--tg-h,100dvh) - 26px); }
+  .guest-hero:has(.landing-demo) .guest-hero__body { display:grid; grid-template-columns:minmax(0,1fr); align-content:center; gap:14px; padding-bottom:24px; }
+  .guest-hero:has(.landing-demo) .guest-hero__copy { display:contents; }
+  .guest-hero:has(.landing-demo) .guest-hero__head { grid-row:1; }
+  .guest-hero:has(.landing-demo) .guest-hero__lede { grid-row:2; margin:0; }
+  .guest-hero:has(.landing-demo) .guest-hero__creature { grid-row:3; }
+  .guest-hero:has(.landing-demo) .guest-hero__action { grid-row:4; margin:0; }
+}
+@media (prefers-reduced-motion:reduce) { .landing-demo *, .landing-demo *::before { animation:none !important; transition:none !important; } }

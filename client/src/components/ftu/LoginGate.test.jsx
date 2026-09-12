@@ -24,14 +24,14 @@ describe('FTU-2 the door', () => {
     fetchMock.route('/api/auth/config', { botUsername: 'agenticpokerbot' });
   };
 
-  it('FTU-2: shows the room, and one seat held in it', async () => {
+  it('SHOW-1: shows a playing table before the login door settles', async () => {
     signedOut();
     const { container } = render(<LoginGate>{child}</LoginGate>);
 
-    await screen.findByText('ONE OPEN SEAT');
+    await screen.findByRole('region', { name: 'Demonstration poker table' });
     expect(container.querySelector('.ftu-login__room')).toBeTruthy();
-    // Dashed, the same as the floor's own stool: reserved, not broken.
-    expect(container.querySelector('.ftu-login__stool')).toBeTruthy();
+    expect(container.querySelectorAll('[data-seat]')).toHaveLength(2);
+    expect(container.querySelectorAll('[data-board-card]')).toHaveLength(3);
   });
 
   it('FTU-2: makes the offer in the product\'s own words', async () => {
@@ -60,8 +60,9 @@ describe('FTU-2 the door', () => {
       expect(container.querySelector('.ftu-login__action script[data-telegram-login]')).toBeTruthy();
     });
     expect(container.querySelectorAll('.ftu-login__action')).toHaveLength(1);
-    // Nothing else on the screen is a control.
-    expect(container.querySelectorAll('button')).toHaveLength(0);
+    // The illustration's pause is local; Telegram remains the only auth door.
+    expect(screen.getByRole('button', { name: 'Pause demo' })).toBeInTheDocument();
+    expect(container.querySelectorAll('button')).toHaveLength(1);
   });
 
   it('FTU-2: holds the slot open while Telegram is still answering', async () => {
