@@ -104,3 +104,13 @@ HOME-3 final gate on f0dc718: single test:all passed. Server134 passed/two skips
 Resume from: record HOME-3 local merge, then finish the fourth job only: SHOW-4. Existing candidate and reviewed followups remain on their isolated branches. No fifth job; original18:28UTC deadline retained. Nothing pushed.
 
 HOME-3 local main merge: d37506d. Resume from: SHOW-4, the final revised job.
+
+### SHOW-4 — unfinished integration checkpoint
+
+Branch codex/show-4-finish from local main6d2a37c. Preserved7a67267 plus reviewed364dcbe and673368a are applied; the historical log conflict kept the complete Home-first record. Actual positive payouts aggregate per seat, including splits. The camera keeps its own award in a shared pot; an opponent win names its actual recipient. Transient chips, amount punch, speech, fireworks and audio wait for the visible all-in result, and cold entry/replay/camera changes do not replay them.
+
+Root inspected board26 52q and52r at native390x647 beside the current source; these are the final two unique pairs (3/3 total). Raised glass, amount type, dimming, winner pose and bust treatment are ported within the preserved Watch composition. Remaining differences are explicitly labelled: working hero cards/status, actual identities/seats/stacks, content-sized receipt and actual staggered motion. The source caption contradicts its shown cards (three kings, not kings full; three nines, not a pair); product keeps truthful hand naming.
+
+Built six affected cases: four passed first (short-phone opponent and ordinary wins, desktop split, cold completed entry). Two pair cases initially froze the existing showdown queue; advancing the real DWELL_MS.showdown in the test fixture fixed both, which passed in a focused rerun without a product timing change. Actual measured chip destinations are asserted. Root inspected both pairs plus phone and desktop captures. No full browser inventory. Build passed. The source review's two-bubble regression failed with three visible bubbles, then passed after giving existing speech both slots and priority; three focused checks passed.
+
+Resume from: review the isolated fix for delayed audio cancellation on leaving/changing a result, then one SHOW-4 full gate. This checkpoint is unfinished and must not merge yet. No push or deployment. Original18:28UTC deadline retained. No fifth job. The requested reusable prompt is saved in ASTRA_HOME_FIRST_GOAL.md and explicitly makes Home the app default.
