@@ -2,6 +2,9 @@
 // The gesture unlock creates one context; missed/hidden-page beats are discarded.
 let context=null, roomBus=null, celebrationBus=null;
 const buffers=new Map(), active=new Set();
+// A knock's room hush outlives its 100ms source. Keep ownership until the
+// 600ms duck ends so a departing result can remove only its own automation.
+const ducks=new Map();
 
 export function synthesizeSound(file, ms, sampleRate=44100) {
   const out=new Float32Array(Math.max(1,Math.round(ms*sampleRate/1000)));
@@ -56,8 +59,48 @@ export function unlockEngine() {
 
 export function stopSounds() {
   for(const source of active){try{source.stop();source.disconnect();}catch{}}
-  active.clear();
+  active.clear();ducks.clear();
   if(context&&roomBus){try{roomBus.gain.cancelScheduledValues(context.currentTime);roomBus.gain.setValueAtTime(.32,context.currentTime);}catch{}}
+}
+
+function updateRoomDuck() {
+  if(!context||!roomBus)return;
+  const now=context.currentTime, windows=[];
+  for(const [source,window] of ducks)if(window.end<=now)ducks.delete(source);
+  for(const window of [...ducks.values()].sort((a,b)=>a.at-b.at)) {
+    const previous=windows.at(-1);
+    if(previous&&window.at<=previous.end)previous.end=Math.max(previous.end,window.end);
+    else windows.push({...window});
+  }
+  const current=windows.find(window=>window.at<=now&&now<window.end);
+  const level=current ? .08+.24*Math.max(0,(now-(current.end-.01))/.01) : .32;
+  try {
+    const gain=roomBus.gain;
+    gain.cancelScheduledValues(now);gain.setValueAtTime(level,now);
+    for(const window of windows) {
+      if(window.at>now)gain.setValueAtTime(.08,window.at);
+      if(window.end-.01>now)gain.setValueAtTime(.08,window.end-.01);
+      gain.linearRampToValueAtTime(.32,window.end);
+    }
+  }catch{}
+}
+
+function stopGroup(sources) {
+  let changedDuck=false;
+  for(const source of sources) {
+    if(active.delete(source)){try{source.stop();source.disconnect();}catch{}}
+    changedDuck=ducks.delete(source)||changedDuck;
+  }
+  if(changedDuck)updateRoomDuck();
+}
+
+// Capture the sources started by one synchronous beat. The returned cancel
+// function is independent of other views, later sounds, and snapshot objects.
+export function withSoundGroup(playSounds) {
+  const before=new Set(active);
+  playSounds();
+  const sources=[...active].filter(source=>!before.has(source));
+  return ()=>stopGroup(sources);
 }
 
 export function resetEngine() {
@@ -68,19 +111,19 @@ export function resetEngine() {
 
 export function playEffect(sound,{delayMs=0}={}) {
   if(!context||context.state!=='running'||globalThis.document?.visibilityState==='hidden')return false;
+  let source=null;
   try {
     let buffer=buffers.get(sound.file);
     if(!buffer){const samples=synthesizeSound(sound.file,sound.ms,context.sampleRate);buffer=context.createBuffer(1,samples.length,context.sampleRate);buffer.copyToChannel(samples,0);buffers.set(sound.file,buffer);}
-    if(active.size>=12){const oldest=active.values().next().value;oldest.stop();active.delete(oldest);}
-    const source=context.createBufferSource();source.buffer=buffer;
+    if(active.size>=12)stopGroup([active.values().next().value]);
+    source=context.createBufferSource();source.buffer=buffer;
     const special=['win_swell','big_win_bursts','bust_knock'].includes(sound.file);
     source.connect(special?celebrationBus:roomBus);
     const at=context.currentTime+Math.max(0,Math.min(1200,Number(delayMs)||0))/1000;
     if(sound.file==='bust_knock'){
-      roomBus.gain.cancelScheduledValues(at);roomBus.gain.setValueAtTime(.08,at);
-      roomBus.gain.setValueAtTime(.08,at+.59);roomBus.gain.linearRampToValueAtTime(.32,at+.6);
+      ducks.set(source,{at,end:at+.6});updateRoomDuck();
     }
     source.onended=()=>{active.delete(source);source.disconnect();};
     active.add(source);source.start(at);return true;
-  }catch{return false;}
+  }catch{if(source)stopGroup([source]);return false;}
 }
