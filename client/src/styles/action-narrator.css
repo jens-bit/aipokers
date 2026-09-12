@@ -1,0 +1,2 @@
+.action-narrator { flex-shrink:0; box-sizing:border-box; width:100%; min-height:28px; padding:6px 14px; border-top:1px solid rgba(255,255,255,.07); background:var(--glass-panel,rgba(12,24,20,.84)); color:#C3C3C6; font:400 11px/16px Inter,sans-serif; letter-spacing:normal; text-transform:none; overflow-wrap:anywhere; }
+.dsk-casino-table__scene > .action-narrator { padding:7px 20px; font-size:13px; line-height:18px; }

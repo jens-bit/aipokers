@@ -56,7 +56,7 @@ export const UNCONTESTED = 'uncontested';
  */
 export function withArticle(name) {
   const n = String(name ?? '').trim();
-  if (!n || NO_ARTICLE.test(n)) return n;
+  if (!n || NO_ARTICLE.test(n) || /^(a|an)\s/i.test(n)) return n;
   return `${'aeiou'.includes(n[0].toLowerCase()) ? 'an' : 'a'} ${n}`;
 }
 
@@ -78,7 +78,9 @@ export function seatName(seat, seats = []) {
 export function winningHand(winner, { showdown = [], community = [] } = {}) {
   const hole = (Array.isArray(showdown) ? showdown : [])
     .find((s) => s && s.seat === winner?.seat)?.holeCards ?? [];
-  const named = handName([...(hole ?? []), ...(community ?? [])]);
+  // SHOW-3: a public result may name a winner without carrying his cards.
+  // Evaluating the board alone would overwrite the server's actual holding.
+  const named = Array.isArray(hole) && hole.length === 2 ? handName([...hole, ...(community ?? [])]) : null;
   if (named) return named;
 
   // The engine's own word for it. `hand` is what the brief names; `descr` is

@@ -78,6 +78,7 @@ import { mergeThread } from '../lib/thread.js';
 import { useTableThread } from '../hooks/useTableThread.js';
 import { useTableReactions } from '../hooks/useTableReactions.js';
 import { BustedName, HandFireworks, handCelebration, useCelebrationAudio } from './system/HandCelebration.jsx';
+import { ActionNarrator } from './system/ActionNarrator.jsx';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -2093,6 +2094,8 @@ export function WatchScreen({
         // not a ceremony and does not silence him.
         seated={seated}
         bubbles={ceremonyNode ? [] : bubbles} ceremony={ceremonyNode} />
+
+      <ActionNarrator game={game} mySeat={mySeat} flipped={faceUp} />
 
       {seated ? (
         // SIT-1 · you are IN the hand, so there is nobody to whisper to. The
