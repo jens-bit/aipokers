@@ -16,14 +16,9 @@
 // The same entry also serves /welcome. Its nine explanatory sections follow
 // the real room, using captures of current product components.
 //
-// Board 40, waves 60/61: L2Masthead, L2Hero, L2Hand and L2Cta.
-// Each back is 55% of the actual hood. The hero leaves a 26px room preview;
-// desktop places the recruiter beside that room, including for the first agent.
-//
-// The marketing palette is burgundy and gold, and the product's teal appears in
-// exactly ONE place on it — the two card backs he is holding. That is the ref's
-// law and it is why the cards are drawn here rather than borrowed from the
-// product's own Card component.
+// Board 40 keeps the masthead, copy and real room below. SHOW-1 replaces
+// the static character illustration with a local demonstration hand, using
+// the product's existing felt, cards, chips and saved character palette.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LandingDetails } from './LandingDetails.jsx';
@@ -31,58 +26,11 @@ import { RailMark } from '../system/RailMark.jsx';
 import App from '../../App.jsx';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { HOODS } from '../../lib/identity.js';
-import { Fist } from '../system/GhostHands.jsx';
+import { LandingDemo } from './LandingDemo.jsx';
 import '../../styles/guest.css';
 
 // BUG-52: main.jsx already imports App eagerly. A second lazy import cannot
 // save a download; it just leaves the room blank behind a null Suspense gate.
-
-// The hood he wears on the poster. Fixed, not rolled: this is one drawing on
-// one page, not an agent with an identity.
-const HERO_HOOD = HOODS[0];
-const HERO_GLOW = '#CDB380';
-
-/** The two backs, fanned, at chest height so the face stays clear. */
-function HeldCards({ size }) {
-  // Wave 60: measure the visible hood, which occupies 55% of the SVG box.
-  const hoodWidth = size * 0.55;
-  const cardWidth = Math.round(hoodWidth * 0.55);
-  const cardHeight = Math.round(cardWidth * 1.4);
-  const fistWidth = Math.round(hoodWidth * 0.22);
-  const top = Math.round(size * 0.732) + Math.round(hoodWidth * 0.05);
-  return (
-    <div className="guest-hero__hand" aria-hidden="true" style={{ top, width: cardWidth * 1.62, height: cardHeight + fistWidth }}>
-      {[-9, 9].map((deg, i) => (
-        <div
-          key={deg}
-          className="guest-hero__card"
-          style={{
-            width: cardWidth,
-            height: cardHeight,
-            borderRadius: Math.round(cardWidth * 0.055),
-            fontSize: Math.round(cardWidth * 0.3),
-            animationDelay: `${0.3 + i * 0.22}s`,
-            left: i ? 'auto' : 0,
-            right: i ? 0 : 'auto',
-            transform: `rotate(${deg}deg)`,
-          }}
-        ><span>♠</span></div>
-      ))}
-      {[0, 1].map(i => (
-        <div key={i} className="guest-hero__fist" style={{
-          left: i ? 'auto' : Math.round(cardWidth * 0.1),
-          right: i ? Math.round(cardWidth * 0.1) : 'auto',
-          top: cardHeight - Math.round(fistWidth * 0.42),
-          transform: `rotate(${i ? 9 : -9}deg)`, animationDelay: `${0.42 + i * 0.22}s`,
-        }}>
-          <svg width={fistWidth} height={fistWidth * 0.72} viewBox="0 0 21.3 15.4">
-            <g transform={`translate(${i ? 12.3 : 9} 0.4) scale(${i ? -1 : 1} 1)`}><Fist size={96} /></g>
-          </svg>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /**
  * VISIT-1 job 6 — a small door, and a body standing outside it. Not the
@@ -105,7 +53,7 @@ function DoorWithVisitor({ name }) {
   );
 }
 
-// A different hood from the hero's own (HERO_HOOD) — two bodies on one poster
+// A different hood from the demo hero — two bodies on one poster
 // have to read as two people, not one drawing twice.
 const HODS_VISITOR = HOODS[2];
 
@@ -120,7 +68,6 @@ export function GuestLanding({ visitorName = null, roomContent = null, showDetai
     query.addEventListener('change', update);
     return () => query.removeEventListener('change', update);
   }, []);
-  const ghostSize = wide ? 280 : 180;
 
   // DRAFT HIM is a scroll and a focus, because what it would have opened is
   // already underneath it. The composer is found by its test id rather than
@@ -193,18 +140,7 @@ export function GuestLanding({ visitorName = null, roomContent = null, showDetai
           </div>
 
           <div className="guest-hero__creature">
-            <div className="guest-hero__felt" />
-            <div className="guest-hero__ghost">
-              <MoodGhost
-                mood="confident"
-                size={ghostSize}
-                ring={false}
-                hood={HERO_HOOD}
-                glow={HERO_GLOW}
-                heat={40}
-              />
-              <HeldCards size={ghostSize} />
-            </div>
+            <LandingDemo />
             {visitorName ? <DoorWithVisitor name={visitorName} /> : null}
           </div>
         </div>

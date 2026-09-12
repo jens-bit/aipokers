@@ -11,6 +11,7 @@
 // design-refs/mood-ftu2.jsx. Styles in styles/ftu.css.
 
 import { useEffect, useRef, useState } from 'react';
+import { LandingDemo } from './guest/LandingDemo.jsx';
 import { getWebLogin, setWebLogin, clearWebLogin, getTelegramInitData } from '../lib/telegram.js';
 
 const WIDGET_SRC = 'https://telegram.org/js/telegram-widget.js?22';
@@ -80,15 +81,7 @@ export default function LoginGate({ children }) {
 
   return (
     <div className="ftu-login">
-      {/* The room, before he has anybody in it. Lit, open, and holding a seat —
-          the same dashed rim the floor's own stool wears. */}
-      <div className="ftu-login__room">
-        <div className="ftu-login__glow" />
-        <div className="ftu-login__seat">
-          <div className="ftu-login__stool" />
-          <span className="ftu-login__seat-label">ONE OPEN SEAT</span>
-        </div>
-      </div>
+      <div className="ftu-login__room"><LandingDemo /></div>
 
       <div className="ftu-login__pitch">
         <h1 className="ftu-login__head">There is a room,<br />and an open seat<br />in it.</h1>

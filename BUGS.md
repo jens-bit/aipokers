@@ -2,6 +2,10 @@
 Last updated: 2026-09-10 (Railbird design completion); statuses and evidence below.
 Named BUG headings: 191, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
 
+### SHOW-1 — welcome and login show no hand in progress — fixed locally, verified for SHOW-1
+The empty login ring and static hero are now the requested labelled client-only demonstration. It opens on the flop, alternates two scripted hands and winners, moves chips and reveals opponents only at showdown. Root's first browser review caught hands covering its commentary; the caption now clears them. Guest draft/auth behavior remains covered. New LandingDemo tests and four built-browser cases pass. Full test:all server stage passed; a single unchanged App round-trip test exceeded 5 seconds under the default parallel run, then passed alone in 4.05 seconds. The full affected client stage passed with two workers: 203 files and 2570 tests, two existing todo; gameplay separately passed all seven checks. No native abort or production operation. See ASTRA_NIGHT.md for final gates/SHAs.
+
+
 ### BUG-199 (BUG B) — landing hero and card images reported far larger than design 58 on desktop — NOT REPRODUCIBLE; measured and guarded on main
 Reported: at 1024 and up the landing hero and card images render far larger than design 58. Measured against the built bundle at all three named widths, they do not. Board 40's `L2BigDesk` states the rule as `const k = (w - 128) / 1440` — "1440 into (w − 128), so 0.8 at 1280 and 0.91 at 1440". The shipped page reproduces it exactly: 896×561 at 1024, 1152×721 at 1280, 1408×881 at 1536, each the desktop capture at its true 1440×900 ratio and never the phone one. The hero is full-bleed as authored (`LandingHeroN` is `width: w`), and its art is the design's fixed desktop sizes — creature 470×350, felt 400×120 — at every width above 700. The arithmetic ships as `.landing-section{padding:54px 64px}` plus `.landing-screen picture{width:100%}`, introduced in bb5157a; it was already correct before this queue.
 

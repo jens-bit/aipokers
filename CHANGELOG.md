@@ -1,5 +1,10 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 0.14.0 — THE SHOW (2026-09-12)
+
+- **SHOW-1 — the first screen is already playing.** The login illustration and welcome hero show a labelled, deterministic heads-up demo: bets, moving chips, table talk, showdown and another deal. It uses the existing game artwork and makes no requests. The guest room and Telegram doors keep their behavior; the demo has pause and reduced-motion support. Verified on tall/short phone and desktop. Local work only; Jens pushes.
+
+
 ## 0.13.0 — the first screen, the entry bundle, and a draft that listens (2026-09-10)
 
 Release candidate. Merged as MERGE-6; not deployed.

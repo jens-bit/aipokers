@@ -1081,7 +1081,7 @@ test('BUG-199: the landing product shot is the design 58 width at 1280', async (
   expect(Math.abs(box.height - expected * 900 / 1440)).toBeLessThan(2);
 
   // The hero's own art is fixed-size on desktop and must not scale with it:
-  // board 40 draws the creature block at 470x350 for every width above 700.
+  // SHOW-1 retains the 350px creature block for the playing hand.
   const creature = page.locator('.guest-hero__creature');
   const c = await creature.boundingBox();
   expect(c.width).toBeCloseTo(470, 0);

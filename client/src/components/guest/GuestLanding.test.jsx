@@ -65,16 +65,12 @@ describe('GUEST-1 · one hero viewport', () => {
     expect(screen.getByText('RAILBIRD')).toBeInTheDocument();
   });
 
-  it('BUG-87: two card backs fit the actual hood and leave his face clear', async () => {
+  it('SHOW-1: the static poster becomes a hand already playing', async () => {
     const { container } = await openLanding();
-    const cards = container.querySelectorAll('.guest-hero__card');
-    expect(cards).toHaveLength(2);
-    // Wave 60 measures the visible hood (55% of the SVG), not its viewport.
-    // 180px drawing → 99px hood → 54px card, as L2Hero now specifies.
-    expect(cards[0].style.width).toBe('54px');
-    expect(container.querySelectorAll('.guest-hero__fist')).toHaveLength(2);
-    // Fanned, not stacked.
-    expect(cards[0].style.transform).not.toBe(cards[1].style.transform);
+    expect(screen.getByRole('region', { name: 'Demonstration poker table' })).toHaveAttribute('data-street', 'flop');
+    expect(container.querySelectorAll('[data-seat]')).toHaveLength(2);
+    expect(container.querySelectorAll('[data-board-card]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-opponent-card="back"]')).toHaveLength(2);
   });
 });
 
