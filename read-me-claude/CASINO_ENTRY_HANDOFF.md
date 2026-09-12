@@ -27,8 +27,10 @@ The real guest check uses normal server pauses and slow browser interactions, wi
 
 ## Next slice
 
+Opponent dismissal follow-up verified in `artifacts/read-dismiss/`: 2,829 client tests passed (228 files, two existing todos), server 140 passed, engine e2e 7 passed, built smoke 8 passed, Home2 20 passed and real development-owner first-session journeys 2 passed. All 54 desktop cases and five public-Watch cases passed. The latter now exercise actual opponent outside dismissal and Close after scrolling at both phone heights and desktop, asserting the Watch subscription is unchanged. Source scope is only the shared ReadSheet dismissal listener; no layout, private-chat navigation, game timing or mechanics changed. Generated reference screenshots were restored after review.
+
 1. Keep the live Watch connection beneath contextual own-agent inspection/chat, with appropriate in-game actions and Back returning to the same table. Current mobile own-agent chat still leaves Watch; this patch does not claim to repair that larger navigation/menu problem.
-2. Reproduce and repair opponent/Home/funding dismissal separately. Opponent outside dismissal is currently absent; Close and Escape have handlers, and scrolling prevents the existing downward-drag dismissal. Do not conflate those cases.
+2. Opponent outside dismissal is now repaired: exposed felt closes the read without leaving the table, and player controls keep their own toggle/switch behavior. Close after scrolling is covered; dragging inside scrolled content remains scrolling. Home/funding dismissal still needs separate reproduction.
 3. Stabilize table geometry across actions/results, then explain the actual current hand and winning-chance estimate. Diagnose whisper persistence and routing at normal speed before changing shared game timing.
 
 Stamina-dot design, bar drinks, new objects, proactive memory/messages and additional ongoing model cost remain product decisions recorded in the feedback plan. No backend, timing, economy or paid-call settings changed here. Jens pushes; local readiness is not evidence of a completed deployment.

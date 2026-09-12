@@ -9,12 +9,38 @@ import { ReadSheet } from './ReadSheet.jsx';
 
 function TableWithRead({ onClose = () => {} }) {
   const [selected, setSelected] = useState('Granite');
-  return <>
-    <button onClick={() => setSelected('Wild Card')}>Read Wild Card</button>
+  return <div className="watch-felt" data-testid="felt">
+    <span>Pot $20</span>
+    <button onClick={() => setSelected(prev => prev === 'Wild Card' ? null : 'Wild Card')}>Read Wild Card</button>
     {selected && <ReadSheet seat={{ name: selected, stack: 2000 }} entry={null}
       onClose={() => { onClose(); setSelected(null); }}/>}
-  </>;
+  </div>;
 }
+
+it('BUG-143: tapping exposed felt dismisses only the read and can reopen another seat', async () => {
+  const user = userEvent.setup(), onClose = vi.fn();
+  render(<TableWithRead onClose={onClose}/>);
+  await user.click(screen.getByText('NO EVIDENCE YET'));
+  expect(onClose).not.toHaveBeenCalled();
+  await user.click(screen.getByText('Pot $20'));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('felt')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Read Wild Card' }));
+  expect(screen.getByRole('dialog', { name: 'Wild Card — read' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Read Wild Card' }));
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('BUG-143: a scrolled read still closes from the visible Close control', async () => {
+  const user = userEvent.setup(), onClose = vi.fn();
+  render(<TableWithRead onClose={onClose}/>);
+  screen.getByRole('dialog').scrollTop = 100;
+  await user.click(screen.getByRole('button', { name: 'Close read' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
 
 it('BUG-143: opponent stats have a visible Close control with a phone-sized target', async () => {
   const user=userEvent.setup(), onClose=vi.fn();

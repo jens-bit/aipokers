@@ -188,6 +188,21 @@ for (const { theme, viewport } of CASES) {
     await read.getByRole('button', { name: 'Close read', exact: true }).click();
     await expect(read).toHaveCount(0);
     await expect(name).toBeInViewport();
+    // BUG-143: dismiss the actual opponent's read on exposed felt, keeping the
+    // same Watch subscription. The foreground read alone missed this journey.
+    const watchCount = await page.evaluate(() => window.__publicWatchWire.filter(m => m.type === 'watch').length);
+    await opponent.locator('.seat-ghost').click();
+    const opponentRead = table.getByRole('dialog', { name: 'Granite — read' });
+    await expect(opponentRead).toBeVisible();
+    await table.locator('.watch-felt').click({ position: { x: 10, y: 10 } });
+    await expect(opponentRead).toHaveCount(0);
+    await opponent.locator('.seat-ghost').click();
+    await expect(opponentRead).toBeVisible();
+    await opponentRead.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await opponentRead.getByRole('button', { name: 'Close read', exact: true }).click();
+    await expect(opponentRead).toHaveCount(0);
+    await expect(table).toBeVisible();
+    expect(await page.evaluate(() => window.__publicWatchWire.filter(m => m.type === 'watch').length)).toBe(watchCount);
     await table.getByRole('button', { name: desktop ? 'Back to the room' : 'Leave table', exact: true }).click();
     await expect(home).toBeVisible();
     const wire = await page.evaluate(() => window.__publicWatchWire);

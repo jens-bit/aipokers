@@ -25,6 +25,20 @@ export function ReadSheet({ entry, seat, onClose }) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
+    const sheet = drag.ref.current;
+    const felt = sheet?.closest('.watch-felt');
+    const dismissOutside = event => {
+      const target = event.target;
+      if (sheet.contains(target)) return;
+      // Seats own their toggle/switch action. Dismissing before React handles
+      // that click would close and immediately reopen the selected opponent.
+      if (target.closest?.('button, a, input, textarea, select, [role="button"], [contenteditable="true"]')) return;
+      closeRef.current?.();
+    };
+    felt?.addEventListener('click', dismissOutside);
+    return () => felt?.removeEventListener('click', dismissOutside);
+  }, [drag.ref]);
+  useEffect(() => {
     const returnFocus = document.activeElement;
     const dismiss = event => {
       if (event.key !== 'Escape') return;
