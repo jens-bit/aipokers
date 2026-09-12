@@ -185,6 +185,15 @@ export function useBirthWalk(agents, positions, doorSpot = DOOR_SPOT) {
 // seen from above and starts reading as a diagram of one. Floored at 1, because
 // the desk is the wide platform and a room smaller than the phone's is not a
 // thing this function should ever be able to produce.
+// F10/HomeGame keeps the near player larger than the others. Bubble geometry
+// uses this same size, so reducing artwork never leaves a second collision box.
+function homeBodySize(agent, at, geometry) {
+  const seated = at?.seat != null;
+  if (geometry.width !== PHONE_ROOM.width) return seated ? geometry.seatedSize : geometry.bodySize;
+  if (seated) return at.seat === 0 ? 50 : 44;
+  return agent?.routine?.key === 'sleeps' ? 42 : geometry.bodySize;
+}
+
 export const HOME_DESK_MAX = 1.4;
 
 export function fitScale(width, height) {
@@ -328,7 +337,10 @@ export function HomeScreen({
   // `true` still works for a caller that has only one ask to make.
   openTable = false,
 }) {
-  const geometry = desktop ? DESK_ROOM : PHONE_ROOM;
+  const [phoneRoomHeight, setPhoneRoomHeight] = useState(PHONE_ROOM.height);
+  // HomeFlat in the reference fills its wrapper, with a 612px minimum. The
+  // furniture keeps its authored coordinates; extra height belongs to the room.
+  const geometry = useMemo(() => desktop ? DESK_ROOM : {...PHONE_ROOM, height:phoneRoomHeight}, [desktop, phoneRoomHeight]);
   const { flat: FLAT, width: F_W, height: F_H } = geometry;
   const { agents, home, away, game, gameKnown, arrival, clearArrival, refresh, clearWant, loaded, visitor, ownerLines, status: roomConnection } =
     useHomeState({ wsUrl, onOwnerLine });
@@ -456,6 +468,7 @@ export function HomeScreen({
       // scroll in a short Telegram window instead of miniaturising the cast.
       setDeskScale(desktop ? fitScale(box.width, box.height)
         : box.width / F_W);
+      if (!desktop && box.width > 0) setPhoneRoomHeight(Math.max(PHONE_ROOM.height, Math.ceil(box.height / (box.width / PHONE_ROOM.width))));
     });
     ro.observe(roomEl);
     return () => ro.disconnect();
@@ -478,7 +491,7 @@ export function HomeScreen({
     // `nickname` is what the pill writes when the name is too long for it
     // (HOME-2 job 2), so the queue has to measure the same box the room draws.
     return {
-      id: String(agent.id), x: at.x, y: at.y, size: seated ? geometry.seatedSize : geometry.bodySize,
+      id: String(agent.id), x: at.x, y: at.y, size: homeBodySize(agent, at, geometry),
       name: agent.name, nickname: agent.nickname ?? null, guest: !!agent.guest,
     };
   }).filter(Boolean), [home, positions, geometry]);
@@ -757,7 +770,7 @@ export function HomeScreen({
         const id = String(agent.id);
         const isAway = (agent.location?.where ?? 'home') !== 'home';
         const seated = at.seat !== null && at.seat !== undefined;
-        const size = seated ? geometry.seatedSize : geometry.bodySize;
+        const size = homeBodySize(agent, at, geometry);
         const held = carry?.id === id ? carry : null;
         const dropped = saidOnDrop?.id === id ? saidOnDrop : null;
         const bubble = dropped
@@ -855,7 +868,7 @@ export function HomeScreen({
 
   return (
     <div className="home1" data-testid="home-screen">
-      <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} />
+      <RoomHeader news={loaded ? activityKeys(agents) : null} title="Home" subtitle={homeSubtitle} onOpenRoster={onOpenRoster} liveCount={rosterLiveCount} rosterUnread={agents.some(a => a.want || a.unseenRecap)} />
       {roomBox}
 
       {carry && <div className="home-carry-help"><span>Place him on the couch, table, fridge, TV or casino door.</span><button type="button" onPointerDown={e => e.stopPropagation()} onClick={cancelCarry}>Cancel</button></div>}

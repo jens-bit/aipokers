@@ -100,14 +100,14 @@ export function HomeBoard({ board = [], desktop = false }) {
   if (!board.length) {
     return (
       <span className="home-game__board" data-testid="home-board">
-        {[0, 1].map((i) => <CardBack key={i} w={desktop ? 20 : 16} h={desktop ? 28 : 22} />)}
+        {[0, 1].map((i) => <CardBack key={i} w={desktop ? 20 : 14} h={desktop ? 28 : 19} />)}
       </span>
     );
   }
   return (
     <span className="home-game__board" data-testid="home-board">
       {board.slice(0, 5).map((c, i) => (
-        <PlayingCard key={`${c}-${i}`} rank={String(c)[0]} suit={String(c)[1]} w={desktop ? 20 : 17} h={desktop ? 28 : 24} />
+        <PlayingCard key={`${c}-${i}`} rank={String(c)[0]} suit={String(c)[1]} w={desktop ? 20 : 14} h={desktop ? 28 : 20} />
       ))}
     </span>
   );

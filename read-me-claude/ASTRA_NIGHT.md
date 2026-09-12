@@ -43,3 +43,15 @@ Resume from: SHOW-3 test:all is running once, logged to artifacts/show/show-3-te
 SHOW-3 final gate: test:all passed on its single run. Server132 passes/two skips (134 total), client206 files/2579 tests/two todo, gameplay7 passed (91.44s). Four built-browser checks and focused gates above are green. No native abort. Resume from: record SHOW-3 merge, then SHOW-4 celebration; only two reference captures requested, no pairs yet.
 
 SHOW-3 source commit:6e6d998. Local main merge:6383c4c. All three full stages and four touched-screen browser cases passed. Resume from: SHOW-4, final job.
+
+## Revised run — Home first
+
+Goal file de1066ef-0206-482a-a12e-84c16c2b2e60/goal-objective.md read and accepted at13:26UTC. Original start12:28UTC and deadline18:28UTC retained; clock is not reset. Four revised jobs: HOME-1 composition, HOME-2 truthful room behaviour, HOME-3 existing journeys, then preserved SHOW-4. Pair budget0/3, prioritising one Home pair and two celebration pairs. SHOW-4 WIP checkpoint7a67267 is saved oncodex/show-4 and not merged; reviewed audio275419a is inside that checkpoint. Main9f781ed pulled --ff-only, already up to date. Other builder's dirtyfix/guest-cap checkout untouched.
+
+Resume from: HOME-1 oncodex/home-1. Capture current Home states before editing and inspect against current named reference. HOME-2 and HOME-3 independent read-only audits underway.
+
+### HOME-1 candidate
+
+Current built Home inspected in six states/viewports before edits. Concrete differences: fixed612pxbackdrop inside720pxstage left a seam, current reference uses full height with612minimum; quiet roster stayedfilled/gold; every seated agent was50pxinstead of near50/others44; phonecards were larger than currentwave57source. Ported full-height background without moving authored furniture; shortphones retain readable widths and roomscroll. Roster usesquietoutline/unreadgold, standing sleep42andseated50/44. Reviewed cardcheckpointc28ac6b retainspublic-only roomcards/desktop20x28. Three builtregressionsfailedbeforecorrection; six builtchecks thenpassed. One extra shortscroll/roster-colorcheck pending finalbrowserpass.
+
+F10comparisonreference captured alonebyagent; pairnotyetcreated. F10itselfdoesnotdrawthetableellipse; retainedbyfounderoverride. F05replaytriggerandC7bcouch/TVremainreferencegaps; nofakeactivityorfixturemovement. FridgefetchstateisunderHOME-2audit. Resume from: completeHOME-1namedpairandfullgate, thenmergebeforeHOME-2.

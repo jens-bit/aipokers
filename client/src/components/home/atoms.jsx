@@ -268,7 +268,7 @@ export function HomeOne({
 
         {dealt && !carried && !r.back ? (
           <span className="home-one__cards" aria-hidden>
-            {[0, 1].map((i) => <CardBack key={i} w={size * 0.34} h={size * 0.46} />)}
+            {[0, 1].map((i) => <CardBack key={i} w={size * 0.29} h={size * 0.39} />)}
           </span>
         ) : null}
 
