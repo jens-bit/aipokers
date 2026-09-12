@@ -217,8 +217,8 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     setActiveTab('casino');
   }
 
-  async function watchCompanion(agent) {
-    const tableId = agent?.activeTableId || agent?.liveGame?.tableId || agent?.location?.tableId;
+  async function watchCompanion(agent, requestedTableId = null) {
+    const tableId = requestedTableId || agent?.activeTableId || agent?.liveGame?.tableId || agent?.location?.tableId;
     if (!tableId) return;
     watchOriginRef.current = hereOrigin();
     let memoryContext = '';
@@ -964,8 +964,9 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
               onBack={() => navigateTo('home')}
               onReplay={replayEvent}
               onPlace={placeInCasino}
-              onSpectate={(tableId) => {
+              onSpectate={(tableId, context) => {
                 if (!tableId) return;
+                if (context?.agent) { watchCompanion(context.agent, tableId); return; }
                 watchOriginRef.current = hereOrigin();
                 setActiveAgent(null, null);
                 watch({

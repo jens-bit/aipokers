@@ -80,8 +80,7 @@ import { useTableReactions } from '../hooks/useTableReactions.js';
 import { BustedName, HandFireworks, resultCelebration, useCelebrationAudio } from './system/HandCelebration.jsx';
 import { PotAward, useWinnerSpeech } from './system/PotAward.jsx';
 import { ActionNarrator } from './system/ActionNarrator.jsx';
-import { ContextHint } from './onboarding/ContextHint.jsx';
-import { useFirstRunGuide } from './onboarding/FirstRunGuide.jsx';
+import { WatchGuide } from './onboarding/WatchGuide.jsx';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -943,7 +942,7 @@ export function WatchFelt({
       className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
         + (majorWin ? ' is-major-result' : '') + (watchedResult ? ' is-result-moment' : '')
         + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')}
-      style={feltStyle} data-pace={pace}>
+      style={feltStyle} data-pace={pace} data-watch-hero-seat={heroSeat}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
       {majorWin && watchedResult && <HandFireworks key={watchedResult}/>}
@@ -952,7 +951,7 @@ export function WatchFelt({
         var slot = slots[i];
         return (
           <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot + (celebration?.busted.some(b=>b.seat===o.seat) ? ' is-busted' : '')}
-            data-align={alignFor(slot)}>
+            data-align={alignFor(slot)} data-watch-seat={o.seat}>
             {/* WATCH-10 job 1: on the felt his money IS his chips, and the
                 figure stands beside them (the pile, below). The boxed felt has
                 no room to bank a pile, so there the pill still carries it. */}
@@ -1463,7 +1462,6 @@ export function WatchScreen({
   // (table.js: "the home game pushes nothing").
   threadRows: threadRowsProp = null,
 }) {
-  const guide = useFirstRunGuide();
   const guideRoot = useRef(null);
   if (!chatMessages)  chatMessages  = [];
   if (!sendChat)      sendChat      = function() {};
@@ -1471,6 +1469,9 @@ export function WatchScreen({
 
   var [sitOutPending, setSitOutPending] = useState(false);
   var [agent,         setAgent]         = useState(null);
+  // Keep guide authorization tied to the completed owner lookup. A stale
+  // portrait, or a still-pending lookup, must not choose the private tour.
+  var [guideOwner, setGuideOwner] = useState({ id: null, agent: null });
 
   // ---- Owner↔agent DM thread (PORT-6) ----
   var [agentThread,   setAgentThread]   = useState([]);
@@ -1489,10 +1490,13 @@ export function WatchScreen({
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (cancelled) return;
-          var found = (data.agents || []).find(function(a) { return a.id === agentId; });
+          var found = (data.agents || []).find(function(a) { return String(a.id) === String(agentId); });
           if (found) setAgent(found);
+          setGuideOwner({ id: agentId, agent: found || null });
         })
-        .catch(function() {});
+        .catch(function() {
+          if (!cancelled) setGuideOwner({ id: agentId, agent: null });
+        });
     }
     load();
     var id = setInterval(load, 10000);
@@ -2104,9 +2108,9 @@ export function WatchScreen({
     <div className="watch-screen" ref={guideRoot}
       data-pace-lag={Number.isFinite(paceLag) ? Math.round(paceLag) : 0}>
 
-      {guide.stage === 'live' && game && !seated && !sessionEnd && !error && selectedSeat == null && !threadOpen && !sitOutPending && <ContextHint
-        rootRef={guideRoot} selector=".watch-felt__board" targetChildren=".watch-felt__card" text="You’re watching; players use these shared cards."
-        nextLabel="Got it" onNext={guide.dismiss} onDismiss={guide.dismiss}/>}
+      <WatchGuide rootRef={guideRoot} game={game} heroSeat={heroSeatIdx}
+        ownedAgent={String(guideOwner.id) === String(agentId) ? guideOwner.agent : null} privateChat={!!agentId}
+        blocked={(!!agentId && String(guideOwner.id) !== String(agentId)) || seated || !!sessionEnd || !!error || selectedSeat != null || threadOpen || sitOutPending || connection === 'reconnecting'}/>
 
       <div className="watch-screen__header">
         <button type="button" className="watch-screen__back" onClick={onLeave} aria-label="Leave table">
@@ -2115,7 +2119,7 @@ export function WatchScreen({
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <span className="watch-screen__title">
+        <span className="watch-screen__title" data-watch-status>
           {publicWatch ? 'Watching' : (config?.displayName || 'Watching')}
         </span>
         {!seated && !publicWatch && <MoodChip mood={mood} small />}

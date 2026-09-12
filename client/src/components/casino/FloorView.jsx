@@ -214,7 +214,7 @@ export function feltsForRoom(felts = [], agents = []) {
  * @param desktop  full width, the board as a right column
  */
 export function FloorView({
-  room, felts = [], agents = [], events = [], board = null,
+  room, felts = [], agents = [], events = [], board = null, play = null,
   onWatch, onClose, onHome = null, onOpenRoster = null, desktop = false,
   // BUGS-C job 12: the Floor | Board segmented control, rendered by the
   // caller (CasinoScreen.jsx owns which view is current) so this file never
@@ -252,6 +252,9 @@ export function FloorView({
   const [floorW, setFloorW] = useState(FLOOR_W);
   const [floorH, setFloorH] = useState(FLOOR_H);
   const hasFelts = ranked.length > 0;
+  // Once tables arrive, their canvas keeps the whole room. The action moves
+  // to the existing rail (or the phone's compact area below the room).
+  const railPlay = hasFelts && !zoom ? play : null;
   useLayoutEffect(() => {
     const el = roomRef.current;
     if (!el) return undefined;
@@ -300,6 +303,7 @@ export function FloorView({
 
       <div className="csn-floor__body">
         <div className="csn-floor__room">
+          {!hasFelts && !zoom && play}
           {ranked.length > 0 ? (
             <div className="csn-floor__plan" ref={roomRef}>
               <TheFloor
@@ -342,8 +346,11 @@ export function FloorView({
         {/* The board by the stairs. On the phone it is under the room, where
             the stairs are; on the desk it is the right column, which is the
             same place — you pass it on the way out either way. */}
-        {board && (!zoom || desktop) && (
-          <div className="csn-floor__board">{board}</div>
+        {(board || railPlay) && (!zoom || desktop) && (
+          <div className={`csn-floor__board${railPlay && !desktop ? ' csn-floor__board--play' : ''}`}>
+            {railPlay}
+            {(desktop || !railPlay) && board}
+          </div>
         )}
       </div>
     </div>

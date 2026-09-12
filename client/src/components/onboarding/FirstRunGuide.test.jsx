@@ -41,12 +41,12 @@ describe('FIRST-GUIDE: one real first session per owner', () => {
     act(() => result.current.advance('watch'));
     expect(result.current.stage).toBeNull();
     act(() => result.current.begin(pebble));
-    for (const stage of ['table', 'watch', 'live']) {
+    for (const stage of ['table', 'watch', 'live', 'live-chat', 'live-agent', 'live-opponent']) {
       act(() => result.current.advance(stage));
       expect(result.current.stage).toBe(stage);
     }
     act(() => result.current.advance('casino'));
-    expect(result.current.stage).toBe('live');
+    expect(result.current.stage).toBe('live-opponent');
     act(() => result.current.dismiss());
     act(() => { result.current.advance('agent'); result.current.begin(moss); });
     expect(result.current).toMatchObject({ stage: null, agentId: null, agentName: null });

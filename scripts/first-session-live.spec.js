@@ -122,7 +122,7 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   await page.screenshot({ path: testInfo.outputPath('table-guide.png') });
   let guideRoute;
   if (await table.getByTestId('home-table-watch').isVisible()) {
-    guideRoute = 'running kitchen → actual WATCH → shared board → completed';
+    guideRoute = 'running kitchen → actual WATCH → watching and opponent guidance → completed';
     await expect(hint).toContainText('Watch the kitchen game here.');
     await expect(hint.getByRole('button')).toHaveCount(1);
     await expect(hint.getByRole('button', { name: 'Skip', exact: true })).toBeVisible();
@@ -130,11 +130,13 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
     const liveTable = desktop ? page.getByTestId('desk-home-table') : page.locator('.watch-screen');
     await expect(liveTable).toBeVisible();
     await expect(liveTable.locator('.watch-felt__board')).toBeVisible();
-    await expect(hint).toContainText('You’re watching; players use these shared cards.');
+    await expect(hint).toContainText(/You are watching\. The (AI players|players) make their own decisions\./);
     expect(gameCommands.slice(commandsAfterBirth)).toContain('watch');
     expect(gameCommands.slice(commandsAfterBirth).filter(type => type !== 'watch'), 'the guide never joins, acts, deals or chats').toEqual([]);
     await page.screenshot({ path: testInfo.outputPath('live-table-guide.png') });
-    await hint.getByRole('button', { name: 'Got it', exact: true }).click();
+    await hint.getByRole('button', { name: 'OK', exact: true }).click();
+    await expect(hint).toContainText('An opponent. Tap to see what is known about them.');
+    await hint.getByRole('button', { name: 'OK', exact: true }).click();
     await expect(hint).toHaveCount(0);
     await liveTable.getByRole('button', { name: desktop ? 'Back to the room' : 'Leave table', exact: true }).click();
   } else {
@@ -206,5 +208,32 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   await expect(hint).toHaveCount(0);
   await expect(page.locator('.practice-entry')).toHaveCount(0);
   expect(documents).toBe(2);
+  if (guestFlow) {
+    // /welcome is the public landing page after reload. Use its real room
+    // entry, rather than letting locator auto-scroll reach an embedded control.
+    await page.getByRole('button', { name: 'OPEN YOUR ROOM', exact: true }).first().click();
+    await expect(desktop ? page.locator('.dsk-top') : home.getByTestId('room-header')).toBeInViewport({ ratio: 1 });
+  }
+  // The next deliberate visit must offer a real seat directly from the floor.
+  // This uses the real deploy/matchmaking/engine path; it is not a WATCH that
+  // fabricates an opponent or a guide callback that starts a session.
+  await home.getByTestId('home-door').click();
+  const play = page.getByTestId('casino-play');
+  await expect(play).toBeVisible();
+  const deployResponse = page.waitForResponse(response => pathOf(response.request()) === `/api/agents/${birth.agentId}/deploy`
+    && response.request().method() === 'POST');
+  await play.getByRole('button', { name: `Send ${NAME} to play`, exact: true }).click();
+  const deployed = await deployResponse;
+  expect(deployed.ok(), 'the named floor action creates or joins a real session').toBe(true);
+  const session = await deployed.json();
+  expect(session.agentId).toBe(birth.agentId);
+  expect(session.sessionStarted).toBe(true);
+  const felt = page.locator('.watch-felt').filter({ visible: true });
+  await expect(felt).toBeVisible();
+  await expect(felt.locator('.seat-ghost').first()).toBeVisible();
+  await expect(felt.locator('.watch-hero__body')).toBeVisible();
+  if (!desktop) await expect(page.locator('.watch-screen__header')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByTestId('context-hint')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('real-casino-entry.png') });
   expect(errors).toEqual([]);
 });

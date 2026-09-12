@@ -612,6 +612,36 @@
 }
 .csn-floor__room::-webkit-scrollbar { display: none; }
 
+.csn-floor-play {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.csn-floor-play p { margin: 0; }
+.csn-floor-play__note { color: var(--text-secondary); }
+.csn-floor-play label { display: flex; flex-direction: column; gap: 4px; }
+.csn-floor-play button, .csn-floor-play select {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--edge-strong);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font: inherit;
+}
+.csn-floor-play button { background: var(--accent); color: var(--on-accent); font-weight: 700; cursor: pointer; }
+.csn-floor-play button:disabled { opacity: .6; cursor: wait; }
+.csn-floor-play [role="alert"] { color: var(--error); }
+
 /* ── wave 58 · the floor as a room ──────────────────────────────────────────
  *
  * The plan is drawn in the ref's own 390-unit space and scaled to whatever
@@ -817,6 +847,14 @@
   flex-direction: column;
   gap: 10px;
 }
+
+/* A populated phone floor has one compact decision below its canvas. The
+   full hand board remains reachable through the existing Board toggle. */
+.csn-floor__board--play { max-height: 42%; overflow-y: auto; }
+.csn-floor__board--play .csn-floor-play { padding: 10px 12px; gap: 6px; font-size: 12px; }
+.csn-floor__board--play .csn-floor-play__note { display: none; }
+.csn-floor__board--play .csn-floor-play label { flex-direction: row; align-items: center; gap: 8px; }
+.csn-floor__board--play .csn-floor-play select { flex: 1; min-width: 0; }
 
 /* On the desk: full width, board as the right column. This is a deliberate
    departure from FIX-6 job 5's "every sheet opens in the rail" — that rule is

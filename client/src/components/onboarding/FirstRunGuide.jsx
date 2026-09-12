@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 const noop = () => {};
 const inactive = { stage: null, agentId: null, agentName: null, begin: noop, advance: noop, dismiss: noop };
 const FirstRunGuide = createContext(inactive);
-const stages = new Set(['agent', 'table', 'watch', 'door', 'live']);
+const stages = new Set(['agent', 'table', 'watch', 'door', 'live', 'live-chat', 'live-agent', 'live-opponent']);
 const legacyPrefix = 'railbird.practice.v1:';
 const keyFor = owner => `railbird.guide.v1:${owner}`;
 const emptyRun = owner => ({ owner, stage: null, agentId: null, agentName: null });

@@ -3,14 +3,12 @@ import { WatchFelt, readFor, seatSummary } from '../WatchScreen.jsx';
 import { ReadSheet } from '../system/ReadSheet.jsx';
 import { heroSeatOf, phaseOf } from './DeskTableStage.jsx';
 import { ActionNarrator } from '../system/ActionNarrator.jsx';
-import { ContextHint } from '../onboarding/ContextHint.jsx';
-import { useFirstRunGuide } from '../onboarding/FirstRunGuide.jsx';
+import { WatchGuide } from '../onboarding/WatchGuide.jsx';
 
 // DkWatchScreenM: the shared live felt, in the reference's 900 × 648 space.
 // The public camera chooses a seat, but can only draw cards the server served.
 export function DeskCasinoTable({ game, agent, mySeat, lastDecision, notice, onBack, onSitOut, onTapHero,
-  sessionEnd = null, seated = false, guideBlocked = false }) {
-  const guide = useFirstRunGuide();
+  sessionEnd = null, seated = false, guideBlocked = false, guideChatRef = null }) {
   const viewport=useRef(null);
   const [scale,setScale]=useState(1),[selectedSeat,setSelectedSeat]=useState(null);
   useLayoutEffect(()=>{
@@ -25,9 +23,9 @@ export function DeskCasinoTable({ game, agent, mySeat, lastDecision, notice, onB
   const heroDecision=lastDecision?.seat===heroSeat && phaseOf(game)==='live' ? lastDecision : null;
   const bubbles=heroDecision?.reasoning ? [{id:'decision',mine:true,seat:heroSeat,text:heroDecision.reasoning}] : [];
   return <div className="dsk-casino-table-viewport" ref={viewport}>
-    {guide.stage === 'live' && game && !seated && !sessionEnd && !notice && !guideBlocked && selectedSeat == null && <ContextHint
-      rootRef={viewport} selector=".watch-felt__board" targetChildren=".watch-felt__card" text="You’re watching; players use these shared cards."
-      nextLabel="Got it" onNext={guide.dismiss} onDismiss={guide.dismiss}/>}
+    <WatchGuide rootRef={viewport} game={game} heroSeat={heroSeat} ownedAgent={agent}
+      privateChat={!!onTapHero && !!guideChatRef} chatRef={guideChatRef}
+      blocked={seated || !!sessionEnd || !!notice || guideBlocked || selectedSeat != null}/>
     <section className="dsk-casino-table" data-testid="desk-casino-table" aria-label={name ? name+' at the table' : 'The casino table'} style={{width:900*scale,height:648*scale}}>
       <div className="dsk-casino-table__scene" style={{transform:'scale('+scale+')'}}>
         <WatchFelt heroActionLabel={onTapHero ? "Open the thread" : "Read this player"} onTapHero={onTapHero ?? (()=>setSelectedSeat(heroSeat))} bubbles={bubbles} game={game} mySeat={heroSeat} lastDecision={lastDecision}
@@ -37,7 +35,7 @@ export function DeskCasinoTable({ game, agent, mySeat, lastDecision, notice, onB
           overlay={selectedSeat==null?null:<ReadSheet entry={readFor(game,selectedSeat)} seat={seatSummary(game,selectedSeat)} onClose={()=>setSelectedSeat(null)}/>}/>
         <ActionNarrator game={game} mySeat={mySeat} />
         <button type="button" className="dsk-casino-table__back" aria-label="BACK TO THE FLOOR" onClick={onBack}>‹ BACK TO THE FLOOR</button>
-        {name && !agent && <span className="dsk-casino-table__name">{name}</span>}
+        <span className="dsk-casino-table__name" data-watch-status style={{background:'var(--v5-panel)',padding:'2px 6px',borderRadius:4,pointerEvents:'auto'}}>Watching{name && !agent ? ` ${name}` : ''}</span>
         {notice && <div className="dsk-casino-table__notice" role="status">{notice}</div>}
         {onSitOut && phaseOf(game)==='between' && <button type="button" className="dsk-casino-table__sit-out" onClick={onSitOut}>Sit out</button>}
       </div>

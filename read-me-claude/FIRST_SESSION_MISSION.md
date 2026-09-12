@@ -8,6 +8,8 @@ A newcomer who rarely plays poker can meet their agent, understand who plays and
 
 Home remains the default after entry and creation. Keep the kitchen table, human play, four-stage draft, Railbird character identity and working Watch. Casino is a deliberate destination. Preserve completed work; reproduce reported failures before claiming causes.
 
+The latest playtest work order is recorded in [NEXT_PLAYTEST_FEEDBACK.md](NEXT_PLAYTEST_FEEDBACK.md). First repair the quiet casino's direct agent entry, owned-table viewing and brief watching/chat/agent/opponent guide. Then address contextual sheets and their return paths, table stability and hand clarity. Tentative mechanics remain decisions to discuss, not automatic additions.
+
 ## Authority and scope
 
 Jens authorized targeted new guidance, navigation/copy, readability/brightness and spectator presentation improvements. Existing design references remain the foundation and are not edited; the blanket port-only/no-new-interactions rules yield for this scope. Record deliberate departures. Routine implementation decisions are autonomous. Consult Jens with a concrete recommendation for changes to agent autonomy, session/stamina rules, chip economy, ongoing model costs or substantial visual identity changes, while continuing independent work.

@@ -48,7 +48,7 @@ export function DesktopHome({
   // board 31's frame — top bar across, rail on the right, only the stage
   // swapped. An agent handed to `deployAgent` puts it there on its own,
   // because being handed one IS the walk into the building.
-  wsUrl = null, deployAgent = null, onDeployed = null, onSpectate = null, onCancelDeploy = null,
+  wsUrl = null, deployAgent = null, onDeployed = null, onSpectate = null, onCancelDeploy = null, onPlace = null,
   // DP-4: the draft, when one is under way. It runs on the stage as a sheet so
   // the shell around it — top bar, roster, open panel — stays mounted; App
   // returning it on its own would take the desk down for the duration.
@@ -455,6 +455,7 @@ export function DesktopHome({
               initialRoomId={casinoReturnRoomId}
               wsUrl={wsUrl}
               deployAgent={deployAgent}
+              onPlace={onPlace}
               onDeployed={(payload,agent,room)=>{
                 setCasinoReturnRoomId(room?.id ?? null);
                 setDeskTableId(agent.id);
@@ -463,8 +464,15 @@ export function DesktopHome({
               }}
               onSpectate={(tableId,context)=>{
                 setCasinoReturnRoomId(context?.roomId ?? null);
-                const owner=agents.find(a=>(a.activeTableId || a.liveGame?.tableId)===tableId);
-                if(owner) openTable(owner);
+                const owner=context?.agent ?? agents.find(a=>String(a.liveGame?.tableId || a.activeTableId || a.location?.tableId)===String(tableId));
+                if(owner) {
+                  const currentOwner = { ...owner, activeTableId: tableId };
+                  // The casino may have a newer authenticated roster than the
+                  // shell's poll. Keep that exact agent and table on arrival.
+                  setAgents(current => current.some(a => a.id === owner.id)
+                    ? current.map(a => a.id === owner.id ? currentOwner : a) : [...current, currentOwner]);
+                  openTable(currentOwner);
+                }
                 else {setPublicTableId(tableId);onSpectate?.(tableId);}
               }}
               onReplay={replayCasinoEvent}
@@ -577,6 +585,7 @@ function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines,
           leave it, rather than stretching full-bleed the way DESK-2 drew it. */}
       <div className="dsk-stage dsk-stage--felt">
         <DeskCasinoTable
+          guideChatRef={composerRef}
           onTapHero={()=>composerRef.current?.focus()}
           game={game}
           agent={agent}

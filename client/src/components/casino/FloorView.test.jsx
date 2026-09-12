@@ -31,6 +31,41 @@ const room = (over = {}) => ({
 
 const agent = (id, name, over = {}) => ({ id, name, activeTableId: null, ...over });
 
+describe('CASINO-PLAY: the entry action preserves the populated floor canvas', () => {
+  it.each([false, true])('moves the quiet-floor action into the existing board area when tables arrive (desktop=%s)', async desktop => {
+    const onPlay = vi.fn();
+    const props = { room: room({ tables: 1 }), desktop,
+      play: <button onClick={onPlay}>Send Milo to play</button>,
+      board: <div data-testid="floor-board">The latest hands</div>,
+      toggle: <button>Board</button>,
+    };
+    const view = render(<FloorView {...props} />);
+    expect(screen.getByRole('button', { name: 'Send Milo to play' }).closest('.csn-floor__room')).toBeTruthy();
+    view.rerender(<FloorView {...props} felts={[felt()]} />);
+    const play = screen.getByRole('button', { name: 'Send Milo to play' });
+    expect(play.closest('.csn-floor__room')).toBeNull();
+    expect(play.closest('.csn-floor__board')).toBeTruthy();
+    expect(screen.getByTestId('the-floor').closest('.csn-floor__room')).toBeTruthy();
+    if (desktop) expect(screen.getByTestId('floor-board')).toBeVisible();
+    else expect(screen.queryByTestId('floor-board')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Board' })).toBeVisible();
+    await userEvent.click(play);
+    expect(onPlay).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the phone board when no placement action is available, and clears the lower area during a pinch zoom', () => {
+    const table = felt();
+    const props = { room: room({ tables: 1 }), felts: [table], board: <div data-testid="floor-board">The latest hands</div> };
+    const view = render(<FloorView {...props} />);
+    expect(screen.getByTestId('floor-board')).toBeVisible();
+    const originalFloor = screen.getByTestId('the-floor');
+    view.rerender(<FloorView {...props} play={<button>Send Milo to play</button>} zoom={table} />);
+    expect(screen.queryByRole('button', { name: 'Send Milo to play' })).toBeNull();
+    expect(screen.queryByTestId('floor-board')).toBeNull();
+    expect(screen.getByTestId('the-floor')).toBe(originalFloor);
+  });
+});
+
 describe('BUGS-A job 7 · what the client can honestly name in a room', () => {
   it('names the hot tables and the biggest pot', () => {
     const rows = liveTablesIn(room({ hot: ['t9'], biggestPot: { tableId: 't7', pot: 4180 } }));

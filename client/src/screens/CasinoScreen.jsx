@@ -31,14 +31,14 @@
 // can do here.
 
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   CasinoDoor, CasinoHead, DeployTray, RoomDoors, Stairs, Btn, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
 import { FloorBoard } from '../components/casino/FloorBoard.jsx';
 import { YourTables } from '../components/casino/YourTables.jsx';
-import { FloorView } from '../components/casino/FloorView.jsx';
+import { FloorView, tableIdOf } from '../components/casino/FloorView.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { useCasinoRooms, roomForBlinds, roomForTable, agentsByRoom, feltsIn, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
@@ -202,6 +202,21 @@ export function CasinoScreen({
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [fundTarget, setFundTarget] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [playAgentId, setPlayAgentId] = useState(null);
+  const [playError, setPlayError] = useState('');
+  const [pendingTable, setPendingTable] = useState(null);
+  const playInFlight = useRef(false);
+  const playEntry = useRef(0);
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; playEntry.current += 1; };
+  }, [deployAgent?.id]);
+  const abandonFloorPlay = useCallback(() => {
+    playEntry.current += 1;
+    setPlayError('');
+    setPendingTable(null);
+  }, []);
   const [conversationId, setConversationId] = useState(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -214,7 +229,10 @@ export function CasinoScreen({
   // fresh every time the owner leaves and comes back to the casino tab.
   const [view, setView] = useState(readCasinoView);
   const [zoom, setZoom] = useState(null);
-  const changeView = useCallback((v) => { setZoom(null); setView(v); writeCasinoView(v); }, []);
+  const changeView = useCallback((v) => {
+    if (v !== view) abandonFloorPlay();
+    setZoom(null); setView(v); writeCasinoView(v);
+  }, [view, abandonFloorPlay]);
 
   // CASINO-2: `felts` is one public snapshot per live table and `roomOf` is
   // the server's table -> room map. The doorways are still drawn from `rooms`;
@@ -297,6 +315,9 @@ export function CasinoScreen({
 
   const seated = totalSeated(rooms);
   const minePlaying = agents.filter((a) => a.liveGame).length;
+  const availableAgents = agents.filter(agent => !tableIdOf(agent) && !agent.guest && !agent.archived && !agent.retiring
+    && agent.location?.where !== 'visiting');
+  const playAgent = availableAgents.find(agent => agent.id === playAgentId) ?? availableAgents[0] ?? null;
   const net = agents.reduce((sum, a) => {
     const p = pocketOf(a);
     return sum + (Number.isFinite(p?.pnl) ? p.pnl : 0);
@@ -336,6 +357,7 @@ export function CasinoScreen({
   // BUGS-A job 7: with nobody in the tray, a doorway is a place you look INTO.
   // It was scenery — the one tap on this screen that did nothing.
   function lookIntoRoom(room) {
+    if (room.id !== openRoomId) abandonFloorPlay();
     setOpenRoomId(room.id);
     try { sessionStorage.setItem(ROOM_KEY, room.id); } catch { /* Keep this visit in memory. */ }
     changeView('floor');
@@ -381,6 +403,56 @@ export function CasinoScreen({
       onDeployed?.(payload, trayAgent, queuedRoom);
     } catch { /* he stays in the tray */ }
     finally { setBusy(false); }
+  }
+
+  // Unlike the older tray's queue, deploy joins a compatible populated table
+  // or starts a session. The server owns admission, money and opponent choice.
+  async function playOnFloor(agent, room) {
+    if (!agent || !room || playInFlight.current || pendingTable) return;
+    setPlayError('');
+    if (!canAfford(pocketOf(agent), room) || pocketOf(agent)?.mode === 'cut') {
+      setFundTarget(agent);
+      return;
+    }
+    playInFlight.current = true;
+    const entry = playEntry.current;
+    const stillHere = () => mounted.current && playEntry.current === entry;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}/deploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
+        body: JSON.stringify({ userId: getUserId(), rung: room.rung, stakes: room.stakes }),
+      });
+      const payload = await res.json();
+      // Leaving is not a cancellation of the authorized server session. It
+      // only retires this entry's right to navigate or open a funding sheet.
+      if (!stillHere()) return;
+      if (!res.ok) {
+        if (res.status === 402 || payload?.error === 'cantAfford') {
+          setFundTarget(payload?.pocket ? { ...agent, pocket: payload.pocket } : agent);
+        }
+        const message = typeof payload?.message === 'string' ? payload.message
+          : typeof payload?.error === 'string' && /\s/.test(payload.error) ? payload.error : null;
+        setPlayError(message || `${agent.name} could not join this room. Try again.`);
+        return;
+      }
+      if (typeof payload?.tableId !== 'string' || !payload.tableId || payload.agentId !== agent.id
+        || (typeof payload.sessionStarted !== 'boolean' && payload.alreadyPlaying !== true)) {
+        throw new Error('Missing deployment confirmation');
+      }
+      const actualRoom = rooms.find(candidate => candidate.id === payload.room)
+        ?? roomForBlinds(rooms, `${payload.stakes?.smallBlind}/${payload.stakes?.bigBlind}`) ?? room;
+      lookIntoRoom(actualRoom);
+      const confirmed = { payload, agent, room: actualRoom };
+      setPendingTable(confirmed);
+      if (payload.sessionStarted || payload.alreadyPlaying) onDeployed?.(payload, agent, actualRoom);
+    } catch {
+      if (stillHere()) setPlayError(`${agent.name}’s table could not be opened. Try again.`);
+    } finally {
+      playInFlight.current = false;
+      if (mounted.current) setBusy(false);
+    }
   }
 
   const fund = fundTarget ? (
@@ -434,14 +506,23 @@ export function CasinoScreen({
   const openRoom = rooms.find((r) => r.id === openRoomId)
     ?? rooms.find((r) => r.id === defaultFloorRoomId) ?? null;
 
+  function watchTable(tableId, roomId = null) {
+    abandonFloorPlay();
+    const agent = agents.find(candidate => tableIdOf(candidate) === String(tableId));
+    // Only the authenticated roster supplies owner context; public felt seats
+    // cannot turn a spectator request into an owner's private view.
+    if (agent) onSpectate?.(tableId, { roomId, agent });
+    else if (desktop && roomId) onSpectate?.(tableId, { roomId });
+    else onSpectate?.(tableId);
+  }
+
   function watchFromRoom(tableId) {
     // Also remember a room opened by the initial live focus. A changing hot
     // table must not move the owner to a different room when Watch closes.
     if (openRoom) {
       try { sessionStorage.setItem(ROOM_KEY, openRoom.id); } catch { /* Storage may be unavailable. */ }
     }
-    if (desktop) onSpectate?.(tableId, { roomId: openRoom?.id });
-    else onSpectate?.(tableId);
+    watchTable(tableId, openRoom?.id);
   }
 
   // CASINO-2 job 2 — the board, split by tense. LIVE NOW comes off the felts
@@ -463,7 +544,7 @@ export function CasinoScreen({
       rows={trayAgent ? 0 : desktop ? 3 : 2}
       separated={!desktop && !trayAgent}
       stakesFor={stakesForTable}
-      onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+      onWatch={onSpectate ? watchTable : null}
       onReplay={onReplay ?? null}
     />
   );
@@ -525,7 +606,7 @@ export function CasinoScreen({
                 </div>
               )}
             </div>
-            <Btn h={30} onClick={() => onSpectate?.(focus.tableId)}>
+            <Btn h={30} onClick={() => watchTable(focus.tableId)}>
               {focus.agent ? 'Watch him' : 'Watch'}
             </Btn>
           </div>
@@ -555,7 +636,7 @@ export function CasinoScreen({
             agents={agents}
             felts={felts}
             onSelectAgent={setConversationId}
-            onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+            onWatch={onSpectate ? watchTable : null}
             onSend={onPlace ?? null}
           />
         )}
@@ -631,8 +712,33 @@ export function CasinoScreen({
       desktop={desktop}
       felts={feltsIn(felts, openRoom.id)}
       agents={mineByRoom[openRoom.id] ?? []}
+      play={!zoom && !fund && onDeployed && (pendingTable || playAgent) ? (
+        <div className="csn-floor-play" data-testid="casino-play">
+          {pendingTable ? <>
+            <p role="status" data-testid="casino-play-status">{pendingTable.payload.sessionStarted || pendingTable.payload.alreadyPlaying
+              ? `${pendingTable.agent.name}’s table is ready.` : `Waiting for ${pendingTable.agent.name}’s table to start.`}</p>
+            <button type="button" onClick={() => onDeployed(pendingTable.payload, pendingTable.agent, pendingTable.room)}>
+              Watch {pendingTable.agent.name}
+            </button>
+          </> : <>
+            {availableAgents.length > 1 && <label>Choose your agent
+              <select data-testid="casino-play-agent" value={playAgent.id} disabled={busy}
+                onChange={event => { setPlayAgentId(event.target.value); setPlayError(''); }}>
+                {availableAgents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+              </select>
+            </label>}
+            <p>{openRoom.stakes.label} · {money(openRoom.stakes.buyIn)} play-money buy-in from {playAgent.name}’s pocket</p>
+            <p className="csn-floor-play__note">Joins an open table, or starts one.</p>
+            <button type="button" disabled={busy} onClick={() => playOnFloor(playAgent, openRoom)}>
+              {busy ? `Finding ${playAgent.name} a seat…` : canAfford(pocketOf(playAgent), openRoom) && pocketOf(playAgent)?.mode !== 'cut'
+                ? `Send ${playAgent.name} to play` : `Fund ${playAgent.name} to play`}
+            </button>
+          </>}
+          {playError && <p role="alert">{playError}</p>}
+        </div>
+      ) : null}
       events={events}
-      board={(
+      board={fund ?? (
         <FloorBoard
           felts={feltsIn(felts, openRoom.id)}
           events={events}
@@ -711,7 +817,7 @@ export function CasinoScreen({
               liveLimit={6}
               rows={20}
               stakesFor={stakesForTable}
-              onWatch={onSpectate ? (tableId) => onSpectate(tableId) : null}
+              onWatch={onSpectate ? watchTable : null}
               onReplay={onReplay ?? null}
             />
           )}

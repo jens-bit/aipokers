@@ -20,17 +20,29 @@ const COPY = {
   watch: 'Watch the kitchen game here.',
   quiet: 'The kitchen is quiet; the casino has more tables.',
   door: 'The casino has tables for your agent.',
-  board: 'You’re watching; players use these shared cards.',
+  board: 'You are watching. The AI players make their own decisions.',
+  owned: 'You are watching. Your AI agent is playing.',
+  chat: 'Talk to your agent here.',
+  ownAgent: `This is ${AGENT.name}. Tap to talk.`,
+  opponent: 'An opponent. Tap to see what is known about them.',
 };
 const VIEWPORTS = [
   { width: 320, height: 590 }, { width: 390, height: 590 },
   { width: 390, height: 844 }, { width: 1440, height: 900 },
 ];
 
-async function installSession(page, { guest = false, running = true, legacy = false } = {}) {
+async function installSession(page, { guest = false, running = true, legacy = false, casino = null } = {}) {
   const ownerId = guest ? 'guest_first_session' : OWNER;
   const tableId = `home-${ownerId}`;
-  const record = running ? AGENT : { ...AGENT, routine: { key: 'counts', label: 'counting chips' } };
+  const casinoTableId = 'casino-first-session';
+  const roomSnapshots = casino === 'join' ? QUIET_ROOMS.map((room, index) => index ? room : { ...room, tables: 1, seated: 2 }) : QUIET_ROOMS;
+  const floorTables = casino === 'join' ? [{ tableId: casinoTableId, room: rooms[0].id,
+    blinds: '10/20', smallBlind: 10, bigBlind: 20, seated: 2, pot: 20, board: ['5c', '4h', '8c'],
+    seats: [{ seat: 0, name: 'Granite', stack: 2000 }, { seat: 1, name: 'Moss', stack: 2000 }] }] : [];
+  const atCasino = { ...AGENT, activeTableId: casinoTableId,
+    location: { where: 'table', tableId: casinoTableId, room: rooms[0].id },
+    liveGame: { tableId: casinoTableId, blinds: '10/20', pot: 20, street: 'flop' } };
+  let record = casino === 'owned' ? atCasino : running ? AGENT : { ...AGENT, routine: { key: 'counts', label: 'counting chips' } };
   const homeGame = running ? { tableId, state: 'running', maxSeats: 4, handsPlayed: 1, seats: [
     { seat: 0, agentId: AGENT.id, name: AGENT.name, stack: 200 },
     { seat: 1, agentId: null, name: 'House', house: true, stack: 200 },
@@ -41,6 +53,13 @@ async function installSession(page, { guest = false, running = true, legacy = fa
   await page.route('**/api/**', async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname;
     requests.push({ path, method: request.method(), userId: url.searchParams.get('userId') });
+    if (casino && request.method() === 'POST' && path === `/api/agents/${AGENT.id}/deploy`) {
+      expect(request.postDataJSON()).toMatchObject({ rung: rooms[0].rung });
+      record = atCasino;
+      return route.fulfill({ json: { tableId: casinoTableId, agentId: AGENT.id, agentName: AGENT.name,
+        room: rooms[0].id, smallBlind: rooms[0].stakes.smallBlind, bigBlind: rooms[0].stakes.bigBlind,
+        stakes: rooms[0].stakes, strategy: {}, sessionStarted: true, joinedExisting: casino === 'join' } });
+    }
     if (request.method() !== 'GET') {
       unexpected.push(`${request.method()} ${path}`);
       return route.fulfill({ status: 500, json: { error: 'Guidance must not write, deal or send a message.' } });
@@ -54,8 +73,8 @@ async function installSession(page, { guest = false, running = true, legacy = fa
     else if (path.endsWith('/thread')) json = { sessionId: 'first-session', lines: [], count: 0 };
     else if (path.endsWith('/memory')) json = { memoryContext: '' };
     else if (path.endsWith('/study')) json = { study: null, book: [], count: 0 };
-    else if (path === '/api/rooms') json = { rooms: QUIET_ROOMS, hotWindowMs: 20_000 };
-    else if (/^\/api\/rooms\/[^/]+\/tables$/.test(path)) json = { tables: [] };
+    else if (path === '/api/rooms') json = { rooms: roomSnapshots, hotWindowMs: 20_000 };
+    else if (/^\/api\/rooms\/[^/]+\/tables$/.test(path)) json = { tables: floorTables };
     else if (path === '/api/events') json = { events: [], lastId: 0 };
     else if (path === '/api/slots') json = { used: 1, cap: 4, next: null };
     else if (path === '/api/wallet') json = { balance: 12_000, staked: 0, session: 0, ledger: [] };
@@ -69,7 +88,7 @@ async function installSession(page, { guest = false, running = true, legacy = fa
     }
     return route.fulfill({ json });
   });
-  await page.addInitScript(({ ownerId, guest, initData, agents, rooms, homeGame, legacy }) => {
+  await page.addInitScript(({ ownerId, guest, initData, agents, rooms, homeGame, legacy, casino, casinoTableId, floorTables }) => {
     window.Telegram = { WebApp: {
       initData: guest ? '' : initData,
       initDataUnsafe: guest ? {} : { user: { id: Number(ownerId), first_name: 'Jens' } },
@@ -102,23 +121,31 @@ async function installSession(page, { guest = false, running = true, legacy = fa
         if (message.type === 'floor_sub') setTimeout(() => {
           this.push({ type: 'home_state', userId: ownerId, agents, game: homeGame });
           this.push({ type: 'floor_rooms', rooms });
-          this.push({ type: 'room_tables', tables: [], rooms: {} });
+          this.push({ type: 'room_tables', tables: floorTables, rooms: Object.fromEntries(floorTables.map(table => [table.tableId, table.room])) });
         }, 10);
-        if (message.type !== 'watch' || !homeGame || message.tableId !== homeGame.tableId) return;
+        const atCasino = casino && message.tableId === casinoTableId;
+        if (message.type !== 'watch' || (!atCasino && (!homeGame || message.tableId !== homeGame.tableId))) return;
         setTimeout(() => {
-          this.push({ type: 'watching', tableId: homeGame.tableId, spectatorSeat: -1, publicOnly: true });
-          this.push({ type: 'state', yourSeat: -1, legalActions: [], state: {
-            tableId: homeGame.tableId, handNumber: 1, street: 'flop', pace: 'calm', pot: 20,
+          const owned = atCasino && message.agentId === agents[0].id;
+          const seats = atCasino ? [
+            { seat: 0, agentId: null, name: 'Granite', stack: 200 },
+            { seat: 1, agentId: agents[0].id, name: agents[0].name, stack: 220 },
+          ] : homeGame.seats;
+          this.push({ type: 'watching', tableId: message.tableId, spectatorSeat: owned ? 1 : -1, publicOnly: !owned });
+          this.push({ type: 'state', yourSeat: owned ? 1 : -1, legalActions: [], state: {
+            tableId: message.tableId, handNumber: 1, street: 'flop', pace: 'calm', pot: 20,
             smallBlind: 1, bigBlind: 2, currentBet: 0, toAct: 0, community: ['5c', '4h', '8c'],
-            seats: homeGame.seats.map(seat => ({ seat: seat.seat, playerId: `p${seat.seat}`,
-              agentId: seat.agentId, displayName: seat.name, stack: seat.stack, holeCards: [] })),
+            seats: seats.map(seat => ({ seat: seat.seat, playerId: seat.agentId ? `agent_${seat.agentId}` : `ai_${seat.seat}`,
+              agentId: seat.agentId, displayName: seat.name, stack: seat.stack, isAI: true,
+              identity: seat.agentId ? agents[0].identity : { hood: 'ink', glow: 'teal' },
+              holeCards: owned && seat.agentId === agents[0].id ? ['Ah', 'Kd'] : [] })),
           } });
         }, 10);
       }
     }
     window.WebSocket = ScriptedSocket;
-  }, { ownerId, guest, initData: INIT_DATA, agents: [record], rooms: QUIET_ROOMS, homeGame, legacy });
-  return { ownerId, tableId, requests, unexpected, errors };
+  }, { ownerId, guest, initData: INIT_DATA, agents: [record], rooms: roomSnapshots, homeGame, legacy, casino, casinoTableId, floorTables });
+  return { ownerId, tableId, casinoTableId, requests, unexpected, errors };
 }
 
 async function openHome(page) {
@@ -218,12 +245,15 @@ for (const viewport of VIEWPORTS) {
     await page.getByTestId('home-table-watch').click();
     const felt = page.locator('.watch-felt').filter({ visible: true });
     await expect(felt).toBeVisible(); await expectHint(page, COPY.board);
-    await expectTarget(page, felt.locator('.watch-felt__board'), { groupSelector: '.watch-felt__card' });
+    await expectTarget(page, page.locator('[data-watch-status]').filter({ visible: true }));
     for (const value of ['5', '4', '8']) await expect(felt.locator('.watch-felt__board')).toContainText(value);
     await expect(page.getByTestId('sit-strip')).toHaveCount(0);
     await expect(page.getByTestId('owner-hero-cards')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('actual-shared-board.png') });
-    await page.getByTestId('context-hint').getByRole('button', { name: 'Got it', exact: true }).click();
+    await page.getByTestId('context-hint').getByRole('button', { name: 'OK', exact: true }).click();
+    await expectHint(page, COPY.opponent);
+    await expectTarget(page, felt.locator('.seat-ghost').first());
+    await page.getByTestId('context-hint').getByRole('button', { name: 'OK', exact: true }).click();
     await expect(page.getByTestId('context-hint')).toHaveCount(0);
     await returnFromWatch(page); await expect(page.getByTestId('context-hint')).toHaveCount(0);
     await page.reload(); await expect(page.getByTestId('home-screen')).toBeVisible();
@@ -353,3 +383,83 @@ test('FIRST-SESSION: guest guidance sends no automatic message or claim request'
   ]));
   await expectReadOnly(page, fixture, { allowWatch: false });
 });
+
+for (const { viewport, guest = false, casino = 'start' } of [
+  { viewport: { width: 390, height: 590 } }, { viewport: { width: 1440, height: 900 } },
+  { viewport: { width: 390, height: 844 }, guest: true },
+  { viewport: { width: 390, height: 590 }, casino: 'join' }, { viewport: { width: 1440, height: 900 }, casino: 'join' },
+]) {
+  test(`CASINO-ENTRY-1: ${guest ? 'guest' : 'owner'} ${casino === 'join' ? 'populated' : 'quiet'} floor starts the named agent and guides owned Watch at ${viewport.width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const fixture = await installSession(page, { running: false, casino, guest });
+    await openHome(page); await advanceToTable(page);
+    await page.getByTestId('context-hint').getByRole('button', { name: 'Open table', exact: true }).click();
+    await page.getByTestId('context-hint').getByRole('button', { name: 'Show door', exact: true }).click();
+    await page.getByTestId('context-hint').getByRole('button', { name: 'Enter casino', exact: true }).click();
+    const floor = page.getByTestId('floor-view');
+    await expect(floor).toBeVisible();
+    if (casino === 'join') await expect(page.getByTestId('the-floor')).toBeVisible();
+    const play = page.getByTestId('casino-play');
+    await expect(play).toBeVisible(); await expect(play).toContainText(AGENT.name);
+    await expect(play).toBeInViewport({ ratio: 1 });
+    await expectReadOnly(page, fixture, { allowWatch: false });
+    await page.screenshot({ path: testInfo.outputPath('quiet-floor-play.png') });
+    await play.getByRole('button', { name: `Send ${AGENT.name} to play`, exact: true }).click();
+    const felt = page.locator('.watch-felt').filter({ visible: true });
+    await expect(felt).toBeVisible();
+    await expect.poll(() => fixture.requests.filter(request => request.method === 'POST').length).toBe(1);
+    expect(fixture.requests.filter(request => request.method === 'POST')).toEqual([
+      expect.objectContaining({ path: `/api/agents/${AGENT.id}/deploy` }),
+    ]);
+    const watches = await page.evaluate(() => window.__firstSessionWire.filter(message => message.type === 'watch'));
+    expect(watches).toContainEqual(expect.objectContaining({ tableId: fixture.casinoTableId, agentId: AGENT.id }));
+    await expect(felt.locator('.watch-hero__cards')).toContainText('A');
+    await expect(felt.locator('.watch-hero__cards')).toContainText('K');
+    await expect(page.getByTestId('context-hint')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('owned-watch-intro.png') });
+    await expectHint(page, COPY.owned);
+    await expectTarget(page, page.locator('[data-watch-status]').filter({ visible: true }));
+    await page.getByTestId('context-hint').getByRole('button', { name: 'OK', exact: true }).click();
+    await expectHint(page, guest ? 'Sign in to talk to your agent here.' : COPY.chat);
+    const composer = viewport.width >= 1100 ? page.locator('.dsk-panel--watch textarea') : page.locator('.watch-composer__input');
+    await expectTarget(page, composer);
+    await page.screenshot({ path: testInfo.outputPath('owned-watch-chat.png') });
+    await page.getByTestId('context-hint').getByRole('button', { name: 'OK', exact: true }).click();
+    await expectHint(page, COPY.ownAgent);
+    await expectTarget(page, felt.locator('.watch-hero__body > .mood-ghost'));
+    await page.screenshot({ path: testInfo.outputPath('owned-watch-agent.png') });
+    await page.getByTestId('context-hint').getByRole('button', { name: 'OK', exact: true }).click();
+    await expectHint(page, COPY.opponent);
+    await expectTarget(page, felt.locator('.seat-ghost').first());
+    await page.screenshot({ path: testInfo.outputPath('owned-watch-opponent.png') });
+    await page.getByTestId('context-hint').getByRole('button', { name: 'OK', exact: true }).click();
+    await expect(page.getByTestId('context-hint')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Keep him', exact: true })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+    await expect(page.getByTestId('context-hint')).toHaveCount(0);
+    expect(fixture.unexpected).toEqual([]); expect(fixture.errors).toEqual([]);
+    expect((await page.evaluate(() => window.__firstSessionWire)).filter(message => ['join', 'action', 'deal', 'chat'].includes(message.type))).toEqual([]);
+  });
+  if (!guest && casino === 'start') test(`CASINO-ENTRY-2: opening an owned table preserves ownership at ${viewport.width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    const fixture = await installSession(page, { running: false, casino: 'owned', legacy: true });
+    await page.goto('/');
+    await expect(page.getByTestId('home-screen')).toBeVisible();
+    await page.getByTestId('home-door').click();
+    await expect(page.getByTestId('floor-view')).toBeVisible();
+    await page.getByTestId('floor-view').getByRole('button', { name: 'Watch him', exact: true }).click();
+    const felt = page.locator('.watch-felt').filter({ visible: true });
+    await expect(felt).toBeVisible();
+    await expect(felt.locator('.watch-hero__cards')).toContainText('A');
+    await expect(felt.locator('.watch-hero__cards')).toContainText('K');
+    await expect(felt.locator('.seat-ghost')).toHaveCount(1);
+    await expect(felt.locator('.seat-ghost')).toContainText('Granite');
+    expect(await page.evaluate(() => window.__firstSessionWire.filter(message => message.type === 'watch')))
+      .toContainEqual(expect.objectContaining({ tableId: fixture.casinoTableId, agentId: AGENT.id }));
+    expect(fixture.requests.filter(request => request.method !== 'GET')).toEqual([]);
+    expect(fixture.unexpected).toEqual([]); expect(fixture.errors).toEqual([]);
+    await expect(page.getByTestId('context-hint')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('floor-owned-watch.png') });
+  });
+}
