@@ -1,4 +1,7 @@
 import { Game, Streets } from '../engine/game.js';
+import { evaluate } from '../engine/hand.js';
+import { plainHandName } from '../engine/handName.js';
+import { cardPhrase } from '../agent/voice.js';
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, perceivedMath } from '../agent/handler.js';
@@ -512,6 +515,7 @@ export class Table {
     // street" — which heads-up happens on every hand.
     this._actionSeq = 0;
     this._lastPublicAction = null;
+    this._lastActionHolding = null; // Private: only the acting seat's owner may receive this label.
     // The turn _maybeRunAiTurn has already claimed, so one turn is never
     // driven twice. See the guard there.
     this._aiTurnKey = null;
@@ -772,6 +776,7 @@ export class Table {
 
   _rebuildGame(roster) {
     const handNumber = this.game?.handNumber ?? 0;
+    this._lastActionHolding = null;
     if (roster.length < MIN_TO_DEAL) {
       this.game = null;
       this._gameRoster = null;
@@ -2365,6 +2370,7 @@ export class Table {
     this.pace = PACE.CALM;
     this._boardBeforeAct = [];
     this._lastPublicAction = null;
+    this._lastActionHolding = null;
     this._heroEquity.clear();
     this.actionTimer = null;      // SERVER-3: a new hand, a new clock
     this.game.startHand();
@@ -2477,15 +2483,44 @@ export class Table {
   // Game may have advanced to). Feeds opponentStats in _handCompleted.
   _actionViewBefore(seat) {
     const player = this.game?.seats[seat];
+    const board = this.game?.community ?? [];
+    let handLabel = null;
+    if (player?.holeCards?.length === 2) {
+      try {
+        handLabel = board.length >= 3
+          ? plainHandName(evaluate(player.holeCards, board))
+          : board.length === 0 ? cardPhrase(player.holeCards)?.toLowerCase() ?? null : null;
+      } catch {
+        // Naming is descriptive. An unreadable holding cannot reject a legal
+        // action, and inventing a holding would be worse than omitting it.
+      }
+    }
     return player ? {
       stack: player.stack, contribution: player.contribThisStreet,
       currentBet: this.game.currentBet,
+      // Private facts stay in this capture, never in _lastPublicAction. The
+      // engine may reveal the whole board synchronously while applying a call;
+      // the narrator must still name what he held WHEN he made that call.
+      playerId: player.playerId, handLabel,
     } : null;
   }
 
   _publicLastAction(handNumber = this.game?.handNumber) {
     const action = this._lastPublicAction;
     return action && this.game?.street !== Streets.WAITING && action.handNumber === handNumber ? { ...action } : null;
+  }
+
+  _heroHandFor(state, forSeat) {
+    const held = this._lastActionHolding;
+    const action = state.lastAction;
+    if (!held || !action || !Number.isInteger(forSeat) || forSeat < 0
+      || forSeat !== held.seat || !this._seatIsInGame(forSeat)
+      || state.seats[forSeat]?.holeCards?.length !== 2
+      || state.seats[forSeat].playerId !== held.playerId
+      || held.handNumber !== state.handNumber || held.handNumber !== action.handNumber
+      || held.seq !== action.seq || held.seat !== action.seat) return null;
+    const { seq, handNumber, seat, street, label } = held;
+    return { seq, handNumber, seat, street, label };
   }
 
   _publicRecentChat(now = Date.now()) {
@@ -2501,8 +2536,9 @@ export class Table {
     // seat can be to act twice in a row across a street boundary, and this is
     // what tells those two turns apart -- see _armActionTimer.
     this._actionSeq++;
-    // Every producer calls this AFTER an accepted engine action, with only
-    // public betting facts captured before it. A call's client-supplied amount
+    this._lastActionHolding = null;
+    // Every producer calls this AFTER an accepted engine action, with its
+    // pre-action facts projected explicitly below. A call's client-supplied amount
     // is ignored by the engine; it must not become a fictional chip push here.
     // Pre-action facts also survive street resets, uncalled refunds and a
     // winning all-in's stack being paid back before this function runs.
@@ -2515,6 +2551,12 @@ export class Table {
         type: action.type, amount: action.type === 'raise' ? action.amount : chips,
         chips, allIn: chips > 0 && chips === before.stack, pot: this.game.pot,
       };
+      if (before.handLabel) {
+        this._lastActionHolding = {
+          seq: this._actionSeq, handNumber: this.game.handNumber, seat, street,
+          playerId: before.playerId, label: before.handLabel,
+        };
+      }
     }
     this.currentHandActionLog.push({ seat, street, actionType: action.type });
     this._threadAction(seat, action);
@@ -3806,6 +3848,9 @@ export class Table {
     // reconnects mid-session can ask for the thread it was reading.
     state.sessionId = Number.isInteger(forSeat) ? (this.seatSessionIds[forSeat] ?? null) : null;
     state.lastAction = this._publicLastAction(state.handNumber);
+    // The public camera may choose any body to put nearest the viewer. Only
+    // this server-filtered viewpoint owns cards; camera position grants none.
+    state.heroHand = this._heroHandFor(state, forSeat);
     return state;
   }
 
