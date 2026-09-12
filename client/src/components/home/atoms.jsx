@@ -29,6 +29,16 @@ import { fatigueOf } from '../../lib/attributes.js';
 import { heatColor, heatStep, staminaOf, staminaPct } from '../system/FeltBodyBars.jsx';
 import { shortName } from '../../lib/names.js';
 
+// Stable birth identity, independent of the current name, mood or roster order.
+// A negative delay starts an idle already in progress instead of synchronizing
+// every character when the room mounts. Walking/carrying use their own clocks.
+function idlePhase(id) {
+  if (id === null || id === undefined) return 0;
+  let hash = 2166136261;
+  for (const char of String(id)) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+  return -(1 + hash % 4000);
+}
+
 // ── The bubble ──────────────────────────────────────────────────────────────
 
 export function HomeBubble({ text, x, gold = false, side = null, maxWidth, testId }) {
@@ -211,6 +221,7 @@ export function HomeOne({
       // is held, or he would lag a frame behind the thumb.
       style={{ ...(carried ? { left: carried.x, top: carried.y, zIndex: 950 }
         : { left: at.x, top: at.y, zIndex: Math.round(at.y) }),
+        '--home-idle-phase': `${walking || carried || away ? 0 : idlePhase(agent?.id)}ms`,
         '--home-speech-top': (size * .65) + 'px', '--home-bubble-offset': (size / 2 + 8) + 'px',
         '--home-room-speech-top': (size / 2) + 'px', '--home-room-bubble-offset': roomBubbleOffset(size) + 'px' }}
       onClick={away ? undefined : onClick}

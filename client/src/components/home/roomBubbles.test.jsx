@@ -17,8 +17,8 @@
 //      could always be shown beside the first; it reads as a stuck sign once
 //      there is only ever one.
 
-import { describe, expect, it } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
 
 import {
   BUBBLE_LIFE_MS, BUBBLE_PREEMPT_MS, MAX_IN_ROOM,
@@ -30,6 +30,7 @@ import {
 
 const body = (id, x, y, over = {}) => ({ id, x, y, size: 46, name: 'Balance', ...over });
 const says = (b, text, gold = false) => ({ ...b, text, gold });
+afterEach(()=>vi.useRealTimers());
 
 // Three bodies in one column, far enough apart vertically that every box in the
 // stack clears every other one. The clean case: nothing is in anybody's way.
@@ -302,5 +303,89 @@ describe('BUGS-C job 2: a bubble has a life, not just a beat', () => {
     const out = resolve([], [], { now: 5 });
     expect(out.shown).toEqual([]);
     expect(out.nextAt).toBeNull();
+  });
+});
+
+it('HOME-2: a queued TV student does not let another speaker cover the screen',()=>{
+  const neighbour=body('near-tv',100,510);
+  const student=body('student',PHONE_ROOM.tvSpot.x,PHONE_ROOM.tvSpot.y);
+  const tv={left:PHONE_ROOM.tvScreen.x,right:PHONE_ROOM.tvScreen.x+PHONE_ROOM.tvScreen.w,
+    top:PHONE_ROOM.tvScreen.y,bottom:PHONE_ROOM.tvScreen.y+PHONE_ROOM.tvScreen.h};
+  expect(overlaps(bubbleRect(neighbour,'right'),tv)).toBe(true);
+  const placed=layout([says(neighbour,'A recap'),says(student,'Studying')],[neighbour,student]);
+  expect(placed.map(s=>s.id)).toEqual(['student']);
+});
+
+it('HOME-2: only the student at the TV retains his own fixture exception',()=>{
+  const geometry={...PHONE_ROOM,tvSpot:{x:292,y:560}};
+  const student=body('student',geometry.tvSpot.x,geometry.tvSpot.y);
+  expect(layout([says(student,'One more look')],[student],geometry)).toHaveLength(1);
+});
+
+describe('HOME-2: recap display memory belongs to the household',()=>{
+  const recap=eventId=>Object.freeze({...says(Q,'Table closed while I was away',true),eventId});
+  const useRecap=({owner,event=1,bodies=[Q]})=>useRoomBubbles([recap(event)],bodies,PHONE_ROOM,owner);
+
+  it('HOME-2: returning Home does not replay a consumed recap or mark it read',()=>{
+    vi.useFakeTimers();
+    const first=renderHook(useRecap,{initialProps:{owner:'return-owner'}});
+    expect(first.result.current.get(Q.id)?.text).toBe('Table closed while I was away');
+    act(()=>vi.advanceTimersByTime(BUBBLE_LIFE_MS));
+    expect(first.result.current.size).toBe(0);
+    first.unmount();
+    const returned=renderHook(useRecap,{initialProps:{owner:'return-owner'}});
+    expect(returned.result.current.size).toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(recap(1)).toEqual({...says(Q,'Table closed while I was away',true),eventId:1});
+  });
+
+  it('HOME-2: a new recap speaks while old events and other owner scopes stay separate',()=>{
+    const hook=renderHook(useRecap,{initialProps:{owner:'alice'}});
+    expect(hook.result.current.size).toBe(1);
+    hook.rerender({owner:'alice',event:2});
+    expect(hook.result.current.size).toBe(1);
+    hook.rerender({owner:'alice',event:1});
+    expect(hook.result.current.size).toBe(0);
+    hook.rerender({owner:'bob',event:1});
+    expect(hook.result.current.size).toBe(1);
+    hook.rerender({owner:'alice',event:2});
+    expect(hook.result.current.size).toBe(0);
+  });
+
+  it('HOME-2: a recap with no clear place remains available after returning Home',()=>{
+    const blocker=body('blocking',215,440);
+    const blocked=renderHook(useRecap,{initialProps:{owner:'blocked-owner',bodies:[Q,blocker]}});
+    expect(blocked.result.current.size).toBe(0);
+    blocked.unmount();
+    const returned=renderHook(useRecap,{initialProps:{owner:'blocked-owner'}});
+    expect(returned.result.current.size).toBe(1);
+  });
+
+  it('HOME-2: an unscoped room never shares another unscoped room display memory',()=>{
+    const first=renderHook(useRecap,{initialProps:{owner:null}});
+    expect(first.result.current.size).toBe(1);
+    first.unmount();
+    const second=renderHook(useRecap,{initialProps:{owner:null}});
+    expect(second.result.current.size).toBe(1);
+  });
+
+  it('HOME-2: recap memory evicts old events instead of growing beyond 128 per household',()=>{
+    const hook=renderHook(useRecap,{initialProps:{owner:'bounded-events',event:0}});
+    for(let event=1;event<=128;event++) hook.rerender({owner:'bounded-events',event});
+    hook.rerender({owner:'bounded-events',event:1});
+    expect(hook.result.current.size).toBe(0);
+    hook.rerender({owner:'bounded-events',event:0});
+    expect(hook.result.current.size).toBe(1);
+  });
+
+  it('HOME-2: recap memory retains at most eight household scopes',()=>{
+    for(let owner=0;owner<9;owner++) {
+      const hook=renderHook(useRecap,{initialProps:{owner:`bounded-owner-${owner}`}});
+      expect(hook.result.current.size).toBe(1);hook.unmount();
+    }
+    const recent=renderHook(useRecap,{initialProps:{owner:'bounded-owner-8'}});
+    expect(recent.result.current.size).toBe(0);recent.unmount();
+    const evicted=renderHook(useRecap,{initialProps:{owner:'bounded-owner-0'}});
+    expect(evicted.result.current.size).toBe(1);
   });
 });

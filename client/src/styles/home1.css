@@ -652,10 +652,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 
 /* routine idles */
-.home-one--paces { animation: home-pace 3.4s ease-in-out infinite; }
-.home-one--shuffles .home-prop--cards { animation: home-shuffle 1.6s ease-in-out infinite; }
-.home-one--counts .home-prop--chips { animation: home-count 2.2s ease-in-out infinite; }
-.home-one--tape .home-one__body { animation: home-lean 4s ease-in-out infinite; }
+.home-one--paces { animation: home-pace 3.4s ease-in-out var(--home-idle-phase, 0ms) infinite; }
+.home-one--shuffles .home-prop--cards { animation: home-shuffle 1.6s ease-in-out var(--home-idle-phase, 0ms) infinite; }
+.home-one--counts .home-prop--chips { animation: home-count 2.2s ease-in-out var(--home-idle-phase, 0ms) infinite; }
+.home-one--tape .home-one__body { animation: home-lean 4s ease-in-out var(--home-idle-phase, 0ms) infinite; }
 
 /* ── The pill, ABOVE the head (Jens's correction) ─────────────────────────── */
 
