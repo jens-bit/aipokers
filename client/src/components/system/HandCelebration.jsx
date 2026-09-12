@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { play } from '../../lib/audio.js';
+import { play, withSoundGroup } from '../../lib/audio.js';
 import { pillName } from '../../lib/names.js';
 import { potAwards } from './PotAward.jsx';
 import '../../styles/celebration.css';
@@ -66,9 +66,13 @@ export function useCelebrationAudio(
   visiblySettled=game?.street==='complete'&&!!game?.result,
 ) {
   const previous=useRef(null);
+  const cancelEarned=useRef(null);
   const [watched, setWatched]=useState(null);
   const hand=game?.handNumber,table=game?.tableId,rawDone=game?.street==='complete'&&!!game?.result;
   const scope=JSON.stringify([table,hand,heroSeat]);
+  useEffect(()=>()=>{
+    cancelEarned.current?.();cancelEarned.current=null;
+  },[scope,enabled,rawDone,visiblySettled]);
   useEffect(()=>{
     const before=previous.current;
     const sameScope=!!before&&before.hand===hand&&before.table===table&&before.heroSeat===heroSeat;
@@ -84,10 +88,12 @@ export function useCelebrationAudio(
     if(!enabled||!consume)return;
     const result=resultCelebration(game,heroSeat);if(!result)return;
     setWatched(scope);
-    if(result.cameraWon)play('winSwell');
-    else play('lostPot');
-    if(result.big||result.busted.length)play('bigWinBursts');
-    if(result.busted.length)play('bustKnock',{delayMs:900});
+    cancelEarned.current=withSoundGroup(()=>{
+      if(result.cameraWon)play('winSwell');
+      else play('lostPot');
+      if(result.big||result.busted.length)play('bigWinBursts');
+      if(result.busted.length)play('bustKnock',{delayMs:900});
+    });
   },[hand,table,rawDone,heroSeat,enabled,visiblySettled,game,scope]);
   // The same earned completion gates transient visuals. A static result has
   // no key on cold entry, after a camera change, or when replay was disabled.
