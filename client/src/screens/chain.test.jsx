@@ -82,7 +82,7 @@ describe('F-4: one primary action per screen, naming the next one', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it('the birth card offers exactly one, and it hands him to the floor', async () => {
+  it('the birth card offers exactly one, and it hands him Home', async () => {
     fetchMock.route('/api/agents/chat', BUILT_TURN, { method: 'POST' });
     const onBirth = vi.fn();
     render(<BirthScreen onBack={() => {}} onBirth={onBirth} />);
@@ -91,16 +91,15 @@ describe('F-4: one primary action per screen, naming the next one', () => {
     await waitFor(() => expect(screen.getAllByText(BORN.name).length).toBeGreaterThan(0));
     vi.advanceTimersByTime(2500);
 
-    await waitFor(() => expect(primaryActions()).toEqual(['Deal him in']));
-    await userEvent.click(screen.getByRole('button', { name: /deal him in/i }));
+    await waitFor(() => expect(primaryActions()).toEqual(['Go home']));
+    await userEvent.click(screen.getByRole('button', { name: 'Go home', exact: true }));
 
-    // The floor is the next screen; App routes there on this callback and shows
-    // him walking in (FLOOR-2 owns the walk-in itself).
+    // Home is the next screen; the acknowledgment does not deploy him.
     expect(onBirth).toHaveBeenCalledTimes(1);
     expect(onBirth).toHaveBeenCalledWith(expect.objectContaining({ id: BORN.id, name: BORN.name }));
   });
 
-  it('the same verb both times — it is the same intent, confirmed against a name', async () => {
+  it('DESK-NEXT-1: creation says Deal him in, then acknowledgment names Home', async () => {
     // Two turns, because they are two turns in life: the first ends with a
     // usable brief, the second builds him.
     fetchMock.route('/api/agents/chat', READY_TURN, { method: 'POST' });
@@ -115,8 +114,8 @@ describe('F-4: one primary action per screen, naming the next one', () => {
     await waitFor(() => expect(screen.getAllByText(BORN.name).length).toBeGreaterThan(0));
     vi.advanceTimersByTime(2500);
 
-    // Birth card. Same verb, still exactly one.
+    // He already exists now: exactly one action, naming the actual destination.
     await waitFor(() => expect(document.querySelector('.birth-card3__deal')).not.toBeNull());
-    expect(primaryActions()).toEqual(['Deal him in']);
+    expect(primaryActions()).toEqual(['Go home']);
   });
 });

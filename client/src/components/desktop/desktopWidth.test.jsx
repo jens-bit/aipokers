@@ -19,7 +19,7 @@
 // the viewport; the stage is `flex: 1; min-width: 0` and absorbs whatever is
 // left, so it can never be the thing that overflows.
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -111,11 +111,10 @@ describe('DESK-3: the roster never collapses', () => {
     fetchMock.route('/hands', { recentHands: [] });
   });
 
-  // Unambiguous as long as the standup panel's own copy of the roster is not
-  // open: with the permanent column always mounted, one name matches exactly
-  // one row.
+  // Query the permanent roster itself. Repeated whole-room accessible-name
+  // searches made these transition checks exceed five seconds in Actions.
   function rosterRow(name) {
-    const row = screen
+    const row = within(screen.getByTestId('desk-roster'))
       .getAllByRole('button', { name: new RegExp(name) })
       .find((el) => el.classList.contains('dsk-roster-row'));
     if (!row) throw new Error(`no roster row for ${name}`);
@@ -145,7 +144,7 @@ describe('DESK-3: the roster never collapses', () => {
     await userEvent.click(rosterRow(restingAgent.name));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
+      expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
     });
     expect(rosterRow(playingAgent.name)).toBeInTheDocument();
     expect(rosterRow(restingAgent.name)).toBeInTheDocument();

@@ -70,9 +70,9 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
   // The draft already owns this moment; the desktop roster must not add a
   // second birth rail while the same final action is waiting to be pressed.
   await expect(page.getByText('The card he was born with', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Deal him in', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Go home', exact: true })).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('birth-card.png') });
-  await bornCard.getByRole('button', { name: 'Deal him in', exact: true }).click();
+  await bornCard.getByRole('button', { name: 'Go home', exact: true }).click();
 
   const home = page.getByTestId('home-screen');
   await expect(draft).toHaveCount(0);

@@ -158,7 +158,7 @@ it('BUG-150: birth keeps the new agent and retries a staged in-hand visitor only
   await user.click(screen.getByRole('button',{name:'Deal him in',exact:true}));
   await waitFor(()=>expect(document.querySelector('.birth-card3')).toBeTruthy(),{timeout:3500});
   expect(document.querySelector('.birth-card3 .mood-ghost')).toHaveAttribute('data-hood','moss');
-  await user.click(screen.getByRole('button',{name:'Deal him in',exact:true}));
+  await user.click(screen.getByRole('button',{name:'Go home',exact:true}));
   expect(await screen.findByRole('alert')).toHaveTextContent('Your agent is home. He is in a hand. Try again when it finishes.');
   expect(fetchMock.posts.filter(c=>c.url.endsWith('/visit'))).toHaveLength(0);
   await user.click(screen.getByRole('button',{name:'Try again',exact:true}));

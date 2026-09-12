@@ -38,3 +38,7 @@ Stop implementation at a verified playtest candidate with clear remaining questi
 ## Goal update — guaranteed first opponent
 
 Jens extended the goal through `C:/Users/Jens/.codex/attachments/8ebe9135-caa1-494c-956c-efe15d5e0c30/goal-objective.md`: placing an agent, especially at high stakes, can leave the table on SHUFFLING. Reproduce and repair this obstruction. Every offered table must provide at least one ready house opponent so heads-up play starts, with remaining seats available for additional agents. Preserve existing budgets and human play; verify every offered stake tier and subsequent joins. This is part of the candidate, not deferred follow-up.
+
+## Continuation — desktop and companion direction
+
+After the verified candidate, Jens asked this task to continue: playtest the desktop birth actions, improve the Home composition and brightness, compare light/dark appearances, and show a concrete direction for inventory, newspaper reading and bringing items. Repair confirmed journey bugs and present the broader design for joint decisions. The failed deployment gate takes priority before this work resumes. See DESKTOP_NEXT_DIRECTION.md for the proposal and observed gaps; the original human success criteria still apply. New autonomy, economy, fatigue rules and ongoing model costs still require a concrete product decision.

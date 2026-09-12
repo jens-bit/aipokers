@@ -493,7 +493,9 @@ export function DesktopHome({
               onProfile={openProfile}
               onDeploy={onDeployAgent}
               onCreateAgent={onCreateAgent}
-              onPractice={onPractice}
+              // A live newborn may reach Home before his birth card is
+              // acknowledged. Finish that introduction before leaving for practice.
+              onPractice={draft || born ? null : onPractice}
               onFocusTable={openTable}
               onOpenFlagged={(agent, hand) => {
                 // A row names its hand: that one goes to the theatre. VIEW ALL

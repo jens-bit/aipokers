@@ -160,7 +160,7 @@ test('BUG-136: draft, retire and redraft through the real phone conserve househo
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
     await expect(page.locator('.birth-card3')).toBeVisible();
-    await page.getByRole('button', { name: 'Deal him in', exact: true }).click();
+    await page.getByRole('button', { name: 'Go home', exact: true }).click();
     await expect(page.getByTestId('home-screen')).toBeVisible();
     const agents = await roster(uid);
     expect(agents).toHaveLength(1);

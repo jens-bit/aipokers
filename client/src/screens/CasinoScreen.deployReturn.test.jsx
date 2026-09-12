@@ -32,8 +32,8 @@ afterEach(() => {
   sessionStorage.removeItem('agentic_casino_view');
 });
 
-async function deployInto(room) {
-  const door = await screen.findByRole('button', { name: new RegExp(`^${room.name},`) });
+async function deployInto(room, scope = screen) {
+  const door = await scope.findByRole('button', { name: new RegExp(`^${room.name},`) });
   fireEvent.click(door);
 }
 
@@ -45,19 +45,20 @@ describe('FIRST-HOUSE-2: the deployed table keeps its room', () => {
     const floor = await screen.findByTestId('floor-view');
     expect(floor).toHaveAttribute('data-room', 'floor');
     fireEvent.click(await within(floor).findByRole('button', { name: /Watch table table-floor/ }));
-    await screen.findByTestId('desk-casino-table');
-    fireEvent.click(screen.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
+    const watchedTable = await screen.findByTestId('desk-casino-table');
+    fireEvent.click(within(watchedTable).getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
     expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
 
     fetchMock.route('/queue', queued(room), { method: 'POST' });
     view.rerender(<DesktopHome {...props} deployAgent={funded} />);
-    await deployInto(room);
+    await deployInto(room, within(view.container.querySelector('.dsk-stage')));
     await waitFor(() => expect(onDeployed).toHaveBeenCalledOnce());
     await screen.findByTestId('desk-casino-table');
     view.rerender(<DesktopHome {...props} />);
-    fireEvent.click(screen.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
-    expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', room.id);
-    expect(await screen.findByRole('button', { name: new RegExp(`Watch table table-${room.id}`) })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId('desk-casino-table')).getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
+    const returnedFloor = await screen.findByTestId('floor-view');
+    expect(returnedFloor).toHaveAttribute('data-room', room.id);
+    expect(await within(returnedFloor).findByRole('button', { name: new RegExp(`Watch table table-${room.id}`) })).toBeInTheDocument();
   });
 
   it.each([upstairsRoom, backRoom])('phone casino remount restores the deployed $id room', async room => {

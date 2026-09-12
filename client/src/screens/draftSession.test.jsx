@@ -65,7 +65,7 @@ it('BUG-145: createdAgent reaches the birth card without a roster fetch and conf
   expect(document.querySelector('.birth-card3 .mood-ghost')).toHaveAttribute('data-hood','moss');
   expect(document.querySelector('.birth-card3__first')).toHaveTextContent('I pick my spot.');
   expect(fetchMock.requestsMatching(/^\/api\/agents\?/)).toHaveLength(0);
-  await user.dblClick(screen.getByRole('button',{name:'Deal him in',exact:true}));
+  await user.dblClick(screen.getByRole('button',{name:'Go home',exact:true}));
   expect(onBirth).toHaveBeenCalledTimes(1);
   expect(onBirth).toHaveBeenCalledWith(expect.objectContaining({id:newborn.id,name:'Go'}));
   expect(sessionStorage.getItem(STORAGE)).toBeNull();
@@ -81,7 +81,7 @@ it.each([
   await waitFor(()=>expect(document.querySelector('.birth-card3')).toBeTruthy(),{timeout:3500});
   expect(document.querySelector('.birth-card3 .mood-ghost')).toHaveAttribute('data-hood','moss');
   expect(document.querySelector('.birth-card3__first')).toHaveTextContent('I pick my spot.');
-  await user.dblClick(screen.getByRole('button',{name:'Deal him in',exact:true}));
+  await user.dblClick(screen.getByRole('button',{name:'Go home',exact:true}));
   expect(onBirth).toHaveBeenCalledTimes(1);
   expect(onBirth).toHaveBeenCalledWith({id:newborn.id,name:'Go',strategy:'Patient.'},visitOutcome);
   expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(1);

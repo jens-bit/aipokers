@@ -93,7 +93,7 @@ async function reachCard(record = BORN) {
   await userEvent.click(await screen.findByRole('button', { name: /aggressive bluffer/i }));
   await waitFor(() => expect(screen.getAllByText(record.name).length).toBeGreaterThan(0));
   vi.advanceTimersByTime(2500);
-  await waitFor(() => expect(screen.getByRole('button', { name: /deal him in/i })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Go home', exact: true })).toBeInTheDocument());
 }
 
 describe('BIRTH-4: the birth card never crops his face', () => {

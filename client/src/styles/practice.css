@@ -73,4 +73,10 @@
   .practice-nav { width: 100%; flex: 0 0 auto; }
   .practice[data-step=conversation] .practice-coach, .practice[data-step=complete] .practice-coach { max-height: 62%; flex-shrink: 0; }
 }
+/* BUG-55: a short phone still needs room for the felt and a pending request.
+   Keep both practice choices; the guide supplies the explanation after entry. */
+@media (max-width: 760px) and (max-height: 680px) {
+  .home1:not(.home1--desk) > .practice-entry { padding: 4px 10px; }
+  .home1:not(.home1--desk) > .practice-entry .practice-entry__copy { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { .practice *, .practice *::before, .practice *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }

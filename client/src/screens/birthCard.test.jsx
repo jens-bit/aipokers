@@ -9,7 +9,7 @@
 // and was then covered by the card. He now has a place, and there is exactly
 // one ghost on screen at any moment.
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -60,8 +60,8 @@ async function reachCard(roster = [BORN]) {
   // His name shows in the draft band's cause line as well as on the card, so
   // the wait is for any of them; the card assertions scope to the card.
   await waitFor(() => expect(screen.getAllByText(BORN.name).length).toBeGreaterThan(0));
-  vi.advanceTimersByTime(2500);
-  await waitFor(() => expect(screen.getByRole('button', { name: /deal him in/i })).toBeInTheDocument());
+  act(() => vi.advanceTimersByTime(2500));
+  await waitFor(() => expect(document.querySelector('.birth-card3')).toBeInTheDocument());
   return { onBirth };
 }
 
@@ -136,11 +136,14 @@ describe('F-2: the birth card is about him', () => {
     expect(screen.getByText(/Nothing here is bought/)).toBeInTheDocument();
   });
 
-  it('deals him in, naming the next screen', async () => {
+  it('DESK-NEXT-1: the created card says Go home and acknowledges the birth without creating him again', async () => {
     const { onBirth } = await reachCard();
-    await userEvent.click(screen.getByRole('button', { name: /deal him in/i }));
+    const creations = fetchMock.requestsMatching('/api/agents/chat').length;
+    await userEvent.click(screen.getByRole('button', { name: 'Go home', exact: true }));
 
+    expect(onBirth).toHaveBeenCalledOnce();
     expect(onBirth).toHaveBeenCalledWith(expect.objectContaining({ id: BORN.id, name: BORN.name }));
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(creations);
   });
 });
 

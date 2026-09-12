@@ -368,7 +368,7 @@ function BirthCardSheet({ name, nature, firstWords, character, identity, mood = 
       </div>
 
       <button type="button" className="birth-card3__deal" onClick={onDealIn}>
-        Deal him in
+        Go home
       </button>
 
       {first && !open && (

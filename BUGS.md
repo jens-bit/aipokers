@@ -1,6 +1,17 @@
 # Bug Report — Railbird
-Last updated: 2026-09-12 (first-session playtest candidate); statuses and evidence below.
+Last updated: 2026-09-12 (desktop arrival follow-up); statuses and evidence below.
 Named BUG headings: 191, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
+
+### DESK-NEXT-1 — practice interrupts the unfinished desktop birth card — fixed locally
+An actual desktop creation showed Learn while the final birth card was still open. Taking practice and leaving remounted that unfinished card. Desktop now withholds the practice callback while a draft or independent birth card is active, restoring it after acknowledgment. The created-card button says Go home because it finishes birth, not deployment. Creation and independent casino placement retain their own actions. Three targeted regressions failed before the repair and passed afterward; 53 affected tests and actual built desktop/phone arrival→practice→return journeys passed. Evidence: `artifacts/desktop-next/DESK-NEXT-1.md` and `artifacts/first-session/birth-gate-final` in the first-session worktree.
+
+### CI birth timeout — fixed locally
+The push of `f599a7c` reached GitHub. Actions run `34704401562` failed only BUG-107's client timeout, skipping smoke and deployment. Its whole-room accessible-role searches measured 5121 ms locally; panel-scoped queries measured 1243 ms and 1242 ms within the full suite. The five-second deadline remains, existing behavior assertions remain, and identity/prior-panel/single-callback checks were added. Vitest uses one to two workers by default. All 2722 client tests and required source/gameplay checks passed; see `read-me-claude/CI_BIRTH_HANDOFF.md`. This does not certify production until a subsequent deployment succeeds.
+
+The next push (`de849af`, run `34705416246`) passed that case but timed out in desktopWidth's roster switching. The follow-up scopes repeated roster/Profile/casino-return queries and uses the actual persistent roster for thread navigation, retaining the same behavior assertions and five-second deadline. Its measured timings and final combined gate are recorded in CI_BIRTH_HANDOFF.md and DESKTOP_NEXT_HANDOFF.md.
+
+### BUG-55 follow-up — expanded practice clips the felt on a short phone — fixed locally
+At 390×590 the 139.7px practice offer left a 253.8px room. The felt center at y453.7 fell below the room/want boundary at y439.5; real hit testing found the request text. Short phones now retain Learn and Not now as 44px controls in a compact row, with the explanation available after starting the lesson. Room scale is unchanged. The original center-click assertion passed at both 590 and 844 heights, with additional checks that both practice controls remain visible and Learn opens the correct agent's lesson. This layout issue predates the desktop-only birth gate.
 
 ### FIRST-HOUSE-1 — a queued casino agent remains on SHUFFLING after leaving Watch — fixed locally
 Real API/WS reproduction failed at all three offered stakes: leave before the five-second House fallback, let it expire without a viewer, then return to a stranded agent. The built desktop backroom case reproduced the blank SHUFFLING felt. Initial AI-only casino adoption now seats one ready House and starts the server loop; reconnect does not duplicate seats. A surviving owned agent gets a funded replacement after the held showdown when its opponent busts, keeping winnings, session and hand numbering. Existing session caps, Home/human boundaries and free chairs remain. Ten new engine/scheduler regressions and existing lifecycle checks passed; final browser evidence is in the handoff.

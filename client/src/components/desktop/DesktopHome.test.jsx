@@ -47,7 +47,10 @@ async function openStandup() {
 }
 
 async function openAgent(name) {
-  await openStandup();
+  // The permanent roster is available from Home; opening Standup first only
+  // mounts an unrelated panel before every thread switch. Standup has its own
+  // navigation assertions below.
+  await waitFor(() => rosterRow(name));
   await userEvent.click(rosterRow(name));
 }
 
@@ -185,7 +188,7 @@ describe('DesktopHome roster', () => {
     renderHome();
     await waitFor(() => expect(screen.getByTestId('home-screen')).toBeInTheDocument());
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
 
     await openStandup();
     expect(panelHead('Standup')).toBe(true);
@@ -211,7 +214,7 @@ describe('DesktopHome panel', () => {
     await openAgent(restingAgent.name);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
+      expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
     });
   });
 
@@ -240,11 +243,11 @@ describe('DesktopHome panel', () => {
   it('closes the panel on Escape', async () => {
     renderHome();
     await openAgent(restingAgent.name);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument());
 
     await userEvent.keyboard('{Escape}');
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+      expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
     });
     // ...and back to the resting panel, which on the HOME stage is the room.
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
