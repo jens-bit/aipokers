@@ -79,3 +79,8 @@ HOME-2 candidate: reviewed fridge checkpoint 3a9794a applied. The first typed ow
 Fridge support passed 190 focused tests across nine files, including ten named regressions red first, real Home socket wiring and long-press cancellation. Root's two built checks passed: accepted snack on phone and beer on desktop, a deliberately two-minute-ahead server clock, unchanged neighbours/chairs, exact return position, and no replay on a repeated snapshot. Root inspected both captures and refreshed the SAME named F10 pair; still 1/3 unique pairs. The missing fridge pose is now present; differences in actual wallet, identity, bars and TV history remain labelled. Home table retained by founder instruction.
 
 Resume from: run the single HOME-2 test:all on this candidate, record gates and merge locally if green. HOME-3 source f755567 +44d757a is reviewed and queued. SHOW-4 fixes are isolated. Nothing pushed or deployed.
+
+
+HOME-2 final gate on candidate139919e: test:all passed on its single run. Server134 passed/two skips (136 total), client210 files/2615 passed/two existing todo, gameplay7 passed (87.60s). No native abort. Six affected built cases passed as recorded above. No full browser inventory was run. Root inspected the same F10 pair and phone/desktop room/fridge captures. Reviewed support checkpoints f57af25, be52a0b and3a9794a; integration checkpoints1d70df5 and139919e. Updated DESIGN_GAP.md explicitly keeps Home as the app default and floor-first only inside Casino.
+
+Resume from: record HOME-2 local merge, then HOME-3 using reviewed f755567,44d757a and scoped built journey checks c8dbf08,f58c236. SHOW-4 remains preserved and queued. Deadline18:28UTC; pair count1/3. Nothing pushed.

@@ -1,6 +1,6 @@
 # Railbird — design gap, by screen
 
-Updated 10 September 2026, after batch 54. **One section per screen**: where it stands, what is open against it, and what to look at on the phone. It is meant to be read in five minutes, at the start of a session, by a person — and it is kept current by hand because it is short enough to be.
+Updated 12 September 2026 for the Home-first run; untouched screen notes retain their earlier evidence. **One section per screen**: where it stands, what is open against it, and what to look at on the phone. It is meant to be read in five minutes, at the start of a session, by a person — and it is kept current by hand because it is short enough to be.
 
 The 185-frame source-indexed inventory and its 466 substates are in **[DESIGN_STATE_GAP.md](DESIGN_STATE_GAP.md)** — the enumeration of everything the boards author, indexed to the exact reference line, with the six statuses, the evidence rules, the shared gap notes and the per-batch evidence log. That file is *referenced, not maintained by hand*: query it, or regenerate it from [current-frame-inventory.json](../artifacts/current-frame-inventory.json). Batch 41 is preserved byte-for-byte in [DESIGN_GAP_BATCH41.md](DESIGN_GAP_BATCH41.md) and the older history in [DESIGN_GAP_HISTORY.md](DESIGN_GAP_HISTORY.md). [HOW_WE_WORK.md](HOW_WE_WORK.md#design_gapmd) says why the two were split.
 
@@ -16,7 +16,7 @@ The 185-frame source-indexed inventory and its 466 substates are in **[DESIGN_ST
 
 Founder decisions and reference contradictions. They outrank the boards, and permission to repair a bug is never permission to reopen one.
 
-- **Founder:** the kitchen table and home games stay. The approved Watch composition stays. Human Sit keeps working. The draft has four stages and no collar. Branding is the Railbird ghost at the rail. The roster control is separate from the live count. No shared-room redesign is inferred from permission to fix a bug in it.
+- **Founder:** Home is the default destination after the existing entry/onboarding flow. The casino is a deliberate destination from Home; floor-first applies only inside the casino. The kitchen table and home games stay. The approved Watch composition stays. Human Sit keeps working. The draft has four stages and no collar. Branding is the Railbird ghost at the rail. The roster control is separate from the live count. No shared-room redesign is inferred from permission to fix a bug in it.
 - **Desktop retention:** [board 31's introduction](<../design-refs/Agentic Poker Desktop Parity.html>) explicitly retains the pace, wallet, floor, matrix and glass states. P1–P13 are not superseded layouts.
 - **Brand:** the standalone embedded wave-62 bird yields to [board 41's](<../design-refs/Railbird Brand.html#b1>) ghost. The README's one-colour law still contradicts B1's felt-tone exception at 96px and above — **unresolved**, and it has to be decided before any brand variant can be called matched.
 - **Notifications:** [board 25 N6](<../design-refs/Agentic Poker Notifications.html#nbudget>) says 2/day, a 4h gap and 00–08 quiet. The master spec §8.6 describes the shipped 3/day, 30min, 23–08 ladder. **Unresolved**; neither is silently a board match.
@@ -31,7 +31,9 @@ Founder decisions and reference contradictions. They outrank the boards, and per
 
 *Partial, and the most worked-on screen in the product.* The room, the conversation band, the request, the away card and the header have been ported frame by frame across batches 50–54: the first-action typography, F01's confirmed-empty system sentence, the collapsed band's glass, the speaker avatar and compact inline name, the side tail on ordinary speech, the want answers' condensed type, the away frame's mono numbers, the request's saved portrait, compact away names, and — in batch 54 — the header's muted subtitle and quiet-count ink (BUG-195).
 
-What still differs is mostly not typography: the retained kitchen table, real routine and resource data where the reference shows samples, and the header and footer composition. Those are named on each pair in the inventory.
+**Home-first run:** HOME-1 corrected the fixed-height room seam, quiet roster outline, near/opponent sizes, phone cards and printed backs, and empty wall hooks. Root inspected the native F10 pair. HOME-2 adds the authored fridge pose, light and return prop from an accepted owner Home event, with one pickup place and no replay of old events. Its phone/desktop browser paths pass; final full gate is recorded in ASTRA_NIGHT.md. Recaps no longer restart on a Home return, and idle phases differ by character.
+
+The same F10 pair is updated in artifacts/show/home-1-F10-pair.png. It keeps the kitchen table by founder instruction; wallet, saved identities, resources and TV history use actual fixture values instead of the reference samples. Other previously recorded header/footer substates remain partial unless specifically paired. The fridge animation uses the existing 1.6-second walk clock for out/hold/back; the source supplies poses, not these durations.
 
 The room's own name pills are deliberately six characters with no ellipsis — "Granite" over a body reads `Granit`. That is the rule, not a clipping bug; the plate and the roster carry the full name.
 
@@ -76,7 +78,7 @@ Visiting projections and their labels exist, but the visit lifecycle has no auth
 
 ## Casino
 
-*Unpaired.* All three board-27 frames and both of Home's casino frames have code behind them and no inspected pair. Floor-first entry is the later approved behaviour: you land on the floor, Board stays reachable, and the older two-header overview is not restored to make a pair match.
+*Unpaired.* All three board-27 frames and both of Home's casino frames have code behind them and no inspected pair. Inside the casino, floor-first is the retained behaviour: Board stays reachable and the older two-header overview is not restored to make a pair match. Home remains the app default and the way into the casino.
 
 **Open** — nothing named.
 
