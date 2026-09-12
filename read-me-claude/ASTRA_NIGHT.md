@@ -122,3 +122,18 @@ Reviewed audio support028c162 is integrated as1fc8c13. Eight cancellation regres
 The revised four jobs are complete locally, with named remaining design gaps in DESIGN_GAP.md. Source checkpoints ba32d00 and1fc8c13. The reusable Home-first goal prompt is ASTRA_HOME_FIRST_GOAL.md. Original12:28UTC start and18:28UTC deadline retained; finishing before the deadline does not start a fifth job.
 
 Resume from: record the SHOW-4 local merge and final fetched-main status, then stop. Jens pushes from the astra-show worktree; nothing has been pushed, deployed, changed on the VPS or edited in env files. The other builder's fix/guest-cap checkout remains separate.
+
+FINAL HANDOFF — 2026-09-12 14:52UTC (16:52 Malta)
+
+SHOW-4 local merge4bb5814, gated documentation64932f8. Final fetch confirms origin/main remains348307d, with no remote-only commits. The merged source exactly matches the gated branch. All four revised jobs are complete locally: HOME-1 f840004, HOME-2 ed23d9a, HOME-3 d37506d, SHOW-4 4bb5814. Three unique pairs inspected. Remaining named gaps are in DESIGN_GAP.md; complete product-wide design parity is not claimed.
+
+Resume from: founder push and deployed phone playtest. No fifth job; this run is stopped. Our main checkout is artifacts/worktrees/astra-show. The shared project checkout remains on the other builder's dirtyfix/guest-cap with the same ten pending paths, untouched. Nothing pushed or deployed by Astra.
+
+In PowerShell, Jens can publish the verified local main from the correct checkout:
+
+```powershell
+Set-Location C:\Projects\ai-poker\artifacts\worktrees\astra-show
+git push origin main
+```
+
+Then confirm the matching GitHub Actions deploy is green before judging the app on the phone. No server settings or external account changes are part of this handoff.
