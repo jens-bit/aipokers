@@ -61,3 +61,26 @@ HOME-1 final: single test:all passed (132server/two skips;207client files/2585pa
 Candidateb78856b plusfinalport/documentationcommit follow. Resume from: mergeHOME-1locally, thenHOME-2. UI supportf57af25 andserver support are isolated; HOME-3Profilef755567 is queued. SHOW-4WIP7a67267 remainsunmerged.
 
 HOME-1 source checkpoints:b78856b and244db7f. Localmainmerge:f840004. Gatesabovecomplete; nothingpushed. Resume from: HOME-2 (truthfulroombehaviour). Deadline18:28UTC unchanged;1/3pairsused.
+
+
+### HOME-2 — unfinished integration checkpoint
+
+The revised goal file f342c9a1-8428-483c-9dad-119c6ce909cc was read. It retains Home first and adds an explicit limit of one full browser suite and one test:all per job; focused checks remain scoped to specific fixes. Original deadline 18:28 UTC retained.
+
+Reviewed and applied support f57af25 (recap display memory, per-speaker TV clearance, distinct idle phases) and be52a0b (eight existing greeting voices and accepted owner-Home-only item events). Support gates: 138 client and 100 server checks passed in their isolated worktrees, including new regressions red then green. Root's built Home checks show eight residents/visitors occupying separate resting positions on phone and desktop, and stable independent idle phases. The recap remount check initially sent its push before the replacement socket opened; it now waits for the actual floor subscription and passes, including a genuinely new recap. No product workaround was made for that fixture error.
+
+Root inspected both room captures. At most one occupant takes the TV destination even in the deliberately stale eight-student fixture. The fridge walk is still being implemented from successful accepted item events; this checkpoint is not a verified job and is not merged. HOME-3 journey work is isolated and queued. SHOW-4 WIP remains saved. No full HOME-2 gate has run yet.
+
+Resume from: complete the real-event fridge choreography, verify its affected phone/desktop path, then run the single HOME-2 full gate and merge only if green. Pair count 1/3; no new pair created.
+
+
+HOME-2 candidate: reviewed fridge checkpoint 3a9794a applied. The first typed owner homeItem snapshot is a baseline; only subsequent accepted beer/snack events walk. Server timestamps are compared to server timestamps, so skewed phone clocks work. One trip uses the existing 1.6-second room crossing for out, hold and return; the reference supplies poses and props, not these durations. Neighbours and actual game chairs remain reserved, blocked trips expire after 15 seconds, and carrying/leaving/joining a hand cancels the trip. No new inventory or model path.
+
+Fridge support passed 190 focused tests across nine files, including ten named regressions red first, real Home socket wiring and long-press cancellation. Root's two built checks passed: accepted snack on phone and beer on desktop, a deliberately two-minute-ahead server clock, unchanged neighbours/chairs, exact return position, and no replay on a repeated snapshot. Root inspected both captures and refreshed the SAME named F10 pair; still 1/3 unique pairs. The missing fridge pose is now present; differences in actual wallet, identity, bars and TV history remain labelled. Home table retained by founder instruction.
+
+Resume from: run the single HOME-2 test:all on this candidate, record gates and merge locally if green. HOME-3 source f755567 +44d757a is reviewed and queued. SHOW-4 fixes are isolated. Nothing pushed or deployed.
+
+
+HOME-2 final gate on candidate139919e: test:all passed on its single run. Server134 passed/two skips (136 total), client210 files/2615 passed/two existing todo, gameplay7 passed (87.60s). No native abort. Six affected built cases passed as recorded above. No full browser inventory was run. Root inspected the same F10 pair and phone/desktop room/fridge captures. Reviewed support checkpoints f57af25, be52a0b and3a9794a; integration checkpoints1d70df5 and139919e. Updated DESIGN_GAP.md explicitly keeps Home as the app default and floor-first only inside Casino.
+
+Resume from: record HOME-2 local merge, then HOME-3 using reviewed f755567,44d757a and scoped built journey checks c8dbf08,f58c236. SHOW-4 remains preserved and queued. Deadline18:28UTC; pair count1/3. Nothing pushed.

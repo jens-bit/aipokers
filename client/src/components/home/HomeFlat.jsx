@@ -40,6 +40,7 @@ export function HomeFlat({
   // BUGS-C job 4 · is there a show on, right now, worth lighting the sign for?
   signLive = false,
   doorOpen = false,
+  fridgeLit = false,
   balance = null,
   geometry = PHONE_ROOM,
 }) {
@@ -183,12 +184,20 @@ export function HomeFlat({
         onClick={onFridge}
         aria-label="The fridge — what is in stock"
         data-testid="home-fridge"
+        data-open={fridgeLit ? 'true' : 'false'}
       >
         <span className="home-flat__fridge-split" aria-hidden />
         <span className="home-flat__fridge-handle" aria-hidden />
         <span className="home-flat__fridge-handle home-flat__fridge-handle--freezer" aria-hidden />
         <span className="home-flat__fridge-stock" aria-hidden><i /><i /><i /><b /></span>
       </button>
+
+      {/* mood-home2.jsx FRIDGE_WALK: the accepted pickup lights the door. */}
+      {fridgeLit ? <span data-testid="home-fridge-light" aria-hidden style={{
+        position: 'absolute', left: FLAT.fridge.x + 4, top: FLAT.fridge.y + 4,
+        width: FLAT.fridge.w - 8, height: FLAT.fridge.h - 8, borderRadius: 3,
+        background: '#CDB3801F', border: '1px solid #CDB38055', zIndex: 5, pointerEvents: 'none',
+      }} /> : null}
 
       {lit ? (
         <div

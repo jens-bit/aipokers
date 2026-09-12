@@ -1,6 +1,9 @@
 # Bug Report — Railbird
-Last updated: 2026-09-10 (Railbird design completion); statuses and evidence below.
+Last updated: 2026-09-12 (Home-first run); statuses and evidence below.
 Named BUG headings: 191, including the two historically reused BUG-121 headings. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
+
+### HOME-2 — repeating recaps and missing accepted-item choreography — fixed locally, verified
+Displayed recap history now survives Home remounts without acknowledging unread news. TV clearance applies only to its actual speaker. Idle phases differ by identity, and fallback greetings reuse existing nature voices. The owner-only accepted item channel drives the authored fridge pose/light/props once, independently of phone clock skew. No stationary stacking, speculative drinkPending animation or late blocked pickup. Six affected built cases passed across room/recap/idles and phone/desktop accepted items; source support gates and the refreshed single F10 comparison are in ASTRA_NIGHT.md. Single full gate passed:134 server/two skips,2615 client/two todo,7 gameplay. Nothing pushed.
 
 ### HOME-1 — room seam and older Home artwork — fixed locally, verified
 Built checks reproduced the room ending at612px in a720px stage, a permanently filled roster icon, and every seated body at50px. The reference uses a full-height room with612px minimum, a quiet outlined roster, and50/44px players. These are ported, together with current smaller phone cards. The single F10 comparison also exposed absent printed back marks and disappearing empty wall hooks in a full household; both now use the reference source. Table ellipse is retained by founder instruction. F10 fridge choreography is being completed under HOME-2; F05 replay trigger and C7b couch/TV arrangement remain explicit source gaps. Single full gate passed:132 server,2585 client/two todo,7 gameplay. Pair follow-up changes passed100 affected checks and the final7 built Home cases. Pair evidence and SHAs in ASTRA_NIGHT.md.
