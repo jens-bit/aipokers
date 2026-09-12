@@ -97,3 +97,8 @@ Support gates:108 profile/App checks, then192 affected journey and adjacent chec
 Root inspected populated Profile, the short-phone YOU hand, returned Upstairs, and desktop Watch captures. Pair count remains1/3; journeys require no new reference pair. No full HOME-3 gate has run yet.
 
 Resume from: run single HOME-3 test:all, record gates and merge locally if green. Then fourth/final job only: saved SHOW-4WIP7a67267 plus reviewed364dcbe and673368a. The fourth job still needs root browser checks, two named pairs and its full gate. Deadline18:28UTC unchanged. Nothing pushed or deployed.
+
+
+HOME-3 final gate on f0dc718: single test:all passed. Server134 passed/two skips, client2634 passed/two existing todo, gameplay7 passed (89.51s). All six affected built journeys passed on their first run; no new comparison pair or native abort. Root inspected the phone Profile, human hand, Upstairs return and desktop Watch. Source/support hashes and actual paths are above.
+
+Resume from: record HOME-3 local merge, then finish the fourth job only: SHOW-4. Existing candidate and reviewed followups remain on their isolated branches. No fifth job; original18:28UTC deadline retained. Nothing pushed.
