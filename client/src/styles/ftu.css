@@ -18,7 +18,7 @@
   background: transparent;
 }
 
-.not-yet--teal { border-color: rgba(0, 212, 170, 0.33); }
+.not-yet--teal { border-color: color-mix(in srgb, var(--accent) 33%, transparent); }
 
 .not-yet__fact {
   display: block;
@@ -26,14 +26,14 @@
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.06em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
-.not-yet--teal .not-yet__fact { color: var(--sys-teal, #00D4AA); }
+.not-yet--teal .not-yet__fact { color: var(--sys-teal, var(--accent)); }
 
 .not-yet__voice {
   font-size: 12.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.45;
   margin-top: 7px;
   font-style: italic;
@@ -42,7 +42,7 @@
 
 .not-yet__fills {
   font-size: 11.5px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   line-height: 1.45;
   margin-top: 7px;
   overflow-wrap: anywhere;
@@ -62,9 +62,9 @@
   padding: 0 14px;
   border-radius: 8px;
   border: none;
-  background: var(--sys-teal, #00D4AA);
-  color: #0A0A0A;
-  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+  background: var(--sys-teal, var(--accent));
+  color: var(--on-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 27%, transparent);
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 11px;
   font-weight: 600;
@@ -106,7 +106,7 @@
 
 .ftu-roster__line {
   font-size: 12.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.5;
 }
 
@@ -122,8 +122,8 @@
   display: flex;
   flex-direction: column;
   min-height: var(--tg-h, 100dvh);
-  background: var(--sys-bg, #1A1A1E);
-  color: var(--sys-text, #EDEDED);
+  background: var(--sys-bg, var(--bg-primary));
+  color: var(--sys-text, var(--text-primary));
   font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
 }
 
@@ -132,8 +132,8 @@
   min-height: 180px;
   position: relative;
   overflow: hidden;
-  background: radial-gradient(ellipse at 50% 60%, #2f4d48 0%, #1d2e2c 55%, #141a1c 100%);
-  border-bottom: 1px solid rgba(0, 212, 170, 0.22);
+  background: radial-gradient(ellipse at 50% 60%, var(--felt-center) 0%, var(--felt-edge) 55%, #141a1c 100%);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 /* The one open seat, lit. Same dashed rim as the floor's own stool. */
@@ -152,7 +152,7 @@
   width: 66px;
   height: 66px;
   border-radius: 50%;
-  border: 1px dashed rgba(0, 212, 170, 0.40);
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
   animation: ftu-drift 3.4s ease-in-out infinite;
 }
 
@@ -164,7 +164,7 @@
   width: 190px;
   height: 190px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 212, 170, 0.08), transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%);
   pointer-events: none;
 }
 
@@ -172,7 +172,7 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 500;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
   letter-spacing: 0.06em;
 }
 
@@ -184,7 +184,7 @@
 .ftu-login__pitch {
   flex-shrink: 0;
   padding: 22px 22px calc(22px + env(safe-area-inset-bottom, 0px));
-  background: var(--sys-panel, #232329);
+  background: var(--sys-panel, var(--bg-secondary));
 }
 
 .ftu-login__head {
@@ -193,13 +193,13 @@
   font-weight: 600;
   line-height: 1.15;
   letter-spacing: -0.015em;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   margin: 0;
 }
 
 .ftu-login__body {
   font-size: 14px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.6;
   margin-top: 16px;
 }
@@ -212,7 +212,7 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 500;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   letter-spacing: 0.06em;
   line-height: 1.6;
 }
@@ -220,7 +220,7 @@
 .ftu-login__error {
   margin-top: 12px;
   font-size: 12px;
-  color: var(--sys-red, #FF4D4F);
+  color: var(--sys-red, var(--error));
   line-height: 1.45;
 }
 

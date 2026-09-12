@@ -524,23 +524,33 @@ test.describe('HOME-2 job 6 · one sheet, and no money on the table', () => {
 test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
   test.beforeEach(async ({ page }) => { await asOwner(page); });
 
-  /** The computed ground and blur of one element. */
-  const material = (locator) => locator.evaluate((el) => {
+  /** Resolve the material and its shared tokens in the same browser context.
+   * Canvas reads real alpha for rgba(), color(srgb) and other supported CSS colors. */
+  const material = (locator, expected = { background: 'var(--v5-raised)', border: 'var(--v5-edge-up)' }) => locator.evaluate((el, expected) => {
     const s = getComputedStyle(el);
-    return {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, 1, 1);
+    context.fillStyle = s.backgroundColor;
+    context.fillRect(0, 0, 1, 1);
+    const alpha = context.getImageData(0, 0, 1, 1).data[3] / 255;
+    const probe = document.createElement('i');
+    probe.style.cssText = `position:fixed;visibility:hidden;pointer-events:none;background:${expected.background};color:${expected.border};`;
+    el.appendChild(probe);
+    const token = getComputedStyle(probe);
+    const out = {
       background: s.backgroundColor,
+      alpha,
       image: s.backgroundImage,
+      border: s.borderTopColor,
       blur: s.backdropFilter || s.webkitBackdropFilter,
+      sharedBackground: token.backgroundColor,
+      sharedBorder: token.color,
     };
-  });
-
-  /** rgba(r, g, b, a) → a, and 1 for an opaque colour. */
-  const alpha = (colour) => {
-    const m = /rgba?\(([^)]+)\)/.exec(colour);
-    if (!m) return 1;
-    const parts = m[1].split(',').map((n) => parseFloat(n));
-    return parts.length > 3 ? parts[3] : 1;
-  };
+    probe.remove();
+    return out;
+  }, expected);
 
   test('the fridge rises in glass, not on a grey card', async ({ page }) => {
     await seedOnce();
@@ -551,9 +561,10 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
 
     const panel = page.locator('.home-sheet__panel').first();
     const m = await material(panel);
-    // Translucent...
-    expect(alpha(m.background)).toBeGreaterThan(0);
-    expect(alpha(m.background)).toBeLessThan(0.9);
+    // The approved raised glass, resolved rather than assumed.
+    expect(m.alpha).toBeCloseTo(0.98, 2);
+    expect(m.background).toBe(m.sharedBackground);
+    expect(m.border).toBe(m.sharedBorder);
     // ...and actually blurred. A panel that does not blur is a card.
     expect(m.blur).toContain('blur');
     await shot(page, 'job8-fridge');
@@ -569,9 +580,9 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
   // the safe opens a sheet over the room, that sheet is the shared safe surface
   // (`safe-sheet` — the same component the desk's rail and YOU raise, which is
   // what "not a second copy of it" was for), its panel is glass with a real
-  // blur, and the money surface inside it drops its own solid ground. Verified
-  // against the running client: rgba(18,30,28,0.84) + blur(18px) saturate(1.2)
-  // on the panel, alpha 0 inside, one scrim.
+  // blur, and the money surface inside it drops its own solid ground. The
+  // current shared appearance requires .98 raised glass and the same blur,
+  // with alpha 0 inside and one scrim.
   test('the safe is the money, over the room, in the same glass', async ({ page }) => {
     await seedOnce();
     await openRoom(page);
@@ -583,12 +594,14 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
     await expect(page.getByTestId('home-screen')).toBeVisible();
 
     const m = await material(page.locator('.safe__panel').first());
-    expect(alpha(m.background)).toBeLessThan(0.9);
+    expect(m.alpha).toBeCloseTo(0.98, 2);
+    expect(m.background).toBe(m.sharedBackground);
+    expect(m.border).toBe(m.sharedBorder);
     expect(m.blur).toContain('blur');
     // The money surface itself drops its solid ground over the room; a solid
     // band inside a glass sheet is a flat grey panel with a blur around it.
     const inner = await material(page.locator('.money-sheet').first());
-    expect(alpha(inner.background)).toBe(0);
+    expect(inner.alpha).toBe(0);
     await shot(page, 'job8-safe');
   });
 
@@ -599,7 +612,9 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
     await page.getByRole('button', { name: 'Your agents' }).click();
     await expect(page.getByTestId('roster-sheet')).toBeVisible({ timeout: 20_000 });
     const rosterGlass = await material(page.locator('.roster__panel'));
-    expect(alpha(rosterGlass.background)).toBeLessThan(0.9);
+    expect(rosterGlass.alpha).toBeCloseTo(0.98, 2);
+    expect(rosterGlass.background).toBe(rosterGlass.sharedBackground);
+    expect(rosterGlass.border).toBe(rosterGlass.sharedBorder);
     expect(rosterGlass.blur).toContain('blur');
 
     await page.locator('.roster__scrim').click();
@@ -624,28 +639,26 @@ test.describe('HOME-2 job 8 · every sheet over the room is glass', () => {
     await seedOnce();
     await openRoom(page);
 
-    const m = await page.evaluate(() => {
+    await page.evaluate(() => {
       const probe = document.createElement('div');
       probe.className = 'home-want';
+      probe.dataset.testid = 'job8-material-probe';
       document.body.appendChild(probe);
-      const s = getComputedStyle(probe);
-      const out = {
-        background: s.backgroundColor,
-        image: s.backgroundImage,
-        border: s.borderTopColor,
-        blur: s.backdropFilter || s.webkitBackdropFilter,
-      };
-      probe.remove();
-      return out;
     });
+    const probe = page.getByTestId('job8-material-probe');
+    const m = await material(probe, {
+      background: 'var(--v5-panel)',
+      border: 'color-mix(in srgb, var(--gold-reward) 42%, transparent)',
+    });
+    await probe.evaluate(el => el.remove());
 
-    // V5GLASS's panel, resolved: rgba(13, 23, 21, 0.72).
-    expect(m.background).toBe('rgba(13, 23, 21, 0.72)');
+    expect(m.alpha).toBeCloseTo(0.94, 2);
+    expect(m.background).toBe(m.sharedBackground);
     expect(m.blur).toContain('blur');
     // The current F11 reference uses plain panel glass, not the older gold
     // background wash. Keep the exact glass/blur checks and verify the edge.
     expect(m.image).toBe('none');
-    expect(m.border).toBe('rgba(205, 179, 128, 0.42)');
+    expect(m.border).toBe(m.sharedBorder);
   });
 
   // And the token really is defined where the bundle can see it — the whole

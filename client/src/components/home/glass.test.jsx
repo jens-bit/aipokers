@@ -37,12 +37,12 @@ describe('HOME-2 job 8 · every sheet and toast over the room is one glass', () 
   const roster = styles('roster.css');
   const watch = styles('watch6.css');
 
-  it('the tokens exist, and they are V5GLASS own numbers', () => {
-    // design-refs/mood-watch5.jsx, V5GLASS.
-    expect(tokens).toContain('--v5-panel: rgba(13, 23, 21, 0.72)');
-    expect(tokens).toContain('--v5-raised: rgba(18, 30, 28, 0.84)');
-    expect(tokens).toContain('--v5-edge: rgba(255, 255, 255, 0.11)');
-    expect(tokens).toContain('--v5-edge-up: rgba(255, 255, 255, 0.17)');
+  it('the glass tokens derive from the shared appearance and retain their blur', () => {
+    // Theme-aware glass keeps one ground and edge source across every surface.
+    expect(tokens).toContain('--v5-panel: color-mix(in srgb, var(--bg-secondary) 94%, transparent)');
+    expect(tokens).toContain('--v5-raised: color-mix(in srgb, var(--bg-secondary) 98%, transparent)');
+    expect(tokens).toContain('--v5-edge: var(--edge)');
+    expect(tokens).toContain('--v5-edge-up: var(--edge-strong)');
     expect(tokens).toContain('--v5-blur: blur(18px) saturate(1.2)');
   });
 

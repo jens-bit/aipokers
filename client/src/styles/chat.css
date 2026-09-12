@@ -139,8 +139,8 @@
 
 .next-action {
   flex-shrink: 0;
-  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
-  background: var(--sys-panel, #232329);
+  border-top: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
+  background: var(--sys-panel, var(--bg-secondary));
   padding: 10px 14px 20px;
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
 }
@@ -151,7 +151,7 @@
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
 }
 .next-action__btn {
   width: 100%;
@@ -159,17 +159,17 @@
   min-height: 48px;
   border: none;
   border-radius: 8px;
-  background: var(--sys-teal, #00D4AA);
-  color: #0A0A0A;
+  background: var(--sys-teal, var(--accent));
+  color: var(--on-accent);
   font-family: 'Oswald', Inter, sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 27%, transparent);
 }
-.next-action__btn:hover { background: #00e6b8; }
+.next-action__btn:hover { background: var(--accent-hover); }
 .next-action__btn:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
 
 .next-action__link-row { margin-top: 9px; text-align: center; }
@@ -182,11 +182,11 @@
   font-size: 12px;
   text-transform: none;
   letter-spacing: normal;
-  color: var(--sys-muted, #9E9EA2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--sys-muted, var(--text-muted));
+  border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 18%, transparent);
   cursor: pointer;
 }
-.next-action__link:hover { color: var(--sys-text, #EDEDED); }
+.next-action__link:hover { color: var(--sys-text, var(--text-primary)); }
 
 /* ── NatureFormed, the guess form (F-1) ──────────────────────────────────
  * Once the draft is usable this component renders NatureChip instead, which
@@ -199,7 +199,7 @@
   height: 28px;
   padding: 0 11px;
   border-radius: 4px;
-  border: 1px dashed rgba(205, 179, 128, 0.33);
+  border: 1px dashed color-mix(in srgb, var(--gold-reward) 33%, transparent);
   max-width: 100%;
 }
 .nature-formed__label {
@@ -208,13 +208,13 @@
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
 }
 .nature-formed__rule {
   width: 1px;
   height: 12px;
   flex-shrink: 0;
-  background: rgba(205, 179, 128, 0.27);
+  background: color-mix(in srgb, var(--gold-reward) 27%, transparent);
 }
 .nature-formed__guess {
   font-family: 'Oswald', Inter, sans-serif;
@@ -222,7 +222,7 @@
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   opacity: 0.75;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -242,11 +242,11 @@
   z-index: 7;
   max-height: 88%;
   overflow-y: auto;
-  background: var(--sys-panel, #232329);
-  border-top: 1px solid rgba(0, 212, 170, 0.27);
+  background: var(--sys-panel, var(--bg-secondary));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
   border-top-left-radius: 20px;
   border-top-right-radius: 20px;
-  box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.6), 0 0 40px rgba(0, 212, 170, 0.08);
+  box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.6), 0 0 40px color-mix(in srgb, var(--accent) 8%, transparent);
   /* BIRTH-4: the top padding IS the ghost's slot. The well used to be pulled
    * 34px above the sheet's edge, and .birth-card3 scrolls — so the sheet's own
    * overflow box cut the top off his head. He sits inside the sheet now and the
@@ -270,9 +270,9 @@
   width: 112px;
   height: 104px;
   border-radius: 24px;
-  background: #0a0f17;
-  border: 1px solid rgba(0, 212, 170, 0.4);
-  box-shadow: 0 0 26px rgba(0, 212, 170, 0.24);
+  background: var(--bg-tertiary);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--accent) 24%, transparent);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -284,7 +284,7 @@
   font-family: 'Playfair Display', Georgia, serif;
   font-size: 25px;
   font-weight: 600;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   letter-spacing: -0.01em;
 }
 .birth-card3__nature { margin-top: 9px; }
@@ -292,11 +292,11 @@
 .birth-card3__first {
   padding: 13px 15px;
   border-radius: 12px;
-  background: var(--sys-panel-2, #28282F);
-  border: 1px solid rgba(0, 212, 170, 0.2);
+  background: var(--sys-panel-2, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   margin-bottom: 11px;
   font-size: 14px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   line-height: 1.5;
   font-style: italic;
 }
@@ -315,12 +315,12 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.13em;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
 }
 .birth-card3__built-text {
   flex: 1;
   font-size: 12.5px;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.45;
 }
 
@@ -329,19 +329,19 @@
   margin-top: 9px;
   padding: 13px 13px 14px;
   border-radius: 10px;
-  background: var(--sys-panel-2, #28282F);
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-panel-2, var(--bg-tertiary));
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   animation: birth-rise 0.35s ease-out both;
 }
 .birth-card3__sheet-note {
   margin-top: 12px;
   padding-top: 11px;
-  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  border-top: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   font-size: 11.5px;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
   line-height: 1.5;
 }
-.birth-card3__sheet-note b { color: var(--sys-dim, #C3C3C6); font-weight: 600; }
+.birth-card3__sheet-note b { color: var(--sys-dim, var(--text-secondary)); font-weight: 600; }
 
 .birth-card3 .birth-card3__deal {
   width: 100%;
@@ -349,9 +349,9 @@
   min-height: 48px;
   border: none;
   border-radius: 8px;
-  background: var(--sys-teal, #00D4AA);
-  color: #0A0A0A;
-  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+  background: var(--sys-teal, var(--accent));
+  color: var(--on-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 27%, transparent);
   cursor: pointer;
   font-family: 'Oswald', Inter, sans-serif;
   font-size: 11px;
@@ -359,7 +359,7 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.birth-card3__deal:hover { background: #00e6b8; }
+.birth-card3__deal:hover { background: var(--accent-hover); }
 
 .birth-card3__later {
   margin-top: 9px;
@@ -369,7 +369,7 @@
   font-weight: 500;
   letter-spacing: 0.04em;
   line-height: 1.5;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 /* ── SheetFold (F-2) ─────────────────────────────────────────────────────
@@ -383,9 +383,9 @@
   padding: 11px 13px;
   min-height: 0;
   border-radius: 10px;
-  background: var(--sys-panel-2, #28282F);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: var(--sys-muted, #9E9EA2);
+  background: var(--sys-panel-2, var(--bg-tertiary));
+  border: 1px solid color-mix(in srgb, var(--text-primary) 18%, transparent);
+  color: var(--sys-muted, var(--text-muted));
   cursor: pointer;
   text-align: left;
   text-transform: none;
@@ -393,28 +393,28 @@
 }
 .sheet-fold.is-open {
   background: transparent;
-  border-color: var(--sys-border, rgba(255, 255, 255, 0.12));
+  border-color: var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 .sheet-fold__label {
   flex: 1;
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
 }
-.sheet-fold.is-open .sheet-fold__label { color: var(--sys-teal, #00D4AA); }
+.sheet-fold.is-open .sheet-fold__label { color: var(--sys-teal, var(--accent)); }
 .sheet-fold__note {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
   white-space: nowrap;
 }
 .sheet-fold__chev { flex-shrink: 0; transition: transform 0.2s ease; }
 .sheet-fold.is-open .sheet-fold__chev {
   transform: rotate(180deg);
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
 }
 
 /* ── CostLine + AttrExplain (F-3, moved to the profile by BUGS-C job 9) ────
@@ -429,15 +429,15 @@
   margin: 0 0 9px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(205, 179, 128, 0.05);
-  border: 1px solid rgba(205, 179, 128, 0.2);
+  background: color-mix(in srgb, var(--gold-reward) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 20%, transparent);
 }
 .cost-line__row { display: flex; align-items: center; gap: 9px; }
 .cost-line__text {
   flex: 1;
   min-width: 0;
   font-size: 12.5px;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.4;
 }
 .cost-line__key {
@@ -445,9 +445,9 @@
   min-height: 0;
   padding: 3px 6px;
   border-radius: 3px;
-  background: rgba(205, 179, 128, 0.12);
-  border: 1px solid rgba(205, 179, 128, 0.53);
-  color: var(--sys-gold, #CDB380);
+  background: color-mix(in srgb, var(--gold-reward) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 53%, transparent);
+  color: var(--sys-gold, var(--gold-reward));
   font-family: 'Oswald', Inter, sans-serif;
   font-size: 9px;
   font-weight: 600;
@@ -457,7 +457,7 @@
 }
 .cost-line__key--plain {
   background: transparent;
-  border-color: rgba(205, 179, 128, 0.27);
+  border-color: color-mix(in srgb, var(--gold-reward) 27%, transparent);
   cursor: default;
 }
 .cost-line__meta {
@@ -466,15 +466,15 @@
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .attr-explain {
   margin: 0 14px 9px;
   padding: 12px 13px;
   border-radius: 11px;
-  background: var(--sys-panel, #232329);
-  border: 1px solid rgba(205, 179, 128, 0.33);
+  background: var(--sys-panel, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 33%, transparent);
   animation: birth-rise 0.35s ease-out both;
 }
 .attr-explain__head {
@@ -488,30 +488,30 @@
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.16em;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
 }
-.attr-explain__rule { flex: 1; height: 1px; background: var(--sys-border, rgba(255, 255, 255, 0.12)); }
+.attr-explain__rule { flex: 1; height: 1px; background: var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent)); }
 .attr-explain__once {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.04em;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
   white-space: nowrap;
 }
 .attr-explain__mean {
   font-size: 13.5px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   line-height: 1.5;
 }
 .attr-explain__bar {
   margin-top: 11px;
   padding-top: 10px;
-  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  border-top: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 .attr-explain__his {
   font-size: 11.5px;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
   line-height: 1.45;
   margin-top: 9px;
 }

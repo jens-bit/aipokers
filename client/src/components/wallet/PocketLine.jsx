@@ -8,7 +8,7 @@
 import { CALL_IN, GIVE, money, pocketOf, rowActions, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
 
-const M_MUTED = '#6B6B6B';
+const M_MUTED = 'var(--text-muted)';
 
 // "plays $5/$10 · refills to $300" — what the row says about itself, in the
 // ref's own register: how he is seated, and how the money behaves.
@@ -88,7 +88,7 @@ export function PocketLine({ agent, onFund, onCollect, onCallIn }) {
 // a transfer rather than a reward: no burst, no coin, no sound of a slot
 // machine. Ported from CollectCard in design-refs/mood-wallet.jsx.
 
-const M_TEAL = '#00D4AA';
+const M_TEAL = 'var(--accent)';
 
 // WALLET-7: `left` is what stayed in his pocket. Under the old rule that was
 // always the float; a collect now takes the winnings and leaves the roll, so

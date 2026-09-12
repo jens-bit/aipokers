@@ -14,7 +14,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgba(10, 10, 12, 0.72);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   backdrop-filter: blur(3px);
   animation: claim-wall-in 220ms ease-out;
 }
@@ -32,8 +32,8 @@
   box-sizing: border-box;
   padding: 26px 22px 20px;
   border-radius: 18px 18px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(180deg, #232329 0%, #1A1A1E 100%);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 14%, transparent);
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
   box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.55);
   text-align: center;
   animation: claim-sheet-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -50,7 +50,7 @@
   font-weight: 400;
   font-size: 30px;
   line-height: 1.05;
-  color: var(--text-primary, #EDEDED);
+  color: var(--text-primary, var(--text-primary));
 }
 
 .claim-wall__face {
@@ -65,7 +65,7 @@
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--text-primary, #EDEDED);
+  color: var(--text-primary, var(--text-primary));
 }
 
 /* The evidence for the ask. Gold is this product's word for a moment that
@@ -74,28 +74,28 @@
   margin-top: 5px;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 13px;
-  color: var(--gold-reward, #CDB380);
+  color: var(--gold-reward, var(--gold-reward));
 }
 
 .claim-wall__limits {
   list-style: none;
   margin: 20px 0 0;
   padding: 14px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
 }
 
 .claim-wall__limit {
   font-size: 13.5px;
   line-height: 1.75;
-  color: var(--text-secondary, #A1A1A1);
+  color: var(--text-secondary, var(--text-secondary));
 }
 
 .claim-wall__forgotten {
   margin: 12px 0 0;
   font-size: 12.5px;
   line-height: 1.5;
-  color: var(--text-muted, #6B6B6B);
+  color: var(--text-muted, var(--text-muted));
 }
 
 .claim-wall__actions {
@@ -110,9 +110,9 @@
   min-height: var(--tap, 44px);
   padding: 0 18px;
   border-radius: var(--radius-md, 8px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 14%, transparent);
   background: transparent;
-  color: var(--text-primary, #EDEDED);
+  color: var(--text-primary, var(--text-primary));
   font-family: var(--font-label, 'Oswald', sans-serif);
   font-size: 12.5px;
   font-weight: 600;
@@ -122,8 +122,8 @@
 
 .claim-wall__btn--primary {
   border-color: transparent;
-  background: var(--accent, #00D4AA);
-  color: #08110F;
+  background: var(--accent, var(--accent));
+  color: var(--on-accent);
 }
 
 .claim-wall__btn:disabled {
@@ -138,13 +138,13 @@
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: none;
-  color: var(--text-muted, #6B6B6B);
+  color: var(--text-muted, var(--text-muted));
 }
 
 .claim-wall__error {
   margin: 2px 0 0;
   font-size: 12px;
-  color: var(--error, #FF4D4F);
+  color: var(--error, var(--error));
 }
 
 /* Always present, never dressed as the primary action, and never smaller than
@@ -155,12 +155,12 @@
   width: 100%;
   border: 0;
   background: transparent;
-  color: var(--text-muted, #6B6B6B);
+  color: var(--text-muted, var(--text-muted));
   font-size: 13px;
   cursor: pointer;
 }
 
-.claim-wall__out:hover { color: var(--text-secondary, #A1A1A1); }
+.claim-wall__out:hover { color: var(--text-secondary, var(--text-secondary)); }
 
 /* ── The landing hero (job 6) ─────────────────────────────────────────────── */
 /* Marketing burgundy and gold, and the product's teal in exactly one place:
@@ -258,8 +258,8 @@
   border-radius: 3px;
   background: linear-gradient(180deg,
     var(--marketing-gold-highlight, #E8D5A8) 0%,
-    var(--marketing-gold, #CDB380) 100%);
-  box-shadow: 0 10px 30px rgba(205, 179, 128, 0.18);
+    var(--marketing-gold, var(--gold-reward)) 100%);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--gold-reward) 18%, transparent);
   color: #1A0A10;
   font-family: var(--font-label, 'Oswald', sans-serif);
   font-size: 12px;
@@ -296,7 +296,7 @@
   height: 84px;
   border-radius: 50%;
   background: radial-gradient(ellipse at 50% 50%,
-    rgba(205, 179, 128, 0.16) 0%, rgba(205, 179, 128, 0) 70%);
+    color-mix(in srgb, var(--gold-reward) 16%, transparent) 0%, color-mix(in srgb, var(--gold-reward) 0%, transparent) 70%);
 }
 
 .guest-hero__ghost {
@@ -322,14 +322,14 @@
   width: 30px;
   height: 96px;
   border-radius: 3px 3px 0 0;
-  background: rgba(205, 179, 128, 0.1);
-  border: 1px solid rgba(205, 179, 128, 0.35);
+  background: color-mix(in srgb, var(--gold-reward) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 35%, transparent);
 }
 .guest-hero__door-glow {
   position: absolute;
   inset: 4px;
   border-radius: 2px;
-  background: radial-gradient(ellipse at 50% 30%, rgba(205, 179, 128, 0.28) 0%, rgba(205, 179, 128, 0) 75%);
+  background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--gold-reward) 28%, transparent) 0%, color-mix(in srgb, var(--gold-reward) 0%, transparent) 75%);
 }
 .guest-hero__door-visitor {
   display: flex;
@@ -341,7 +341,7 @@
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--marketing-gold, #CDB380);
+  color: var(--marketing-gold, var(--gold-reward));
   white-space: nowrap;
 }
 
@@ -364,14 +364,14 @@
   position: absolute;
   top: 0;
   border-radius: 5px;
-  background: linear-gradient(150deg, #123C36 0%, #08211E 100%);
-  border: 1px solid rgba(0, 212, 170, 0.35);
-  box-shadow: inset 0 0 0 1px rgba(0, 212, 170, 0.16), 0 14px 34px rgba(0, 0, 0, 0.62);
+  background: linear-gradient(150deg, var(--surface-soft) 0%, var(--bg-tertiary) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent), 0 14px 34px rgba(0, 0, 0, 0.62);
   transform-origin: 50% 100%;
   animation: guest-deal 0.55s ease-out both;
 }
 
-.guest-hero__card > span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #00D4AA47; font-family: 'Playfair Display', serif; }
+.guest-hero__card > span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: color-mix(in srgb, var(--accent) 27.8%, transparent); font-family: 'Playfair Display', serif; }
 .guest-hero__fist { position: absolute; z-index: 2; animation: guest-deal 0.55s ease-out both; }
 .guest-hero__fist svg { display: block; overflow: visible; }
 .guest-hero__action { margin-top: 22px; }
@@ -382,7 +382,7 @@
   position: absolute;
   inset: 9%;
   border-radius: 2px;
-  border: 1px solid rgba(0, 212, 170, 0.18);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -398,7 +398,7 @@
   position: relative;
   min-height: 100dvh;
   min-height: var(--tg-h, 100dvh);
-  background: var(--bg-primary, #1A1A1E);
+  background: var(--bg-primary, var(--bg-primary));
 }
 
 .guest-hero__wordmark { font-family: Oswald, sans-serif; font-weight: 500; letter-spacing: 0.26em; }
@@ -428,14 +428,14 @@
 .guest-landing__room .draft-sheet__above { display: flex; }
 .guest-landing__room .draft-sheet { background: var(--glass-panel); }
 .guest-landing__room .draft2__room { opacity: 0.46; }
-.guest-landing__room .draft2__veil { background: linear-gradient(180deg, rgba(6,10,10,0.5), rgba(6,10,10,0.78)); }
+.guest-landing__room .draft2__veil { background: linear-gradient(180deg, rgba(6,10,10,0.5), var(--scrim)); }
 @media (max-width: 1099px) {
   .guest-landing__room .draft2__header { display: none; }
   .guest-landing__room .draft2__forming { top: 6%; }
 }
 @media (min-width: 1100px) {
   .guest-landing__room .dsk-root:has(.draft2) .dsk-top { display: none; }
-  .guest-landing__room .draft2--desk .draft2 { background: #0D1715; }
+  .guest-landing__room .draft2--desk .draft2 { background: var(--bg-secondary); }
   /* L2RoomDesk gives DkFlat h=viewport, including its 54px design allowance. */
   .guest-landing__room .home1--desk .home1__room { padding: 47px 30px; }
 }

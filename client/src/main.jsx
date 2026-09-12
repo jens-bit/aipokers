@@ -2,6 +2,7 @@ import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import { BrandLoading } from './components/system/BrandLoading.jsx';
+import { HomeAppearanceProvider } from './components/home/HomeAppearance.jsx';
 import { initTelegram, isMiniAppSession, getWebLogin } from './lib/telegram.js';
 import { loadTelegramSdk } from './lib/telegramSdk.js';
 import { hasTelegramLaunchSignal } from './lib/telegramLaunch.js';
@@ -53,14 +54,14 @@ let miniAppAdopted = false;
 
 function render(tree) {
   if (miniAppAdopted) return undefined;
-  root.render(<StrictMode>{tree}</StrictMode>);
+  root.render(<StrictMode><HomeAppearanceProvider>{tree}</HomeAppearanceProvider></StrictMode>);
   return undefined;
 }
 
 function renderMiniApp() {
   miniAppAdopted = true;
   initTelegram();
-  root.render(<StrictMode><App /></StrictMode>);
+  root.render(<StrictMode><HomeAppearanceProvider><App /></HomeAppearanceProvider></StrictMode>);
   return undefined;
 }
 

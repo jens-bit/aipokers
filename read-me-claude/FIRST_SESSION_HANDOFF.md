@@ -2,7 +2,7 @@
 
 12 September 2026. [Approved mission](FIRST_SESSION_MISSION.md) · [Five-person playtest](FIRST_SESSION_PLAYTEST.md).
 
-Current local status, validation and Jens's replacement of the separate practice flow are recorded in [In-game introduction](FIRST_RUN_GUIDE_HANDOFF.md). The candidate and integration history below describe earlier revisions; their separate-practice requirements are retired.
+Current local status and the latest Watch/palette continuation are recorded in [Warm game and public Watch](WARM_GAME_HANDOFF.md). Jens's replacement of the separate practice flow is recorded in [In-game introduction](FIRST_RUN_GUIDE_HANDOFF.md). The candidate and integration history below describe earlier revisions; their separate-practice requirements are retired.
 
 ## Local status
 

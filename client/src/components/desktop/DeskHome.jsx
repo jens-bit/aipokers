@@ -48,6 +48,28 @@ function RailPanel({ title, sub, onClose, children }) {
   );
 }
 
+// Like MobileTableSheet, each opening owns its server projection. Keeping this
+// read in the long-lived room left a newborn looking at the pre-birth free slot.
+// A response from a closed opening belongs to its unmounted component, so it
+// cannot replace a newer panel's answer.
+function TableRail({ agents, loaded, homeGame, gameKnown, liveHomeTable, onClose, onDraft, onWatchTable, onSitAtTable }) {
+  const { slots } = useSlots();
+  const running = homeGame?.state === 'running';
+  const seated = running ? (homeGame.seats ?? []).filter(Boolean).length : 0;
+  return (
+    <RailPanel title="The table"
+      sub={slots ? `Roster · ${slots.used} of ${slots.cap} agents` : loaded ? `${agents.length} agents` : 'Reading the room…'}
+      onClose={onClose}>
+      <TableSheet slots={slots} seated={seated} maxSeats={running ? homeGame.maxSeats : null} onDraft={onDraft}
+        onClose={onClose}
+        game={homeGame} gameKnown={gameKnown} liveTable={liveHomeTable} agents={agents}
+        onWatch={running && homeGame.tableId && onWatchTable ? () => { onClose(); onWatchTable(homeGame.tableId); } : null}
+        onSit={running && homeGame.tableId && onSitAtTable ? () => { onClose(); onSitAtTable(homeGame.tableId); } : null}
+      />
+    </RailPanel>
+  );
+}
+
 export function DeskHome({
   wsUrl = null,
   wallet = null,
@@ -92,7 +114,6 @@ export function DeskHome({
   const [ownerLines, setOwnerLines] = useState([]);
   const receiveOwnerLine = useCallback(line => setOwnerLines(prev => [...prev.filter(l => l.id !== line.id), line].slice(-200)), []);
   const room = useHomeThread({ pushed: ownerLines });
-  const { slots } = useSlots();
 
   return (
     <HomeScreen
@@ -153,22 +174,10 @@ export function DeskHome({
         }
 
         if (open === 'table') {
-          const seated = homeGame?.state === 'running'
-            ? (homeGame.seats ?? []).filter(Boolean).length
-            : 0;
           return (
-            <RailPanel
-              title="The table"
-              sub={slots ? `Roster · ${slots.used} of ${slots.cap} agents` : loaded ? `${agents.length} agents` : 'Reading the room…'}
-              onClose={backToRoom}
-            >
-              <TableSheet slots={slots} seated={seated} maxSeats={homeGame?.state === 'running' ? homeGame.maxSeats : null} onDraft={onCreateAgent}
-                onClose={backToRoom}
-                game={homeGame} gameKnown={gameKnown} liveTable={liveHomeTable} agents={agents}
-                onWatch={homeGame?.state === 'running' && homeGame.tableId && onWatchTable ? () => { backToRoom(); onWatchTable(homeGame.tableId); } : null}
-                onSit={homeGame?.state === 'running' && homeGame.tableId && onSitAtTable ? () => { backToRoom(); onSitAtTable(homeGame.tableId); } : null}
-              />
-            </RailPanel>
+            <TableRail agents={agents} loaded={loaded} homeGame={homeGame} gameKnown={gameKnown}
+              liveHomeTable={liveHomeTable} onDraft={onCreateAgent} onClose={backToRoom}
+              onWatchTable={onWatchTable} onSitAtTable={onSitAtTable}/>
           );
         }
 

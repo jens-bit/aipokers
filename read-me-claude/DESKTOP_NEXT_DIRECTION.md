@@ -10,7 +10,7 @@ The room is already laid out specifically for desktop, but remains a narrow, dar
 
 ## Approved visual direction
 
-Make Home feel like a small, inhabited poker clubhouse. Auto appearance follows the device's local clock: Warm Day 06:00–17:00, Amber Dusk 17:00–20:00, Teal Night 20:00–06:00. These are clock bands, not location-based sunrise/sunset. Allow a saved manual override. Re-evaluate after device sleep/focus and while open, without remounting the room. This changes lighting only; night players face no different rules. Preserve the agent's saved hood and glow in every appearance.
+Make Home feel like a small, inhabited poker clubhouse. Auto appearance follows the device's local clock: Warm Day 06:00–17:00, Amber Dusk 17:00–20:00, Warm Night 20:00–06:00. Jens's latest feedback replaces teal night with warm charcoal, olive and walnut and extends these palettes across every game route, sheet and conversation. These are clock bands, not location-based sunrise/sunset. Allow a saved manual override. Re-evaluate after device sleep/focus and while open, without remounting the room. This changes lighting only; night players face no different rules. Preserve the agent's saved hood and glow in every appearance.
 
 Give the room most of the desktop width, with compact companion presence and one contextual detail panel. The casino door belongs in a wall. Put the fridge in the kitchen area and make the TV recognizable. The kitchen table is wooden household furniture where people play, not a second casino felt. Keep mobile room-first, with reachable objects and contextual details rather than shrinking the desktop columns.
 

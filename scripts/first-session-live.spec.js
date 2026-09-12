@@ -94,16 +94,32 @@ for (const guestFlow of [false, true]) test(`FIRST-SESSION-LIVE: ${guestFlow ? '
 
   await hint.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(hint).toContainText('The kitchen table is where you watch or join a game.');
+  const slotsRead = page.waitForResponse(response => pathOf(response.request()) === '/api/slots'
+    && response.request().method() === 'GET');
   await hint.getByRole('button', { name: 'Open table', exact: true }).click();
   const table = page.getByTestId('home-table-sheet');
   await expect(table).toBeVisible();
+  // HOME-SLOTS-1: the desktop room survives birth. Its table must read the
+  // post-birth server projection on opening, not keep the first free slot.
+  const slotsResponse = await slotsRead;
+  expect(slotsResponse.ok(), 'opening the table reads the current owned slots').toBe(true);
+  const slots = await slotsResponse.json();
+  expect(slots.used).toBe(1);
+  expect(slots.next.index).toBe(2);
+  await expect(table.locator('.table-sheet__ordinal')).toHaveText('2ND SEAT');
+  await expect(table.locator('.table-sheet__price')).toHaveText(`${slots.next.price.toLocaleString('en-US')} chips won`);
+  await expect(table.getByTestId('home-table-draft')).toHaveCount(0);
+  const desktop = testInfo.project.name.startsWith('desktop-');
+  if (desktop) {
+    await expect(page.locator('.dsk-panel').filter({ has: table }).locator('.dsk-panel-head__sub'))
+      .toHaveText(`Roster · ${slots.used} of ${slots.cap} agents`);
+  }
   // Follow the actual Home state. A single newborn can have a quiet kitchen;
   // this test must not seat anyone or pretend that an absent game is live.
   await expect(hint).toContainText(/Watch the kitchen game here\.|The kitchen is quiet; the casino has more tables\./);
   expect(writes.slice(writesAfterBirth), 'Home guidance makes no API writes').toEqual([]);
   expect(gameCommands.slice(commandsAfterBirth).filter(type => type !== 'watch'), 'Home preview may watch, but guidance never joins, acts, deals or chats').toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('table-guide.png') });
-  const desktop = testInfo.project.name.startsWith('desktop-');
   let guideRoute;
   if (await table.getByTestId('home-table-watch').isVisible()) {
     guideRoute = 'running kitchen → actual WATCH → shared board → completed';

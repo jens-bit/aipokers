@@ -31,11 +31,11 @@ import { money } from '../../lib/wallet.js';
 import { ledgerDay, ledgerLine, ledgerTime } from '../../lib/safeLines.js';
 import { Lbl, Num } from './atoms.jsx';
 
-const M_TEAL   = '#00D4AA';
-const M_GOLD   = '#CDB380';
-const M_DIM    = '#A1A1A1';
-const M_MUTED  = '#6B6B6B';
-const M_BORDER = 'rgba(255,255,255,0.12)';
+const M_TEAL   = 'var(--accent)';
+const M_GOLD   = 'var(--gold-reward)';
+const M_DIM    = 'var(--text-secondary)';
+const M_MUTED  = 'var(--text-muted)';
+const M_BORDER = 'var(--edge)';
 
 /** The owner-facing name of an entry: what happened, and who it was about. */
 export function entryLabel(entry, nameOf) {
@@ -109,7 +109,7 @@ export function LedgerList({
         className={`wal-ledger${flush ? ' wal-ledger--flush' : ''}`}
         style={flush ? { flexShrink: 0 } : {
           margin: '0 14px 14px', borderRadius: 12, overflow: 'hidden',
-          background: '#1b1b1b', border: `1px solid ${M_BORDER}`, flexShrink: 0,
+          background: 'var(--bg-tertiary)', border: `1px solid ${M_BORDER}`, flexShrink: 0,
         }}
       >
         {rows.map((entry, i) => (

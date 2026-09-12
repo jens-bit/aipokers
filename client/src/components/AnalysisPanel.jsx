@@ -398,12 +398,12 @@ export function RiverAttrPanel({ agent, hand }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
         <span style={{
           fontFamily: "'Oswald', Inter, sans-serif", fontSize: 9, fontWeight: 500,
-          letterSpacing: '0.16em', textTransform: 'uppercase', color: '#CDB380',
+          letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--gold-reward)',
         }}>Why the {street} went wrong</span>
-        <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--edge)' }} />
         <span style={{
           fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 9,
-          fontWeight: 500, color: '#9E9EA2', whiteSpace: 'nowrap',
+          fontWeight: 500, color: 'var(--text-secondary)', whiteSpace: 'nowrap',
         }}>{stateChip}</span>
       </div>
 
@@ -419,10 +419,10 @@ export function RiverAttrPanel({ agent, hand }) {
         />
       )}
 
-      <div style={{ fontSize: 11.5, color: '#9E9EA2', lineHeight: 1.5, marginTop: 10 }}>
+      <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 10 }}>
         {cost.line}
         {cost.line && (
-          <b style={{ color: '#C3C3C6' }}> The strategy was not wrong here. The execution was.</b>
+          <b style={{ color: 'var(--text-primary)' }}> The strategy was not wrong here. The execution was.</b>
         )}
       </div>
     </div>

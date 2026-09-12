@@ -52,18 +52,18 @@ describe('the glass tokens', () => {
     // No opaque hex anywhere in it.
     expect(base).not.toMatch(/#[0-9A-Fa-f]{6}/);
 
-    // ...and the tokens are still v5's own numbers.
-    expect(tokens).toMatch(/--v5-panel:\s*rgba\(13,\s*23,\s*21,\s*0\.72\)/);
+    // ...and the tokens share the appearance surface and edges, preserving translucency.
+    expect(tokens).toContain('--v5-panel: color-mix(in srgb, var(--bg-secondary) 94%, transparent)');
     expect(tokens).toMatch(/--v5-blur:\s*blur\(18px\) saturate\(1\.2\)/);
-    expect(tokens).toMatch(/--v5-edge:\s*rgba\(255,\s*255,\s*255,\s*0\.11\)/);
+    expect(tokens).toContain('--v5-edge: var(--edge)');
   });
 
   it('the raised panel is the raised token, not a lighter guess', () => {
     const up = rule('.glass--up');
     expect(up).toMatch(/var\(--v5-raised\)/);
     expect(up).toMatch(/var\(--v5-edge-up\)/);
-    expect(tokens).toMatch(/--v5-raised:\s*rgba\(18,\s*30,\s*28,\s*0\.84\)/);
-    expect(tokens).toMatch(/--v5-edge-up:\s*rgba\(255,\s*255,\s*255,\s*0\.17\)/);
+    expect(tokens).toContain('--v5-raised: color-mix(in srgb, var(--bg-secondary) 98%, transparent)');
+    expect(tokens).toContain('--v5-edge-up: var(--edge-strong)');
   });
 
   // "On glass the small-caps label reads as chrome, and this half of the screen

@@ -31,7 +31,7 @@ describe('HOME-1: cards fit the authored Home room', () => {
       expect(hand.textContent).toBe('');
       expect(hand.querySelectorAll('svg')).toHaveLength(2);
       for(const mark of hand.querySelectorAll('svg'))expect(mark).toHaveAttribute('aria-hidden','true');
-      for(const mark of hand.querySelectorAll('path'))expect(mark).toHaveAttribute('fill','#7a8a9a');
+      for(const mark of hand.querySelectorAll('path'))expect(mark).toHaveAttribute('fill','var(--card-back-accent)');
     },
   );
 

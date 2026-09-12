@@ -9,8 +9,8 @@
 import { AttrBar } from './AttrBar.jsx';
 import { captionFor } from '../../lib/attributes.js';
 
-const M_BG   = '#1A1A1E';
-const M_TEAL = '#00D4AA';
+const M_BG   = 'var(--bg-primary)';
+const M_TEAL = 'var(--accent)';
 
 /**
  * SHOW, DON'T TELL. Three growth ticks were three sentences; they are now three
@@ -44,14 +44,14 @@ export function AttrSpark({ series, cur, lo, hi, w = 300, h = 58 }) {
       preserveAspectRatio="none"
       aria-hidden
     >
-      <rect x="0" y={yy(hi)} width={w} height={Math.max(3, yy(lo) - yy(hi))} fill="rgba(205,179,128,0.10)" />
-      <line x1="0" y1={yy(hi)} x2={w} y2={yy(hi)} stroke="rgba(205,179,128,0.60)" strokeWidth="1" />
-      <line x1="0" y1={yy(lo)} x2={w} y2={yy(lo)} stroke="rgba(205,179,128,0.33)" strokeWidth="1" strokeDasharray="3 3" />
+      <rect x="0" y={yy(hi)} width={w} height={Math.max(3, yy(lo) - yy(hi))} fill="color-mix(in srgb, var(--gold-reward) 10%, transparent)" />
+      <line x1="0" y1={yy(hi)} x2={w} y2={yy(hi)} stroke="color-mix(in srgb, var(--gold-reward) 60%, transparent)" strokeWidth="1" />
+      <line x1="0" y1={yy(lo)} x2={w} y2={yy(lo)} stroke="color-mix(in srgb, var(--gold-reward) 33%, transparent)" strokeWidth="1" strokeDasharray="3 3" />
       <polyline points={pts.map((p) => p.join(',')).join(' ')} fill="none" stroke={M_TEAL} strokeWidth="1.8" strokeLinejoin="round" />
       {recent.map((i) => (
         <circle key={i} cx={pts[i][0]} cy={pts[i][1]} r="2.8" fill={M_BG} stroke={M_TEAL} strokeWidth="1.4" />
       ))}
-      <circle cx={last[0]} cy={last[1]} r="3.4" fill="#EDEDED" />
+      <circle cx={last[0]} cy={last[1]} r="3.4" fill="var(--text-primary)" />
     </svg>
   );
 }

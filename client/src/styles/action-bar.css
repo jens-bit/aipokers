@@ -40,12 +40,12 @@
   width: 80px;
   height: 26px;
   min-height: 0;
-  background: rgba(0, 212, 170, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid var(--accent);
   border-radius: 999px;
   color: var(--accent);
   text-shadow: 0 0 8px var(--glow-soft);
-  box-shadow: 0 0 12px rgba(0, 212, 170, 0.2);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 20%, transparent);
   font-size: 13px;
   line-height: 1;
   letter-spacing: 0;
@@ -127,7 +127,7 @@
 
 .btn--fold {
   background: var(--error);
-  color: var(--text-primary);
+  color: var(--on-accent);
 }
 .btn--check {
   background: var(--bg-tertiary);
@@ -205,7 +205,7 @@
     gap: 16px;
     border-radius: 12px;
     background: var(--bg-secondary);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 4%, transparent);
     box-shadow: none;
   }
   .action-bar__sizing { flex-wrap: nowrap; }
@@ -214,7 +214,7 @@
     font-size: 28px;
     border-radius: 8px;
     background: var(--bg-tertiary);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 6%, transparent);
     padding: 14px;
   }
   .amount-input:focus { border-color: var(--accent); }
@@ -227,29 +227,29 @@
   .action-bar__row--primary > .btn { flex: none; min-height: 52px; font-size: 13px; }
   /* Desktop button styles */
   .btn--fold {
-    background: rgba(255, 77, 79, 0.08);
+    background: color-mix(in srgb, var(--error) 8%, transparent);
     color: var(--error);
-    border: 1px solid rgba(255, 77, 79, 0.2);
+    border: 1px solid color-mix(in srgb, var(--error) 20%, transparent);
   }
   .btn--fold:hover:not(:disabled) {
     filter: none;
-    background: rgba(255, 77, 79, 0.16);
+    background: color-mix(in srgb, var(--error) 16%, transparent);
     border-color: var(--error);
   }
   .btn--check {
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
   .btn--call {
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
   .btn--bet,
   .btn--raise {
     background: var(--accent);
-    color: var(--bg-primary);
+    color: var(--on-accent);
     border: none;
     box-shadow: 0 0 24px var(--glow-soft);
   }

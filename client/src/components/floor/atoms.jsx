@@ -161,23 +161,24 @@ export function MoodChip({ mood, small }) {
 export function StateTag({ state = 'resting', compact }) {
   const s = STATES[state] || STATES.resting;
   const resting = state === 'resting';
+  const color = state === 'live' ? 'var(--success)' : 'var(--text-secondary)';
   return (
     <span
       className={`floor-state-tag${compact ? ' is-compact' : ''}`}
       style={{
-        background: resting ? 'rgba(255,255,255,0.04)' : `${s.color}1A`,
-        borderColor: resting ? 'rgba(255,255,255,0.10)' : `${s.color}55`,
+        background: 'var(--bg-secondary)',
+        borderColor: resting ? 'var(--edge)' : `color-mix(in srgb, ${color} 33%, transparent)`,
       }}
     >
-      {state === 'live' && <span className="floor-dot" aria-hidden />}
+      {state === 'live' && <span className="floor-dot" style={{ background: color, boxShadow: `0 0 6px ${color}` }} aria-hidden />}
       {state === 'recap' && (
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={M_GOLD}
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={color}
           strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M5 12l5 5 9-11" />
         </svg>
       )}
       {resting && <span className="floor-state-tag__dot" aria-hidden />}
-      <span style={{ color: s.color }}>{s.label}</span>
+      <span style={{ color }}>{s.label}</span>
     </span>
   );
 }

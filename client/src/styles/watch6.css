@@ -29,7 +29,7 @@
   font-size: 13px;
   font-weight: 600;
   letter-spacing: -0.005em;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
 }
 
 /* ── the hero, seated at the bottom edge ──────────────────────────────────
@@ -68,6 +68,15 @@
   background: none;
   border: none;
   cursor: pointer;
+}
+
+/* A public camera has a real player in front. Give that identity the same
+   readable ink as an opponent's name, rather than the old muted Street label. */
+.watch-felt__hero-lbl[title] {
+  color: var(--text-primary);
+  font: 600 11px/1.4 var(--sys-font-body);
+  letter-spacing: .02em;
+  text-transform: none;
 }
 
 .watch-hero__aura {
@@ -121,8 +130,8 @@
   align-items: center;
   gap: 9px;
   padding: 8px 11px;
-  background: rgba(13, 23, 21, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
 }
 
 .watch-hero__stack-row {
@@ -162,10 +171,10 @@
   letter-spacing: -0.01em;
 }
 
-.watch-result-toast.is-won  { border-color: rgba(0, 212, 170, 0.34); }
-.watch-result-toast.is-lost { border-color: rgba(255, 77, 79, 0.30); }
-.watch-result-toast.is-won  .watch-result-toast__amt { color: var(--sys-teal, #00D4AA); }
-.watch-result-toast.is-lost .watch-result-toast__amt { color: var(--sys-red, #FF4D4F); }
+.watch-result-toast.is-won  { border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
+.watch-result-toast.is-lost { border-color: color-mix(in srgb, var(--error) 30%, transparent); }
+.watch-result-toast.is-won  .watch-result-toast__amt { color: var(--sys-teal, var(--accent)); }
+.watch-result-toast.is-lost .watch-result-toast__amt { color: var(--sys-red, var(--error)); }
 
 /* In and out inside its own 1.5s, so the node is unmounted as it finishes
    fading rather than sitting there invisible over his strip. */
@@ -207,11 +216,11 @@
   gap: 9px;
   padding: 0 11px;
   border-radius: 13px;
-  background: rgba(18, 30, 28, 0.84);
+  background: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.17);
-  border-left: 3px solid var(--sys-gold, #CDB380);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 17%, transparent);
+  border-left: 3px solid var(--sys-gold, var(--gold-reward));
   animation: bubble-in 200ms ease-out both;
 }
 
@@ -220,7 +229,7 @@
   min-width: 0;
   font-size: 11.5px;
   line-height: 1.3;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -235,8 +244,8 @@
   font-weight: 600;
   letter-spacing: 0.13em;
   text-transform: uppercase;
-  color: var(--sys-gold, #CDB380);
-  border: 1px solid rgba(205, 179, 128, 0.53);
+  color: var(--sys-gold, var(--gold-reward));
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 53%, transparent);
   border-radius: 3px;
   padding: 2px 5px;
   white-space: nowrap;
@@ -252,8 +261,8 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--sys-gold, #CDB380);
-  box-shadow: 0 0 7px var(--sys-gold, #CDB380);
+  background: var(--sys-gold, var(--gold-reward));
+  box-shadow: 0 0 7px var(--sys-gold, var(--gold-reward));
   cursor: pointer;
 }
 
@@ -274,13 +283,13 @@
   max-width: 250px;
   padding: 7px 12px;
   border-radius: 11px;
-  background: rgba(237, 237, 237, 0.10);
-  border: 1px solid rgba(237, 237, 237, 0.22);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 22%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   font-size: 12px;
   line-height: 1.35;
-  color: rgba(237, 237, 237, 0.86);
+  color: color-mix(in srgb, var(--text-primary) 86%, transparent);
   text-align: center;
 }
 
@@ -299,8 +308,8 @@
 .watch-composer {
   flex-shrink: 0;
   padding: 9px 12px 12px;
-  background: #101A18;
-  border-top: 1px solid rgba(255, 255, 255, 0.11);
+  background: var(--bg-secondary);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
   /* WATCH-7: the swipe-up did not fire on a phone. Without this the browser
      claims a vertical drag here as a page pan and cancels the gesture before it
      has travelled its 28px — the platform taking the swipe, not the code
@@ -327,10 +336,10 @@
      Safari zooms the whole Mini App when a field under 16px takes focus, and
      the zoom does not come back. 16px is the smallest size that is not a bug. */
   font-size: 16px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
 }
 
-.watch-composer__input::placeholder { color: var(--sys-muted, #6B6B6B); }
+.watch-composer__input::placeholder { color: var(--sys-muted, var(--text-muted)); }
 
 .watch-composer__thread {
   flex-shrink: 0;
@@ -343,7 +352,7 @@
   justify-content: center;
   background: none;
   border: none;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   cursor: pointer;
 }
 
@@ -354,7 +363,7 @@
   min-height: 0;
   padding: 0;
   border-radius: 50%;
-  background: var(--sys-teal, #00D4AA);
+  background: var(--sys-teal, var(--accent));
   border: none;
   display: flex;
   align-items: center;
@@ -389,15 +398,15 @@
   font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: none;
-  color: var(--sys-faint, #55555C);
+  color: var(--sys-faint, var(--text-faded));
   cursor: pointer;
 }
 
-.watch-composer__hint:active { color: var(--sys-dim, #A1A1A1); }
+.watch-composer__hint:active { color: var(--sys-dim, var(--text-secondary)); }
 
 .watch-composer__chevron {
   display: block;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -421,10 +430,10 @@
   z-index: 8;
   display: flex;
   flex-direction: column;
-  background: rgba(13, 23, 21, 0.72);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  background: var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border-top: 1px solid var(--v5-edge-up);
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
   padding: 9px 14px 12px;
@@ -452,7 +461,7 @@
   width: 34px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--text-primary) 25%, transparent);
 }
 
 .thread-sheet__head {
@@ -468,7 +477,7 @@
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.08em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   white-space: nowrap;
 }
 
@@ -482,13 +491,13 @@
   padding: 14px 0;
   font-size: 12px;
   font-style: italic;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .thread-sheet__foot {
   flex-shrink: 0;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 7%, transparent);
 }
 
 /* Four registers, one row: HIM, YOU, TABLE, and an opponent under their own
@@ -498,7 +507,7 @@
   gap: 9px;
   padding: 8px 0;
   align-items: baseline;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 5%, transparent);
 }
 
 .thread-row__who {
@@ -507,7 +516,7 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 400;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -517,7 +526,7 @@
   flex: 1;
   font-size: 12px;
   line-height: 1.42;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   font-style: italic;
 }
 
@@ -526,22 +535,22 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 8.5px;
   font-weight: 500;
-  color: var(--sys-faint, #55555C);
+  color: var(--sys-faint, var(--text-faded));
 }
 
-.thread-row--him .thread-row__who { font-weight: 700; color: var(--sys-teal, #00D4AA); }
+.thread-row--him .thread-row__who { font-weight: 700; color: var(--sys-teal, var(--accent)); }
 .thread-row--him .thread-row__text {
   font-size: 13px;
   font-style: normal;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
 }
 
-.thread-row--you .thread-row__who { font-weight: 700; color: var(--sys-gold, #CDB380); }
-.thread-row--you .thread-row__text { font-style: normal; color: var(--sys-gold, #CDB380); }
+.thread-row--you .thread-row__who { font-weight: 700; color: var(--sys-gold, var(--gold-reward)); }
+.thread-row--you .thread-row__text { font-style: normal; color: var(--sys-gold, var(--gold-reward)); }
 
 .thread-row--table .thread-row__text { font-style: normal; }
 .thread-row.is-cost .thread-row__who,
-.thread-row.is-cost .thread-row__text { color: var(--sys-gold, #CDB380); }
+.thread-row.is-cost .thread-row__text { color: var(--sys-gold, var(--gold-reward)); }
 
 /* ── the read sheet: the SAME glass, the same 70% ──────────────────────────
    It was --sys-panel: a flat grey card butted against the felt. */
@@ -550,10 +559,10 @@
   max-height: 70%;
   overflow-y: auto;
   box-sizing: border-box;
-  background: rgba(13, 23, 21, 0.72);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  background: var(--v5-panel);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
+  border-top: 1px solid var(--v5-edge-up);
   box-shadow: none;
 }
 
@@ -564,17 +573,17 @@
   inset: 0;
   z-index: 9;
   background: radial-gradient(ellipse 90% 46% at 50% 84%,
-    rgba(0, 212, 170, 0.10) 0%, rgba(8, 12, 11, 0.72) 46%, rgba(8, 12, 11, 0.90) 100%);
+    color-mix(in srgb, var(--accent) 10%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 46%, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 100%);
 }
 
 .watch-ceremony[data-outcome='lost'] {
   background: radial-gradient(ellipse 90% 46% at 50% 84%,
-    rgba(205, 179, 128, 0.10) 0%, rgba(8, 12, 11, 0.72) 46%, rgba(8, 12, 11, 0.90) 100%);
+    color-mix(in srgb, var(--gold-reward) 10%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 46%, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 100%);
 }
 
 .watch-ceremony[data-outcome='lost'][data-heat='hot'] {
   background: radial-gradient(ellipse 90% 46% at 50% 84%,
-    rgba(255, 77, 79, 0.14) 0%, rgba(8, 12, 11, 0.72) 46%, rgba(8, 12, 11, 0.90) 100%);
+    color-mix(in srgb, var(--error) 14%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 46%, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 100%);
 }
 
 .watch-ceremony__block {
@@ -594,7 +603,7 @@
   font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .watch-ceremony__head {
@@ -603,11 +612,11 @@
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.015em;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
 }
 
-.watch-ceremony[data-outcome='lost'] .watch-ceremony__head { color: var(--sys-gold, #CDB380); }
-.watch-ceremony[data-outcome='lost'][data-heat='hot'] .watch-ceremony__head { color: var(--sys-red, #FF4D4F); }
+.watch-ceremony[data-outcome='lost'] .watch-ceremony__head { color: var(--sys-gold, var(--gold-reward)); }
+.watch-ceremony[data-outcome='lost'][data-heat='hot'] .watch-ceremony__head { color: var(--sys-red, var(--error)); }
 
 /* THE DELTA AND WHERE HE STANDS. "Granite took $1,250" tells the owner what
    happened to the pot; it does not tell him what happened to his guy. */
@@ -623,17 +632,17 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.watch-ceremony__delta-amt.is-won  { color: var(--sys-teal, #00D4AA); }
-.watch-ceremony__delta-amt.is-lost { color: var(--sys-red, #FF4D4F); }
+.watch-ceremony__delta-amt.is-won  { color: var(--sys-teal, var(--accent)); }
+.watch-ceremony__delta-amt.is-lost { color: var(--sys-red, var(--error)); }
 
-.watch-ceremony__dot { font-size: 12px; color: var(--sys-muted, #6B6B6B); }
-.watch-ceremony__stack-lbl { font-size: 12.5px; color: var(--sys-dim, #A1A1A1); }
+.watch-ceremony__dot { font-size: 12px; color: var(--sys-muted, var(--text-muted)); }
+.watch-ceremony__stack-lbl { font-size: 12.5px; color: var(--sys-dim, var(--text-secondary)); }
 
 .watch-ceremony__stack {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 17px;
   font-weight: 700;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   font-variant-numeric: tabular-nums;
 }
 
@@ -642,7 +651,7 @@
   font-size: 9px;
   font-weight: 500;
   letter-spacing: 0.08em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 /* WATCH-10 job 3 · THE LAST HAND, NAMED. Same three parts as the felt's result
@@ -667,19 +676,19 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   white-space: nowrap;
 }
 .watch-ceremony__hand-amt {
   font-family: var(--sys-font-display, "Playfair Display", serif);
   font-size: 15px;
   font-weight: 600;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
 }
 .watch-ceremony__hand-with {
   font-family: var(--sys-font-body, "Inter", sans-serif);
   font-size: 10.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
 }
 
 .watch-ceremony__ghost { position: relative; margin-top: 2px; }
@@ -700,15 +709,15 @@
   width: 210px;
   height: 210px;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(0, 212, 170, 0.15), transparent 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 15%, transparent), transparent 68%);
   pointer-events: none;
 }
 
 .watch-ceremony[data-outcome='lost'] .watch-ceremony__aura {
-  background: radial-gradient(circle, rgba(205, 179, 128, 0.15), transparent 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--gold-reward) 15%, transparent), transparent 68%);
 }
 .watch-ceremony[data-outcome='lost'][data-heat='hot'] .watch-ceremony__aura {
-  background: radial-gradient(circle, rgba(255, 77, 79, 0.24), transparent 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--error) 24%, transparent), transparent 68%);
 }
 
 /* WATCH-7: BUSTED is the longest head this block ever draws, and a session is
@@ -752,17 +761,17 @@
    grey bar butted against a dark green table, which is the exact seam v4c
    exists to remove. Both take the felt's own colour now. */
 .watch-screen__header {
-  background: linear-gradient(180deg, #16221F 0%, #131f1e 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.11);
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--felt-edge) 100%);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
 }
 
 .watch-screen {
-  background: #101A18;
+  background: var(--bg-secondary);
 }
 
 .thread-sheet__foot .watch-sitout-strip {
-  background: rgba(18, 30, 28, 0.84);
-  border: 1px solid rgba(255, 255, 255, 0.17);
+  background: color-mix(in srgb, var(--bg-secondary) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 17%, transparent);
   border-radius: 13px;
   margin-top: 8px;
 }
@@ -815,7 +824,7 @@
   font-size: 7.5px;
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--felt-ink);
 }
 .chip-stack__amt {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
@@ -823,7 +832,7 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
-  color: var(--sys-text, #EDEDED);
+  color: var(--felt-ink);
 }
 
 /* Where a bet lands: in front of the cards, on the felt, not in a panel. */
@@ -837,7 +846,7 @@
   font-size: 10.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--sys-gold, #CDB380);
+  color: var(--felt-ink);
 }
 
 /* His pile stands to his LEFT, at his feet, on the felt — the ref's own
@@ -919,10 +928,9 @@
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
-  color: var(--sys-dim, #C3C3C6);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  color: var(--felt-ink);
 }
-.watch-felt__seat-pile.is-folded .chip-stack__amt { color: var(--sys-muted, #9E9EA2); }
+.watch-felt__seat-pile.is-folded .chip-stack__amt { color: var(--sys-muted, var(--text-muted)); }
 
 /* The bet spot sits between the pile and the pot, so money always reads as
    travelling. It arrives from the pile and leaves for the pot with every other
@@ -1040,7 +1048,7 @@
   position: relative;
   height: 2px;
   border-radius: 1px;
-  background: rgba(255, 255, 255, 0.09);
+  background: color-mix(in srgb, var(--text-primary) 9%, transparent);
   overflow: hidden;
 }
 
@@ -1056,7 +1064,7 @@
   font-weight: 600;
   letter-spacing: 0.14em;
   line-height: 1;
-  color: rgba(237, 237, 237, 0.42);
+  color: color-mix(in srgb, var(--text-primary) 42%, transparent);
 }
 
 

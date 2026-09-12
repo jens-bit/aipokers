@@ -50,10 +50,10 @@ import { tonightOf } from '../../lib/safeLines.js';
 import { presenceOf } from '../floor/agentView.js';
 import '../../styles/safe.css';
 
-const M_TEAL  = '#00D4AA';
-const M_GOLD  = '#CDB380';
-const M_DIM   = '#A1A1A1';
-const M_MUTED = '#6B6B6B';
+const M_TEAL  = 'var(--accent)';
+const M_GOLD  = 'var(--gold-reward)';
+const M_DIM   = 'var(--text-secondary)';
+const M_MUTED = 'var(--text-muted)';
 
 // The ref's three, in the ref's order and the ref's words. Every one of them is
 // something you can do TO the number above them, and there is nothing you can
@@ -252,7 +252,7 @@ export function SafeSheet({
               className="safe__verb"
               disabled={walletStatus !== 'ready'}
               data-verb={v.key}
-              style={{ '--verb': v.color, borderColor: `${v.color}4D`, background: `${v.color}0F` }}
+              style={{ '--verb': v.color, borderColor: `color-mix(in srgb, ${v.color} 30%, transparent)`, background: `color-mix(in srgb, ${v.color} 6%, transparent)` }}
               onClick={() => setPage(v.key)}
             >
               <span className="safe__verb-label">{v.label}</span>

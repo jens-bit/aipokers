@@ -146,7 +146,8 @@ it('BUG-127: a quiet shift keeps the authored explanation in the phone companion
 // The row's geometry survived the port; its letters did not. Every number
 // below is measured off the authored C1 frame at 390x844 — the crop is
 // design-refs/frames/42-C1-actions.png — and the pair is
-// artifacts/pairs/42-C1-actions.png.
+// artifacts/pairs/42-C1-actions.png. The type and geometry remain authored;
+// ink follows the shared appearance rather than the retired fixed palette.
 const rowStyles = () => {
   const row = document.querySelector('.agent-view__actions');
   const deploy = row.querySelector('.agent-view__deploy');
@@ -165,17 +166,17 @@ it('BUG-197: DEPLOY carries the authored condensed face, weight and tracking', a
   // .14em of 10.5px is the 1.47px the authored frame measures.
   expect(word.letterSpacing).toMatch(/em$/);
   expect(parseFloat(word.letterSpacing)).toBeCloseTo(0.14, 5);
-  expect(word.color).toBe('rgb(0, 212, 170)');
+  expect(word.color).toBe('var(--accent)');
 });
 
-it('BUG-197: the pocket line is 10px mono in the authored dim ink, not 9px in flat grey', async () => {
+it('BUG-197: the pocket line is 10px mono in the shared secondary ink', async () => {
   show();
   await screen.findByTestId('agent-stage');
   const { deploy, css } = rowStyles();
   const number = css(deploy.querySelector('span'));
   expect(number.fontFamily).toMatch(/JetBrains Mono/);
   expect(number.fontSize).toBe('10px');
-  expect(number.color).toBe('rgb(195, 195, 198)');
+  expect(number.color).toBe('var(--text-secondary)');
 });
 
 it('BUG-197: the three labels are Oswald 600 at 7.5px in muted ink, and the icons are not', async () => {
@@ -190,12 +191,12 @@ it('BUG-197: the three labels are Oswald 600 at 7.5px in muted ink, and the icon
     expect(s.fontWeight).toBe('600');
     expect(s.letterSpacing).toMatch(/em$/);
     expect(parseFloat(s.letterSpacing)).toBeCloseTo(0.1, 5);
-    expect(s.color).toBe('rgb(158, 158, 162)');
+    expect(s.color).toBe('var(--text-muted)');
   }
   // Two inks. The icon rides the button's own colour, which is the brighter
   // dim; the label under it is the muted one. Flattening both is the bug.
   for (const button of row.querySelectorAll('button:not(.agent-view__deploy)')) {
-    expect(css(button).color).toBe('rgb(195, 195, 198)');
+    expect(css(button).color).toBe('var(--text-secondary)');
   }
 });
 

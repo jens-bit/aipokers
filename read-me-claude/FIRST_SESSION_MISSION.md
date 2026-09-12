@@ -56,3 +56,9 @@ Make the implementation concrete and playtest it locally; distinguish shipped be
 ## Latest correction — teach the real game, once
 
 Jens rejected the persistent Learn bar, repeated tutorial prompts and speculative additions without a functional design. This overrides the earlier separate-practice and belongings direction. The first arrival should lead into a short, skippable introduction using the actual interface, followed by guidance at the relevant moment inside the real game. One sentence or action at a time; no second onboarding journey and no nag on return. Do not add a notebook or other spatial object before agreeing what it does and where it belongs. Review the actual visuals and interactions during development, not only after the code or a proposal is finished.
+
+## Latest continuation — truthful Watch and a shared warm palette
+
+Jens reported that Home Watch appeared to show his agent playing itself. Reproduce the actual public spectator state, identify both real players, and fix presentation without inventing another player or changing who is allowed to play. Preserve card privacy and human actions.
+
+Carry the approved brighter Home palette through the whole game on phone and desktop, including Watch, casino, draft, conversations, profiles and sheets. Replace the dominant dark teal surfaces with Warm Day, Amber Dusk and Warm Night (warm charcoal, olive and walnut). This supersedes the earlier Teal Night name and the dark-conversation exception. Keep local-clock Auto and saved manual choices; preserve character identity and recognizable card suits. Inspect actual built screens and their text contrast while moving between them. No new needs, room objects, autonomy or economy rules are implied.

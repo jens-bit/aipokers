@@ -33,7 +33,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
-import { accentFor, M_TEAL } from '../floor/atoms.jsx';
+import { accentFor } from '../floor/atoms.jsx';
+const M_TEAL = 'var(--accent)';
 import { moodOf, heatOf } from '../floor/agentView.js';
 import { money, pocketOf } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
@@ -42,8 +43,8 @@ import { TableFelt } from './TableFelt.jsx';
 import { identityOf } from '../../lib/identity.js';
 
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
-const M_DIM = '#A1A1A1';
-const M_MUTED = '#6B6B6B';
+const M_DIM = 'var(--text-secondary)';
+const M_MUTED = 'var(--text-muted)';
 
 /**
  * Where he is, in the words the room uses.
@@ -93,7 +94,7 @@ function AwayPage({ agent, index, onSend }) {
           onClick={() => onSend(agent)}
           style={{
             fontFamily: OSWALD, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em',
-            color: M_TEAL, border: `1px solid ${M_TEAL}66`, borderRadius: 8,
+            color: M_TEAL, border: `1px solid color-mix(in srgb, ${M_TEAL} 40%, transparent)`, borderRadius: 8,
             padding: '5px 12px', background: 'transparent', cursor: 'pointer',
           }}
         >SEND HIM TO PLAY</button>

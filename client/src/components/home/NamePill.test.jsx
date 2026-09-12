@@ -7,7 +7,9 @@ import '../../styles/home1.css';
 it.each(['#3FB6A8','#C9A227','#D2632F','#8B6BC4','#7FA8C9','#8FB03F'])('BUG-166: the Home name stays authored neutral text with %s identity glow', accent => {
   const {container}=render(<NamePill name="Professor" nickname="Prof" accent={accent} fatigue="fresh" heat={58}/>);
   const name=container.querySelector('.home-pill__name');
-  expect(getComputedStyle(name).color).toBe('rgb(237, 237, 237)');
+  // The shared palette now changes by time of day; identity glow must still
+  // never replace the neutral, readable name foreground.
+  expect(getComputedStyle(name).color).toBe('var(--text-primary)');
   expect(name).toHaveTextContent('Prof');
   expect(container.querySelector('[data-bar="stamina"] i').style.width).toBe('100%');
   expect(container.querySelector('[data-bar="heat"] i').style.width).toBe('58%');

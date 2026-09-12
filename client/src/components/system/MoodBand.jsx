@@ -20,12 +20,12 @@ export function MoodBand({ accent = '#00D4AA', mood = 'neutral', heat = 45, caus
   return (
     <div style={{
       flexShrink: 0, display: 'flex', alignItems: 'center', gap: 11,
-      padding: '9px 14px 8px', borderBottom: '1px solid rgba(255,255,255,0.12)',
-      background: '#232329',
+      padding: '9px 14px 8px', borderBottom: '1px solid var(--edge)',
+      background: 'var(--bg-secondary)',
     }}>
       <div style={{
         width: 38, height: 38, borderRadius: 12, flexShrink: 0,
-        background: '#0A0F17', border: `1px solid ${accent}55`,
+        background: 'var(--bg-tertiary)', border: `1px solid ${accent}55`,
         boxShadow: `0 0 14px ${mColor}33`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
@@ -53,8 +53,8 @@ export function MoodBand({ accent = '#00D4AA', mood = 'neutral', heat = 45, caus
                row past the design's 63px. The ref sizes it at 30. */
             height: 30, minHeight: 0, padding: '0 13px', borderRadius: 8, cursor: 'pointer',
             background: 'transparent',
-            border: `1px solid ${state === 'live' ? 'rgba(255,255,255,0.10)' : '#00D4AA'}`,
-            color: state === 'live' ? '#A1A1A1' : '#00D4AA',
+            border: `1px solid ${state === 'live' ? 'var(--edge-soft)' : 'var(--accent)'}`,
+            color: state === 'live' ? 'var(--text-secondary)' : 'var(--accent)',
             fontFamily: 'var(--sys-font-label, "Oswald", sans-serif)',
             fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
             textTransform: 'uppercase', flexShrink: 0, whiteSpace: 'nowrap',

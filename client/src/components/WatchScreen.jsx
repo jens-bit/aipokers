@@ -90,6 +90,15 @@ function pc(cardStr) {
   return [cardStr[0], cardStr[1]];
 }
 
+// A public spectator's wire seat is -1, not a player. Pick an occupied camera
+// position without changing the authenticated seat used for actions or reads.
+function viewingSeat(game, mySeat, seated = false) {
+  if (seated) return Number.isInteger(mySeat) ? mySeat : 0;
+  const seats = game?.seats ?? [];
+  if (Number.isInteger(mySeat) && mySeat >= 0 && seats[mySeat]) return mySeat;
+  return seats.findIndex(Boolean);
+}
+
 function handActive(game) {
   if (!game) return false;
   const active = [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN];
@@ -647,7 +656,7 @@ function HeroRow({ hole, landed, between, mucking, stack, pos, street, toCall, a
 export function WatchFelt({
   game, mySeat, lastDecision, handEquity, flipped, newCard = null, line, geom, selectedSeat, onSelectSeat,
   bubbles = [], ceremony = null, cost = null, overlay = null, whispers = [], onTapHero, heroActionLabel,
-  agentMood, agentHeat, agentAccent, agentFatigue = null,
+  agentMood, agentHeat, agentAccent, agentFatigue = null, showHeroName = false,
   // SIT-1: the owner is the one in the hero seat. Everything above the hero is
   // unchanged — same opponents, same board, same pot — and the bottom of the
   // axis becomes his cards and a YOU pill instead of a ghost he does not have.
@@ -677,7 +686,7 @@ export function WatchFelt({
   var winner = (result && result.winners && result.winners.length) ? result.winners[0] : null;
 
   var queued = seated && game?.waitingForNextHand;
-  var heroSeat  = queued ? (game?.seats?.length || 0) : Number.isInteger(mySeat) ? mySeat : 0;
+  var heroSeat  = queued ? (game?.seats?.length || 0) : viewingSeat(game, mySeat, seated);
   var seatCount = Math.max((game?.seats?.length || 2) + (queued ? 1 : 0), 2);
   var heroData  = game && game.seats ? game.seats[heroSeat] : null;
   var heroIdentity = storedIdentity({identity:heroData?.identity});
@@ -756,7 +765,7 @@ export function WatchFelt({
     ? Math.max(0, game.currentBet - (heroData.contribThisStreet || 0))
     : 0;
   var toActLabel = (!queued && game && game.toAct === heroSeat && live) ? 'TO ACT' : null;
-  var actionLabel = settled ? null : (lastDecision && lastDecision.action
+  var actionLabel = settled ? null : (lastDecision && lastDecision.seat === heroSeat && lastDecision.action
     ? formatAction(lastDecision.action)
     : toActLabel);
 
@@ -887,6 +896,9 @@ export function WatchFelt({
       && !bubbles.some(b => b.seat === winnerSpeech.seat || (b.mine && winnerSpeech.seat === heroSeat))) {
     bubbles = [{...winnerSpeech, mine:winnerSpeech.seat === heroSeat}, ...bubbles];
   }
+  // "mine" here is visual placement only. Public speech still belongs to its
+  // named server seat, including the player nearest the camera.
+  bubbles = bubbles.map(b => Number.isInteger(b.seat) ? { ...b, mine: b.seat === heroSeat } : b);
   var mine = bubbles.filter(function(b) { return b.mine; });
   var heroSays = mine.length ? mine[mine.length - 1].text : null;
 
@@ -1131,7 +1143,7 @@ export function WatchFelt({
             tag={pace === 'allin' && !settled ? 'HOLDING' : null}
           />
         </>
-      ) : (
+      ) : (seated || heroData || !game) ? (
         <>
         {/* HIS CHIPS LIVE ON THE FELT, to his left, and the bet spot in front of
             his cards. STACK left the strip with them: the chips ARE the stack,
@@ -1188,15 +1200,16 @@ export function WatchFelt({
         />
         ) : (
         <WatchHero
+          name={(showHeroName || mySeat !== heroSeat) && heroData ? seatName(heroSeat, game.seats) : null}
           bustedName={celebration?.busted.some(b=>b.seat===heroSeat) ? heroData?.displayName : null}
           animateBust={!!watchedResult}
           won={heroWon}
           says={heroSays}
-          mood={agentMood || 'neutral'}
+          mood={agentMood || moodStateOf(heroData)}
           hood={heroIdentity?.hood}
           glow={heroIdentity?.glow.c}
           accent={heroIdentity?.glow.c || agentAccent || '#00D4AA'}
-          heat={Number.isFinite(agentHeat) ? agentHeat : null}
+          heat={Number.isFinite(agentHeat) ? agentHeat : moodHeatOf(heroData)}
           event={heroFace}
           brow={reactions.brow(heroSeat, agentHeat)}
           fatigue={heroFatigue}
@@ -1234,12 +1247,12 @@ export function WatchFelt({
           note={live ? null : heroNote}
           cost={cost}
           toast={toast}
-          onTapFace={onTapHero}
-          actionLabel={heroActionLabel}
+          onTapFace={onTapHero ?? (() => onSelectSeat?.(heroSeat))}
+          actionLabel={heroActionLabel ?? (onTapHero ? undefined : 'Read this player')}
         />
         )}
         </>
-      )}
+      ) : null}
 
       {/* A sent whisper: pale, small, rising from the bottom edge, gone in 4s. */}
       {whispers.map(function(w) { return <Whisper key={w.id} text={w.text} />; })}
@@ -1467,6 +1480,7 @@ export function WatchScreen({
 
   // ---- Agent mood polling (the header chip, and now his face on the felt) ----
   var agentId = config ? config.agentId : null;
+  var publicWatch = !seated && !agentId;
   useEffect(function() {
     if (!agentId) return;
     var cancelled = false;
@@ -1499,7 +1513,7 @@ export function WatchScreen({
   // His own seat carries the mood the server computed for this table; the agent
   // record is the fallback for the moment before the first snapshot lands.
   var queued = seated && !!game?.waitingForNextHand;
-  var heroSeatIdx = Number.isInteger(mySeat) ? mySeat : 0;
+  var heroSeatIdx = viewingSeat(game, mySeat, seated);
   var heroSeatRow = !queued && game?.seats ? game.seats[heroSeatIdx] : null;
   var heroMood = heroSeatRow ? moodStateOf(heroSeatRow) : mood;
   var heroHeat = heroSeatRow && Number.isFinite(moodHeatOf(heroSeatRow))
@@ -1831,12 +1845,12 @@ export function WatchScreen({
     var hand = game ? game.handNumber : null;
     if (queued || stagedRevealPending || !result || resultSeenRef.current === hand) return;
     resultSeenRef.current = hand;
-    var heroSeat = Number.isInteger(mySeat) ? mySeat : 0;
+    var heroSeat = heroSeatIdx;
     var won = !!(result.winners || []).some(function(w) { return w.seat === heroSeat; });
     fireHaptic(won ? 'wonPot' : 'lostPot'); // Shared felt owns C8 audio on both shells.
-  }, [game && game.handNumber, game && game.result, mySeat, queued, stagedRevealPending]);
+  }, [game && game.handNumber, game && game.result, heroSeatIdx, queued, stagedRevealPending]);
 
-  var heroSeatNo = Number.isInteger(mySeat) ? mySeat : 0;
+  var heroSeatNo = heroSeatIdx;
   var heroSeatData = !queued && game?.seats ? game.seats[heroSeatNo] : null;
   var heroHoleCards = (heroSeatData && heroSeatData.holeCards)
     ? heroSeatData.holeCards.map(pc).filter(Boolean)
@@ -1969,7 +1983,7 @@ export function WatchScreen({
     if (onLeave)  onLeave();
   }
 
-  var agentName = (config && config.displayName) ? config.displayName : null;
+  var agentName = !publicWatch && config?.displayName ? config.displayName : null;
 
   // WATCH-7 · THE RECEIPT. One line over his strip, teal or red, gone in 1.5s.
   // A delta of exactly zero is not a result — he was not in the hand — and a
@@ -2102,9 +2116,9 @@ export function WatchScreen({
           </svg>
         </button>
         <span className="watch-screen__title">
-          {config ? (config.displayName || 'Watching') : 'Watching'}
+          {publicWatch ? 'Watching' : (config?.displayName || 'Watching')}
         </span>
-        {!seated && <MoodChip mood={mood} small />}
+        {!seated && !publicWatch && <MoodChip mood={mood} small />}
         <StateTag state={state} compact />
         {onOpenThread && <MuteToggle compact/>}
         <div style={{ flex: 1 }} />
@@ -2117,14 +2131,16 @@ export function WatchScreen({
 
       {/* THE FELT IS THE SCREEN: header → felt → composer, nothing between. */}
       <WatchFelt selectedSeat={selectedSeat} onSelectSeat={toggleSeat}
-        game={game} mySeat={mySeat} lastDecision={lastDecision}
+        game={game} mySeat={heroSeatIdx} lastDecision={lastDecision}
+        showHeroName={publicWatch}
         handEquity={handEquity} flipped={faceUp}
         newCard={staged != null ? !!frame.card : flipped != null && flipped > revealFrom.current} line={feltLine}
         agentMood={heroMood} agentHeat={heroHeat} agentAccent={heroAccent}
         agentFatigue={heroFatigueStage}
         cost={pinnedCost}
         whispers={whispers}
-        onTapHero={function() { openChat(); }}
+        onTapHero={publicWatch ? () => toggleSeat(heroSeatIdx) : function() { openChat(); }}
+        heroActionLabel={publicWatch && heroSeatRow ? 'Read ' + seatName(heroSeatIdx, game.seats) : undefined}
         overlay={ceremonyNode ? null : overlay}
         toast={toastNode}
         heroStackShown={queued ? null : heroStackTicked}

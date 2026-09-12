@@ -135,7 +135,7 @@ export function NamePill({ name, nickname = null, fatigue = 'fresh', heat = 45, 
           the moment he is not one you can tap; this is what says WHY. */}
       {guest ? <span className="home-pill__guest" data-testid="home-pill-guest">GUEST</span> : null}
       {/* Board 29 HomeOne, reused by 42 C5: the name is primary text, not glow. */}
-      <span className="home-pill__name" style={{ color: '#EDEDED' }}>{shortName(name, nickname)}</span>
+      <span className="home-pill__name" style={{ color: 'var(--text-primary)' }}>{shortName(name, nickname)}</span>
       <span className="home-pill__bars" aria-hidden>
         <span className="home-pill__bar" data-bar="stamina">
           <i style={{ width: `${stam}%`, background: staminaPct(stam) }} />

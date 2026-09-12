@@ -59,14 +59,15 @@ import { RosterButton } from '../Header.jsx';
 import { TheFloor, FLOOR_CAP, FLOOR_W, FLOOR_H } from './TheFloor.jsx';
 import { money } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
-import { M_TEAL, M_GOLD } from '../floor/atoms.jsx';
+const M_TEAL = 'var(--accent)';
+const M_GOLD = 'var(--gold-reward)';
 import { Btn, count } from './CasinoBuilding.jsx';
 
 const MONO = '"JetBrains Mono",ui-monospace,monospace';
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
-const M_TEXT = '#EDEDED';
-const M_MUTED = '#6B6B6B';
+const M_TEXT = 'var(--text-primary)';
+const M_MUTED = 'var(--text-muted)';
 
 /** The table an agent is actually sitting at, however the payload says it. */
 export function tableIdOf(agent) {
@@ -151,7 +152,7 @@ function TableRow({ row, onWatch }) {
           {row.hot && (
             <span style={{
               fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.16em',
-              color: M_GOLD, border: `1px solid ${M_GOLD}77`, background: `${M_GOLD}1A`,
+              color: M_GOLD, border: `1px solid color-mix(in srgb, ${M_GOLD} 46.67%, transparent)`, background: `color-mix(in srgb, ${M_GOLD} 10.2%, transparent)`,
               borderRadius: 3, padding: '1px 5px',
             }}>HOT</span>
           )}

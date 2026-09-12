@@ -26,7 +26,7 @@ import { AttrCluster } from '../components/system/AttrCluster.jsx';
 import { BodyBars } from '../components/system/BodyBars.jsx';
 import { FatigueLine, NatureChip, NatureFormingChip } from '../components/system/CharacterAtoms.jsx';
 import { AttrExplain } from '../components/system/AttrExplain.jsx';
-import { accentFor, MOODS, M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
+import { accentFor, MOODS } from '../components/floor/atoms.jsx';
 import { moodOf, heatOf, stateOf, causeOf, homeGameOf } from '../components/floor/agentView.js';
 import { ATTR_KEYS, normalizeAttrs, seriesFor } from '../lib/attributes.js';
 import { callInAgent, collectFrom, collectsEverything, pocketOf, money, stakesFor } from '../lib/wallet.js';
@@ -34,14 +34,17 @@ import { setAgentMuted } from '../lib/notifyApi.js';
 import { CollectCard, PocketLine } from '../components/wallet/PocketLine.jsx';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 
-// ── Design tokens (verbatim from design refs) ─────────────────────────────
-const M_BG      = '#1A1A1E';
-const M_PANEL   = '#232329';
-const M_PANEL_2 = '#1b1b1b';
-const M_BORDER  = 'rgba(255,255,255,0.12)';
-const M_TEXT    = '#EDEDED';
-const M_DIM     = '#A1A1A1';
-const M_MUTED   = '#6B6B6B';
+// ── Theme tokens (shared across screens) ─────────────────────────────
+const M_BG      = 'var(--bg-primary)';
+const M_PANEL   = 'var(--bg-secondary)';
+const M_PANEL_2 = 'var(--bg-tertiary)';
+const M_BORDER  = 'var(--edge)';
+const M_TEXT    = 'var(--text-primary)';
+const M_DIM     = 'var(--text-secondary)';
+const M_MUTED   = 'var(--text-muted)';
+const M_TEAL    = 'var(--accent)';
+const M_GOLD    = 'var(--gold-reward)';
+const M_RED     = 'var(--error)';
 
 // PROFILE-2 — the four he trains, in ATTR_KEYS order. STAMINA and COMPOSURE are
 // deliberately absent: one is body, the other is the body's resistance, and both
@@ -95,7 +98,7 @@ function MoodTimeline({ sessions }) {
             y1={pad + (r / 4) * (h - pad * 2)} y2={pad + (r / 4) * (h - pad * 2)}
             stroke={M_BORDER} strokeWidth="1" strokeDasharray="2,4" />
         ))}
-        <polyline points={pts.map((p) => p.join(',')).join(' ')} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1.4" />
+        <polyline points={pts.map((p) => p.join(',')).join(' ')} fill="none" stroke="var(--edge-strong)" strokeWidth="1.4" />
         {pts.map((p, i) => (
           <circle key={i} cx={p[0]} cy={p[1]} r="4" fill={MOODS[sessions[i].mood]?.color ?? M_MUTED} />
         ))}
@@ -124,7 +127,7 @@ function ActivityIcon({ color }) {
   return (
     <div style={{
       width: 22, height: 22, borderRadius: 7,
-      background: `${color}1A`, border: `1px solid ${color}44`,
+      background: `color-mix(in srgb, ${color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 27%, transparent)`,
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     }}>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -322,7 +325,7 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
     <div style={{ padding: compact ? '10px 14px 8px' : '13px 14px 10px', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
       <div style={{
         width: 54, height: 54, borderRadius: 13, flexShrink: 0,
-        background: '#0A0F17', border: `1px solid ${accent}44`,
+        background: 'var(--bg-tertiary)', border: `1px solid color-mix(in srgb, ${accent} 27%, transparent)`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
         <MoodGhost mood={mood} heat={heat} accent={accent} size={52} ring={false} />
@@ -376,7 +379,7 @@ function ActionRow({ live, homeLive, muted, showFund, onPrimary, onFund, onRetir
       style={{
         flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', gap: 8,
         padding: '9px 14px', borderBottom: `1px solid ${M_BORDER}`, background: M_PANEL,
-        ...(compact ? { height:44, padding:'0 12px', gap:6, border:`1px solid ${M_BORDER}`, borderRadius:10, background:'#101A1880', marginBottom:4 } : {}),
+        ...(compact ? { height:44, padding:'0 12px', gap:6, border:`1px solid ${M_BORDER}`, borderRadius:10, background:'var(--surface-soft)', marginBottom:4 } : {}),
       }}
     >
       <button
@@ -386,10 +389,10 @@ function ActionRow({ live, homeLive, muted, showFund, onPrimary, onFund, onRetir
         onClick={onPrimary}
         style={{
           flex: showFund ? 1.4 : 1, height: 34, minHeight: 0, borderRadius: 9, cursor: 'pointer',
-          background: `${M_TEAL}14`, border: `1px solid ${M_TEAL}`, color: M_TEAL,
+          background: `color-mix(in srgb, ${M_TEAL} 8%, transparent)`, border: `1px solid ${M_TEAL}`, color: M_TEAL,
           fontFamily: OSWALD, fontSize: 11, fontWeight: 600, letterSpacing: '0.12em',
           textTransform: 'uppercase', whiteSpace: 'nowrap',
-          ...(compact ? { flex:1.6, height:30, borderRadius:7, fontSize:9.5, borderColor:'#00d4aa59' } : {}),
+          ...(compact ? { flex:1.6, height:30, borderRadius:7, fontSize:9.5, borderColor:'color-mix(in srgb, var(--accent) 35%, transparent)' } : {}),
         }}
       >{homeLive ? 'Watch' : live ? 'Call him in' : 'Deploy'}{compact && !live && pocketOf(agent) && <span>{stakesFor(pocketOf(agent)).replace(/\s/g, '')} · {money(pocketOf(agent).balance)}</span>}</button>
 
@@ -539,7 +542,7 @@ function RetireSheet({ agent, busy, error, onCancel, onConfirm }) {
             disabled={busy}
             style={{
               flex: 1, height: 40, minHeight: 0, borderRadius: 10, cursor: 'pointer',
-              background: `${M_RED}1A`, border: `1px solid ${M_RED}`, color: M_RED,
+              background: `color-mix(in srgb, ${M_RED} 10%, transparent)`, border: `1px solid ${M_RED}`, color: M_RED,
               fontFamily: OSWALD, fontSize: 11.5, fontWeight: 600, letterSpacing: '0.12em',
               textTransform: 'uppercase',
             }}
@@ -950,13 +953,13 @@ export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onW
           style={{
             display: 'flex', alignItems: 'center', gap: 11,
             margin: '0 14px 16px', padding: '11px 13px',
-            borderRadius: 12, background: M_PANEL_2, border: `1px solid ${M_TEAL}3D`,
+            borderRadius: 12, background: M_PANEL_2, border: `1px solid color-mix(in srgb, ${M_TEAL} 24%, transparent)`,
             width: 'calc(100% - 28px)', textAlign: 'left', cursor: 'pointer',
           }}
         >
           <div style={{
             width: 32, height: 32, borderRadius: 9,
-            background: `${M_TEAL}14`, border: `1px solid ${M_TEAL}55`,
+            background: `color-mix(in srgb, ${M_TEAL} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${M_TEAL} 33%, transparent)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={M_TEAL} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>

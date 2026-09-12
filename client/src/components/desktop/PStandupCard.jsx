@@ -39,7 +39,7 @@ export function PStandupCard({ agents = [], loading = false }) {
         ].map((c, i) => (
           <div key={i} className="dsk-standup__kpi-cell">
             <div className="dsk-standup__kpi-label">{c.label}</div>
-            <div className="dsk-standup__kpi-val" style={c.accent ? { color: '#00D4AA' } : undefined}>{c.val}</div>
+            <div className="dsk-standup__kpi-val" style={c.accent ? { color: 'var(--accent)' } : undefined}>{c.val}</div>
             <div className="dsk-standup__kpi-sub">{c.sub}</div>
           </div>
         ))}

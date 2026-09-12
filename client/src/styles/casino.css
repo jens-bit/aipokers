@@ -105,7 +105,7 @@
 .csn-desk__rail {
   min-height: 0;
   overflow: hidden;
-  background: #0A0F0F;
+  background: var(--bg-primary);
   /* FIX-6 job 5: the fund sheet is `position: absolute; inset: 0` and it opens
      in here now, so this is the box it fills. */
   position: relative;
@@ -184,8 +184,8 @@
   flex-shrink: 0;
   border-radius: 10px;
   overflow: hidden;
-  background: linear-gradient(180deg, #171310 0%, #100D0B 100%);
-  border: 1px solid rgba(205, 179, 128, 0.18);
+  background: var(--bg-secondary);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 18%, transparent);
 }
 
 .csn-board__head {
@@ -193,7 +193,7 @@
   align-items: center;
   gap: 7px;
   padding: 7px 11px;
-  border-bottom: 1px solid rgba(205, 179, 128, 0.13);
+  border-bottom: 1px solid color-mix(in srgb, var(--gold-reward) 13%, transparent);
 }
 
 .csn-board__body,
@@ -203,7 +203,7 @@
   flex-direction: column;
 }
 
-.csn-tonight { border-top: 1px solid rgba(205, 179, 128, 0.16); }
+.csn-tonight { border-top: 1px solid color-mix(in srgb, var(--gold-reward) 16%, transparent); }
 
 /* The tick beside a pot that just grew. It arrives rather than appears — a
    number that pops in at full opacity reads as a layout shift, and one that
@@ -236,11 +236,11 @@
   align-items: flex-start;
   gap: 2px;
   padding: 3px 9px 4px;
-  border: 1px solid rgba(205, 179, 128, 0.42);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 42%, transparent);
   border-radius: 3px;
   background:
-    linear-gradient(180deg, rgba(205, 179, 128, 0.10) 0%, rgba(205, 179, 128, 0.02) 100%);
-  box-shadow: 0 0 18px rgba(205, 179, 128, 0.14), inset 0 0 12px rgba(205, 179, 128, 0.06);
+    linear-gradient(180deg, color-mix(in srgb, var(--gold-reward) 10%, transparent) 0%, color-mix(in srgb, var(--gold-reward) 2%, transparent) 100%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--gold-reward) 14%, transparent), inset 0 0 12px color-mix(in srgb, var(--gold-reward) 6%, transparent);
   max-width: 100%;
 }
 
@@ -254,7 +254,7 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: rgba(205, 179, 128, 0.28);
+  background: color-mix(in srgb, var(--gold-reward) 28%, transparent);
   animation: casino-bulb 2.1s ease-in-out infinite;
 }
 
@@ -264,29 +264,29 @@
   font-weight: 600;
   line-height: 1.1;
   white-space: nowrap;
-  color: #EDEDED;
-  text-shadow: 0 0 14px rgba(205, 179, 128, 0.34);
+  color: var(--text-primary);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--gold-reward) 34%, transparent);
 }
 
 /* An unlit sign over a building with nothing in it. More honest than a bright
    one, and it is what a dark marquee has always meant. */
 .csn-marquee[data-lit="false"] {
-  border-color: rgba(255, 255, 255, 0.10);
+  border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
   background: none;
   box-shadow: none;
 }
 .csn-marquee[data-lit="false"] .csn-marquee__word {
-  color: #6B6B6B;
+  color: var(--text-muted);
   text-shadow: none;
 }
 .csn-marquee[data-lit="false"] .csn-marquee__bulbs i {
   animation: none;
-  background: rgba(255, 255, 255, 0.10);
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
 }
 
 @keyframes casino-bulb {
-  0%, 70%, 100% { background: rgba(205, 179, 128, 0.26); box-shadow: none; }
-  22%           { background: #CDB380; box-shadow: 0 0 6px rgba(205, 179, 128, 0.9); }
+  0%, 70%, 100% { background: color-mix(in srgb, var(--gold-reward) 26%, transparent); box-shadow: none; }
+  22%           { background: var(--gold-reward); box-shadow: 0 0 6px color-mix(in srgb, var(--gold-reward) 90%, transparent); }
 }
 
 /* THE THREE DOORS. A row, never a column and never a scroller: three is the
@@ -305,8 +305,8 @@
   gap: 2px;
   padding: 7px 8px 8px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
   cursor: pointer;
   text-align: left;
   min-width: 0;
@@ -320,7 +320,7 @@
   font-size: 7.5px;
   font-weight: 600;
   letter-spacing: 0.11em;
-  color: #6B6B6B;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -330,35 +330,35 @@
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
-  color: #EDEDED;
+  color: var(--text-primary);
 }
 
 .csn-room-door__in {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 8px;
-  color: #6B6B6B;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.csn-room-door__in b { color: #00D4AA; font-weight: 400; }
+.csn-room-door__in b { color: var(--accent); font-weight: 400; }
 
 /* Yours is in there. The teal edge is the same one the tall doorway uses for
    the same fact, so the two say it the same way at two sizes. */
-.csn-room-door[data-mine] { border-color: rgba(0, 212, 170, 0.34); }
+.csn-room-door[data-mine] { border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
 
 /* And hot, which is the only thing on a door that changes on its own. */
 .csn-room-door[data-hot] {
-  border-color: rgba(205, 179, 128, 0.5);
-  background: rgba(205, 179, 128, 0.07);
+  border-color: color-mix(in srgb, var(--gold-reward) 50%, transparent);
+  background: color-mix(in srgb, var(--gold-reward) 7%, transparent);
 }
-.csn-room-door[data-hot] .csn-room-door__name { color: #CDB380; }
+.csn-room-door[data-hot] .csn-room-door__name { color: var(--gold-reward); }
 .csn-room-door__ember {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #CDB380;
-  box-shadow: 0 0 6px #CDB380;
+  background: var(--gold-reward);
+  box-shadow: 0 0 6px var(--gold-reward);
   animation: pulse 2s infinite;
   flex-shrink: 0;
 }
@@ -447,15 +447,15 @@
   gap: 8px;
   padding: 14px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #0E1413;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  background: var(--bg-secondary);
 }
 
 .csn-your--none {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border: 1px dashed color-mix(in srgb, var(--text-primary) 12%, transparent);
   padding: 18px;
 }
 
@@ -489,12 +489,12 @@
   height: 5px;
   margin: -2.5px 0 0 -2.5px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.20);
+  background: color-mix(in srgb, var(--text-primary) 20%, transparent);
   transition: background 0.18s ease, box-shadow 0.18s ease;
 }
 .csn-your__dot[data-on]::after {
-  background: #CDB380;
-  box-shadow: 0 0 6px rgba(205, 179, 128, 0.7);
+  background: var(--gold-reward);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold-reward) 70%, transparent);
 }
 .csn-your__dot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
@@ -530,7 +530,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: #0A0F0F;
+  background: var(--bg-primary);
 }
 
 .csn--phone > .csn-floor { position: relative; inset: auto; flex: 1; }
@@ -546,8 +546,8 @@
   align-items: center;
   gap: 10px;
   padding: 4px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  background: #0C1111;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  background: var(--bg-secondary);
 }
 
 .csn-floor__back {
@@ -556,7 +556,7 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: #A1A1A1;
+  color: var(--text-secondary);
   background: none;
   border: none;
   padding: 0;
@@ -570,8 +570,8 @@
   gap: 2px;
   padding: 2px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
 }
 
 .csn-view-toggle__btn {
@@ -583,13 +583,13 @@
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: #6B6B6B;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .csn-view-toggle__btn.is-active {
-  background: rgba(0, 212, 170, 0.14);
-  color: #00D4AA;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text-primary);
 }
 
 .csn-floor__body {
@@ -622,7 +622,7 @@
   overflow: hidden;
   flex-shrink: 0;
   border-radius: 10px;
-  background: radial-gradient(ellipse at 50% 40%, #17201E 0%, #101715 62%, #0B100F 100%);
+  background: radial-gradient(ellipse at 50% 40%, var(--wood-light) 0%, var(--wood-deep) 62%, var(--wood-edge) 100%);
 }
 
 .csn-floor58__room {
@@ -636,7 +636,7 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: rgba(255, 255, 255, 0.022);
+  background: color-mix(in srgb, var(--text-primary) 2.2%, transparent);
 }
 
 /* A felt: an ellipse with bodies on its rim. Never a card. */
@@ -687,8 +687,8 @@
 .csn-felt58__backs i { display:block; width:4px; height:6px; border:1px solid #8DA99D66; border-radius:1px; background:#13211D; }
 .csn-felt58__push { position:absolute; left:50%; top:62%; display:flex; gap:1px; pointer-events:none; animation:floor-chip-push .9s ease-out both; }
 .csn-felt58__push i { display:block; width:5px; height:3px; border-radius:50%; background:#CDB380; box-shadow:0 1px #514326; }
-.csn-felt58__bubble { position:absolute; z-index:3; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%); width:max-content; max-width:94px; box-sizing:border-box; padding:5px 6px; border:1px solid #CDB38055; border-radius:6px; background:#122019EE; color:#C3C3C6; font:8px/1.35 Inter,sans-serif; text-transform:none; letter-spacing:normal; pointer-events:none; overflow-wrap:anywhere; animation:floor-bubble-in .2s ease-out; }
-.csn-felt58__bubble::after { content:''; position:absolute; left:50%; bottom:-4px; width:6px; height:6px; background:#122019; border-right:1px solid #CDB38055; border-bottom:1px solid #CDB38055; transform:rotate(45deg); }
+.csn-felt58__bubble { position:absolute; z-index:3; left:50%; bottom:calc(100% + 10px); transform:translateX(-50%); width:max-content; max-width:94px; box-sizing:border-box; padding:5px 6px; border:1px solid color-mix(in srgb, var(--gold-reward) 33.3333%, transparent); border-radius:6px; background:var(--v5-raised); color:var(--text-secondary); font:8px/1.35 Inter,sans-serif; text-transform:none; letter-spacing:normal; pointer-events:none; overflow-wrap:anywhere; animation:floor-bubble-in .2s ease-out; }
+.csn-felt58__bubble::after { content:''; position:absolute; left:50%; bottom:-4px; width:6px; height:6px; background:var(--v5-raised); border-right:1px solid color-mix(in srgb, var(--gold-reward) 33.3333%, transparent); border-bottom:1px solid color-mix(in srgb, var(--gold-reward) 33.3333%, transparent); transform:rotate(45deg); }
 .csn-felt58__bubble > span { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 @keyframes floor-card-flip { from { opacity:0; rotate:y 80deg; } to { opacity:1; rotate:y 0deg; } }
 @keyframes floor-chip-push { from { opacity:1; transform:translate(var(--from-x),var(--from-y)); } 75% { opacity:1; } to { opacity:0; transform:translate(-50%,-50%); } }
@@ -710,6 +710,9 @@
   bottom: -13px;
   transform: translateX(-50%);
   white-space: nowrap;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
 }
 
 /* The bar along the bottom wall. It exists so that "not playing" has somewhere
@@ -729,8 +732,8 @@
   bottom: 0;
   height: 26px;
   border-radius: 4px 4px 2px 2px;
-  background: linear-gradient(180deg, #2A2118 0%, #1A140E 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, var(--wood-light) 0%, var(--wood-deep) 100%);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
 }
 
 .csn-floor58__standing {
@@ -767,13 +770,13 @@
 .csn-floor58__treads > span {
   width: 5px;
   border-radius: 2px 2px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
 }
 
 .csn-floor58__plaque {
   width: 58px;
   border-radius: 3px;
-  background: linear-gradient(180deg, #171310 0%, #100D0B 100%);
+  background: linear-gradient(180deg, var(--wood-light) 0%, var(--wood-deep) 100%);
   padding: 4px 5px;
   display: block;
 }
@@ -793,7 +796,7 @@
 
 .csn-floor__quiet {
   font-size: 11.5px;
-  color: #A1A1A1;
+  color: var(--text-secondary);
   line-height: 1.5;
   margin: 4px 0 10px;
 }
@@ -801,10 +804,10 @@
 .csn-floor__unnamed {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 9.5px;
-  color: #6B6B6B;
+  color: var(--text-muted);
   margin: 4px 0 0;
   padding-top: 9px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 
 .csn-floor__board {
@@ -834,7 +837,7 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
   padding: 16px 18px;
 }
 .csn-floor--desk .csn-floor__board::-webkit-scrollbar { display: none; }
@@ -876,8 +879,8 @@
 .csn-board--separated .csn-board__body { gap: 10px; }
 .csn-board--separated .csn-live,
 .csn-board--separated .csn-tonight {
-  background: #0C1211;
-  border: 1px solid rgba(255,255,255,0.12);
+  background: var(--bg-secondary);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -885,8 +888,8 @@
 /* F18: the same room moves toward the chosen felt. The existing header changes
    context; a second navigation bar never appears. */
 .csn-floor58[data-zoom] .csn-floor58__room { transition: transform 380ms ease; }
-.csn-floor58__vignette { position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 46% 34% at 50% 46%,transparent 0%,rgba(6,10,9,.78) 78%); }
-.csn-floor58__watch { position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font:600 9.5px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#00D4AA;background:rgba(8,12,12,.9);border:1px solid #00D4AA66;border-radius:9px;padding:7px 14px;cursor:pointer; }
+.csn-floor58__vignette { position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 46% 34% at 50% 46%,transparent 0%,color-mix(in srgb, var(--bg-primary) 78%, transparent) 78%); }
+.csn-floor58__watch { position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font:600 9.5px Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);background:var(--v5-raised);border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);border-radius:9px;padding:7px 14px;cursor:pointer; }
 .csn-floor--zoom:not(.csn-floor--desk) .csn-floor__room { padding:0; }
 @media(prefers-reduced-motion:reduce) { .csn-floor58[data-zoom] .csn-floor58__room { transition:none; } }
 

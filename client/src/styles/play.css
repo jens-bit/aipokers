@@ -67,7 +67,7 @@
 /* AI card — Hero gradient from design-refs/home.jsx */
 .play__ai-card {
   background: linear-gradient(160deg, #112523 0%, #0d1815 50%, #0e1212 100%);
-  border: 1px solid rgba(0, 212, 170, 0.25);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   border-radius: 18px;
   padding: 18px;
   position: relative;
@@ -79,7 +79,7 @@
   position: absolute;
   top: -40px; right: -40px;
   width: 200px; height: 200px;
-  background: radial-gradient(circle, rgba(0, 212, 170, 0.18), transparent 65%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%);
   pointer-events: none;
 }
 .play__ai-eyebrow {
@@ -124,17 +124,17 @@
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  box-shadow: 0 0 20px rgba(0, 212, 170, 0.35);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 35%, transparent);
   position: relative;
   transition: background 120ms ease, box-shadow 120ms ease;
 }
 .play__ai-btn:hover:not(:disabled),
-.play__ai-btn:focus-visible { background: var(--accent-hover); box-shadow: 0 0 28px rgba(0, 212, 170, 0.5); }
+.play__ai-btn:focus-visible { background: var(--accent-hover); box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 50%, transparent); }
 
 /* Human card — PlayYourselfRow style from design-refs/home.jsx */
 .play__human-card {
-  background: #232329;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-secondary);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 6%, transparent);
   border-radius: 14px;
   padding: 14px 16px 16px;
 }
@@ -147,8 +147,8 @@
 .play__human-icon {
   width: 40px; height: 40px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   color: var(--text-primary);
@@ -182,7 +182,7 @@
   transition: background 120ms ease;
 }
 .play__human-btn:hover:not(:disabled),
-.play__human-btn:focus-visible { background: rgba(0, 212, 170, 0.08); }
+.play__human-btn:focus-visible { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
 /* ── Step 2: Simplified form ─────────────────────────────────────────────── */
 .play__form-wrap {
@@ -308,10 +308,10 @@
 .dr-stable-head {
   margin: 0 8px 10px;
   padding: 16px;
-  border: 1px solid rgba(0, 212, 170, 0.18);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: 18px;
   background:
-    radial-gradient(circle at 92% 0%, rgba(0, 212, 170, 0.16), transparent 34%),
+    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 34%),
     var(--dr-panel);
 }
 
@@ -352,9 +352,9 @@
 }
 
 .dr-play-card.is-accent {
-  border-color: rgba(0, 212, 170, 0.24);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
   background:
-    linear-gradient(180deg, rgba(0, 212, 170, 0.08), transparent),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent),
     var(--dr-panel);
 }
 
@@ -364,13 +364,13 @@
   display: grid;
   place-items: center;
   border-radius: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 7%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
 }
 
 .dr-play-card.is-accent span {
-  border-color: rgba(0, 212, 170, 0.18);
-  background: rgba(0, 212, 170, 0.1);
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .dr-play-card b {
@@ -423,7 +423,7 @@
 .dr-human-actions,
 .dr-human-chat-strip {
   margin: 0 8px 10px;
-  border: 1px solid rgba(0, 212, 170, 0.14);
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 18px;
   background: #050808;
 }
@@ -438,7 +438,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 4px 4px 8px;
-  border-bottom: 1px solid rgba(0, 212, 170, 0.12);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .dr-human-table-top span {
@@ -457,7 +457,7 @@
   height: 7px;
   border-radius: 50%;
   background: var(--dr-accent);
-  box-shadow: 0 0 10px rgba(0, 212, 170, 0.8);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 80%, transparent);
 }
 
 .dr-human-table-top small {
@@ -477,15 +477,15 @@
   padding: 10px;
   border-radius: 22px;
   background:
-    radial-gradient(ellipse at center, rgba(0, 212, 170, 0.12), transparent 58%),
-    linear-gradient(180deg, rgba(0, 212, 170, 0.05), rgba(0, 0, 0, 0.2));
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 12%, transparent), transparent 58%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), rgba(0, 0, 0, 0.2));
 }
 
 .dr-human-felt::before {
   content: "";
   position: absolute;
   inset: 12px;
-  border: 1px solid rgba(0, 212, 170, 0.28);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   border-radius: 150px;
   pointer-events: none;
 }
@@ -499,9 +499,9 @@
   gap: 10px;
   min-width: 0;
   padding: 10px;
-  border: 1px solid rgba(0, 212, 170, 0.14);
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 16px;
-  background: rgba(10, 10, 10, 0.82);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
 }
 
 .dr-human-seat--top {
@@ -509,8 +509,8 @@
 }
 
 .dr-human-seat--hero {
-  border-color: rgba(0, 212, 170, 0.5);
-  box-shadow: 0 0 0 1px rgba(0, 212, 170, 0.08), 0 0 20px rgba(0, 212, 170, 0.1);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent), 0 0 20px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .dr-human-seat__cards,
@@ -579,7 +579,7 @@
   align-items: center;
   gap: 5px;
   padding: 6px 10px;
-  border: 1px solid rgba(0, 212, 170, 0.45);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: 999px;
   color: var(--dr-accent);
   font-size: 12px;
@@ -611,7 +611,7 @@
 
 .dr-street-pill {
   padding: 7px 14px;
-  border: 1px solid rgba(0, 212, 170, 0.2);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   border-radius: 9px;
   background: rgba(0, 0, 0, 0.35);
   color: var(--dr-secondary);
@@ -645,7 +645,7 @@
 
 .dr-human-board__cards i {
   aspect-ratio: 0.72;
-  border: 1.5px dashed rgba(255, 255, 255, 0.32);
+  border: 1.5px dashed color-mix(in srgb, var(--text-primary) 32%, transparent);
   border-radius: 8px;
 }
 
@@ -664,8 +664,8 @@
   border-radius: 50%;
   background:
     radial-gradient(circle at center, #101010 0 54%, transparent 55%),
-    conic-gradient(var(--dr-accent) 0 72%, rgba(255, 255, 255, 0.14) 72% 100%);
-  box-shadow: 0 0 0 1px rgba(0, 212, 170, 0.12), 0 0 14px rgba(0, 212, 170, 0.2);
+    conic-gradient(var(--dr-accent) 0 72%, color-mix(in srgb, var(--text-primary) 14%, transparent) 72% 100%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .dr-human-timer span {
@@ -685,13 +685,13 @@
   left: 50%;
   z-index: 2;
   transform: translateX(-50%);
-  border: 1px solid rgba(0, 212, 170, 0.35);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   border-radius: 999px 999px 10px 10px;
   background:
-    radial-gradient(circle at 50% 0%, rgba(0, 212, 170, 0.18), transparent 62%),
-    rgba(5, 8, 8, 0.94);
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 62%),
+    color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   color: var(--dr-accent);
-  box-shadow: 0 -7px 20px rgba(0, 212, 170, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -7px 20px color-mix(in srgb, var(--accent) 12%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent);
 }
 
 .dr-human-sizing-toggle::before {
@@ -701,7 +701,7 @@
   width: 18px;
   height: 2px;
   border-radius: 999px;
-  background: rgba(0, 212, 170, 0.42);
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
 .dr-human-sizing-toggle .dr-icon {
@@ -758,15 +758,15 @@
   display: grid;
   place-items: center;
   padding: 6px 2px;
-  border: 1px solid rgba(0, 212, 170, 0.16);
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   color: var(--dr-text);
 }
 
 .dr-human-presets button.is-selected {
   border-color: var(--dr-accent);
-  box-shadow: inset 0 0 0 1px rgba(0, 212, 170, 0.08);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .dr-human-presets span {
@@ -791,7 +791,7 @@
 .dr-human-amount input {
   width: 100%;
   height: 52px;
-  border: 1px solid rgba(0, 212, 170, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.28);
   color: var(--dr-accent);
@@ -822,15 +822,15 @@
 
 .dr-human-action-row .is-fold {
   background: var(--dr-error);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .dr-human-action-row .is-chat {
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(0, 212, 170, 0.32);
-  background: rgba(0, 212, 170, 0.08);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   color: var(--dr-accent);
 }
 
@@ -841,7 +841,7 @@
   gap: 10px;
   padding: 12px;
   background:
-    linear-gradient(90deg, rgba(0, 212, 170, 0.08), transparent),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent),
     var(--dr-panel);
 }
 
@@ -871,7 +871,7 @@
   align-items: center;
   gap: 6px;
   padding: 0 12px;
-  border: 1px solid rgba(0, 212, 170, 0.3);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: 10px;
   color: var(--dr-accent);
   font-size: 12px;

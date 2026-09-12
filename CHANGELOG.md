@@ -1,5 +1,12 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Warm game and truthful public Watch — local candidate (2026-09-12)
+
+- **Show the actual two players.** Public Home Watch no longer treats spectator seat -1 as a seated player. It frames a real occupied seat, displays its name and stack, keeps the other real players visible and identifies the view as Watching. Opponent decisions and speech stay attached to their actual actor; public cards remain private.
+- **One palette through the game.** Warm Day, Amber Dusk and Warm Night now follow the player through Home, Watch, human play, casino, draft, conversations, profiles and wallet sheets. Warm Night replaces the teal scheme; character colors and classic card suits remain recognizable.
+- **Readable table details.** Stack amounts and foreground names have dedicated contrast on the felt. Shared surfaces and filled controls use the same appearance tokens. See `read-me-claude/WARM_GAME_HANDOFF.md` for validation and local release status.
+- **Current agent slots after creation.** Desktop's table panel reads a fresh server projection when it opens, so it no longer retains the pre-birth count and first-free-slot offer. Server pricing and eligibility remain authoritative.
+
 ## In-game introduction — local candidate (2026-09-12)
 
 - **Guidance in the actual game.** The persistent Learn bar and separate practice screen are replaced by short pointers on the actual character, kitchen table, Watch control and shared cards. The birth acknowledgment finishes first; quiet tables never invent a game.

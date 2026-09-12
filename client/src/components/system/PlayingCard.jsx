@@ -55,19 +55,19 @@ export function CardBack({ w, h, branded, marked = false }) {
   return (
     <div style={{
       width: w, height: h, borderRadius: r,
-      background: marked ? 'linear-gradient(135deg, #2a2a30 0%, #1a1a20 100%)' : 'linear-gradient(135deg, #1a1a22 0%, #0d0d14 100%)',
+      background: marked ? 'linear-gradient(135deg, var(--card-back), color-mix(in srgb, var(--card-back) 84%, #111))' : 'var(--card-back)',
       border: `1px solid rgba(255,255,255,${marked ? '0.18' : '0.14'})`,
       flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       {marked && !branded && <svg width={w*.5} height={w*.5} viewBox="0 0 24 24" style={{display:'block',opacity:.7}} aria-hidden="true">
-        <path d="M12 2.4 C12 2.4 4.6 8.8 4.6 13.9 C4.6 16.7 6.5 18.7 9 18.7 C10.1 18.7 11 18.3 11.6 17.6 C11.7 19.6 11 21.2 9.4 22.2 L14.6 22.2 C13 21.2 12.3 19.6 12.4 17.6 C13 18.3 13.9 18.7 15 18.7 C17.5 18.7 19.4 16.7 19.4 13.9 C19.4 8.8 12 2.4 12 2.4 Z" fill="#7a8a9a"/>
+        <path d="M12 2.4 C12 2.4 4.6 8.8 4.6 13.9 C4.6 16.7 6.5 18.7 9 18.7 C10.1 18.7 11 18.3 11.6 17.6 C11.7 19.6 11 21.2 9.4 22.2 L14.6 22.2 C13 21.2 12.3 19.6 12.4 17.6 C13 18.3 13.9 18.7 15 18.7 C17.5 18.7 19.4 16.7 19.4 13.9 C19.4 8.8 12 2.4 12 2.4 Z" fill="var(--card-back-accent)"/>
       </svg>}
       {branded && (
         <svg width={Math.round(w * 0.52)} height={Math.round(h * 0.46)} viewBox="0 0 22 26"
           style={{ display: 'block', opacity: 0.5 }} aria-hidden>
           <path d="M11 1 C11 1, 2 9, 2 16 C2 19, 4 21, 7 21 C8.5 21, 9.5 20.5, 10 19.8 C10.3 21.5, 9.5 23, 8 24 L14 24 C12.5 23, 11.7 21.5, 12 19.8 C12.5 20.5, 13.5 21, 15 21 C18 21, 20 19, 20 16 C20 9, 11 1, 11 1 Z"
-            fill="none" stroke="#00D4AA" strokeWidth="1.6" strokeLinejoin="round" />
+            fill="none" stroke="var(--card-back-accent)" strokeWidth="1.6" strokeLinejoin="round" />
         </svg>
       )}
     </div>

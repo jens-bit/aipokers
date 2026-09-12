@@ -47,7 +47,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
-import { M_TEAL } from '../components/floor/atoms.jsx';
+import { M_TEAL as AGENT_TEAL } from '../components/floor/atoms.jsx';
 import { moodOf, heatOf } from '../components/floor/agentView.js';
 import { MoodBand } from '../components/system/MoodBand.jsx';
 import { MoodGhost } from '../components/system/MoodGhost.jsx';
@@ -66,16 +66,17 @@ import { FormingGhost as StageGhost, DRAFT_STAGES, draftStage } from '../compone
 import { pendingVisitorName, clearPendingVisitor } from '../lib/visit.js';
 import '../styles/draft2.css';
 
-// ── Design tokens (verbatim from design refs) ─────────────────────────────
-const M_BG      = '#1A1A1E';
-const M_PANEL   = '#232329';
-const M_PANEL_2 = '#28282F';
-const M_BORDER  = 'rgba(255,255,255,0.12)';
-const M_TEXT    = '#EDEDED';
-const M_DIM     = '#A1A1A1';
-const M_MUTED   = '#6B6B6B';
-const M_FAINT   = '#3A3A3F';
-const M_GOLD    = '#CDB380';
+// ── Theme tokens (shared across screens) ─────────────────────────────
+const M_BG      = 'var(--bg-primary)';
+const M_PANEL   = 'var(--bg-secondary)';
+const M_PANEL_2 = 'var(--bg-tertiary)';
+const M_BORDER  = 'var(--edge)';
+const M_TEXT    = 'var(--text-primary)';
+const M_DIM     = 'var(--text-secondary)';
+const M_MUTED   = 'var(--text-muted)';
+const M_FAINT   = 'var(--text-faded)';
+const M_GOLD    = 'var(--gold-reward)';
+const M_TEAL    = 'var(--accent)';
 
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
 const OSWALD   = '"Oswald","Helvetica Neue",sans-serif';
@@ -85,7 +86,7 @@ const MONO     = '"JetBrains Mono",ui-monospace,monospace';
 // ── FormingGhost ─────────────────────────────────────────────────────────
 // Verbatim port from mood-birth.jsx: exact path + eye geometry.
 // phase 0 = dashed outline, no fill, no eyes.  phase 1 = finished neutral ghost.
-function FormingGhost({ size = 40, phase = 0.5, accent = M_TEAL, drift = true }) {
+function FormingGhost({ size = 40, phase = 0.5, accent = AGENT_TEAL, drift = true }) {
   const rawId = useId();
   const uid = rawId.replace(/:/g, '');
   const fill   = 0.10 + phase * 0.30;
@@ -154,12 +155,12 @@ const chatLines = value => Array.isArray(value) ? value.filter(m => ['user', 'as
 function DiffCard({ accent = M_GOLD, origin, quote, from, to, rows, est, primary = 'Save', secondary = 'Keep talking', onPrimary, onSecondary }) {
   return (
     <div style={{
-      background: M_PANEL_2, border: `1px solid ${M_GOLD}44`,
+      background: M_PANEL_2, border: `1px solid color-mix(in srgb, ${M_GOLD} 27%, transparent)`,
       borderRadius: 12, borderBottomLeftRadius: 4, overflow: 'hidden',
     }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px',
-        borderBottom: `1px solid ${M_BORDER}`, background: 'rgba(205,179,128,0.06)',
+        borderBottom: `1px solid ${M_BORDER}`, background: 'color-mix(in srgb, var(--gold-reward) 6%, transparent)',
       }}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -190,7 +191,7 @@ function DiffCard({ accent = M_GOLD, origin, quote, from, to, rows, est, primary
       </div>
       <div style={{
         padding: '8px 12px', borderTop: `1px solid ${M_BORDER}`,
-        background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8,
+        background: 'var(--surface-soft)', display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <span style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, fontWeight: 500 }}>{est}</span>
         <div style={{ flex: 1 }} />
@@ -202,7 +203,7 @@ function DiffCard({ accent = M_GOLD, origin, quote, from, to, rows, est, primary
         }}>{secondary}</button>
         <button type="button" onClick={onPrimary} style={{
           height: 28, padding: '0 12px', borderRadius: 6, border: 'none',
-          background: M_TEAL, color: '#0A0A0A', fontFamily: OSWALD,
+          background: M_TEAL, color: 'var(--on-accent)', fontFamily: OSWALD,
           fontSize: 9, fontWeight: 700, letterSpacing: '0.10em', cursor: 'pointer',
           textTransform: 'uppercase',
         }}>{primary}</button>
@@ -218,15 +219,15 @@ function AgentBubble({ children }) {
     <div style={{ display: 'flex', gap: 9, padding: '0 14px', marginBottom: 9, alignItems: 'flex-end' }}>
       <div style={{
         width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-        background: '#0A0F17', border: `1px solid ${M_TEAL}44`,
+        background: 'var(--bg-tertiary)', border: `1px solid color-mix(in srgb, ${M_TEAL} 27%, transparent)`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
         <FormingGhost size={27} phase={0.3} drift={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          background: M_PANEL_2, border: `1px solid rgba(136,136,136,0.20)`,
-          borderLeft: `2px solid rgba(136,136,136,0.55)`,
+          background: M_PANEL_2, border: `1px solid var(--edge-soft)`,
+          borderLeft: `2px solid var(--edge-strong)`,
           borderRadius: 12, borderBottomLeftRadius: 4,
           padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5,
         }}>{children}</div>
@@ -239,7 +240,7 @@ function OwnerBubble({ children }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 14px', marginBottom: 9 }}>
       <div style={{ maxWidth: 264 }}>
-        <div style={{ background: `${M_TEAL}1A`, border: `1px solid ${M_TEAL}44`, borderRadius: 12, borderBottomRightRadius: 4, padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5 }}>
+        <div style={{ background: `color-mix(in srgb, ${M_TEAL} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${M_TEAL} 27%, transparent)`, borderRadius: 12, borderBottomRightRadius: 4, padding: '10px 13px', fontSize: 13, color: M_TEXT, lineHeight: 1.5 }}>
           {children}
         </div>
       </div>
@@ -273,9 +274,9 @@ function NatureReveal({ name, first, nature, identity, mood = 'neutral', heat = 
       {first && (
         <div style={{
           width: 218, marginBottom: 2,
-          background: 'rgba(17,23,32,0.94)', border: `1px solid ${M_TEAL}55`,
+          background: 'color-mix(in srgb, var(--bg-tertiary) 94%, transparent)', border: `1px solid color-mix(in srgb, ${M_TEAL} 33%, transparent)`,
           borderRadius: 10, borderBottomLeftRadius: 3, padding: '8px 11px',
-          boxShadow: `0 0 18px ${M_TEAL}22`, animation: 'birth-rise 0.5s ease-out both',
+          boxShadow: `0 0 18px color-mix(in srgb, ${M_TEAL} 13%, transparent)`, animation: 'birth-rise 0.5s ease-out both',
         }}>
           <div style={{ fontSize: 12, color: M_TEXT, lineHeight: 1.45 }}>{first}</div>
         </div>
@@ -284,7 +285,7 @@ function NatureReveal({ name, first, nature, identity, mood = 'neutral', heat = 
         <div style={{
           position: 'absolute', left: '50%', top: '48%', width: 64, height: 64,
           transform: 'translate(-50%, -50%)', pointerEvents: 'none',
-          background: `radial-gradient(circle, ${M_TEAL}26, transparent 72%)`,
+          background: `radial-gradient(circle, ${AGENT_TEAL}26, transparent 72%)`,
           animation: 'birth-fadein 0.8s ease-out both',
         }} />
         <MoodGhost size={54} mood={mood} heat={heat} hood={identity?.hood} glow={identity?.glow?.c} ring={false} />
@@ -292,7 +293,7 @@ function NatureReveal({ name, first, nature, identity, mood = 'neutral', heat = 
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         height: 17, padding: '0 7px', borderRadius: 4,
-        background: 'rgba(19,19,22,0.7)', border: `1px dashed ${M_TEAL}66`,
+        background: 'color-mix(in srgb, var(--bg-tertiary) 70%, transparent)', border: `1px dashed color-mix(in srgb, ${M_TEAL} 40%, transparent)`,
         opacity: 0.75, animation: 'birth-fadein 1.6s ease-out both',
       }}>
         <span style={{ width: 4.5, height: 4.5, borderRadius: '50%', border: `1px dashed ${M_TEAL}` }} />
@@ -329,7 +330,7 @@ function BirthCardSheet({ name, nature, firstWords, character, identity, mood = 
           it; the sheet's top padding is what makes room. */}
       <div className="birth-card3__well-row">
         <div className="birth-card3__well">
-          <MoodGhost mood={mood} heat={heat} accent={M_TEAL} hood={identity?.hood} glow={identity?.glow?.c} size={96} ring={false} />
+          <MoodGhost mood={mood} heat={heat} accent={AGENT_TEAL} hood={identity?.hood} glow={identity?.glow?.c} size={96} ring={false} />
         </div>
       </div>
 
@@ -409,9 +410,9 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
         {/* speech bubble */}
         <div style={{
           maxWidth: 168, marginBottom: 2,
-          background: 'rgba(10,15,23,0.92)', border: `1px solid ${M_TEAL}55`,
+          background: 'color-mix(in srgb, var(--bg-tertiary) 92%, transparent)', border: `1px solid color-mix(in srgb, ${M_TEAL} 33%, transparent)`,
           borderRadius: 10, borderBottomLeftRadius: 3, padding: '7px 10px',
-          boxShadow: `0 0 18px ${M_TEAL}22`,
+          boxShadow: `0 0 18px color-mix(in srgb, ${M_TEAL} 13%, transparent)`,
           animation: 'birth-rise 0.5s ease-out both',
         }}>
           <div style={{ fontSize: 12, color: M_TEXT, lineHeight: 1.4 }}>Deal me in whenever you're ready.</div>
@@ -422,7 +423,7 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
           <div style={{
             position: 'absolute', left: '50%', top: '48%', width: 64, height: 64,
             transform: 'translate(-50%, -50%)', pointerEvents: 'none',
-            background: `radial-gradient(circle, ${M_TEAL}26, transparent 72%)`,
+            background: `radial-gradient(circle, ${AGENT_TEAL}26, transparent 72%)`,
             animation: 'birth-fadein 0.8s ease-out both',
           }} />
           <FormingGhost size={54} phase={phase} />
@@ -432,7 +433,7 @@ export function MaterializingOccupant({ name, phase = 0.72, onDone }) {
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 5,
           height: 17, padding: '0 7px', borderRadius: 4,
-          background: 'rgba(10,10,10,0.70)', border: `1px dashed ${M_TEAL}66`,
+          background: 'color-mix(in srgb, var(--bg-tertiary) 70%, transparent)', border: `1px dashed color-mix(in srgb, ${M_TEAL} 40%, transparent)`,
           opacity: 0.6, animation: 'birth-fadein 1.9s ease-out both',
         }}>
           <span style={{ width: 4.5, height: 4.5, borderRadius: '50%', border: `1px dashed ${M_TEAL}` }} />
@@ -1167,7 +1168,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
       {/* The band. He exists and has a mood, which is the whole difference
           between this screen and the draft. */}
       <MoodBand
-        accent={agent.accent || M_TEAL}
+        accent={agent.accent || AGENT_TEAL}
         mood={agent.mood || 'neutral'}
         state={agent.state || 'resting'}
         cause={agent.cause || 'rebuilding strategy'}
@@ -1220,7 +1221,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
                       {msg.diff && (
                         <div style={{ padding: '0 14px', marginBottom: 9 }}>
                           <DiffCard
-                            accent={agent?.accent || M_TEAL}
+                            accent={agent?.accent || AGENT_TEAL}
                             origin={msg.diff.origin}
                             quote={msg.diff.quote}
                             from={msg.diff.from}
@@ -1246,7 +1247,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
                             onClick={() => onSeeTable?.()}
                             style={{
                               fontFamily: OSWALD, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em',
-                              color: M_GOLD, border: `1px solid ${M_GOLD}66`, background: `${M_GOLD}14`,
+                              color: M_GOLD, border: `1px solid color-mix(in srgb, ${M_GOLD} 40%, transparent)`, background: `color-mix(in srgb, ${M_GOLD} 8%, transparent)`,
                               borderRadius: 11, padding: '6px 13px', cursor: 'pointer',
                             }}
                           >
@@ -1283,7 +1284,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
                 onClick={() => send(s)}
                 style={{
                   height: 28, padding: '0 11px', borderRadius: 14,
-                  border: `1px solid ${M_TEAL}44`, background: `${M_TEAL}0D`,
+                  border: `1px solid color-mix(in srgb, ${M_TEAL} 27%, transparent)`, background: `color-mix(in srgb, ${M_TEAL} 5%, transparent)`,
                   color: M_TEAL, fontSize: 12.5, cursor: 'pointer',
                   fontFamily: 'Inter,-apple-system,sans-serif',
                 }}
@@ -1308,7 +1309,7 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
             disabled={loading || isReady}
             style={{
               flex: 1, height: 38, padding: '0 12px', borderRadius: 10,
-              border: `1px solid rgba(255,255,255,0.10)`, background: M_PANEL_2,
+              border: `1px solid var(--edge-soft)`, background: M_PANEL_2,
               color: M_TEXT, fontSize: 16, outline: 'none',
               fontFamily: 'Inter,-apple-system,sans-serif',
             }}
@@ -1319,8 +1320,8 @@ export function BirthScreen({ onBack, onBirth, agent, onSeeTable, scrollOnFocus 
             aria-label="Send"
             style={{
               width: 36, height: 36, borderRadius: 10, border: 'none', flexShrink: 0,
-              background: draft.trim() && !loading && !isReady ? M_TEAL : 'rgba(255,255,255,0.12)',
-              color: draft.trim() && !loading && !isReady ? M_BG : M_MUTED,
+              background: draft.trim() && !loading && !isReady ? M_TEAL : 'var(--surface-strong)',
+              color: draft.trim() && !loading && !isReady ? 'var(--on-accent)' : M_MUTED,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: draft.trim() && !loading && !isReady ? 'pointer' : 'default', padding: 0,
             }}

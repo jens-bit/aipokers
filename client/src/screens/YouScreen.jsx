@@ -23,17 +23,17 @@ import { LedgerList } from '../components/wallet/LedgerList.jsx';
 import { NotYet } from '../components/ftu/NotYet.jsx';
 
 // ── Design tokens ────────────────────────────────────────────────────────
-const M_BG      = '#1A1A1E';
-const M_PANEL   = '#232329';
-const M_PANEL_2 = '#1b1b1b';
-const M_BORDER  = 'rgba(255,255,255,0.12)';
-const M_TEXT    = '#EDEDED';
-const M_DIM     = '#A1A1A1';
-const M_MUTED   = '#6B6B6B';
-const M_FAINT   = '#3f3f3f';
-const M_TEAL    = '#00D4AA';
-const M_GOLD    = '#CDB380';
-const M_RED     = '#FF4D4F';
+const M_BG      = 'var(--bg-primary)';
+const M_PANEL   = 'var(--bg-secondary)';
+const M_PANEL_2 = 'var(--bg-tertiary)';
+const M_BORDER  = 'var(--edge)';
+const M_TEXT    = 'var(--text-primary)';
+const M_DIM     = 'var(--text-secondary)';
+const M_MUTED   = 'var(--text-muted)';
+const M_FAINT   = 'var(--text-faded)';
+const M_TEAL    = 'var(--accent)';
+const M_GOLD    = 'var(--gold-reward)';
+const M_RED     = 'var(--error)';
 
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
 const OSWALD   = '"Oswald","Helvetica Neue",sans-serif';
@@ -189,12 +189,12 @@ function MiniCard({ rank, suit }) {
   return (
     <div style={{
       width: 26, height: 34, borderRadius: 4,
-      background: '#1E1E1E', border: `1px solid rgba(255,255,255,0.10)`,
+      background: 'var(--bg-tertiary)', border: `1px solid var(--edge-soft)`,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       flexShrink: 0,
     }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: isRed ? '#FF6B6B' : M_TEXT, lineHeight: 1 }}>{rank}</span>
-      <span style={{ fontSize: 10, color: isRed ? '#FF6B6B' : M_DIM, lineHeight: 1 }}>{SUIT_SYMS[suit] ?? suit}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: isRed ? 'var(--error)' : M_TEXT, lineHeight: 1 }}>{rank}</span>
+      <span style={{ fontSize: 10, color: isRed ? 'var(--error)' : M_DIM, lineHeight: 1 }}>{SUIT_SYMS[suit] ?? suit}</span>
     </div>
   );
 }
@@ -372,9 +372,9 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '14px 16px' }}>
           <div style={{
             width: 42, height: 42, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #00D4AA 0%, #00A8BA 100%)',
+            background: 'linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 75%, var(--bg-tertiary)) 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#0A0A0A', fontWeight: 700, fontSize: 15, flexShrink: 0,
+            color: 'var(--on-accent)', fontWeight: 700, fontSize: 15, flexShrink: 0,
           }}>
             {initials}
           </div>

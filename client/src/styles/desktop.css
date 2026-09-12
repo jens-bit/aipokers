@@ -16,22 +16,22 @@
 @media (min-width: 1100px) {
 
 .dsk-root {
-  --dsk-bg: #070708;
-  --dsk-panel: #0c0c0e;
-  --dsk-surface: #28282F;
-  --dsk-surface-2: #191920;
-  --dsk-border: rgba(255, 255, 255, 0.12);
-  --dsk-border-strong: rgba(255, 255, 255, 0.10);
-  --dsk-border-2: rgba(255, 255, 255, 0.18);
-  --dsk-surf: #2F2F37;
-  --dsk-text: #EDEDED;
-  --dsk-dim: #A1A1A1;
-  --dsk-muted: #6B6B6B;
-  --dsk-faint: #3a3a3f;
-  --dsk-teal: #00D4AA;
-  --dsk-teal-dim: rgba(0, 212, 170, 0.10);
-  --dsk-red: #FF4D4F;
-  --dsk-gold: #CDB380;
+  --dsk-bg: var(--bg-primary);
+  --dsk-panel: var(--bg-secondary);
+  --dsk-surface: var(--bg-tertiary);
+  --dsk-surface-2: var(--bg-tertiary);
+  --dsk-border: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --dsk-border-strong: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --dsk-border-2: color-mix(in srgb, var(--text-primary) 18%, transparent);
+  --dsk-surf: var(--surface-soft);
+  --dsk-text: var(--text-primary);
+  --dsk-dim: var(--text-secondary);
+  --dsk-muted: var(--text-muted);
+  --dsk-faint: var(--text-faded);
+  --dsk-teal: var(--accent);
+  --dsk-teal-dim: color-mix(in srgb, var(--accent) 10%, transparent);
+  --dsk-red: var(--error);
+  --dsk-gold: var(--gold-reward);
   --dsk-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
   --dsk-serif: 'Playfair Display', Georgia, serif;
 
@@ -88,8 +88,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, #00D4AA 0%, #00A8BA 100%);
-  color: #0a0a0a;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+  color: var(--on-accent);
   font-size: 9px;
   font-weight: 700;
 }
@@ -250,7 +250,7 @@
   flex-wrap: wrap;
   padding: 11px 13px;
   border-top: 1px solid var(--dsk-border);
-  background: rgba(0, 212, 170, 0.02);
+  background: color-mix(in srgb, var(--accent) 2%, transparent);
 }
 .dsk-standup__suggest {
   font-family: var(--dsk-mono);
@@ -275,9 +275,9 @@
 .dsk-standup__chip--on {
   background: var(--dsk-teal);
   border-color: var(--dsk-teal);
-  color: #0a0a0a;
+  color: var(--on-accent);
 }
-.dsk-standup__chip--on:hover { background: #00e6b8; }
+.dsk-standup__chip--on:hover { background: var(--accent-hover); }
 
 /* ── Game tile ────────────────────────────────────────────────────────── */
 
@@ -286,16 +286,16 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(0, 212, 170, 0.33);
+  border: 1px solid color-mix(in srgb, var(--accent) 33%, transparent);
   border-radius: 10px;
   background: var(--dsk-surface);
-  box-shadow: 0 0 14px rgba(0, 212, 170, 0.07);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 7%, transparent);
   transition: border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 
 .dsk-tile--hl {
-  border-color: rgba(0, 212, 170, 0.55);
-  box-shadow: 0 0 20px rgba(0, 212, 170, 0.14);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 .dsk-tile--dim { opacity: 0.45; }
 
@@ -344,7 +344,7 @@
   justify-content: space-between;
   min-height: 228px;
   padding: 8px 10px 6px;
-  background: radial-gradient(ellipse at center, #122520 0%, #0a1612 70%, #07100c 100%);
+  background: radial-gradient(ellipse at center, var(--felt-center) 0%, var(--felt-edge) 70%, var(--felt-edge) 100%);
 }
 .dsk-tile__oval {
   position: absolute;
@@ -352,14 +352,14 @@
   z-index: 0;
   border: 1.5px solid #0a0604;
   border-radius: 50%;
-  background: radial-gradient(ellipse at center, #1a3530 0%, #0e1a17 70%, #0a1612 100%);
+  background: radial-gradient(ellipse at center, var(--felt-center) 0%, var(--felt-edge) 70%, var(--felt-edge) 100%);
   box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.6), 0 0 0 4px #1a0f06, 0 0 0 5px rgba(0, 0, 0, 0.5);
 }
 .dsk-tile__oval::after {
   content: "";
   position: absolute;
   inset: 8px;
-  border: 1px solid rgba(0, 212, 170, 0.13);
+  border: 1px solid color-mix(in srgb, var(--accent) 13%, transparent);
   border-radius: 50%;
 }
 
@@ -377,9 +377,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border: 1.5px solid color-mix(in srgb, var(--text-primary) 15%, transparent);
   border-radius: 50%;
-  background: #0a0a0c;
+  background: var(--bg-secondary);
   color: var(--dsk-text);
   font-size: 10px;
   font-weight: 700;
@@ -387,7 +387,7 @@
 .dsk-tile__opp-name {
   padding: 1px 6px;
   border-radius: 3px;
-  background: rgba(0, 0, 0, 0.7);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   color: var(--dsk-text);
   font-family: var(--dsk-mono);
   font-size: 9px;
@@ -412,7 +412,7 @@
   padding: 2px 9px;
   border: 1px solid var(--dsk-border);
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   font-family: var(--dsk-mono);
 }
 .dsk-tile__pot small { font-size: 8px; letter-spacing: 0.16em; color: var(--dsk-muted); }
@@ -435,7 +435,7 @@
   padding: 2px 8px 2px 3px;
   border: 1px solid var(--dsk-teal);
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.7);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   font-family: var(--dsk-mono);
 }
 .dsk-tile__equity { font-size: 10px; font-weight: 700; color: var(--dsk-teal); }
@@ -447,14 +447,14 @@
   gap: 8px;
   padding: 8px 11px;
   border-top: 1px solid var(--dsk-border);
-  background: #0a0a0c;
+  background: var(--bg-secondary);
 }
 .dsk-tile__action {
   flex-shrink: 0;
   padding: 3px 8px;
   border-radius: 4px;
   background: var(--dsk-teal);
-  color: #0a0a0a;
+  color: var(--on-accent);
   font-family: var(--dsk-mono);
   font-size: 9px;
   font-weight: 700;
@@ -509,8 +509,8 @@
 .dsk-card--red { color: #E04F5F; }
 .dsk-card__suit { font-size: 9px; margin-top: 1px; }
 .dsk-card--back {
-  border: 1px solid rgba(0, 212, 170, 0.25);
-  background: linear-gradient(140deg, #0d1a17, #071010);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  background: linear-gradient(140deg, var(--felt-edge), var(--felt-edge));
 }
 .dsk-card--hero { width: 30px; height: 42px; font-size: 13px; }
 .dsk-card--mini { width: 13px; height: 18px; border-radius: 2px; }
@@ -523,11 +523,11 @@
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
-  border: 1px solid rgba(0, 212, 170, 0.4);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   border-radius: 6px;
-  background: #0a0f17;
+  background: var(--bg-tertiary);
 }
-.dsk-hood.is-dim { border-color: rgba(255, 255, 255, 0.08); }
+.dsk-hood.is-dim { border-color: color-mix(in srgb, var(--text-primary) 8%, transparent); }
 
 /* ── Panel scaffold (DSK2-2) ──────────────────────────────────────────────
  * PanelHead (46px, fixed) → one scrolling body → PComposer (fixed).
@@ -586,7 +586,7 @@
   color: var(--dsk-muted);
   cursor: pointer;
 }
-.dsk-panel-head__close:hover { background: rgba(255, 255, 255, 0.06); color: var(--dsk-text); }
+.dsk-panel-head__close:hover { background: color-mix(in srgb, var(--text-primary) 6%, transparent); color: var(--dsk-text); }
 
 .dsk-rail-body {
   flex: 1;
@@ -624,10 +624,10 @@
 .dsk-btn--primary {
   border: none;
   background: var(--dsk-teal);
-  color: #0a0a0a;
-  box-shadow: 0 0 14px rgba(0, 212, 170, 0.27);
+  color: var(--on-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 27%, transparent);
 }
-.dsk-btn--primary:hover { background: #00e6b8; }
+.dsk-btn--primary:hover { background: var(--accent-hover); }
 .dsk-btn--primary:disabled { opacity: 0.55; cursor: default; }
 .dsk-btn--ghost {
   border: 1px solid var(--dsk-border-2);
@@ -675,9 +675,9 @@
   cursor: pointer;
   transition: background 0.14s ease;
 }
-.dsk-roster-row:hover { background: rgba(255, 255, 255, 0.035); }
+.dsk-roster-row:hover { background: color-mix(in srgb, var(--text-primary) 3.5%, transparent); }
 .dsk-roster-row.is-active {
-  background: rgba(0, 212, 170, 0.06);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
   border-left-color: var(--dsk-teal);
 }
 .dsk-roster-row__text { flex: 1; min-width: 0; }
@@ -713,8 +713,8 @@
 .dsk-phood {
   flex-shrink: 0;
   border-radius: 6px;
-  border: 1px solid rgba(0, 212, 170, 0.27);
-  background: #0a0f17;
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
+  background: var(--bg-tertiary);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -776,8 +776,8 @@
   gap: 6px;
   cursor: pointer;
 }
-.dsk-composer__cmd.is-on { background: rgba(0, 212, 170, 0.08); border-color: rgba(0, 212, 170, 0.33); }
-.dsk-composer__cmd:hover { border-color: rgba(0, 212, 170, 0.33); }
+.dsk-composer__cmd.is-on { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: color-mix(in srgb, var(--accent) 33%, transparent); }
+.dsk-composer__cmd:hover { border-color: color-mix(in srgb, var(--accent) 33%, transparent); }
 .dsk-composer__cmd-name {
   font-family: var(--dsk-mono);
   font-size: 10px;
@@ -795,7 +795,7 @@
   border-radius: 10px;
   padding: 10px 12px;
 }
-.dsk-composer__box.is-slash { border-color: rgba(0, 212, 170, 0.33); }
+.dsk-composer__box.is-slash { border-color: color-mix(in srgb, var(--accent) 33%, transparent); }
 .dsk-composer__sparkle { color: var(--dsk-teal); display: flex; padding-bottom: 2px; }
 .dsk-composer__input {
   flex: 1;
@@ -831,14 +831,14 @@
   border-radius: 6px;
   background: var(--dsk-teal);
   border: none;
-  color: #0a0a0a;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(0, 212, 170, 0.33);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 33%, transparent);
 }
-.dsk-composer__send:hover { background: #00e6b8; }
+.dsk-composer__send:hover { background: var(--accent-hover); }
 .dsk-composer__send:disabled { opacity: 0.4; box-shadow: none; cursor: default; }
 .dsk-composer__foot {
   display: flex;
@@ -861,8 +861,8 @@
   height: 28px;
   flex-shrink: 0;
   border-radius: 8px;
-  border: 1px solid rgba(0, 212, 170, 0.27);
-  background: #0a0f17;
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
+  background: var(--bg-tertiary);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -882,8 +882,8 @@
 }
 .dsk-msg__bubble--own {
   max-width: 352px;
-  background: rgba(0, 212, 170, 0.10);
-  border-color: rgba(0, 212, 170, 0.27);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 27%, transparent);
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 4px;
 }
@@ -911,8 +911,8 @@
   height: 20px;
   padding: 0 10px;
   border-radius: 10px;
-  background: rgba(0, 212, 170, 0.10);
-  border: 1px solid rgba(0, 212, 170, 0.27);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
   color: var(--dsk-teal);
   font-family: Oswald, Inter, sans-serif;
   font-size: 9px;
@@ -924,7 +924,7 @@
 
 .dsk-proposal {
   background: var(--dsk-surface);
-  border: 1px solid rgba(0, 212, 170, 0.27);
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -933,7 +933,7 @@
   align-items: center;
   padding: 10px 15px;
   border-bottom: 1px solid var(--dsk-border);
-  background: rgba(0, 212, 170, 0.04);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
 .dsk-proposal__tag {
   font-family: var(--dsk-mono);
@@ -987,8 +987,8 @@
   height: 46px;
   margin-left: -66px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 212, 170, 0.40);
-  box-shadow: 0 0 22px rgba(0, 212, 170, 0.13);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 13%, transparent);
   pointer-events: none;
   z-index: 1;
 }
@@ -1002,7 +1002,7 @@
   min-width: 0;
   position: relative;
   overflow: hidden;
-  background: radial-gradient(ellipse at 48% 42%, #1a2a2c 0%, #0f1818 58%, #0a1212 100%);
+  background: radial-gradient(ellipse at 48% 42%, var(--felt-center) 0%, var(--felt-edge) 58%, var(--felt-edge) 100%);
 }
 .dtb__arc {
   position: absolute;
@@ -1011,7 +1011,7 @@
   top: 70px;
   height: 620px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 212, 170, 0.08);
+  border: 1px solid color-mix(in srgb, var(--accent) 8%, transparent);
   pointer-events: none;
 }
 
@@ -1027,7 +1027,7 @@
   height: 30px;
   padding: 0 13px 0 10px;
   border-radius: 15px;
-  background: rgba(8, 10, 11, 0.86);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   border: 1px solid var(--dsk-border-2);
   color: var(--dsk-dim);
   font-family: Oswald, Inter, sans-serif;
@@ -1063,7 +1063,7 @@
   gap: 10px;
   padding: 4px 16px;
   border-radius: 18px;
-  background: rgba(23, 27, 27, 0.6);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   border: 1px solid var(--dsk-border);
 }
 .dtb__pot-amt {
@@ -1164,8 +1164,8 @@
   gap: 10px;
   padding: 8px 14px;
   border-radius: 10px;
-  background: rgba(23, 27, 27, 0.62);
-  border: 1px solid rgba(0, 212, 170, 0.18);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .dtb__equity-val {
   font-family: var(--dsk-mono);
@@ -1178,7 +1178,7 @@
   padding: 4px 10px;
   border-radius: 5px;
   background: var(--dsk-teal);
-  color: #0a0a0a;
+  color: var(--on-accent);
   font-family: Oswald, Inter, sans-serif;
   font-size: 10px;
   font-weight: 600;
@@ -1195,7 +1195,7 @@
   align-items: center;
   gap: 12px;
   padding: 11px 20px;
-  background: rgba(8, 10, 11, 0.92);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   border-top: 1px solid var(--dsk-border);
 }
 .dtb__exit-title { font-size: 12.5px; color: var(--dsk-text); font-weight: 500; }
@@ -1269,7 +1269,7 @@
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
   overflow: hidden;
 }
 .dsk-arow__fill { height: 100%; background: var(--dsk-text); }
@@ -1308,7 +1308,7 @@
   transition: border-color 0.14s ease;
 }
 .dsk-top__standup:disabled { cursor: default; }
-.dsk-top__standup:not(:disabled):hover { border-color: rgba(0, 212, 170, 0.33); }
+.dsk-top__standup:not(:disabled):hover { border-color: color-mix(in srgb, var(--accent) 33%, transparent); }
 .dsk-top__standup-line {
   font-size: 12px;
   color: var(--dsk-dim);
@@ -1375,7 +1375,7 @@
   cursor: pointer;
   transition: border-color 0.14s ease, background 0.14s ease;
 }
-.dsk-flagged__row:hover { border-color: rgba(205, 179, 128, 0.4); background: #35353E; }
+.dsk-flagged__row:hover { border-color: color-mix(in srgb, var(--gold-reward) 40%, transparent); background: var(--surface-strong); }
 .dsk-flagged__cards { display: flex; gap: 3px; flex-shrink: 0; }
 .dsk-flagged__text { flex: 1; min-width: 0; }
 .dsk-flagged__action {
@@ -1474,8 +1474,8 @@
 .dsk-pcard__ghost {
   border-radius: 13px;
   flex-shrink: 0;
-  background: #0a0f17;
-  border: 1px solid rgba(0, 212, 170, 0.27);
+  background: var(--bg-tertiary);
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1579,7 +1579,7 @@
   padding: 13px 15px;
   border-radius: 10px;
   background: var(--dsk-surface);
-  border: 1px solid rgba(0, 212, 170, 0.24);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
 }
 .dsk-pcard__pair { display: flex; flex-direction: column; gap: 10px; }
 .dsk-pcard__pair-row { display: flex; gap: 10px; }
@@ -1665,13 +1665,13 @@
   text-align: left;
   cursor: pointer;
 }
-.dsk3-roster__draft:hover { background: rgba(0, 212, 170, 0.05); }
+.dsk3-roster__draft:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 .dsk3-roster__draft-plus {
   width: 34px;
   height: 34px;
   flex-shrink: 0;
   border-radius: 8px;
-  border: 1px dashed rgba(0, 212, 170, 0.4);
+  border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1724,7 +1724,7 @@
   transform: translateX(-50%) translateY(-6px);
   padding: 5px 9px;
   border-radius: 7px;
-  background: rgba(8, 12, 12, 0.94);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   border: 1px solid var(--dsk-teal);
   color: var(--dsk-text);
   font-size: 10.5px;
@@ -1766,7 +1766,7 @@
 
 .dtb[data-pace='heating'],
 .dtb[data-pace='allin'] {
-  background: radial-gradient(ellipse at 48% 40%, #3b4a3f 0%, #202c28 58%, #131c1a 100%);
+  background: radial-gradient(ellipse at 48% 40%, var(--felt-center) 0%, color-mix(in srgb, var(--felt-center) 40%, var(--felt-edge)) 58%, var(--felt-edge) 100%);
 }
 
 .dtb__glow {
@@ -1780,23 +1780,23 @@
 
 .dtb[data-pace='heating'] .dtb__glow {
   opacity: 1;
-  box-shadow: inset 0 0 90px rgba(205, 179, 128, 0.18);
+  box-shadow: inset 0 0 90px color-mix(in srgb, var(--gold-reward) 18%, transparent);
 }
 
 .dtb[data-pace='allin'] .dtb__glow {
   opacity: 1;
-  box-shadow: inset 0 0 130px rgba(255, 77, 79, 0.26);
+  box-shadow: inset 0 0 130px color-mix(in srgb, var(--error) 26%, transparent);
   animation: dtb-breathe 1.4s ease-in-out infinite;
 }
 
 .dtb[data-pace='showdown'] .dtb__glow {
   opacity: 1;
-  box-shadow: inset 0 0 100px rgba(0, 212, 170, 0.18);
+  box-shadow: inset 0 0 100px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 @keyframes dtb-breathe {
-  0%, 100% { box-shadow: inset 0 0 110px rgba(255, 77, 79, 0.20); }
-  50%      { box-shadow: inset 0 0 150px rgba(255, 77, 79, 0.32); }
+  0%, 100% { box-shadow: inset 0 0 110px color-mix(in srgb, var(--error) 20%, transparent); }
+  50%      { box-shadow: inset 0 0 150px color-mix(in srgb, var(--error) 32%, transparent); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1822,12 +1822,12 @@
   font-size: 20px;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--dsk-text, #ededed);
+  color: var(--dsk-text, var(--text-primary));
 }
 
 /* At ALL-IN his line is the loudest thing on the stage — the same law the
    phone applies, at the desk's size. */
-.dtb[data-pace='allin'] .dtb__line { color: #fff; }
+.dtb[data-pace='allin'] .dtb__line { color: var(--text-primary); }
 
 /* ══════════════════════════════════════════════════════════════════════════
  * DP-2 — the wallet, as a rail panel. D3WalletScreenM.
@@ -1923,7 +1923,7 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
-  color: var(--dsk-muted, #6b6b6b);
+  color: var(--dsk-muted, var(--text-muted));
 }
 
 .dsk-beat__line {
@@ -1931,12 +1931,12 @@
   font-size: 12px;
   line-height: 1.4;
   font-style: italic;
-  color: var(--dsk-dim, #a1a1a1);
+  color: var(--dsk-dim, var(--text-secondary));
 }
 
 /* The all-in beat is the one the hand turned on, so it is the one that reads. */
-.dsk-beat[data-loud] .dsk-beat__label { color: var(--dsk-red, #ff4d4f); }
-.dsk-beat[data-loud] .dsk-beat__line { color: var(--dsk-text, #ededed); font-style: normal; }
+.dsk-beat[data-loud] .dsk-beat__label { color: var(--dsk-red, var(--error)); }
+.dsk-beat[data-loud] .dsk-beat__line { color: var(--dsk-text, var(--text-primary)); font-style: normal; }
 
 /* ══════════════════════════════════════════════════════════════════════════
  * DP-4 — the draft panel, taking shape. D4FlowScreenM.
@@ -1962,20 +1962,20 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--dsk-muted, #6b6b6b);
+  color: var(--dsk-muted, var(--text-muted));
 }
 
 .dsk-shape__meter {
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
   overflow: hidden;
 }
 
 .dsk-shape__fill {
   height: 100%;
-  background: var(--dsk-teal, #00d4aa);
-  box-shadow: 0 0 8px rgba(0, 212, 170, 0.4);
+  background: var(--dsk-teal, var(--accent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
   transition: width 400ms ease-out;
 }
 
@@ -1987,8 +1987,8 @@
   gap: 9px;
   padding: 12px 14px;
   border-radius: 10px;
-  background: var(--dsk-panel-2, #1b1b1b);
-  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+  background: var(--dsk-panel-2, var(--bg-tertiary));
+  border: 1px solid var(--dsk-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 .dsk-shape__dial {
@@ -2005,7 +2005,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--dsk-muted, #6b6b6b);
+  color: var(--dsk-muted, var(--text-muted));
 }
 
 .dsk-shape__dial .attr-track { flex: 1; }
@@ -2017,24 +2017,24 @@
   font-family: var(--dsk-font-mono, 'JetBrains Mono', ui-monospace, monospace);
   font-size: 11px;
   font-weight: 700;
-  color: var(--dsk-text, #ededed);
+  color: var(--dsk-text, var(--text-primary));
 }
 
 .dsk-shape__note {
   padding: 12px 14px;
   border-radius: 10px;
-  background: var(--dsk-panel-2, #1b1b1b);
-  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+  background: var(--dsk-panel-2, var(--bg-tertiary));
+  border: 1px solid var(--dsk-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 .dsk-shape__note p {
   margin: 6px 0 0;
   font-size: 12px;
   line-height: 1.55;
-  color: var(--dsk-dim, #a1a1a1);
+  color: var(--dsk-dim, var(--text-secondary));
 }
 
-.dsk-shape__note b { color: var(--dsk-text, #ededed); font-weight: 600; }
+.dsk-shape__note b { color: var(--dsk-text, var(--text-primary)); font-weight: 600; }
 
 .dsk-shape__deal { width: 100%; height: 44px; }
 
@@ -2051,8 +2051,8 @@
 .dsk-room {
   padding: 12px 14px;
   border-radius: 10px;
-  background: var(--dsk-panel-2, #1b1b1b);
-  border: 1px solid var(--dsk-border, rgba(255, 255, 255, 0.12));
+  background: var(--dsk-panel-2, var(--bg-tertiary));
+  border: 1px solid var(--dsk-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 .dsk-room__head {
@@ -2067,7 +2067,7 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--dsk-muted, #6b6b6b);
+  color: var(--dsk-muted, var(--text-muted));
   white-space: nowrap;
 }
 
@@ -2092,13 +2092,13 @@
 }
 
 .dsk-room__row:disabled { cursor: default; }
-.dsk-room__row:hover:not(:disabled) .dsk-room__name { color: var(--dsk-teal, #00d4aa); }
+.dsk-room__row:hover:not(:disabled) .dsk-room__name { color: var(--dsk-teal, var(--accent)); }
 
 .dsk-room__name {
   flex: 1;
   min-width: 0;
   font-size: 12.5px;
-  color: var(--dsk-text, #ededed);
+  color: var(--dsk-text, var(--text-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2135,11 +2135,11 @@
 .dtb__hero-bubble-box {
   padding: 11px 16px;
   border-radius: 13px;
-  background: rgba(12, 26, 24, 0.94);
-  border: 1px solid rgba(0, 212, 170, 0.40);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   font-size: 15px;
   line-height: 1.4;
-  color: var(--dsk-text, #EDEDED);
+  color: var(--dsk-text, var(--text-primary));
   text-align: center;
 }
 
@@ -2169,16 +2169,16 @@
   /* Two labelled condition rows need their own space below the numbers. */
   padding: 9px 13px 33px;
   border-radius: 13px;
-  background: rgba(13, 23, 21, 0.72);
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
 }
 
 .dtb__strip-rule {
   width: 1px;
   height: 22px;
-  background: rgba(255, 255, 255, 0.11);
+  background: color-mix(in srgb, var(--text-primary) 11%, transparent);
   flex-shrink: 0;
 }
 
@@ -2188,36 +2188,36 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.dtb__hero-num.is-gold { color: var(--dsk-gold, #CDB380); }
-.dtb__hero-num.is-dim  { color: var(--dsk-dim, #A1A1A1); }
+.dtb__hero-num.is-gold { color: var(--dsk-gold, var(--gold-reward)); }
+.dtb__hero-num.is-dim  { color: var(--dsk-dim, var(--text-secondary)); }
 
 /* ── the rail: the felt's own material, not a flat grey card on green ────── */
 .dsk-panel--watch {
-  background: linear-gradient(180deg, #16221F 0%, #101A18 100%);
-  border-left: 1px solid rgba(255, 255, 255, 0.11);
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-secondary) 100%);
+  border-left: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
 }
 
 .dsk-panel--watch .dsk-apanel {
-  background: rgba(13, 23, 21, 0.72);
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
   border-radius: 13px;
 }
 
 .dsk-panel--watch .dsk-composer {
   background: transparent;
-  border-top: 1px solid rgba(255, 255, 255, 0.11);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
 }
 
 /* The rail's composer box was --dsk-surface (#28282F) — the last flat grey on
    the watch screen. On this screen it is the felt's own glass, like the pill
    the phone whispers into. */
 .dsk-panel--watch .dsk-composer__box {
-  background: rgba(13, 23, 21, 0.72);
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border-color: rgba(255, 255, 255, 0.11);
+  border-color: color-mix(in srgb, var(--text-primary) 11%, transparent);
 }
 
 /* CASINO-1 — which room the stage is showing. Board 31's frame keeps the top
@@ -2266,20 +2266,20 @@
 
 /* C9 DkBar: one contextual room header; the door owns casino navigation. */
 @media (min-width:1100px) {
-  .dsk-top--room{height:54px;gap:14px;background:#0C1111;font-family:Inter,sans-serif}
+  .dsk-top--room{height:54px;gap:14px;background:var(--bg-secondary);font-family:Inter,sans-serif}
   .dsk-top__room{min-width:0}
   .dsk-top__portal:not([hidden]){display:flex;align-items:center;gap:18px;flex:1;min-width:0}
   .dsk-top__portal>.dsk-top__room{flex:1}
-  .dsk-top__room h1{margin:0;font:600 16px/1.25 'Playfair Display',Georgia,serif;white-space:nowrap;color:#EDEDED}
-  .dsk-top__room p{margin:0;font:10.5px Inter,sans-serif;color:#6B6B6B}
-  .dsk-top__result{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:9px;border:1px solid #00D4AA44;background:#00D4AA0F;color:#00D4AA}
-  .dsk-top__result>span{font:600 8.5px Oswald,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#6B6B6B}
+  .dsk-top__room h1{margin:0;font:600 16px/1.25 'Playfair Display',Georgia,serif;white-space:nowrap;color:var(--text-primary)}
+  .dsk-top__room p{margin:0;font:10.5px Inter,sans-serif;color:var(--text-muted)}
+  .dsk-top__result{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:9px;border:1px solid color-mix(in srgb, var(--accent) 26.7%, transparent);background:color-mix(in srgb, var(--accent) 5.9%, transparent);color:var(--accent)}
+  .dsk-top__result>span{font:600 8.5px Oswald,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted)}
   .dsk-top__result strong{font:700 13px 'JetBrains Mono',monospace}
   .dsk-top__result strong.is-loss{color:#E55454}
   .dsk-top__result:disabled,.dsk-top__account:disabled{opacity:1;cursor:default}
-  .dsk-top__account{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 8px;border-radius:9px;border:1px solid #ffffff1f;background:transparent;color:#A1A1A1;font:11.5px Inter,sans-serif}
-  .dsk-top__avatar{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:#CDB38026;border:1px solid #CDB38066;color:#CDB380;font:600 9px Oswald,sans-serif}
-  .dsk-top__home{width:20px;height:32px;padding:0;background:none;border:0;color:#A1A1A1;font:24px Inter,sans-serif}
+  .dsk-top__account{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 8px;border-radius:9px;border:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent);background:transparent;color:var(--text-secondary);font:11.5px Inter,sans-serif}
+  .dsk-top__avatar{width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:color-mix(in srgb, var(--gold-reward) 14.9%, transparent);border:1px solid color-mix(in srgb, var(--gold-reward) 40%, transparent);color:var(--gold-reward);font:600 9px Oswald,sans-serif}
+  .dsk-top__home{width:20px;height:32px;padding:0;background:none;border:0;color:var(--text-secondary);font:24px Inter,sans-serif}
 }
 @media(min-width:1501px){.dsk-top--room{padding:0 26px}.dsk-top__room h1{font-size:18px}}
 
@@ -2290,7 +2290,7 @@
 .dsk-home-table {flex-shrink:0;position:relative;overflow:hidden;border-radius:6px;box-shadow:0 28px 70px #0009;}
 .dsk-home-table__scene {width:900px;height:648px;transform-origin:0 0;position:relative;display:flex;flex-direction:column;}
 .dsk-home-table__scene>.watch-felt {max-width:none;width:100%;}
-.dsk-home-table__back {position:absolute;left:12px;top:12px;z-index:8;width:34px;height:34px;border-radius:50%;background:rgba(12,20,19,.86);border:1px solid #ffffff26;color:#EDEDED;font:24px/1 Inter,sans-serif;}
+.dsk-home-table__back {position:absolute;left:12px;top:12px;z-index:8;width:34px;height:34px;border-radius:50%;background:color-mix(in srgb, var(--bg-secondary) 94%, transparent);border:1px solid color-mix(in srgb, var(--text-primary) 14.9%, transparent);color:var(--text-primary);font:24px/1 Inter,sans-serif;}
 .dsk-home-table__actions {position:absolute;bottom:0;left:0;right:0;z-index:9;}
 .dsk-home-table.is-seated .owner-hero {bottom:var(--owner-clearance,112px);}
 .dsk-home-table.is-seated .watch-felt--fill {--wv-board:34%;--wv-pot:26%;}
@@ -2298,17 +2298,17 @@
 .dsk-home-table.is-seated .watch-felt__hero-bet {bottom:48%;}
 
 .owner-hero--desk .owner-hero__pill {display:flex;align-items:center;gap:8px;font-size:11px;}
-.owner-hero--desk .owner-hero__pill strong {font:700 10.5px 'JetBrains Mono',monospace;color:#A1A1A1;}
-.owner-hero__desk-hand {display:flex;gap:14px;align-items:center;padding:8px 15px;border-radius:15px;background:rgba(8,16,15,.78);border:1px solid #ffffff26;}
-.owner-hero__chance {display:flex;flex-direction:column;color:#6B6B6B;font:600 8.5px Oswald,sans-serif;}
-.owner-hero__chance strong {font:700 22px 'JetBrains Mono',monospace;color:#00D4AA;}
+.owner-hero--desk .owner-hero__pill strong {font:700 10.5px 'JetBrains Mono',monospace;color:var(--text-secondary);}
+.owner-hero__desk-hand {display:flex;gap:14px;align-items:center;padding:8px 15px;border-radius:15px;background:color-mix(in srgb, var(--bg-secondary) 94%, transparent);border:1px solid color-mix(in srgb, var(--text-primary) 14.9%, transparent);}
+.owner-hero__chance {display:flex;flex-direction:column;color:var(--text-muted);font:600 8.5px Oswald,sans-serif;}
+.owner-hero__chance strong {font:700 22px 'JetBrains Mono',monospace;color:var(--accent);}
 
 /* DkWatchScreenM: the shared phone felt in a desktop coordinate space. */
 .dsk-casino-table-viewport {width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;}
 .dsk-casino-table {flex-shrink:0;position:relative;overflow:hidden;border-radius:6px;box-shadow:0 28px 70px #0009;}
 .dsk-casino-table__scene {width:900px;height:648px;transform-origin:0 0;position:relative;display:flex;flex-direction:column;}
 .dsk-casino-table__scene>.watch-felt {max-width:none;width:100%;}
-.dsk-casino-table__back,.dsk-casino-table__sit-out {position:absolute;z-index:8;border:1px solid #ffffff26;border-radius:5px;background:#0c1413db;color:var(--dsk-dim);font:10px var(--dsk-mono);padding:8px;cursor:pointer;}
+.dsk-casino-table__back,.dsk-casino-table__sit-out {position:absolute;z-index:8;border:1px solid color-mix(in srgb, var(--text-primary) 14.9%, transparent);border-radius:5px;background:var(--v5-panel);color:var(--dsk-dim);font:10px var(--dsk-mono);padding:8px;cursor:pointer;}
 .dsk-casino-table__back {left:12px;top:12px;}
 .dsk-casino-table__sit-out {right:12px;top:12px;}
 .dsk-casino-table__name {position:absolute;right:14px;top:17px;color:var(--dsk-dim);font:11px var(--dsk-mono);pointer-events:none;}
@@ -2318,13 +2318,13 @@
 .dsk-panel--watch.is-conversation .thread-row {margin-bottom:12px;}
 
 .dsk-casino-table .watch-hero__strip.watch-felt__hero {padding-bottom:42px;}
-.dsk-panel--watch.is-conversation {background:#0e1413;}
+.dsk-panel--watch.is-conversation {background:var(--bg-secondary);}
 .dsk-panel--watch.is-conversation .thread-row {display:grid;grid-template-columns:auto 1fr;gap:5px 8px;padding:0;border:0;}
 .dsk-panel--watch.is-conversation .thread-row__who {grid-column:1;grid-row:1;font-size:9px;}
 .dsk-panel--watch.is-conversation .thread-row__at {grid-column:2;grid-row:1;justify-self:start;font-size:9px;}
-.dsk-panel--watch.is-conversation .thread-row__text {grid-column:1/-1;grid-row:2;border:1px solid #ffffff14;border-radius:9px;background:#15201d;padding:9px 11px;font-size:12px;line-height:1.5;}
+.dsk-panel--watch.is-conversation .thread-row__text {grid-column:1/-1;grid-row:2;border:1px solid color-mix(in srgb, var(--text-primary) 7.8%, transparent);border-radius:9px;background:var(--surface-soft);padding:9px 11px;font-size:12px;line-height:1.5;}
 .dsk-panel--watch.is-conversation .thread-row--you {max-width:88%;margin-left:auto;}
-.dsk-panel--watch.is-conversation .thread-row--you .thread-row__text {background:#003e352e;border-color:#00d4aa26;}
+.dsk-panel--watch.is-conversation .thread-row--you .thread-row__text {background:color-mix(in srgb, var(--accent) 12%, var(--bg-secondary));border-color:color-mix(in srgb, var(--accent) 14.9%, transparent);}
 .dsk-panel--watch.is-conversation .dsk-composer {padding:10px 12px;}
 .dsk-panel--watch.is-conversation .dsk-composer__hint,
 .dsk-panel--watch.is-conversation .dsk-composer__foot,

@@ -1,15 +1,9 @@
 /* Design tokens — single source of truth for color.
  *
- * Two palettes coexist:
- *   1. Product UI (95% of surfaces): black + teal. Use --bg-*, --accent*,
- *      --text-*, --your-turn / --opponent-turn, --error, etc.
- *   2. Marketing (landing page, replay cards, share images): burgundy + gold.
- *      Use --marketing-* tokens. None of the current product components touch
- *      these — defined here for future marketing surfaces.
- *
- * Gold reward tones (--gold-reward, --gold-highlight) are used sparingly in
- * the product UI only for win/achievement moments. Never on buttons or
- * structural chrome.
+ * The local-time appearance applies to the whole product. Use --bg-*, --accent*,
+ * --text-*, --your-turn / --opponent-turn and semantic state colors. Existing
+ * sys/dsk/wal names are aliases, so lazily opened screens share these values.
+ * Character identity and classic card suits remain independent of lighting.
  */
 
 :root {
@@ -30,55 +24,67 @@
    * Anything over the room or the felt uses these. A flat grey panel over
    * either is the bug this exists to prevent.
    */
-  --v5-panel: rgba(13, 23, 21, 0.72);
-  --v5-raised: rgba(18, 30, 28, 0.84);
-  --v5-edge: rgba(255, 255, 255, 0.11);
-  --v5-edge-up: rgba(255, 255, 255, 0.17);
+  --v5-panel: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  --v5-raised: color-mix(in srgb, var(--bg-secondary) 98%, transparent);
+  --v5-edge: var(--edge);
+  --v5-edge-up: var(--edge-strong);
   --v5-blur: blur(18px) saturate(1.2);
 
   /* Product surfaces */
-  --bg-primary: #1A1A1E;
-  --bg-secondary: #232329;
-  --bg-tertiary: #1A1A1A;
+  color-scheme: light;
+  --bg-primary: #e8e1d1;
+  --bg-secondary: #f5f0e5;
+  --bg-tertiary: #ded5c3;
+  --surface-soft: #e3dccd;
+  --surface-strong: #d4c8b1;
+  --felt-center: #c4cbab;
+  --felt-edge: #a5b38e;
+  --felt-line: #798963;
+  --felt-ink: #263021;
+  --wood-light: #d7b085;
+  --wood-deep: #ac7e54;
+  --wood-edge: #85613e;
+  --scrim: rgba(39, 35, 27, .48);
+  --shadow: rgba(57, 42, 25, .22);
 
-  /* Brand teal */
-  --accent: #00D4AA;
-  --accent-hover: #00E6B8;
-  --accent-dim: #00A88A;
-  --accent-deep: #006B5A;
-  --glow-soft: rgba(0, 212, 170, 0.25);
-  --glow-strong: rgba(0, 212, 170, 0.40);
-  --glow-faint: rgba(0, 212, 170, 0.08);
+  /* Sage by daylight; soft brass in the evening. */
+  --accent: #3e634c;
+  --accent-hover: #2e523d;
+  --accent-dim: #577957;
+  --accent-deep: #254332;
+  --glow-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --glow-strong: color-mix(in srgb, var(--accent) 28%, transparent);
+  --glow-faint: color-mix(in srgb, var(--accent) 7%, transparent);
 
   /* Text */
-  --text-primary: #EDEDED;
-  --text-secondary: #A1A1A1;
-  --text-muted: #6B6B6B;
-  --text-faded: #4A4A4A;
+  --text-primary: #2f352c;
+  --text-secondary: #565c4d;
+  --text-muted: #656d5b;
+  --text-faded: #747966;
 
   /* State */
-  --success: #00D4AA;
-  --error: #FF4D4F;
-  --warning: #FFB020;
-  --neutral: #888888;
+  --success: #386943;
+  --error: #b04736;
+  --warning: #966522;
+  --neutral: var(--text-muted);
 
   /* Game state */
-  --your-turn: #00E6B8;
-  --opponent-turn: #6B6B6B;
-  --timer-warning: #FFB020;
-  --timer-critical: #FF4D4F;
+  --your-turn: var(--accent);
+  --opponent-turn: var(--text-muted);
+  --timer-warning: var(--warning);
+  --timer-critical: var(--error);
 
   /* Reward — wins / achievements only. Never on buttons. */
-  --gold-reward: #CDB380;
-  --gold-highlight: #E6CFA3;
+  --gold-reward: #835c27;
+  --gold-highlight: #9a6c32;
 
   /* Cards (face stays white with classic suit colors — recognition, not brand) */
   --card-bg: #FFFFFF;
   --card-border: #E5E5E5;
   --suit-red: #E04F5F;
   --suit-black: #111111;
-  --card-back: #0A0A0A;
-  --card-back-accent: #00D4AA;
+  --card-back: #3c4939;
+  --card-back-accent: #e4d1a2;
 
   /* Marketing palette — burgundy + gold. Reserved for marketing surfaces. */
   --marketing-bg: #1A0A10;
@@ -107,9 +113,70 @@
   --nav-h: 56px;                        /* bottom nav bar height */
 
   /* Translucent overlays — derive from tokens so they shift with palette. */
-  --edge: rgba(0, 212, 170, 0.18);      /* teal hairline (token-derived) */
-  --edge-soft: rgba(0, 212, 170, 0.10);
-  --on-accent: var(--bg-primary);       /* text on teal fills (high-contrast black) */
+  --edge: color-mix(in srgb, var(--text-primary) 20%, transparent);
+  --edge-soft: color-mix(in srgb, var(--text-primary) 11%, transparent);
+  --edge-strong: color-mix(in srgb, var(--text-primary) 34%, transparent);
+  --on-accent: #fff8e7;
+}
+
+:root[data-appearance='dusk'] {
+  --bg-primary: #e2cfad;
+  --bg-secondary: #f2e3c9;
+  --bg-tertiary: #d1b998;
+  --surface-soft: #e7d3b2;
+  --surface-strong: #cbb38d;
+  --text-primary: #493c2b;
+  --text-secondary: #66543d;
+  --text-muted: #71604a;
+  --text-faded: #7e6a50;
+  --accent: #586346;
+  --accent-hover: #414e32;
+  --accent-dim: #687251;
+  --accent-deep: #38432c;
+  --felt-center: #b8bb8d;
+  --felt-edge: #949b72;
+  --felt-line: #717950;
+  --felt-ink: #292f20;
+  --wood-light: #c79868;
+  --wood-deep: #926341;
+  --wood-edge: #765039;
+  --success: #426236;
+  --error: #a3432d;
+  --warning: #85571b;
+  --gold-reward: #805523;
+  --gold-highlight: #97682f;
+}
+
+:root[data-appearance='night'] {
+  color-scheme: dark;
+  --bg-primary: #262923;
+  --bg-secondary: #33372f;
+  --bg-tertiary: #3d4236;
+  --surface-soft: #404638;
+  --surface-strong: #505642;
+  --text-primary: #f3ecd9;
+  --text-secondary: #d0c6af;
+  --text-muted: #b5ac97;
+  --text-faded: #99927e;
+  --accent: #c9b987;
+  --accent-hover: #e1cf9c;
+  --accent-dim: #b8ad7c;
+  --accent-deep: #9e9468;
+  --on-accent: #292c22;
+  --felt-center: #626b4d;
+  --felt-edge: #414936;
+  --felt-line: #87916c;
+  --felt-ink: #fff6df;
+  --wood-light: #816347;
+  --wood-deep: #4e3b2e;
+  --wood-edge: #9d8058;
+  --success: #b6c89b;
+  --error: #f39a83;
+  --warning: #e2b571;
+  --gold-reward: #dcc395;
+  --gold-highlight: #ead5b0;
+  --scrim: rgba(18, 19, 15, .62);
+  --shadow: rgba(15, 17, 12, .36);
 }
 
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }

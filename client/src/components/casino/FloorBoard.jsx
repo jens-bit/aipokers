@@ -37,15 +37,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { money } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
 import { CasinoEventType } from '../../lib/events.js';
-import { M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
+const M_TEAL = 'var(--accent)';
+const M_GOLD = 'var(--gold-reward)';
+const M_RED = 'var(--error)';
 import { Num } from '../wallet/atoms.jsx';
 import { LiveDot, Stake, count } from './CasinoBuilding.jsx';
 
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
 const MONO = '"JetBrains Mono",ui-monospace,monospace';
-const M_TEXT = '#EDEDED';
-const M_DIM = '#A1A1A1';
-const M_MUTED = '#6B6B6B';
+const M_TEXT = 'var(--text-primary)';
+const M_DIM = 'var(--text-secondary)';
+const M_MUTED = 'var(--text-muted)';
 
 // A default that is the SAME EMPTY SET every render. `mineIds = new Set()` in a
 // signature mints a new one each time, which makes every memo downstream of it
@@ -180,12 +182,12 @@ function LiveRow({ row, tick, onWatch }) {
 
   const style = {
     display: 'flex', alignItems: 'baseline', gap: 9, padding: '6px 12px 7px', width: '100%',
-    border: 'none', borderTop: '1px solid rgba(255,255,255,0.05)',
+    border: 'none', borderTop: '1px solid var(--edge-soft)',
     // The glow is the row itself, not a badge on it: a felt that is on fire is
     // the loudest thing on this board or the flag is decoration.
     background: row.hot
-      ? `linear-gradient(90deg, ${M_RED}1C 0%, transparent 72%)`
-      : row.mine ? `linear-gradient(90deg, ${M_TEAL}14 0%, transparent 72%)` : 'transparent',
+      ? `linear-gradient(90deg, color-mix(in srgb, ${M_RED} 10.98%, transparent) 0%, transparent 72%)`
+      : row.mine ? `linear-gradient(90deg, color-mix(in srgb, ${M_TEAL} 7.84%, transparent) 0%, transparent 72%)` : 'transparent',
     boxShadow: row.hot ? `inset 2px 0 0 ${M_RED}` : row.mine ? `inset 2px 0 0 ${M_TEAL}` : 'none',
   };
 
@@ -221,7 +223,7 @@ export function LiveNow({ felts = [], mineIds = NOBODY, rooms = [], limit = 3, o
       {rows.length === 0 ? (
         <div style={{
           fontSize: 10.5, color: M_MUTED, padding: '2px 12px 9px',
-          borderTop: '1px solid rgba(255,255,255,0.05)',
+          borderTop: '1px solid var(--edge-soft)',
         }}>Nothing is in the middle right now.</div>
       ) : rows.map((row) => (
         <LiveRow key={row.tableId} row={row} tick={ticks[row.tableId] ?? 0} onWatch={onWatch} />
@@ -324,7 +326,7 @@ function TonightRow({ row, head, stakesFor, onReplay }) {
 
   const style = head
     ? { display: 'flex', alignItems: 'flex-end', gap: 9, padding: '3px 12px 9px', width: '100%', background: 'none', border: 'none' }
-    : { display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 12px', width: '100%', background: 'none', border: 'none', borderTop: '1px solid rgba(255,255,255,0.05)' };
+    : { display: 'flex', alignItems: 'baseline', gap: 8, padding: '6px 12px', width: '100%', background: 'none', border: 'none', borderTop: '1px solid var(--edge-soft)' };
 
   if (!can) return <div className="csn-tonight__row" style={style}>{inner}</div>;
   return (

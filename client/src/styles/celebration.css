@@ -11,17 +11,17 @@
 .watch-felt__seat.is-busted .seat-ghost__body { opacity:.15; filter:grayscale(1); }
 .watch-felt__seat.is-busted .seat-ghost__chip { visibility:hidden; }
 .watch-felt__seat.is-busted .watch-felt__seat-pile { opacity:.2; }
-.hand-busted-name { position:absolute; left:50%; top:40px; z-index:10; padding:2.5px 7px; border-radius:8px; background:rgba(8,12,12,.92); border:1px solid #FF4D4F59; color:#FF4D4F; font:8.5px Inter,sans-serif; white-space:nowrap; pointer-events:none; animation:hand-name-fall 900ms ease-in both; }
+.hand-busted-name { position:absolute; left:50%; top:40px; z-index:10; padding:2.5px 7px; border-radius:8px; background:color-mix(in srgb, var(--bg-secondary) 94%, transparent); border:1px solid color-mix(in srgb, var(--error) 34.9%, transparent); color:var(--error); font:8.5px Inter,sans-serif; white-space:nowrap; pointer-events:none; animation:hand-name-fall 900ms ease-in both; }
 .watch-felt__won.is-celebrating { top:clamp(72px,calc(var(--wv-board) - 100px),96px); z-index:11; pointer-events:none; }
-.watch-felt__won.is-celebrating .watch-felt__won-pill { flex-direction:column; gap:0; max-width:230px; padding:9px 15px; border-radius:12px; background:rgba(18,30,28,.84); backdrop-filter:blur(18px) saturate(1.2); -webkit-backdrop-filter:blur(18px) saturate(1.2); box-shadow:none; border:1px solid rgba(255,255,255,.17); text-align:center; }
-.watch-felt__won.is-celebrating .watch-felt__won-to { color:#CDB380; font-size:9.5px; letter-spacing:.18em; }
-.watch-felt__won.is-busting .watch-felt__won-to { color:#FF4D4F; }
-.watch-felt__won.is-celebrating .watch-felt__won-amt { color:#00D4AA; margin-top:4px; font-family:'Rozha One',Georgia,serif; font-size:24px; font-weight:400; }
+.watch-felt__won.is-celebrating .watch-felt__won-pill { flex-direction:column; gap:0; max-width:230px; padding:9px 15px; border-radius:12px; background:color-mix(in srgb, var(--bg-secondary) 84%, transparent); backdrop-filter:blur(18px) saturate(1.2); -webkit-backdrop-filter:blur(18px) saturate(1.2); box-shadow:none; border:1px solid color-mix(in srgb, var(--text-primary) 17%, transparent); text-align:center; }
+.watch-felt__won.is-celebrating .watch-felt__won-to { color:var(--gold-reward); font-size:9.5px; letter-spacing:.18em; }
+.watch-felt__won.is-busting .watch-felt__won-to { color:var(--error); }
+.watch-felt__won.is-celebrating .watch-felt__won-amt { color:var(--accent); margin-top:4px; font-family:'Rozha One',Georgia,serif; font-size:24px; font-weight:400; }
 /* BUG-173: AgCelebLine's ordinary C8a card, inside the existing Watch layout. */
-.watch-felt__won.is-ordinary-win .watch-felt__won-pill { gap:0; background:rgba(18,30,28,.84); backdrop-filter:blur(18px) saturate(1.2); -webkit-backdrop-filter:blur(18px) saturate(1.2); box-shadow:none; }
-.watch-felt__won.is-ordinary-win .watch-felt__won-to { color:#00D4AA; }
+.watch-felt__won.is-ordinary-win .watch-felt__won-pill { gap:0; background:color-mix(in srgb, var(--bg-secondary) 84%, transparent); backdrop-filter:blur(18px) saturate(1.2); -webkit-backdrop-filter:blur(18px) saturate(1.2); box-shadow:none; }
+.watch-felt__won.is-ordinary-win .watch-felt__won-to { color:var(--accent); }
 .watch-felt__won.is-ordinary-win .watch-felt__won-amt { margin-top:4px; font-family:'Rozha One',Georgia,serif; font-size:19px; font-weight:400; }
-.watch-felt__won.is-ordinary-win .watch-felt__won-with { margin-top:3px; color:#9E9EA2; }
+.watch-felt__won.is-ordinary-win .watch-felt__won-with { margin-top:3px; color:var(--text-muted); }
 @keyframes hand-name-fall { from {opacity:1;transform:translate(-50%,0) rotate(0)} to {opacity:0;transform:translate(-50%,56px) rotate(24deg)} }
 @media (prefers-reduced-motion:reduce) {
   .hand-fireworks__spark {animation:none;opacity:.25;transform:rotate(var(--spark-angle)) translateY(-20px)}
@@ -30,10 +30,10 @@
 }
 
 /* SHOW-4 / 52q,r: the raised amount and darkness around the lost seat. */
-.watch-felt__won.is-celebrating .watch-felt__won-with { margin-top:3px; color:#9E9EA2; }
-.watch-felt__won-shared { margin-top:3px; color:#9E9EA2; font:9px Oswald,sans-serif; letter-spacing:.12em; }
+.watch-felt__won.is-celebrating .watch-felt__won-with { margin-top:3px; color:var(--text-muted); }
+.watch-felt__won-shared { margin-top:3px; color:var(--text-muted); font:9px Oswald,sans-serif; letter-spacing:.12em; }
 .watch-felt.is-result-moment .watch-felt__won.is-celebrating:not(.is-ordinary-win) .watch-felt__won-amt { animation:hand-pot-punch 380ms ease-out both; }
-.hand-busted-scrim { position:absolute; left:calc(50% - 34px); top:-16px; width:68px; height:74px; border-radius:50%; z-index:9; pointer-events:none; background:radial-gradient(ellipse,rgba(0,0,0,.82) 0%,rgba(0,0,0,.5) 58%,transparent 78%); }
+.hand-busted-scrim { position:absolute; left:calc(50% - 34px); top:-16px; width:68px; height:74px; border-radius:50%; z-index:9; pointer-events:none; background:radial-gradient(ellipse,var(--scrim) 0%,rgba(0,0,0,.5) 58%,transparent 78%); }
 .watch-hero__body.is-busted > svg { opacity:.15; filter:grayscale(1); }
 .watch-hero__body.is-busted .hand-busted-scrim { top:10px; }
 .watch-felt.is-major-result .watch-felt__arc { opacity:.15; }

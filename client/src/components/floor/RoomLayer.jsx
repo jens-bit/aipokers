@@ -1,10 +1,7 @@
 // The architecture, drawn from a layout — ported from mood-casino.jsx.
-// Gradients, opacities and path maths are verbatim.
+// Materials follow the app palette; layout and occupancy still own the geometry.
 
 import { FLOOR_W, FLOOR_H, LAYOUTS } from './layouts.js';
-
-const M_TEAL = '#00D4AA';
-const M_GOLD = '#CDB380';
 
 export function RoomLayer({ layout, ftu, viewBox }) {
   const L = LAYOUTS[layout] || LAYOUTS.one;
@@ -23,25 +20,25 @@ export function RoomLayer({ layout, ftu, viewBox }) {
     >
       <defs>
         <radialGradient id={`feltG${layout}`} cx="50%" cy="42%" r="62%">
-          <stop offset="0" stopColor="#2f5a50" />
-          <stop offset="0.65" stopColor="#1d362e" />
-          <stop offset="1" stopColor="#152822" />
+          <stop offset="0" stopColor="var(--felt-center)" />
+          <stop offset="0.65" stopColor="color-mix(in srgb, var(--felt-center), var(--felt-edge))" />
+          <stop offset="1" stopColor="var(--felt-edge)" />
         </radialGradient>
         <radialGradient id={`feltD${layout}`} cx="50%" cy="42%" r="62%">
-          <stop offset="0" stopColor="#213a32" />
-          <stop offset="1" stopColor="#16241f" />
+          <stop offset="0" stopColor="var(--felt-center)" />
+          <stop offset="1" stopColor="var(--felt-edge)" />
         </radialGradient>
         <radialGradient id={`poolG${layout}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0" stopColor={M_TEAL} stopOpacity="0.26" />
-          <stop offset="1" stopColor={M_TEAL} stopOpacity="0" />
+          <stop offset="0" stopColor="var(--accent)" stopOpacity="0.26" />
+          <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
         </radialGradient>
         <radialGradient id={`cornerG${layout}`} cx="50%" cy="50%" r="50%">
-          <stop offset="0" stopColor="#2a2233" stopOpacity="0.85" />
-          <stop offset="1" stopColor="#1A1A1E" stopOpacity="0" />
+          <stop offset="0" stopColor="var(--wood-deep)" stopOpacity="0.85" />
+          <stop offset="1" stopColor="var(--bg-primary)" stopOpacity="0" />
         </radialGradient>
         <linearGradient id={`barG${layout}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#302c27" />
-          <stop offset="1" stopColor="#1a1815" />
+          <stop offset="0" stopColor="var(--wood-light)" />
+          <stop offset="1" stopColor="var(--wood-deep)" />
         </linearGradient>
       </defs>
 
@@ -62,10 +59,10 @@ export function RoomLayer({ layout, ftu, viewBox }) {
           <ellipse cx={L.corner.cx} cy={L.corner.cy} rx={L.corner.rx + 40} ry={L.corner.ry + 34}
             fill={`url(#cornerG${layout})`} />
           <ellipse cx={L.corner.cx} cy={L.corner.cy + 42} rx="44" ry="16"
-            fill="#0e1216" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-          <ellipse cx={L.corner.cx} cy={L.corner.cy + 40} rx="44" ry="16" fill="#12161b" />
+            fill="var(--wood-deep)" stroke="var(--edge-soft)" strokeWidth="1" />
+          <ellipse cx={L.corner.cx} cy={L.corner.cy + 40} rx="44" ry="16" fill="var(--wood-light)" />
           <ellipse cx={L.corner.cx} cy={L.corner.cy + 40} rx="44" ry="16"
-            fill="none" stroke="rgba(155,123,255,0.16)" strokeWidth="1" />
+            fill="none" stroke="var(--wood-edge)" strokeWidth="1" />
         </>
       )}
 
@@ -75,14 +72,14 @@ export function RoomLayer({ layout, ftu, viewBox }) {
       {L.felts.map((f, i) => (
         <g key={`f${i}`} opacity={o}>
           <ellipse cx={f.cx} cy={f.cy} rx={f.rx + (f.lit ? 9 : 7)} ry={f.ry + (f.lit ? 9 : 7)}
-            fill="#241d15" opacity={f.lit ? 1 : 0.34} />
+            fill="var(--wood-edge)" opacity={f.lit ? 1 : 0.34} />
           <ellipse cx={f.cx} cy={f.cy} rx={f.rx} ry={f.ry}
             fill={f.lit ? `url(#feltG${layout})` : `url(#feltD${layout})`}
             opacity={f.lit ? 1 : 0.62}
-            stroke={f.lit ? `${M_TEAL}2E` : `${M_TEAL}1F`} strokeWidth={f.lit ? 1.2 : 0.9} />
+            stroke="var(--felt-line)" strokeOpacity={f.lit ? 1 : 0.67} strokeWidth={f.lit ? 1.2 : 0.9} />
           {f.lit && (
             <ellipse cx={f.cx} cy={f.cy} rx={f.rx - 13} ry={f.ry - 11}
-              fill="none" stroke={`${M_TEAL}14`} strokeWidth="0.8" />
+              fill="none" stroke="var(--felt-line)" strokeOpacity="0.44" strokeWidth="0.8" />
           )}
         </g>
       ))}
@@ -96,22 +93,22 @@ export function RoomLayer({ layout, ftu, viewBox }) {
           <>
             <path
               d={`M${b.x1 + 10} ${b.y - 60} Q${mid} ${b.y - 60 - rise * 0.7} ${b.x2 - 10} ${b.y - 60} L${b.x2 - 10} ${b.y - 24} Q${mid} ${b.y - 24 - rise * 0.7} ${b.x1 + 10} ${b.y - 24} Z`}
-              fill="#100e0c" opacity="0.85" />
+              fill="var(--wood-deep)" opacity="0.85" />
             <path
               d={`M${b.x1 + 10} ${b.y - 30} Q${mid} ${b.y - 30 - rise * 0.7} ${b.x2 - 10} ${b.y - 30} L${b.x2 - 10} ${b.y - 24} Q${mid} ${b.y - 24 - rise * 0.7} ${b.x1 + 10} ${b.y - 24} Z`}
-              fill="#1d1a16" stroke="rgba(255,255,255,0.06)" strokeWidth="0.8" />
+              fill="var(--wood-light)" stroke="var(--wood-edge)" strokeWidth="0.8" />
           </>
         )}
         {!b.sliver && [0, 1, 2, 3, 4].map((i) => (
           <rect key={i} x={b.x1 + 22 + i * ((b.x2 - b.x1 - 50) / 4)} y={b.y - 52}
             width="7" height="22" rx="2.5"
-            fill={i % 2 ? `${M_GOLD}26` : `${M_TEAL}26`} opacity="0.8" />
+            fill={i % 2 ? 'color-mix(in srgb, var(--gold-reward) 15%, transparent)' : 'color-mix(in srgb, var(--accent) 15%, transparent)'} opacity="0.8" />
         ))}
         <path
           d={`M${b.x1} ${b.y} Q${mid} ${b.y - rise} ${b.x2} ${b.y} L${b.x2} ${b.y + depth} Q${mid} ${b.y + depth - rise + 4} ${b.x1} ${b.y + depth} Z`}
-          fill={`url(#barG${layout})`} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+          fill={`url(#barG${layout})`} stroke="var(--wood-edge)" strokeWidth="1" />
         <path d={`M${b.x1} ${b.y} Q${mid} ${b.y - rise} ${b.x2} ${b.y}`}
-          fill="none" stroke={`${M_TEAL}3D`} strokeWidth="1.2" />
+          fill="none" stroke="var(--wood-light)" strokeWidth="1.2" />
       </g>
     </svg>
   );

@@ -1,5 +1,5 @@
-/* Home's light changes the room, not its coordinate space or the live felt.
-   Keep these colours local: existing conversation and wallet glass stays dark. */
+/* Room materials share the application's clock. Appearance changes paint,
+   never room coordinates, game state or character identity. */
 [data-home-theme='day'] {
   --home-stage: #e8e1d1;
   --home-chrome: #f4efe3;
@@ -73,36 +73,36 @@
 }
 
 [data-home-theme='night'] {
-  --home-stage: #142c29;
-  --home-chrome: #1c3631;
-  --home-chrome-soft: #27473e;
-  --home-ink: #f0ead4;
-  --home-muted: #b4c4ad;
-  --home-edge: #466259;
-  --home-accent: #b8d3ac;
-  --home-floor-light: #596956;
-  --home-floor: #40574a;
-  --home-floor-deep: #2c4138;
-  --home-grain: rgba(9, 30, 24, .30);
-  --home-wall: #45665b;
-  --home-wall-low: #2b4d42;
+  --home-stage: #262923;
+  --home-chrome: #33372f;
+  --home-chrome-soft: #404638;
+  --home-ink: #f3ecd9;
+  --home-muted: #c3baa1;
+  --home-edge: #646a52;
+  --home-accent: #c9b987;
+  --home-floor-light: #696b50;
+  --home-floor: #51563f;
+  --home-floor-deep: #383f30;
+  --home-grain: rgba(25, 27, 17, .30);
+  --home-wall: #60684e;
+  --home-wall-low: #434d39;
   --home-trim: #8c8567;
-  --home-couch: #658171;
-  --home-couch-deep: #3b5c4b;
+  --home-couch: #81886b;
+  --home-couch-deep: #536343;
   --home-table-wood: #856747;
   --home-table-wood-deep: #554030;
   --home-table-grain: rgba(30, 20, 13, .25);
   --home-table-ink: #fff2d2;
   --home-table-rim: #817050;
   --home-fridge: #c8cfb3;
-  --home-fridge-side: #829984;
-  --home-metal: #405d4b;
-  --home-safe: #506d5c;
-  --home-safe-deep: #304d3c;
-  --home-shadow: rgba(3, 18, 14, .38);
-  --home-window-sky: #183e43;
-  --home-window-horizon: #5b8280;
-  --home-window-glow: rgba(159, 209, 197, .13);
+  --home-fridge-side: #9b9c7d;
+  --home-metal: #556246;
+  --home-safe: #667355;
+  --home-safe-deep: #435037;
+  --home-shadow: rgba(14, 18, 10, .38);
+  --home-window-sky: #333f4a;
+  --home-window-horizon: #838b87;
+  --home-window-glow: rgba(206, 211, 181, .13);
   --home-lamp: rgba(255, 218, 145, .19);
   --home-positive: #afd7ab;
   --home-negative: #ffb5a0;
@@ -199,6 +199,11 @@
   background: linear-gradient(90deg, var(--home-table-rim), var(--home-trim));
   border-color: var(--home-trim);
 }
+.home1[data-home-theme] .home-flat__sign,
+.home1[data-home-theme] .home-flat__sign-word {
+  color: #fff4d5;
+  text-shadow: 0 1px 2px #382819;
+}
 .home1[data-home-theme] .home-flat__lamp {
   background: radial-gradient(ellipse, var(--home-lamp), transparent 68%);
 }
@@ -255,9 +260,9 @@
   line-height: 1.2;
 }
 .home1[data-home-theme] .home-tv__recording-caption { color: #d7e3ce; }
+.home1[data-home-theme] .home-tv__recording-title { color: #e4d1a2; }
 
-/* Surrounding Home chrome shares the room palette. Dark rails keep their own
-   text variables; changing global --text-* would make their copy disappear. */
+/* Surrounding Home chrome shares the room palette. */
 .home1[data-home-theme] > .room-header,
 .dsk-root[data-home-theme] > .dsk-top {
   background: var(--home-chrome);
@@ -304,22 +309,22 @@
   color: var(--home-ink);
   border-color: var(--home-edge);
 }
-/* The conversation is an intentional dark surface even beside a sunlit room. */
+/* Conversation panels follow the same appearance as their room and portals. */
 .home1[data-home-theme] > .home-thread .home-thread__band,
 .home1[data-home-theme] > .home-thread .home-thread__sheet,
 .home1[data-home-theme] > .home-thread > .home-want {
-  background: #17332b;
-  border-color: #49695a;
+  background: var(--bg-secondary);
+  border-color: var(--edge);
 }
 .home1[data-home-theme] > .home-thread .home-thread__text,
-.home1[data-home-theme] > .home-thread .home-thread__sentence { color: #d7e3d1; }
-.home1[data-home-theme] > .home-thread .home-thread__who { color: #e0ce9a; }
+.home1[data-home-theme] > .home-thread .home-thread__sentence { color: var(--text-primary); }
+.home1[data-home-theme] > .home-thread .home-thread__who { color: var(--accent); }
 .home1[data-home-theme] > .home-thread .home-thread__composer {
-  background: #234437;
-  border-color: #617c68;
+  background: var(--bg-tertiary);
+  border-color: var(--edge-strong);
 }
-.home1[data-home-theme] > .home-thread .home-thread__input { color: #f0f2e2; }
-.home1[data-home-theme] > .home-thread .home-thread__input::placeholder { color: #bacbb8; opacity: 1; }
+.home1[data-home-theme] > .home-thread .home-thread__input { color: var(--text-primary); }
+.home1[data-home-theme] > .home-thread .home-thread__input::placeholder { color: var(--text-muted); opacity: 1; }
 
 .home-appearance { display: inline-flex; align-items: center; flex: 0 0 auto; }
 .home-appearance__label {

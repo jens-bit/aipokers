@@ -16,6 +16,16 @@ The 185-frame source-indexed inventory and its 466 substates are in **[DESIGN_ST
 
 Founder decisions and reference contradictions. They outrank the boards, and permission to repair a bug is never permission to reopen one.
 
+- **Latest founder palette correction (2026-09-12):** the brighter Home direction now applies across the game. Warm Night replaces Teal Night; fixed dark conversation surfaces are retired. This is an approved palette departure from the older boards, not a claim that every frame is reference-matched. Identity colors, suits, geometry and existing mechanics remain. Evidence and local status: [Warm game handoff](WARM_GAME_HANDOFF.md).
+
+### Current affected-screen review — warm game
+
+- **Home, fridge and safe:** shared day/dusk/night lighting, warmer materials and legible contents on phone/desktop. Existing furniture geometry remains. Check the door, TV and first arrival on Jens's actual phone; no notebook or inventory mechanic was added.
+- **Watch and human play:** the public camera uses an occupied seat, with both real identities and stacks shown. Built public Watch covers three palettes, a short phone and desktop, with measured name/stack/pot contrast and public-card checks. Human controls remain on the authenticated seat. A live newcomer still needs to explain who plays and what just happened.
+- **Casino:** the full floor, header, board and table captions share the palette. Visual review exposed the old desktop black header and low-contrast captions on wood; the repaired panels retain existing floor geometry. Review public versus owned tables in the next live playtest.
+- **Conversation and profile:** phone sheets and desktop panels inherit appearance; profile round-trip retains the unsent draft. Existing agent hood/glow remains. Private chat quality still depends on a real signed-in playtest.
+- **Draft, wallet, replay and entry:** fixed structural colors now use shared tokens. Existing behavior gates and actual built entry journeys validate reachability; this is not a claim to have visually enumerated every rare substate. External Telegram window chrome is outside the web app's CSS.
+
 - **Founder:** Home is the default destination after the existing entry/onboarding flow. The casino is a deliberate destination from Home; floor-first applies only inside the casino. The kitchen table and home games stay. The approved Watch composition stays. Human Sit keeps working. The draft has four stages and no collar. Branding is the Railbird ghost at the rail. The roster control is separate from the live count. No shared-room redesign is inferred from permission to fix a bug in it.
 - **Desktop retention:** [board 31's introduction](<../design-refs/Agentic Poker Desktop Parity.html>) explicitly retains the pace, wallet, floor, matrix and glass states. P1–P13 are not superseded layouts.
 - **Brand:** the standalone embedded wave-62 bird yields to [board 41's](<../design-refs/Railbird Brand.html#b1>) ghost. The README's one-colour law still contradicts B1's felt-tone exception at 96px and above — **unresolved**, and it has to be decided before any brand variant can be called matched.

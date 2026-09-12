@@ -68,7 +68,7 @@
   height: 3px;
   margin: 10px auto 6px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--text-primary) 25%, transparent);
 }
 
 .roster__head {
@@ -84,7 +84,7 @@
   font-family: Oswald, sans-serif;
   font-size: 10px;
   font-weight: 600;
-  color: #00D4AA;
+  color: var(--accent);
   text-transform: none;
   letter-spacing: .18em;
 }
@@ -92,7 +92,7 @@
   flex: 1;
   font-family: Inter, sans-serif;
   font-size: 11px;
-  color: #9E9EA2; /* Current C5 M_MUTED: secondary text, not the old faint ink. */
+  color: var(--text-muted); /* Current C5 M_MUTED: secondary text, not the old faint ink. */
 }
 .roster__close {
   width: 28px;
@@ -102,7 +102,7 @@
   border-radius: 8px;
   background: none;
   border: none;
-  color: var(--text-muted, #6B6B6B);
+  color: var(--text-muted, var(--text-muted));
   font-size: 13px;
   cursor: pointer;
 }
@@ -124,32 +124,32 @@
   padding: 11px 14px;
   background: none;
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 5%, transparent);
   text-align: left;
   text-transform: none;
   letter-spacing: 0;
   cursor: pointer;
 }
-.roster__row:active { background: rgba(255, 255, 255, 0.04); }
+.roster__row:active { background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
 .roster__row .roster__name { font:600 12.5px Inter,sans-serif; }
 .roster__row .roster__where { font:11px Inter,sans-serif; white-space:nowrap; }
 .roster__place { display:flex; align-items:center; gap:6px; margin-top:2.5px; min-width:0; }
-.roster__routine { font:9.5px 'JetBrains Mono',monospace; color:#6B6B6B; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.roster__routine { font:9.5px 'JetBrains Mono',monospace; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .roster__numbers { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:2.5px; }
-.roster__result { font:700 11.5px 'JetBrains Mono',monospace; color:#9E9EA2; }
-.roster__result.is-up { color:#00D4AA; }
-.roster__result.is-down { color:#FF4D4F; }
-.roster__pocket { display:flex; align-items:center; gap:4px; font:600 10px 'JetBrains Mono',monospace; color:#CDB380; }
-.roster__pocket small { font:600 7.5px Oswald,sans-serif; letter-spacing:.1em; color:#6B6B6B; }
-.roster__chevron { flex-shrink:0; color:#6B6B6B; }
-.roster__live,.roster__want { position:absolute; right:-1px; top:1px; width:6px; height:6px; border-radius:50%; background:#00D4AA; box-shadow:0 0 6px #00D4AA; }
-.roster__want { background:#CDB380; box-shadow:0 0 6px #CDB380; }
+.roster__result { font:700 11.5px 'JetBrains Mono',monospace; color:var(--text-muted); }
+.roster__result.is-up { color:var(--accent); }
+.roster__result.is-down { color:var(--error); }
+.roster__pocket { display:flex; align-items:center; gap:4px; font:600 10px 'JetBrains Mono',monospace; color:var(--gold-reward); }
+.roster__pocket small { font:600 7.5px Oswald,sans-serif; letter-spacing:.1em; color:var(--text-muted); }
+.roster__chevron { flex-shrink:0; color:var(--text-muted); }
+.roster__live,.roster__want { position:absolute; right:-1px; top:1px; width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 6px var(--accent); }
+.roster__want { background:var(--gold-reward); box-shadow:0 0 6px var(--gold-reward); }
 .roster__face .roster__dot { top:auto; bottom:0; }
-.roster__error { padding:12px 14px; font:12px/1.5 Inter,sans-serif; color:#CDB380; }
-.roster__error button { display:block; color:#00D4AA; font:12px Inter,sans-serif; }
+.roster__error { padding:12px 14px; font:12px/1.5 Inter,sans-serif; color:var(--gold-reward); }
+.roster__error button { display:block; color:var(--accent); font:12px Inter,sans-serif; }
 
 /* C5 has one navigation row; the visit action lives in the profile menu. */
-.roster__item { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+.roster__item { border-top: 1px solid color-mix(in srgb, var(--text-primary) 5%, transparent); }
 .roster__item .roster__row { border-top: none; }
 
 .roster__face {
@@ -167,9 +167,9 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent, #00D4AA);
-  box-shadow: 0 0 6px rgba(0, 212, 170, 0.8);
-  border: 1.5px solid #0D1715;
+  background: var(--accent, var(--accent));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 80%, transparent);
+  border: 1.5px solid var(--bg-secondary);
 }
 
 .roster__id {
@@ -181,14 +181,14 @@
 }
 .roster__name {
   font-size: 13px;
-  color: var(--text-primary, #EDEDED);
+  color: var(--text-primary, var(--text-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .roster__where {
   font-size: 10px;
-  color: #9E9EA2;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -198,14 +198,14 @@
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-primary, #EDEDED);
+  color: var(--text-primary, var(--text-primary));
 }
 
 .roster__empty {
   margin: 0;
   padding: 18px 16px;
   font-size: 12px;
-  color: var(--text-muted, #6B6B6B);
+  color: var(--text-muted, var(--text-muted));
 }
 .roster__ftu { padding-bottom: 8px; }
 .roster__make {
@@ -213,9 +213,9 @@
   padding: 9px 16px;
   min-height: 0;
   border-radius: 999px;
-  border: 1px solid var(--accent, #00D4AA);
+  border: 1px solid var(--accent, var(--accent));
   background: transparent;
-  color: var(--accent, #00D4AA);
+  color: var(--accent, var(--accent));
   font-size: 12px;
   letter-spacing: 0.06em;
   cursor: pointer;
@@ -237,7 +237,7 @@
   gap: 10px;
   margin-top: 3px;
   padding: 11px 16px 4px;
-  border-top: 1px solid var(--edge-2, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--edge-2, color-mix(in srgb, var(--text-primary) 8%, transparent));
 }
 .roster__wallet {
   flex: 1;
@@ -258,12 +258,12 @@
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 0.15em;
-  color: var(--text-muted, #6B6B6B);
+  color: var(--text-muted, var(--text-muted));
 }
 .roster__wallet-amount {
   font-family: var(--font-display, "Rozha One", Georgia, serif);
   font-size: 20px;
-  color: var(--gold, #CDB380);
+  color: var(--gold, var(--gold-reward));
   letter-spacing: 0.005em;
 }
 .roster__ledger {
@@ -272,9 +272,9 @@
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--text-secondary, #A1A1A1);
+  color: var(--text-secondary, var(--text-secondary));
   background: none;
-  border: 1px solid var(--edge-2, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--edge-2, color-mix(in srgb, var(--text-primary) 8%, transparent));
   border-radius: 10px;
   padding: 7px 12px;
   cursor: pointer;

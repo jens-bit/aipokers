@@ -10,8 +10,8 @@
      behind it. 100% is the fallback outside Telegram. */
   height: var(--tg-h, 100%);
   max-height: 100%;
-  background: var(--sys-bg, #1A1A1E);
-  color: var(--sys-text, #EDEDED);
+  background: var(--sys-bg, var(--bg-primary));
+  color: var(--sys-text, var(--text-primary));
   font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
   overflow: hidden;
 }
@@ -26,8 +26,8 @@
   gap: 8px;
   height: 40px;
   padding: 0 14px;
-  background: var(--sys-panel, #232329);
-  border-bottom: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-panel, var(--bg-secondary));
+  border-bottom: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   flex-shrink: 0;
 }
 
@@ -40,8 +40,8 @@
   padding: 0 11px;
   border-radius: 8px;
   background: transparent;
-  border: 1px solid var(--sys-teal, #00D4AA);
-  color: var(--sys-teal, #00D4AA);
+  border: 1px solid var(--sys-teal, var(--accent));
+  color: var(--sys-teal, var(--accent));
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 11px;
   font-weight: 600;
@@ -72,7 +72,7 @@
   height: 28px;
   min-height: 0;
   flex-shrink: 0;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -102,8 +102,8 @@
   position: relative;
   flex-shrink: 0;
   overflow: hidden;
-  background: radial-gradient(ellipse at 50% 40%, #2f4d48 0%, #1d2e2c 58%, #131f1e 100%);
-  border-bottom: 1px solid rgba(0,212,170,0.22);
+  background: radial-gradient(ellipse at 50% 40%, var(--felt-center) 0%, var(--felt-edge) 58%, var(--felt-edge) 100%);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 /* WATCH-6 · THE FELT IS THE SCREEN. It fills header -> composer and NEVER
@@ -150,7 +150,7 @@
   top: 34px;
   height: calc(100% - 36px);
   border-radius: 50%;
-  border: 1px solid rgba(0,212,170,0.12);
+  border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
   pointer-events: none;
 }
 
@@ -204,8 +204,8 @@
   gap: 8px;
   padding: 3px 13px;
   border-radius: 16px;
-  background: rgba(8,10,10,0.6);
-  border: 1px solid var(--sys-border, rgba(255,255,255,0.12));
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 /* WV2-5: the pot going to its winner. Ported from mood-watch2.jsx's
@@ -219,7 +219,7 @@
   width: 2px;
   height: max(0px, calc(var(--wv-tug, 236px) - var(--wv-board, 128px) - 62px));
   z-index: 1;
-  background: linear-gradient(180deg, transparent, rgba(205,179,128,0.33));
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--gold-reward) 33%, transparent));
   pointer-events: none;
 }
 
@@ -239,16 +239,16 @@
   gap: 8px;
   padding: 3px 13px;
   border-radius: 16px;
-  background: rgba(8,10,10,0.78);
-  border: 1px solid rgba(205,179,128,0.33);
-  box-shadow: 0 0 14px rgba(205,179,128,0.13);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 33%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--gold-reward) 13%, transparent);
 }
 
 .watch-felt__won-amt {
   font-family: var(--sys-font-display, "Playfair Display", serif);
   font-size: 19px;
   font-weight: 600;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   letter-spacing: 0.005em;
 }
 
@@ -258,7 +258,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   white-space: nowrap;
 }
 
@@ -272,7 +272,7 @@
 .watch-felt__won-with {
   font-family: var(--sys-font-body, "Inter", sans-serif);
   font-size: 10.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   max-width: 42vw;
 }
 
@@ -284,14 +284,14 @@
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .watch-felt__pot-amt {
   font-family: var(--sys-font-display, "Playfair Display", serif);
   font-size: 23px;
   font-weight: 600;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   letter-spacing: 0.005em;
 }
 
@@ -313,7 +313,7 @@
 }
 
 .watch-felt__pot-amt.is-between {
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   font-size: 16px;
   font-weight: 600;
 }
@@ -327,7 +327,7 @@
   z-index: 2;
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 10px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   letter-spacing: 0.14em;
 }
 
@@ -343,19 +343,19 @@
   gap: 7px;
   padding: 9px 10px;
   border-radius: 12px;
-  background: rgba(23,27,27,0.72);
-  border: 1px solid var(--sys-border, rgba(255,255,255,0.12));
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 .watch-felt__hero.is-active {
-  border-color: rgba(0,212,170,0.33);
-  box-shadow: inset 0 1px 0 rgba(0,212,170,0.18), 0 4px 12px rgba(0,0,0,0.4);
+  border-color: color-mix(in srgb, var(--accent) 33%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent), 0 4px 12px rgba(0,0,0,0.4);
 }
 
 .watch-felt__hero-divider {
   width: 1px;
   height: 22px;
-  background: rgba(255,255,255,0.12);
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
   flex-shrink: 0;
 }
 
@@ -365,34 +365,34 @@
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   display: block;
 }
-.watch-felt__hero-lbl.is-live { color: var(--sys-teal, #00D4AA); }
+.watch-felt__hero-lbl.is-live { color: var(--sys-teal, var(--accent)); }
 
 .watch-felt__hero-num {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 13px;
   font-weight: 700;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   font-variant-numeric: tabular-nums;
 }
-.watch-felt__hero-num.is-live  { color: var(--sys-teal, #00D4AA); }
-.watch-felt__hero-num.is-muted { color: var(--sys-muted, #6B6B6B); }
+.watch-felt__hero-num.is-live  { color: var(--sys-teal, var(--accent)); }
+.watch-felt__hero-num.is-muted { color: var(--sys-muted, var(--text-muted)); }
 
 .watch-felt__hero-pos {
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .watch-felt__action-chip {
   padding: 5px 10px;
   border-radius: 5px;
-  background: var(--sys-teal, #00D4AA);
-  color: #0A0A0A;
+  background: var(--sys-teal, var(--accent));
+  color: var(--on-accent);
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 9.5px;
   font-weight: 600;
@@ -405,7 +405,7 @@
 
 .watch-felt__waiting {
   font-size: 11.5px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   font-style: italic;
   white-space: nowrap;
   transition: opacity 120ms ease;
@@ -418,8 +418,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: var(--sys-panel, #232329);
-  border-bottom: 1px solid var(--sys-border, rgba(255,255,255,0.12));
+  background: var(--sys-panel, var(--bg-secondary));
+  border-bottom: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   overflow: hidden;
   max-height: 60px;
   transition: max-height 200ms ease, opacity 200ms ease;
@@ -436,14 +436,14 @@
 
 .watch-sitout-strip__title {
   font-size: 12px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   font-weight: 500;
 }
 
 .watch-sitout-strip__meta {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 10px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   margin-top: 1px;
   letter-spacing: 0.06em;
 }
@@ -454,8 +454,8 @@
   border-radius: 8px;
   cursor: pointer;
   background: transparent;
-  border: 1px solid var(--sys-border-2, rgba(255,255,255,0.10));
-  color: var(--sys-dim, #A1A1A1);
+  border: 1px solid var(--sys-border-2, color-mix(in srgb, var(--text-primary) 10%, transparent));
+  color: var(--sys-dim, var(--text-secondary));
   font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
   font-size: 12px;
   font-weight: 500;
@@ -495,12 +495,12 @@
   align-items: center;
   gap: 10px;
   padding: 9px 0;
-  border-top: 1px solid var(--sys-border, rgba(255,255,255,0.12));
+  border-top: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 .watch-analysis-row__label {
   font-size: 12px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   min-width: 80px;
 }
 
@@ -508,7 +508,7 @@
   flex: 1;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255,255,255,0.07);
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
   overflow: hidden;
 }
 
@@ -520,14 +520,14 @@
 .watch-analysis-row__note {
   flex: 1;
   font-size: 11.5px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .watch-analysis-row__value {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   font-variant-numeric: tabular-nums;
 }
 
@@ -536,15 +536,15 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(10,10,10,0.78);
+  background: var(--scrim);
   display: flex;
   align-items: flex-end;
 }
 
 .watch-sitout-sheet {
   width: 100%;
-  background: var(--sys-panel-2, #28282F);
-  border: 1px solid var(--sys-border-2, rgba(255,255,255,0.10));
+  background: var(--sys-panel-2, var(--bg-tertiary));
+  border: 1px solid var(--sys-border-2, color-mix(in srgb, var(--text-primary) 10%, transparent));
   border-radius: 16px 16px 0 0;
   padding: 16px 16px 14px;
   box-shadow: 0 -8px 28px rgba(0,0,0,0.55);
@@ -554,7 +554,7 @@
   width: 34px;
   height: 4px;
   border-radius: 2px;
-  background: var(--sys-border-2, rgba(255,255,255,0.10));
+  background: var(--sys-border-2, color-mix(in srgb, var(--text-primary) 10%, transparent));
   margin: 0 auto 14px;
 }
 
@@ -562,14 +562,14 @@
   font-family: var(--sys-font-display, "Playfair Display", serif);
   font-size: 19px;
   font-weight: 500;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   letter-spacing: -0.01em;
   margin-bottom: 8px;
 }
 
 .watch-sitout-sheet__body {
   font-size: 13px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.55;
   margin-bottom: 14px;
 }
@@ -581,8 +581,8 @@
   margin-bottom: 14px;
   padding: 9px 11px;
   border-radius: 10px;
-  background: rgba(0,212,170,0.05);
-  border: 1px solid rgba(0,212,170,0.18);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .watch-sitout-sheet__session-lbl {
@@ -591,12 +591,12 @@
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
 }
 
 .watch-sitout-sheet__session-hands {
   font-size: 11.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
 }
 
 .watch-sitout-sheet__btns {
@@ -622,15 +622,15 @@
 
 .watch-btn--ghost {
   background: transparent;
-  border: 1px solid var(--sys-border-2, rgba(255,255,255,0.10));
-  color: var(--sys-dim, #A1A1A1);
+  border: 1px solid var(--sys-border-2, color-mix(in srgb, var(--text-primary) 10%, transparent));
+  color: var(--sys-dim, var(--text-secondary));
 }
 
 .watch-btn--primary {
-  background: var(--sys-teal, #00D4AA);
+  background: var(--sys-teal, var(--accent));
   border: none;
-  color: #0A0A0A;
-  box-shadow: 0 0 14px rgba(0,212,170,0.30);
+  color: var(--on-accent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 
@@ -648,12 +648,12 @@
 /* Warm ground for the two heated states. Nothing else about CALM moves. */
 .watch-felt[data-pace='heating'],
 .watch-felt[data-pace='allin'] {
-  background: radial-gradient(ellipse at 50% 38%, #3b4a3f 0%, #24302c 58%, #17211f 100%);
+  background: radial-gradient(ellipse at 50% 38%, var(--felt-center) 0%, var(--felt-edge) 58%, var(--felt-edge) 100%);
 }
 
-.watch-felt[data-pace='heating'] { border-bottom-color: rgba(205, 179, 128, 0.40); }
-.watch-felt[data-pace='allin']   { border-bottom-color: rgba(255, 77, 79, 0.40); }
-.watch-felt[data-pace='showdown']{ border-bottom-color: rgba(0, 212, 170, 0.22); }
+.watch-felt[data-pace='heating'] { border-bottom-color: color-mix(in srgb, var(--gold-reward) 40%, transparent); }
+.watch-felt[data-pace='allin']   { border-bottom-color: color-mix(in srgb, var(--error) 40%, transparent); }
+.watch-felt[data-pace='showdown']{ border-bottom-color: color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* The glow is an overlay rather than a shadow on the felt itself, so it can
    cross-fade between states without the gradient underneath repainting. */
@@ -668,18 +668,18 @@
 
 .watch-felt[data-pace='heating'] .watch-felt__glow {
   opacity: 1;
-  box-shadow: inset 0 0 35px rgba(205, 179, 128, 0.20);
+  box-shadow: inset 0 0 35px color-mix(in srgb, var(--gold-reward) 20%, transparent);
 }
 
 .watch-felt[data-pace='allin'] .watch-felt__glow {
   opacity: 1;
-  box-shadow: inset 0 0 70px rgba(255, 77, 79, 0.30);
+  box-shadow: inset 0 0 70px color-mix(in srgb, var(--error) 30%, transparent);
   animation: watch-breathe 1.4s ease-in-out infinite;
 }
 
 .watch-felt[data-pace='showdown'] .watch-felt__glow {
   opacity: 1;
-  box-shadow: inset 0 0 49px rgba(0, 212, 170, 0.20);
+  box-shadow: inset 0 0 49px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 /* ALL-IN breathes. The loudest thing the felt does, and only here. */
@@ -702,16 +702,16 @@
 }
 
 .watch-felt[data-pace='heating'] .watch-felt__pot-pill {
-  background: rgba(205, 179, 128, 0.12);
-  border-color: rgba(205, 179, 128, 0.40);
+  background: color-mix(in srgb, var(--gold-reward) 12%, transparent);
+  border-color: color-mix(in srgb, var(--gold-reward) 40%, transparent);
 }
-.watch-felt[data-pace='heating'] .watch-felt__pot-label { color: var(--sys-gold, #CDB380); }
+.watch-felt[data-pace='heating'] .watch-felt__pot-label { color: var(--sys-gold, var(--gold-reward)); }
 
 .watch-felt[data-pace='allin'] .watch-felt__pot-pill {
-  background: rgba(255, 77, 79, 0.12);
-  border-color: rgba(255, 77, 79, 0.40);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
 }
-.watch-felt[data-pace='allin'] .watch-felt__pot-label { color: var(--sys-red, #FF4D4F); }
+.watch-felt[data-pace='allin'] .watch-felt__pot-label { color: var(--sys-red, var(--error)); }
 
 .watch-felt[data-pace='heating'] .watch-felt__pot-amt,
 .watch-felt[data-pace='allin'] .watch-felt__pot-amt {
@@ -771,15 +771,15 @@
 .tug--big .tug__track { height: 12px; border-radius: 6px; }
 
 .tug--dead .tug__track {
-  background: var(--sys-surf, #2F2F37);
-  border-color: var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-surf, var(--surface-soft));
+  border-color: var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 .tug__fill {
   position: absolute;
   inset: 0 auto 0 0;
-  background: linear-gradient(90deg, rgba(0, 212, 170, 0.8), #00D4AA);
-  box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 80%, transparent), var(--accent));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
   /* The seam is the only moving part, and it moves on every street. */
   transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -794,7 +794,7 @@
   top: -2px;
   bottom: -2px;
   width: 2px;
-  background: #EDEDED;
+  background: var(--text-primary);
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
   transition: left 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -811,18 +811,18 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
   font-variant-numeric: tabular-nums;
 }
 
 .tug--big .tug__value { font-size: 15px; }
-.tug--dead .tug__value { color: var(--sys-muted, #6B6B6B); }
+.tug--dead .tug__value { color: var(--sys-muted, var(--text-muted)); }
 
 .tug__villain {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 500;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 /* ── his line, on the felt ────────────────────────────────────────────────── */
@@ -846,15 +846,15 @@
   max-width: 100%;
   font-size: 13px;
   font-style: italic;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   line-height: 1.4;
 }
 
 .watch-felt[data-pace='allin'] .watch-felt__line-text {
   padding: 9px 14px;
   border-radius: 10px;
-  background: rgba(10, 10, 10, 0.6);
-  border: 1px solid rgba(255, 77, 79, 0.27);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 27%, transparent);
   font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
   font-size: 17px;
   font-weight: 600;
@@ -871,7 +871,7 @@
   right: 12px;
   padding: 8px 9px;
   gap: 7px;
-  background: rgba(23, 27, 27, 0.78);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
 }
 
 .watch-felt__hero-divider { height: 20px; }
@@ -884,19 +884,19 @@
 .watch-felt__hero-tag {
   padding: 5px 8px;
   border-radius: 5px;
-  background: rgba(255, 77, 79, 0.12);
-  border: 1px solid rgba(255, 77, 79, 0.40);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--sys-red, #FF4D4F);
+  color: var(--sys-red, var(--error));
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.watch-felt__hero-num.is-gold { color: var(--sys-gold, #CDB380); }
-.watch-felt__hero-num.is-dim  { color: var(--sys-dim, #A1A1A1); }
+.watch-felt__hero-num.is-gold { color: var(--sys-gold, var(--gold-reward)); }
+.watch-felt__hero-num.is-dim  { color: var(--sys-dim, var(--text-secondary)); }
 
 /* ════════════════════════════════════════════════════════════════════════════
  * WATCH v3 (W3-2) — two tabs, and READ.
@@ -927,7 +927,7 @@
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -937,14 +937,14 @@
 .read-panel__rule {
   flex: 1;
   height: 1px;
-  background: var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 .read-panel__meta {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 500;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -965,10 +965,10 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.11em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
-.read-bar--formed .read-bar__label { color: var(--sys-teal, #00D4AA); }
+.read-bar--formed .read-bar__label { color: var(--sys-teal, var(--accent)); }
 
 .read-bar__track {
   flex: 1;
@@ -976,7 +976,7 @@
   position: relative;
   height: 6px;
   border-radius: 3px;
-  background: var(--sys-surf, #2F2F37);
+  background: var(--sys-surf, var(--surface-soft));
 }
 
 /* The bracket is the confidence, and it narrows with hands. */
@@ -984,9 +984,9 @@
   position: absolute;
   top: -3px;
   height: 12px;
-  background: rgba(0, 212, 170, 0.08);
-  border-left: 1px solid rgba(0, 212, 170, 0.33);
-  border-right: 1px solid rgba(0, 212, 170, 0.33);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--accent) 33%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--accent) 33%, transparent);
 }
 
 .read-bar__fill {
@@ -1007,13 +1007,13 @@
   font-size: 11.5px;
   font-weight: 600;
   /* Unanswered: the faintest thing in the panel. */
-  color: var(--sys-faint, #3A3A3F);
+  color: var(--sys-faint, var(--text-faded));
   font-variant-numeric: tabular-nums;
 }
 
 /* Known but still filling, then known and formed. */
-.read-bar__value.is-known { color: var(--sys-dim, #A1A1A1); }
-.read-bar--formed .read-bar__value.is-known { color: var(--sys-text, #EDEDED); }
+.read-bar__value.is-known { color: var(--sys-dim, var(--text-secondary)); }
+.read-bar--formed .read-bar__value.is-known { color: var(--sys-text, var(--text-primary)); }
 
 /* ── his sentence about them ──────────────────────────────────────────────── */
 
@@ -1022,9 +1022,9 @@
   padding: 9px 11px;
   border-radius: 9px;
   background: transparent;
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   font-size: 12.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.45;
   font-style: italic;
   overflow-wrap: anywhere;
@@ -1032,9 +1032,9 @@
 
 /* A read that just formed announces itself once, then settles. */
 .read-panel__line.is-forming {
-  background: rgba(0, 212, 170, 0.05);
-  border-color: rgba(0, 212, 170, 0.20);
-  color: var(--sys-text, #EDEDED);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--sys-text, var(--text-primary));
   animation: read-form 500ms ease-out both;
 }
 
@@ -1062,8 +1062,8 @@
   padding: 0 10px;
   border-radius: 7px;
   background: transparent;
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
-  color: var(--sys-dim, #A1A1A1);
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
+  color: var(--sys-dim, var(--text-secondary));
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 9px;
   font-weight: 600;
@@ -1072,7 +1072,7 @@
   cursor: pointer;
 }
 
-.watch-mute.is-muted { color: var(--sys-muted, #6B6B6B); }
+.watch-mute.is-muted { color: var(--sys-muted, var(--text-muted)); }
 
 /* ── W3-4 · the prediction beat ───────────────────────────────────────────── */
 /* A bet ON him, never a control. Behind the ap_predict flag and off by default. */
@@ -1092,16 +1092,16 @@
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
   white-space: nowrap;
 }
 
-.predict__lbl.is-locked { color: var(--sys-gold, #CDB380); }
+.predict__lbl.is-locked { color: var(--sys-gold, var(--gold-reward)); }
 
 .predict__rule {
   flex: 1;
   height: 1px;
-  background: var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
 /* The streak is the whole prize: a number, in gold, and nothing to spend it on. */
@@ -1109,7 +1109,7 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 600;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1124,9 +1124,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: var(--sys-panel-2, #28282F);
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
-  color: var(--sys-dim, #A1A1A1);
+  background: var(--sys-panel-2, var(--bg-tertiary));
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
+  color: var(--sys-dim, var(--text-secondary));
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 11px;
   font-weight: 600;
@@ -1137,21 +1137,21 @@
 }
 
 .predict__chip.is-picked {
-  background: rgba(0, 212, 170, 0.08);
-  border-color: rgba(0, 212, 170, 0.40);
-  color: var(--sys-teal, #00D4AA);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--sys-teal, var(--accent));
 }
 
 .predict__chip.is-won {
-  background: rgba(0, 212, 170, 0.12);
-  border-color: var(--sys-teal, #00D4AA);
-  color: var(--sys-teal, #00D4AA);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--sys-teal, var(--accent));
+  color: var(--sys-teal, var(--accent));
 }
 
 .predict__chip.is-lost {
-  background: rgba(255, 77, 79, 0.08);
-  border-color: rgba(255, 77, 79, 0.40);
-  color: var(--sys-red, #FF4D4F);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+  color: var(--sys-red, var(--error));
 }
 
 /* Locked is the whole point: the chips settle the moment he acts. */
@@ -1179,17 +1179,17 @@
 
 /* Premium: the gold is the whole signal, and it is owner-only by construction
    — a viewer without hole cards has nothing to warm. */
-.watch-felt__hero.is-warm { border-color: rgba(205, 179, 128, 0.4); }
-.watch-felt__hero.is-warm { box-shadow: inset 0 1px 0 rgba(205, 179, 128, 0.18); }
+.watch-felt__hero.is-warm { border-color: color-mix(in srgb, var(--gold-reward) 40%, transparent); }
+.watch-felt__hero.is-warm { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gold-reward) 18%, transparent); }
 .watch-felt__hero.is-warm .watch-felt__hero-card.is-down {
-  filter: drop-shadow(0 0 7px rgba(205, 179, 128, 0.6)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--gold-reward) 60%, transparent)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.6));
 }
 .watch-felt__premium {
   font-family: 'Oswald', Inter, sans-serif;
   font-size: 8.5px;
   font-weight: 600;
   letter-spacing: 0.12em;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -1249,8 +1249,8 @@
   height: calc(100% + 16px);
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 1px dashed var(--sys-teal, #00D4AA);
-  box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
+  border: 1px dashed var(--sys-teal, var(--accent));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
   pointer-events: none;
 }
 
@@ -1293,16 +1293,16 @@
   height: 14px;
   padding: 0 3px;
   border-radius: 7px;
-  background: rgba(19, 19, 22, 0.95);
-  border: 1px solid var(--sys-gold, #CDB380);
-  color: var(--sys-gold, #CDB380);
+  background: color-mix(in srgb, var(--bg-secondary) 95%, transparent);
+  border: 1px solid var(--sys-gold, var(--gold-reward));
+  color: var(--sys-gold, var(--gold-reward));
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 8px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 6px rgba(205, 179, 128, 0.27);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold-reward) 27%, transparent);
   z-index: 6;
 }
 
@@ -1349,7 +1349,7 @@
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: #EDEDED;
+  background: var(--text-primary);
   color: #0E1112;
   font-family: 'Oswald', 'Inter', sans-serif;
   font-size: 8px;
@@ -1370,17 +1370,17 @@
      pill is still the ref's 18. */
   padding: 0 7px 5px;
   border-radius: 9px;
-  background: rgba(14, 17, 18, 0.88);
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   white-space: nowrap;
   max-width: 100%;
   box-sizing: border-box;
 }
-.seat-ghost.is-acting .seat-ghost__chip { border-color: rgba(237, 237, 237, 0.4); }
+.seat-ghost.is-acting .seat-ghost__chip { border-color: color-mix(in srgb, var(--text-primary) 40%, transparent); }
 .seat-ghost__name {
   font-size: 9.5px;
   line-height: 1;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
   font-weight: 500;
   /* A seat is centred on its own x now, so a long name grows the pill in BOTH
      directions — off the felt at the corners, and onto the pot at the rails.
@@ -1393,16 +1393,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.seat-ghost.is-acting .seat-ghost__name { color: var(--sys-text, #EDEDED); }
-.seat-ghost__sep { font-size: 8px; color: var(--sys-muted, #9E9EA2); }
+.seat-ghost.is-acting .seat-ghost__name { color: var(--sys-text, var(--text-primary)); }
+.seat-ghost__sep { font-size: 8px; color: var(--sys-muted, var(--text-muted)); }
 .seat-ghost__stack {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
 }
-.seat-ghost.is-folded .seat-ghost__stack { color: var(--sys-muted, #9E9EA2); }
+.seat-ghost.is-folded .seat-ghost__stack { color: var(--sys-muted, var(--text-muted)); }
 
 .seat-ghost__shelf {
   display: flex;
@@ -1426,8 +1426,8 @@
   z-index: 8;
   max-height: 82%;
   overflow-y: auto;
-  background: var(--sys-panel, #232329);
-  border-top: 1px solid rgba(0, 212, 170, 0.27);
+  background: var(--sys-panel, var(--bg-secondary));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
   box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.55);
@@ -1448,11 +1448,11 @@
   margin: -9px 0 4px;
   min-height: 44px;
   border: none;
-  background: var(--sys-panel, #232329);
+  background: var(--sys-panel, var(--bg-secondary));
   cursor: pointer;
 }
-.read-sheet__grab-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--sys-faint, #55555C); }
-.read-sheet__close-label { position: absolute; right: 2px; display: flex; align-items: center; gap: 8px; color: var(--sys-text, #EDEDED); font: 600 12px Inter, sans-serif; letter-spacing: normal; }
+.read-sheet__grab-bar { width: 34px; height: 4px; border-radius: 2px; background: var(--sys-faint, var(--text-faded)); }
+.read-sheet__close-label { position: absolute; right: 2px; display: flex; align-items: center; gap: 8px; color: var(--sys-text, var(--text-primary)); font: 600 12px Inter, sans-serif; letter-spacing: normal; }
 .read-sheet__close-label>span { font-size: 20px; font-weight: 400; }
 
 .read-sheet__head { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
@@ -1461,8 +1461,8 @@
   height: 40px;
   border-radius: 11px;
   flex-shrink: 0;
-  background: #0a0f17;
-  border: 1px solid rgba(0, 212, 170, 0.27);
+  background: var(--bg-tertiary);
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1473,7 +1473,7 @@
   font-family: 'Playfair Display', Georgia, serif;
   font-size: 17px;
   font-weight: 600;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1482,13 +1482,13 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   font-weight: 500;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
 }
 .read-sheet__stack {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 11.5px;
   font-weight: 700;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
   flex-shrink: 0;
 }
 .read-sheet__rows { padding: 4px 0 2px; }
@@ -1496,10 +1496,10 @@
   margin-top: 11px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(0, 212, 170, 0.05);
-  border: 1px solid rgba(0, 212, 170, 0.2);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
   font-size: 12.5px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   line-height: 1.45;
   font-style: italic;
 }
@@ -1509,7 +1509,7 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
   font-weight: 500;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1532,11 +1532,11 @@
 .bubble__box {
   padding: 7px 10px;
   border-radius: 12px;
-  background: rgba(18, 20, 22, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 18%, transparent);
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
   font-size: 11.5px;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.4;
   text-align: left;
   font-style: italic;
@@ -1546,11 +1546,11 @@
 }
 .bubble--mine .bubble__box {
   padding: 9px 13px;
-  background: rgba(12, 26, 24, 0.94);
-  border-color: rgba(0, 212, 170, 0.4);
-  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 212, 170, 0.12);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5), 0 0 16px color-mix(in srgb, var(--accent) 12%, transparent);
   font-size: 13px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   text-align: center;
   font-style: normal;
   white-space: normal;
@@ -1565,12 +1565,12 @@
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
   border-top: 7px solid rgba(18, 20, 22, 0.92);
-  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.18));
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--text-primary) 18%, transparent));
 }
 .bubble--mine .bubble__tail {
   left: 50%;
   border-top-color: rgba(12, 26, 24, 0.94);
-  filter: drop-shadow(0 1px 0 rgba(0, 212, 170, 0.4));
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--accent) 40%, transparent));
 }
 
 /* His band is reserved above the hero row whether or not he is speaking, which
@@ -1649,7 +1649,7 @@
   bottom: 100%;
   border-top: none;
   border-bottom: 7px solid rgba(18, 20, 22, 0.92);
-  filter: drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.18));
+  filter: drop-shadow(0 -1px 0 color-mix(in srgb, var(--text-primary) 18%, transparent));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1671,16 +1671,16 @@
   flex-shrink: 0;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 9px;
-  color: var(--sys-muted, #9E9EA2);
+  color: var(--sys-muted, var(--text-muted));
 }
 .table-row__text {
   flex: 1;
   font-size: 13px;
   line-height: 1.4;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
 }
-.table-row--his .table-row__who { color: var(--sys-teal, #00D4AA); }
-.table-row--his .table-row__text { color: var(--sys-text, #EDEDED); }
+.table-row--his .table-row__who { color: var(--sys-teal, var(--accent)); }
+.table-row--his .table-row__text { color: var(--sys-text, var(--text-primary)); }
 
 /* ── W5-2 / HANDS-1 · the muck ─────────────────────────────────────────
  * "Folds don't feel like anything." The cards are thrown at THE MUCK — one
@@ -1837,7 +1837,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at center, rgba(8, 10, 10, 0.86) 0%, rgba(8, 10, 10, 0.96) 100%);
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 96%, transparent) 100%);
   animation: watch-ceremony-in 220ms ease-out both;
 }
 
@@ -1851,12 +1851,12 @@
   padding: 18px 22px;
   max-width: 92%;
   border-radius: 14px;
-  background: rgba(8, 10, 10, 0.94);
-  border: 1px solid rgba(205, 179, 128, 0.22);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 22%, transparent);
   text-align: center;
 }
 .watch-ceremony[data-outcome='lost'] .watch-ceremony__block {
-  border-color: rgba(255, 77, 79, 0.22);
+  border-color: color-mix(in srgb, var(--error) 22%, transparent);
 }
 
 .watch-ceremony__head {
@@ -1865,12 +1865,12 @@
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: 0.01em;
-  color: var(--sys-gold, #CDB380);
-  text-shadow: 0 0 22px rgba(205, 179, 128, 0.28);
+  color: var(--sys-gold, var(--gold-reward));
+  text-shadow: 0 0 22px color-mix(in srgb, var(--gold-reward) 28%, transparent);
 }
 .watch-ceremony[data-outcome='lost'] .watch-ceremony__head {
-  color: var(--sys-red, #FF4D4F);
-  text-shadow: 0 0 22px rgba(255, 77, 79, 0.22);
+  color: var(--sys-red, var(--error));
+  text-shadow: 0 0 22px color-mix(in srgb, var(--error) 22%, transparent);
 }
 
 .watch-ceremony__sub {
@@ -1879,16 +1879,16 @@
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--sys-dim, #C3C3C6);
+  color: var(--sys-dim, var(--text-secondary));
 }
 
 .watch-ceremony__talk {
   margin-top: 9px;
   padding: 8px 15px;
   border-radius: 16px;
-  background: rgba(0, 212, 170, 0.10);
-  border: 1px solid rgba(0, 212, 170, 0.32);
-  color: var(--sys-teal, #00D4AA);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  color: var(--sys-teal, var(--accent));
   font-family: var(--sys-font-label, 'Oswald', sans-serif);
   font-size: 10.5px;
   font-weight: 600;
@@ -1908,15 +1908,15 @@
 }
 
 /* W5-4: the attribute cost, collapsed into the record it belongs to. */
-.table-row--attr .table-row__who { color: var(--sys-gold, #CDB380); }
-.table-row--attr .table-row__text { font-size: 11.5px; color: var(--sys-muted, #9E9EA2); }
+.table-row--attr .table-row__who { color: var(--sys-gold, var(--gold-reward)); }
+.table-row--attr .table-row__text { font-size: 11.5px; color: var(--sys-muted, var(--text-muted)); }
 .table-row__attr-key {
   font-family: 'Oswald', 'Helvetica Neue', sans-serif;
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
 }
 
 .dsk-panel-head .watch-mute.is-compact { margin: 0; flex-shrink: 0; padding: 0 6px; }

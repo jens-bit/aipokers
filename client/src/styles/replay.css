@@ -12,8 +12,8 @@
   flex-direction: column;
   height: var(--tg-h, 100%);
   max-height: 100%;
-  background: var(--sys-bg, #1A1A1E);
-  color: var(--sys-text, #EDEDED);
+  background: var(--sys-bg, var(--bg-primary));
+  color: var(--sys-text, var(--text-primary));
   font-family: var(--sys-font-body, "Inter", system-ui, sans-serif);
   overflow: hidden;
 }
@@ -25,8 +25,8 @@
   gap: 8px;
   height: 40px;
   padding: 0 14px;
-  background: var(--sys-panel, #232329);
-  border-bottom: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-panel, var(--bg-secondary));
+  border-bottom: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   flex-shrink: 0;
 }
 
@@ -34,7 +34,7 @@
   background: none;
   border: none;
   min-height: 0;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -46,7 +46,7 @@
   font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
   font-size: 16px;
   font-weight: 600;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -75,9 +75,9 @@
   z-index: 5;
   padding: 6px 14px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #EDEDED;
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 22%, transparent);
+  color: var(--text-primary);
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 15px;
   font-weight: 700;
@@ -97,14 +97,14 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px 14px;
-  background: var(--sys-bg, #1A1A1E);
+  background: var(--sys-bg, var(--bg-primary));
 }
 
 /* His line at this moment. The felt carries it too, when the felt has room;
    here it is the record rather than the moment. */
 .replay-theatre__line {
   font-size: 12.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   line-height: 1.5;
   font-style: italic;
   overflow-wrap: anywhere;
@@ -122,7 +122,7 @@
 
 .replay-theatre__cost-note {
   font-size: 11px;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   opacity: 0.95;
 }
 
@@ -131,9 +131,9 @@
   font-size: 8.5px;
   font-weight: 600;
   letter-spacing: 0.13em;
-  color: var(--sys-gold, #CDB380);
-  background: rgba(205, 179, 128, 0.08);
-  border: 1px solid rgba(205, 179, 128, 0.27);
+  color: var(--sys-gold, var(--gold-reward));
+  background: color-mix(in srgb, var(--gold-reward) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 27%, transparent);
   border-radius: 3px;
   padding: 2px 5px;
 }
@@ -145,8 +145,8 @@
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(205, 179, 128, 0.08);
-  border: 1px solid rgba(205, 179, 128, 0.40);
+  background: color-mix(in srgb, var(--gold-reward) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 40%, transparent);
 }
 
 .replay-theatre__cards { display: flex; gap: 2px; flex-shrink: 0; }
@@ -155,7 +155,7 @@
 
 .replay-theatre__shown {
   font-size: 11.5px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -165,18 +165,18 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 17px;
   font-weight: 700;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
   flex-shrink: 0;
 }
 
-.replay-theatre__pnl.is-lost { color: var(--sys-red, #FF4D4F); }
+.replay-theatre__pnl.is-lost { color: var(--sys-red, var(--error)); }
 
 /* ── the scrubber ─────────────────────────────────────────────────────────── */
 
 .replay-scrub {
   flex-shrink: 0;
-  background: var(--sys-panel, #232329);
-  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-panel, var(--bg-secondary));
+  border-top: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   padding: 9px 14px 11px;
 }
 
@@ -191,7 +191,7 @@
   flex: 1;
   min-width: 0;
   font-size: 11.5px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -201,7 +201,7 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 9px;
   font-weight: 500;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -220,14 +220,14 @@
 }
 
 .replay-flag--gold {
-  color: var(--sys-gold, #CDB380);
-  background: rgba(205, 179, 128, 0.08);
-  border: 1px solid rgba(205, 179, 128, 0.33);
+  color: var(--sys-gold, var(--gold-reward));
+  background: color-mix(in srgb, var(--gold-reward) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 33%, transparent);
 }
 .replay-flag--red {
-  color: var(--sys-red, #FF4D4F);
-  background: rgba(255, 77, 79, 0.08);
-  border: 1px solid rgba(255, 77, 79, 0.33);
+  color: var(--sys-red, var(--error));
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 33%, transparent);
 }
 .replay-flag--purple {
   color: var(--sys-purple, #9B7BFF);
@@ -235,9 +235,9 @@
   border: 1px solid rgba(155, 123, 255, 0.33);
 }
 .replay-flag--teal {
-  color: var(--sys-teal, #00D4AA);
-  background: rgba(0, 212, 170, 0.08);
-  border: 1px solid rgba(0, 212, 170, 0.33);
+  color: var(--sys-teal, var(--accent));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 33%, transparent);
 }
 
 /* ── the track ────────────────────────────────────────────────────────────── */
@@ -251,7 +251,7 @@
   right: 0;
   height: 4px;
   border-radius: 2px;
-  background: var(--sys-surf, #2F2F37);
+  background: var(--sys-surf, var(--surface-soft));
 }
 
 .replay-scrub__fill {
@@ -260,8 +260,8 @@
   left: 0;
   height: 4px;
   border-radius: 2px;
-  background: var(--sys-teal, #00D4AA);
-  box-shadow: 0 0 8px rgba(0, 212, 170, 0.40);
+  background: var(--sys-teal, var(--accent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .replay-scrub__tick { position: absolute; top: 4px; }
@@ -269,11 +269,11 @@
 .replay-scrub__tick-line {
   width: 1px;
   height: 14px;
-  background: var(--sys-border-2, rgba(255, 255, 255, 0.18));
+  background: var(--sys-border-2, color-mix(in srgb, var(--text-primary) 18%, transparent));
 }
 
 .replay-scrub__tick.is-passed .replay-scrub__tick-line {
-  background: rgba(0, 212, 170, 0.60);
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .replay-scrub__tick-label {
@@ -283,11 +283,11 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 7.5px;
   letter-spacing: 0.06em;
-  color: var(--sys-faint, #3A3A3F);
+  color: var(--sys-faint, var(--text-faded));
   white-space: nowrap;
 }
 
-.replay-scrub__tick.is-passed .replay-scrub__tick-label { color: var(--sys-dim, #A1A1A1); }
+.replay-scrub__tick.is-passed .replay-scrub__tick-label { color: var(--sys-dim, var(--text-secondary)); }
 
 .replay-scrub__thumb {
   position: absolute;
@@ -295,7 +295,7 @@
   width: 12px;
   height: 14px;
   border-radius: 3px;
-  background: #EDEDED;
+  background: var(--text-primary);
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
@@ -334,8 +334,8 @@
   padding: 0;
   border-radius: 19px;
   border: none;
-  background: var(--sys-teal, #00D4AA);
-  box-shadow: 0 0 12px rgba(0, 212, 170, 0.33);
+  background: var(--sys-teal, var(--accent));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 33%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -352,12 +352,12 @@
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .replay-scrub__where-text {
   font-size: 12.5px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -371,8 +371,8 @@
   padding: 0 12px;
   border-radius: 8px;
   background: transparent;
-  border: 1px solid var(--sys-teal, #00D4AA);
-  color: var(--sys-teal, #00D4AA);
+  border: 1px solid var(--sys-teal, var(--accent));
+  color: var(--sys-teal, var(--accent));
   font-family: var(--sys-font-label, "Oswald", sans-serif);
   font-size: 11px;
   font-weight: 600;
@@ -392,22 +392,22 @@
   padding: 0;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--sys-panel-2, #28282F);
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.12));
+  background: var(--sys-panel-2, var(--bg-tertiary));
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
   cursor: pointer;
   text-align: left;
   min-height: 0;
 }
 
-.replay-card--gold { border-color: rgba(205, 179, 128, 0.27); }
-.replay-card--red { border-color: rgba(255, 77, 79, 0.27); }
+.replay-card--gold { border-color: color-mix(in srgb, var(--gold-reward) 27%, transparent); }
+.replay-card--red { border-color: color-mix(in srgb, var(--error) 27%, transparent); }
 .replay-card--purple { border-color: rgba(155, 123, 255, 0.27); }
-.replay-card--teal { border-color: rgba(0, 212, 170, 0.27); }
+.replay-card--teal { border-color: color-mix(in srgb, var(--accent) 27%, transparent); }
 
 .replay-card__poster {
   position: relative;
   height: 104px;
-  background: radial-gradient(ellipse at 50% 45%, #2f4d48 0%, #1d2e2c 70%);
+  background: radial-gradient(ellipse at 50% 45%, var(--felt-center) 0%, var(--felt-edge) 70%);
 }
 
 .replay-card__board {
@@ -434,16 +434,16 @@
   width: 30px;
   height: 30px;
   border-radius: 15px;
-  background: rgba(10, 10, 10, 0.6);
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--sys-gold, #CDB380);
+  border: 1px solid var(--sys-gold, var(--gold-reward));
 }
 
-.replay-card--red .replay-card__play { border-color: var(--sys-red, #FF4D4F); }
+.replay-card--red .replay-card__play { border-color: var(--sys-red, var(--error)); }
 .replay-card--purple .replay-card__play { border-color: var(--sys-purple, #9B7BFF); }
-.replay-card--teal .replay-card__play { border-color: var(--sys-teal, #00D4AA); }
+.replay-card--teal .replay-card__play { border-color: var(--sys-teal, var(--accent)); }
 
 .replay-card__foot {
   display: flex;
@@ -456,7 +456,7 @@
   flex: 1;
   min-width: 0;
   font-size: 12px;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -466,11 +466,11 @@
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
   flex-shrink: 0;
 }
 
-.replay-card__pot.is-lost { color: var(--sys-red, #FF4D4F); }
+.replay-card__pot.is-lost { color: var(--sys-red, var(--error)); }
 
 @media (prefers-reduced-motion: reduce) {
   .replay-scrub__fill { transition: none; }
@@ -482,5 +482,5 @@
   position: absolute;
   inset: 0;
   z-index: 11;
-  background: var(--sys-bg, #1A1A1E);
+  background: var(--sys-bg, var(--bg-primary));
 }

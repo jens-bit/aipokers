@@ -362,8 +362,8 @@ export function CasinoFloor({ liveGame, onCreateAgent, onChat, onWatch, onProfil
                   flexShrink: 0, marginLeft: 'auto',
                   display: 'inline-flex', alignItems: 'center',
                   height: 18, padding: '0 7px', borderRadius: 3,
-                  background: 'rgba(0,212,170,0.14)', border: '1px solid rgba(0,212,170,0.45)',
-                  color: '#00D4AA',
+                  background: 'color-mix(in srgb, var(--accent) 14%, transparent)', border: '1px solid var(--edge-strong)',
+                  color: 'var(--accent)',
                   fontFamily: "'Oswald', 'Inter', sans-serif",
                   fontSize: 8.5, fontWeight: 600, letterSpacing: '0.1em',
                 }}>

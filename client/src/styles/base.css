@@ -10,9 +10,9 @@ body {
   color: var(--text-primary);
   background-color: var(--bg-primary);
   background-image:
-    radial-gradient(ellipse at 20% 10%, rgba(0, 212, 170, 0.06), transparent 55%),
-    radial-gradient(ellipse at 80% 90%, rgba(0, 212, 170, 0.04), transparent 60%),
-    radial-gradient(ellipse at 50% 50%, rgba(17, 17, 17, 0.6), transparent 70%);
+    radial-gradient(ellipse at 20% 10%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 55%),
+    radial-gradient(ellipse at 80% 90%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, color-mix(in srgb, var(--bg-secondary) 94%, transparent), transparent 70%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   letter-spacing: 0.02em;

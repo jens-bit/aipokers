@@ -11,7 +11,7 @@
 function PlayIcon() {
   return (
     <svg width="13" height="14" viewBox="0 0 13 14" aria-hidden>
-      <path d="M2 1.5v11l9.5-5.5z" fill="#0A0A0A" />
+      <path d="M2 1.5v11l9.5-5.5z" fill="var(--on-accent)" />
     </svg>
   );
 }
@@ -19,8 +19,8 @@ function PlayIcon() {
 function PauseIcon() {
   return (
     <svg width="12" height="13" viewBox="0 0 12 13" aria-hidden>
-      <rect x="1" y="1" width="3.4" height="11" rx="1" fill="#0A0A0A" />
-      <rect x="7.6" y="1" width="3.4" height="11" rx="1" fill="#0A0A0A" />
+      <rect x="1" y="1" width="3.4" height="11" rx="1" fill="var(--on-accent)" />
+      <rect x="7.6" y="1" width="3.4" height="11" rx="1" fill="var(--on-accent)" />
     </svg>
   );
 }

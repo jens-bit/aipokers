@@ -35,10 +35,10 @@ describe('the whisper itself', () => {
     expect(r).toMatch(/pointer-events:\s*none/);
   });
 
-  it('is pale — it is not his register and must not look like it', () => {
+  it('uses a neutral translucent tint distinct from the agent accent', () => {
     const box = rule('.watch-whisper__box');
-    expect(box).toMatch(/rgba\(237,\s*237,\s*237,\s*0\.10\)/);
-    expect(box).not.toMatch(/00D4AA/);
+    expect(box).toContain('background: color-mix(in srgb, var(--text-primary) 10%, transparent)');
+    expect(box).not.toMatch(/00D4AA|var\(--(?:accent|sys-teal)\)/);
   });
 
   it('says what was whispered', () => {

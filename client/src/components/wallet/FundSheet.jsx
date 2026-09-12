@@ -21,11 +21,11 @@ import { accentFor } from '../floor/atoms.jsx';
 import { CALL_IN, CALL_IN_LINE, GIVE, money, pocketOf, refillLabel, stakesFor } from '../../lib/wallet.js';
 import { Lbl, Num } from './atoms.jsx';
 
-const M_TEXT = '#EDEDED';
-const M_DIM = '#A1A1A1';
-const M_MUTED = '#6B6B6B';
-const M_GOLD = '#CDB380';
-const M_BORDER = 'rgba(255,255,255,0.12)';
+const M_TEXT = 'var(--text-primary)';
+const M_DIM = 'var(--text-secondary)';
+const M_MUTED = 'var(--text-muted)';
+const M_GOLD = 'var(--gold-reward)';
+const M_BORDER = 'var(--edge)';
 
 // The rungs of the real ladder (STAKES in src/server/wallet.js), offered as
 // sizes of roll rather than a keypad: the owner is picking what he can play,
@@ -78,14 +78,14 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
         {/* where he stands now, and what you have to give */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12, padding: '12px 13px',
-          borderRadius: 12, background: '#1b1b1b', border: `1px solid ${accent}3D`, marginBottom: 14,
+          borderRadius: 12, background: 'var(--bg-tertiary)', border: `1px solid color-mix(in srgb, ${accent} 24%, transparent)`, marginBottom: 14,
         }}>
           {/* WALLET-5: his face opens his profile here too, the same
               navigation the floor uses. Inert when no host owns it. */}
           {(() => {
             const frame = {
-              width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: '#0A0F17',
-              border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end',
+              width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'var(--bg-tertiary)',
+              border: `1px solid color-mix(in srgb, ${accent} 27%, transparent)`, display: 'flex', alignItems: 'flex-end',
               justifyContent: 'center', overflow: 'hidden',
             };
             const face = <MoodGhost mood={moodOf(agent)} heat={heatOf(agent)} accent={accent} size={42} ring={false} />;
@@ -112,7 +112,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
           {wallet && (
             <div style={{ textAlign: 'right' }}>
               <Lbl size={8.5}>Wallet</Lbl>
-              <div><Num size={13} weight={700} color="#00D4AA">{money(wallet.balance)}</Num></div>
+              <div><Num size={13} weight={700} color="var(--accent)">{money(wallet.balance)}</Num></div>
             </div>
           )}
         </div>
@@ -169,7 +169,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
         {/* Bigger pocket, bigger stakes — stated, never buried. */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-          borderRadius: 10, background: `${M_GOLD}0D`, border: `1px solid ${M_GOLD}33`,
+          borderRadius: 10, background: `color-mix(in srgb, ${M_GOLD} 5%, transparent)`, border: `1px solid color-mix(in srgb, ${M_GOLD} 20%, transparent)`,
           marginTop: 12, marginBottom: 14,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={M_GOLD} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden>

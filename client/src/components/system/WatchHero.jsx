@@ -37,6 +37,7 @@ import { SeatClock } from './SeatClock.jsx';
 import { BodyBars } from './FeltBodyBars.jsx';
 import { SEAT_BODY, SEAT_H } from './SeatGhost.jsx';
 import { money } from '../../lib/wallet.js';
+import { pillName } from '../../lib/names.js';
 
 // TWICE AN OPPONENT, and measured BODY TO BODY: 96 against the seat's 40. The
 // old ratio compared him to a seat's whole stack — body plus gap plus pill —
@@ -112,6 +113,7 @@ function CostToast({ cost }) {
 }
 
 export function WatchHero({
+  name = null,
   hood = null, glow = null, bustedName = null, animateBust = false,
   says, mood = 'neutral', accent = '#00D4AA', heat = 45, pose = 'hold', bet, event, brow, won,
   hole, landed = 2, mucking = false, between = false,
@@ -193,7 +195,7 @@ export function WatchHero({
           </>
         )}
         <div>
-          <span className="watch-felt__hero-lbl">Street</span>
+          <span className="watch-felt__hero-lbl" title={name ?? undefined} aria-label={name ?? undefined}>{name ? pillName(name) : 'Street'}</span>
           <div className="watch-hero__stack-row">
             <span className="watch-felt__hero-num is-dim">{street || '—'}</span>
             {pos && <span className="watch-felt__hero-pos">{pos}</span>}

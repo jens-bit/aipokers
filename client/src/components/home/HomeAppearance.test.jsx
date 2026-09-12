@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { createPortal } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HOME_APPEARANCE_KEY, HomeAppearanceControl, HomeAppearanceProvider, homePeriod, useHomeAppearance } from './HomeAppearance.jsx';
 
@@ -69,6 +70,28 @@ describe('Home appearance', () => {
     const view = show();
     expect(vi.getTimerCount()).toBe(1);
     view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('shares one appearance across navigation, nested guest rooms and body portals', () => {
+    function Surface({ page }) {
+      const { theme } = useHomeAppearance();
+      return <><HomeAppearanceControl /><div data-testid="surface" data-page={page} data-theme={theme} />
+        {createPortal(<div data-testid="portal" data-theme={theme} />, document.body)}</>;
+    }
+    const tree = page => <HomeAppearanceProvider><HomeAppearanceProvider><Surface page={page}/></HomeAppearanceProvider></HomeAppearanceProvider>;
+    const view = render(tree('home'));
+    expect(vi.getTimerCount()).toBe(1);
+    expect(document.documentElement).toHaveAttribute('data-appearance', 'day');
+    fireEvent.change(screen.getByLabelText('Home appearance'), { target: { value: 'night' } });
+    view.rerender(tree('watch'));
+    expect(document.documentElement).toHaveAttribute('data-appearance', 'night');
+    expect(screen.getByTestId('surface')).toHaveAttribute('data-theme', 'night');
+    expect(screen.getByTestId('portal')).toHaveAttribute('data-theme', 'night');
+    expect(screen.getByRole('option', { name: 'Warm Night' })).toBeInTheDocument();
+    view.unmount();
+    expect(document.documentElement).not.toHaveAttribute('data-appearance');
+    // Drain pending one-off UI work. A leaked clock interval would remain.
+    act(() => vi.runOnlyPendingTimers());
     expect(vi.getTimerCount()).toBe(0);
   });
 });

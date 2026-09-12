@@ -37,12 +37,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { HOODS, GLOWS, storedIdentity } from '../../lib/identity.js';
-import { M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
+import { M_TEAL as AGENT_TEAL } from '../floor/atoms.jsx';
+const M_TEAL = 'var(--accent)';
+const M_GOLD = 'var(--gold-reward)';
+const M_RED = 'var(--error)';
 import { pillName } from '../../lib/names.js';
 
 const MONO = '"JetBrains Mono",ui-monospace,monospace';
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
-const M_MUTED = '#6B6B6B';
+const M_MUTED = 'var(--text-muted)';
 
 // The coordinate space the ref drew in. Everything below is in these units and
 // the whole plan is scaled to whatever width it is given, so the room holds
@@ -104,13 +107,13 @@ export function TinyGhost({ i = 0, mine = false, hot = false, size = 14, identit
       <path
         d="M40 8 C58 8 70 20 70 38 L70 68 C70 76 62 75 58 79 C54 83 46 83 40 79 C34 83 26 83 22 79 C18 75 10 76 10 68 L10 38 C10 20 22 8 40 8Z"
         fill={hood.top}
-        stroke={mine ? `${M_TEAL}99` : 'rgba(0,0,0,0.5)'}
+        stroke={mine ? `color-mix(in srgb, ${M_TEAL} 60%, transparent)` : 'rgba(0,0,0,0.5)'}
         strokeWidth={mine ? 4 : 2}
       />
       {/* the eyes narrow when the table is hot — the one expression a 14px
           body has room for */}
-      <ellipse cx="29" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? M_TEAL : glow.c)} />
-      <ellipse cx="51" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? M_TEAL : glow.c)} />
+      <ellipse cx="29" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? AGENT_TEAL : glow.c)} />
+      <ellipse cx="51" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? AGENT_TEAL : glow.c)} />
     </svg>
   );
 }
@@ -150,15 +153,15 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
     <>
       {hot && (
         <span className="csn-felt58__heat" style={{
-          background: `radial-gradient(ellipse, ${M_RED}2E 0%, transparent 68%)`,
+          background: `radial-gradient(ellipse, color-mix(in srgb, ${M_RED} 18.04%, transparent) 0%, transparent 68%)`,
         }} />
       )}
-      {mineSeat >= 0 && <span className="csn-felt58__ring" style={{ border: `1px solid ${M_TEAL}`, boxShadow: `0 0 14px ${M_TEAL}55` }} />}
+      {mineSeat >= 0 && <span className="csn-felt58__ring" style={{ border: `1px solid ${M_TEAL}`, boxShadow: `0 0 14px color-mix(in srgb, ${M_TEAL} 33.33%, transparent)` }} />}
       <span className="csn-felt58__cloth" style={{
         background: hot
-          ? 'radial-gradient(ellipse at 50% 38%, #3A4A42 0%, #22302C 74%)'
-          : 'radial-gradient(ellipse at 50% 38%, #2E3F3A 0%, #1C2825 76%)',
-        border: `1px solid ${hot ? `${M_RED}5C` : 'rgba(255,255,255,0.09)'}`,
+          ? 'radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--felt-center) 88%, var(--gold-highlight)) 0%, var(--felt-edge) 74%)'
+          : 'radial-gradient(ellipse at 50% 38%, var(--felt-center) 0%, var(--felt-edge) 76%)',
+        border: `1px solid ${hot ? `color-mix(in srgb, ${M_RED} 36.08%, transparent)` : 'var(--felt-line)'}`,
       }} />
 
       <span className="csn-felt58__board" aria-hidden="true">
@@ -198,7 +201,7 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
 
       {label && (
         <span className="csn-felt58__stake" style={{
-          fontFamily: MONO, fontSize: 8, color: hot ? M_RED : M_MUTED,
+          fontFamily: MONO, fontSize: 8, color: hot ? M_RED : 'var(--text-primary)',
         }}>{label}</span>
       )}
     </>
@@ -256,7 +259,7 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
 function FloorBar({ standing = [] }) {
   return (
     <div className="csn-floor58__bar">
-      <span className="csn-floor58__counter" style={{ boxShadow: `0 -3px 14px ${M_GOLD}14` }} />
+      <span className="csn-floor58__counter" style={{ boxShadow: `0 -3px 14px color-mix(in srgb, ${M_GOLD} 7.84%, transparent)` }} />
       {standing.length > 0 && (
         <div className="csn-floor58__standing">
           {standing.map((agent, i) => (
@@ -267,7 +270,7 @@ function FloorBar({ standing = [] }) {
         </div>
       )}
       <span className="csn-floor58__barlabel" style={{
-        fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.16em', color: `${M_GOLD}B3`,
+        fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.16em', color: `color-mix(in srgb, ${M_GOLD} 70.2%, transparent)`,
       }}>THE BAR</span>
     </div>
   );
@@ -288,11 +291,11 @@ function FloorStairs({ lines = 0 }) {
         {[9, 14, 19, 24, 29, 34].map((h, i) => (
           <span key={h} style={{
             height: h,
-            background: `linear-gradient(180deg, rgba(205,179,128,${0.06 + i * 0.02}) 0%, rgba(255,255,255,0.02) 100%)`,
+            background: `linear-gradient(180deg, color-mix(in srgb, var(--gold-reward) ${(0.06 + i * 0.02) * 100}%, transparent) 0%, color-mix(in srgb, var(--text-primary) 2%, transparent) 100%)`,
           }} />
         ))}
       </div>
-      <div className="csn-floor58__plaque" style={{ border: `1px solid ${M_GOLD}3D` }}>
+      <div className="csn-floor58__plaque" style={{ border: `1px solid color-mix(in srgb, ${M_GOLD} 23.92%, transparent)` }}>
         <span style={{ fontFamily: OSWALD, fontSize: 6, fontWeight: 600, letterSpacing: '0.14em', color: M_GOLD }}>
           THE BOARD
         </span>
@@ -301,7 +304,7 @@ function FloorStairs({ lines = 0 }) {
             key={i}
             className="csn-floor58__rule"
             style={{
-              background: i === 0 && lines > 0 ? `${M_GOLD}88` : 'rgba(255,255,255,0.13)',
+              background: i === 0 && lines > 0 ? `color-mix(in srgb, ${M_GOLD} 53.33%, transparent)` : 'var(--surface-strong)',
               width: i ? `${72 - i * 18}%` : '100%',
             }}
           />

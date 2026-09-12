@@ -44,7 +44,6 @@ import { useCasinoRooms, roomForBlinds, roomForTable, agentsByRoom, feltsIn, tot
 import { useCasinoEvents } from '../lib/events.js';
 import { fetchWallet, fundAgent, money, pocketOf } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
-import { M_TEAL, M_GOLD, M_RED } from '../components/floor/atoms.jsx';
 import { Num } from '../components/wallet/atoms.jsx';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 // BUG-156: the building's own sheet, and the desk shell's, travel with the
@@ -54,6 +53,9 @@ import '../styles/desktop.css';
 
 const POLL_MS = 10_000;
 const MONO = '"JetBrains Mono",ui-monospace,monospace';
+const M_TEAL = 'var(--success)';
+const M_GOLD = 'var(--gold-reward)';
+const M_RED = 'var(--error)';
 
 // ── Pure helpers ────────────────────────────────────────────────────────────
 
@@ -480,15 +482,15 @@ export function CasinoScreen({
             onClick={() => onCancelDeploy?.()}
             aria-label="Stop placing him"
             style={{
-              height: 17, padding: '0 7px', borderRadius: 9, background: 'rgba(14,17,18,0.86)',
-              border: '1px solid rgba(255,255,255,0.12)', color: '#A1A1A1', fontSize: 9, cursor: 'pointer',
+              height: 17, padding: '0 7px', borderRadius: 9, background: 'var(--bg-secondary)',
+              border: '1px solid var(--edge)', color: 'var(--text-secondary)', fontSize: 9, cursor: 'pointer',
             }}
           >Not now</button>
         ) : desktop ? (
           <span style={{
             display: 'inline-flex', alignItems: 'center', height: 17, padding: '0 7px',
-            borderRadius: 9, background: 'rgba(14,17,18,0.86)',
-            border: `1px solid ${net >= 0 ? `${M_TEAL}55` : `${M_RED}55`}`,
+            borderRadius: 9, background: 'var(--bg-secondary)',
+            border: `1px solid color-mix(in srgb, ${net >= 0 ? M_TEAL : M_RED} 33%, transparent)`,
           }}>
             <Num size={10} weight={700} color={net >= 0 ? M_TEAL : M_RED}>
               {money(net, { sign: true })}
@@ -509,7 +511,7 @@ export function CasinoScreen({
             className="csn-hot"
             style={{
               flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-              borderRadius: 12, background: `${M_GOLD}12`, border: `1px solid ${M_GOLD}55`,
+              borderRadius: 12, background: `color-mix(in srgb, ${M_GOLD} 7%, transparent)`, border: `1px solid color-mix(in srgb, ${M_GOLD} 33%, transparent)`,
             }}
           >
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -518,7 +520,7 @@ export function CasinoScreen({
                 {focus.room.name}
               </div>
               {focus.agent && (
-                <div style={{ fontSize: 10, color: '#6B6B6B', marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
                   {focus.agent.name} is in the hand
                 </div>
               )}
@@ -559,7 +561,7 @@ export function CasinoScreen({
         )}
 
         {rooms.length === 0 && (
-          <div style={{ fontFamily: MONO, fontSize: 11, color: '#6B6B6B', padding: '18px 2px' }}>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted)', padding: '18px 2px' }}>
             The floor has not opened yet.
           </div>
         )}

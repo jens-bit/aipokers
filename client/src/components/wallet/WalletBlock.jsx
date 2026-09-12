@@ -5,10 +5,10 @@
 import { money, signedMoney, pnlTone } from '../../lib/wallet.js';
 import { Lbl, Num } from './atoms.jsx';
 
-const M_TEAL = '#00D4AA';
-const M_GOLD = '#CDB380';
-const M_RED = '#FF4D4F';
-const M_MUTED = '#6B6B6B';
+const M_TEAL = 'var(--accent)';
+const M_GOLD = 'var(--gold-reward)';
+const M_RED = 'var(--error)';
+const M_MUTED = 'var(--text-muted)';
 
 export function WalletBlock({ wallet, playingCount = 0, agentCount = 0 }) {
   if (!wallet) return null;

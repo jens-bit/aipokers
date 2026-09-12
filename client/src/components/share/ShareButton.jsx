@@ -15,12 +15,12 @@ import { buildShareModel } from './shareModel.js';
 import { renderSharePng, shareDimensions } from './drawShareCard.js';
 import { shareHand } from './shareHand.js';
 
-const TEAL = '#00D4AA';
-const TEXT = '#EDEDED';
-const DIM = '#A1A1A1';
-const MUTED = '#6B6B6B';
-const PANEL = '#232329';
-const BORDER = 'rgba(255,255,255,0.12)';
+const TEAL = 'var(--accent)';
+const TEXT = 'var(--text-primary)';
+const DIM = 'var(--text-secondary)';
+const MUTED = 'var(--text-muted)';
+const PANEL = 'var(--bg-secondary)';
+const BORDER = 'var(--edge)';
 const OSWALD = "'Oswald', 'Inter', sans-serif";
 
 // What actually happened, in one line. The desktop answer is a real answer —
@@ -42,7 +42,7 @@ const ghostButtonStyle = {
   padding: '0 10px',
   borderRadius: 7,
   background: 'transparent',
-  border: `1px solid ${TEAL}66`,
+  border: `1px solid color-mix(in srgb, ${TEAL} 40%, transparent)`,
   color: TEAL,
   cursor: 'pointer',
   fontFamily: OSWALD,
@@ -63,7 +63,7 @@ function ActionButton({ children, onClick, primary, disabled }) {
         flex: 1, height: 42, borderRadius: 10, cursor: disabled ? 'default' : 'pointer',
         background: primary ? TEAL : 'transparent',
         border: `1px solid ${primary ? TEAL : BORDER}`,
-        color: primary ? '#0A0A0A' : TEXT,
+        color: primary ? 'var(--on-accent)' : TEXT,
         opacity: disabled ? 0.5 : 1,
         fontFamily: OSWALD, fontSize: 11, fontWeight: 600,
         letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -124,11 +124,11 @@ export function ShareSheet({ model, agentId = null, onClose }) {
         boxShadow: '0 -18px 40px rgba(0,0,0,0.55)', padding: '9px 14px 22px', maxHeight: '100%', overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-          <div style={{ width: 34, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
+          <div style={{ width: 34, height: 4, borderRadius: 2, background: 'var(--edge-strong)' }} />
         </div>
 
         <div role="group" aria-label="Image format" style={{display:'flex',justifyContent:'center',gap:8,marginBottom:12}}>
-          {['story','preview'].map(key=><button key={key} disabled={busy} type="button" aria-pressed={format===key} onClick={()=>{setFormat(key);setOutcome(null);}} style={{...ghostButtonStyle,background:format===key?'#123C36':'transparent'}}>{shareDimensions(key).label}</button>)}
+          {['story','preview'].map(key=><button key={key} disabled={busy} type="button" aria-pressed={format===key} onClick={()=>{setFormat(key);setOutcome(null);}} style={{...ghostButtonStyle,background:format===key?'var(--accent-dim)':'transparent'}}>{shareDimensions(key).label}</button>)}
         </div>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <ShareCard model={model} format={format} size={format==='story'?'min(296px, calc((100dvh - 190px) * 0.5625))':396} ghostRef={ghostRef} />

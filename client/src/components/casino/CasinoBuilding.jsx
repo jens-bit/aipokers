@@ -29,18 +29,21 @@ import { identityOf } from '../../lib/identity.js';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { RosterButton } from '../Header.jsx';
 import { CardBack } from '../system/PlayingCard.jsx';
-import { accentFor, M_TEAL, M_GOLD, M_RED } from '../floor/atoms.jsx';
+import { accentFor } from '../floor/atoms.jsx';
+const M_TEAL = 'var(--accent)';
+const M_GOLD = 'var(--gold-reward)';
+const M_RED = 'var(--error)';
 import { moodOf, heatOf } from '../floor/agentView.js';
 import { Num } from '../wallet/atoms.jsx';
 import { money, pocketOf } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
 
 // ── Design tokens (verbatim from the refs) ─────────────────────────────────
-export const M_BG     = '#0A0F0F';
-const M_BORDER = 'rgba(255,255,255,0.12)';
-const M_TEXT   = '#EDEDED';
-const M_DIM    = '#A1A1A1';
-const M_MUTED  = '#6B6B6B';
+export const M_BG     = 'var(--bg-primary)';
+const M_BORDER = 'var(--edge)';
+const M_TEXT   = 'var(--text-primary)';
+const M_DIM    = 'var(--text-secondary)';
+const M_MUTED  = 'var(--text-muted)';
 
 const PLAYFAIR = '"Playfair Display",Georgia,serif';
 const OSWALD   = '"Oswald","Helvetica Neue",sans-serif';
@@ -86,7 +89,7 @@ export function Btn({ children, kind = 'primary', h = 34, full, onClick, disable
     opacity: disabled ? 0.45 : 1,
   };
   const kinds = {
-    primary: { background: M_TEAL, border: 'none', color: '#0A0A0A', boxShadow: `0 0 14px ${M_TEAL}44` },
+    primary: { background: M_TEAL, border: 'none', color: 'var(--on-accent)', boxShadow: `0 0 14px color-mix(in srgb, ${M_TEAL} 26.67%, transparent)` },
     ghost: { background: 'transparent', border: `1px solid ${M_BORDER}`, color: M_DIM },
     outline: { background: 'transparent', border: `1px solid ${M_TEAL}`, color: M_TEAL },
   };
@@ -115,7 +118,7 @@ export function Noise({ level }) {
           key={i}
           style={{
             width: 3, height: 4 + i * 3.5, borderRadius: 1,
-            background: i < level ? M_TEAL : 'rgba(255,255,255,0.14)',
+            background: i < level ? M_TEAL : 'var(--surface-strong)',
           }}
         />
       ))}
@@ -208,7 +211,7 @@ function Doorman({ agent, index, pnl }) {
       </div>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 4, height: 16, padding: '0 6px',
-        borderRadius: 8, background: 'rgba(10,14,14,0.9)', border: `1px solid ${M_TEAL}44`,
+        borderRadius: 8, background: 'var(--v5-raised)', border: `1px solid color-mix(in srgb, ${M_TEAL} 26.67%, transparent)`,
         maxWidth: 96,
       }}>
         <span style={{
@@ -257,12 +260,12 @@ export function CasinoDoor({
       <div style={{
         position: 'absolute', inset: 0,
         background: backRoom
-          ? 'linear-gradient(180deg, #140F11 0%, #1C1418 62%, #241A1E 100%)'
-          : 'linear-gradient(180deg, #0D1413 0%, #16211F 58%, #1E2C29 100%)',
+          ? 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--wood-deep) 62%, var(--wood-edge) 100%)'
+          : 'linear-gradient(180deg, var(--bg-secondary) 0%, var(--wood-light) 58%, var(--wood-deep) 100%)',
       }} />
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, height: h * 0.52,
-        background: 'linear-gradient(180deg, rgba(47,77,72,0.34) 0%, rgba(47,77,72,0.06) 100%)',
+        background: 'linear-gradient(180deg, color-mix(in srgb, var(--wood-light) 34%, transparent) 0%, color-mix(in srgb, var(--wood-light) 6%, transparent) 100%)',
         clipPath: 'polygon(-8% 100%, 108% 100%, 70% 0, 30% 0)',
       }} />
 
@@ -276,9 +279,9 @@ export function CasinoDoor({
             position: 'absolute', left: `${lx * 100}%`, bottom: by * h, width: fw,
             height: fw * 0.34, marginLeft: -fw / 2, borderRadius: '50%',
             background: hot && i === 0
-              ? `radial-gradient(ellipse, ${M_GOLD}3D, ${M_GOLD}12)`
-              : 'radial-gradient(ellipse, rgba(47,77,72,0.72), rgba(29,46,44,0.42))',
-            border: `1px solid ${hot && i === 0 ? `${M_GOLD}66` : 'rgba(255,255,255,0.06)'}`,
+              ? `radial-gradient(ellipse, color-mix(in srgb, ${M_GOLD} 23.92%, transparent), color-mix(in srgb, ${M_GOLD} 7.06%, transparent))`
+              : 'radial-gradient(ellipse, var(--felt-center), var(--felt-edge))',
+            border: `1px solid ${hot && i === 0 ? `color-mix(in srgb, ${M_GOLD} 40%, transparent)` : 'var(--edge-soft)'}`,
             animation: hot && i === 0 ? 'casino-shimmer 2s ease-in-out infinite' : 'none',
           }}
         />
@@ -295,7 +298,7 @@ export function CasinoDoor({
         {hot && (
           <span style={{
             fontFamily: OSWALD, fontSize: 8, fontWeight: 600, letterSpacing: '0.16em',
-            color: M_GOLD, border: `1px solid ${M_GOLD}77`, background: `${M_GOLD}1A`,
+            color: M_GOLD, border: `1px solid color-mix(in srgb, ${M_GOLD} 46.67%, transparent)`, background: `color-mix(in srgb, ${M_GOLD} 10.2%, transparent)`,
             borderRadius: 3, padding: '1px 5px',
           }}>HOT</span>
         )}
@@ -334,7 +337,7 @@ export function CasinoDoor({
       {/* law 4: shut, and it says the price. Never a lock icon. */}
       {shut && (
         <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(6,9,9,0.66)',
+          position: 'absolute', inset: 0, background: 'color-mix(in srgb, var(--bg-primary) 86%, transparent)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <span style={{ fontSize: 11, color: M_DIM }}>
@@ -348,9 +351,9 @@ export function CasinoDoor({
   const frame = {
     position: 'relative', flexShrink: 0, height: h, borderRadius: 12, overflow: 'hidden',
     width: '100%', padding: 0, textAlign: 'left', display: 'block',
-    border: `1px solid ${hot ? `${M_GOLD}77` : selected ? M_TEAL : mine.length ? `${M_TEAL}44` : M_BORDER}`,
-    boxShadow: hot ? `0 0 20px ${M_GOLD}2E` : selected ? `0 0 14px ${M_TEAL}33` : 'none',
-    background: '#0B100F',
+    border: `1px solid ${hot ? `color-mix(in srgb, ${M_GOLD} 46.67%, transparent)` : selected ? M_TEAL : mine.length ? `color-mix(in srgb, ${M_TEAL} 26.67%, transparent)` : M_BORDER}`,
+    boxShadow: hot ? `0 0 20px color-mix(in srgb, ${M_GOLD} 18.04%, transparent)` : selected ? `0 0 14px color-mix(in srgb, ${M_TEAL} 20%, transparent)` : 'none',
+    background: 'var(--bg-primary)',
   };
 
   if (!interactive) {
@@ -404,7 +407,7 @@ export function Stairs() {
           key={hh}
           style={{
             flex: 1, height: hh, borderRadius: '3px 3px 0 0',
-            background: `linear-gradient(180deg, rgba(205,179,128,${0.05 + i * 0.02}) 0%, rgba(255,255,255,0.02) 100%)`,
+            background: `linear-gradient(180deg, color-mix(in srgb, var(--gold-reward) ${(0.05 + i * 0.02) * 100}%, transparent) 0%, color-mix(in srgb, var(--text-primary) 2%, transparent) 100%)`,
             borderTop: '1px solid rgba(255,255,255,0.07)',
           }}
         />
@@ -464,7 +467,7 @@ export function CasinoHead({ sub, right, lit = true, onBack = null, onOpenRoster
   return (
     <div className="csn-head" style={{
       flexShrink: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 9,
-      padding: '4px 14px', borderBottom: `1px solid ${M_BORDER}`, background: '#0C1111',
+      padding: '4px 14px', borderBottom: `1px solid ${M_BORDER}`, background: 'var(--bg-secondary)',
     }}>
       {/* HOME-2 job 1 · through the door, and still no bottom bar: ← HOME is
           where the back button goes (board 29 F07). */}
@@ -607,7 +610,7 @@ export function DeployTray({ agent, index = 0, room, affordable, busy = false, o
       className="csn-tray"
       style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-        borderTop: `1px solid ${M_TEAL}3D`, background: 'rgba(0,212,170,0.06)',
+        borderTop: `1px solid color-mix(in srgb, ${M_TEAL} 23.92%, transparent)`, background: 'color-mix(in srgb, var(--accent) 6%, transparent)',
       }}
     >
       <MoodGhost hood={look.hood} glow={look.glow.c}

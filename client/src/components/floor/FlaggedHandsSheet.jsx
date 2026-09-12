@@ -19,12 +19,12 @@ const M_TEAL   = '#00D4AA';
 const M_RED    = '#FF4D4F';
 const M_PURPLE = '#9B7BFF';
 const M_GOLD   = '#CDB380';
-const M_TEXT   = '#EDEDED';
-const M_DIM    = '#A1A1A1';
-const M_MUTED  = '#6B6B6B';
-const M_BORDER = 'rgba(255,255,255,0.12)';
-const M_PANEL  = '#232329';
-const M_PANEL_2 = '#28282F';
+const M_TEXT   = 'var(--text-primary)';
+const M_DIM    = 'var(--text-secondary)';
+const M_MUTED  = 'var(--text-muted)';
+const M_BORDER = 'var(--edge)';
+const M_PANEL  = 'var(--bg-secondary)';
+const M_PANEL_2 = 'var(--bg-tertiary)';
 const OSWALD   = "'Oswald', 'Inter', sans-serif";
 const PAD      = 14;
 
@@ -79,7 +79,7 @@ function BackBtn({ onClick }) {
         position: 'absolute', top: 10, left: 12, zIndex: 3,
         width: 34, height: 34, display: 'grid', placeItems: 'center',
         border: `1px solid ${M_BORDER}`, borderRadius: 10,
-        background: 'rgba(8,10,11,0.86)', color: M_TEXT, cursor: 'pointer',
+        background: 'var(--bg-secondary)', color: M_TEXT, cursor: 'pointer',
         padding: 0,
       }}
     >
@@ -330,7 +330,7 @@ function VerdictBand({ hand, agentName, mood = 'neutral', heat = 45 }) {
     }}>
       <div style={{
         width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-        background: '#0A0F17', border: `1px solid ${M_PURPLE}55`,
+        background: 'var(--bg-tertiary)', border: `1px solid ${M_PURPLE}55`,
         boxShadow: `0 0 14px ${M_RED}33`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
@@ -380,7 +380,7 @@ function HoleCardsRow({ holeCards }) {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 11,
       padding: `10px ${PAD}px`, borderBottom: `1px solid ${M_BORDER}`,
-      background: 'rgba(255,255,255,0.015)',
+      background: 'var(--surface-soft)',
     }}>
       <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
         {holeCards.map((c, i) => {
@@ -413,7 +413,7 @@ function OpponentShowdownRow({ opponents }) {
           <div key={`${seat}-${i}`} style={{
             display: 'flex', alignItems: 'center', gap: 11,
             padding: `10px ${PAD}px`, borderBottom: `1px solid ${M_BORDER}`,
-            background: 'rgba(255,255,255,0.015)',
+            background: 'var(--surface-soft)',
           }}>
             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
               {holeCards.map((c, k) => {

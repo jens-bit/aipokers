@@ -30,15 +30,17 @@
 import { storedIdentity } from '../../lib/identity.js';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { PlayingCard, CardBack, parseCard } from '../system/PlayingCard.jsx';
-import { M_TEAL, M_GOLD } from '../floor/atoms.jsx';
+import { M_TEAL as AGENT_TEAL } from '../floor/atoms.jsx';
+const M_TEAL = 'var(--accent)';
+const M_GOLD = 'var(--gold-reward)';
 import { money } from '../../lib/wallet.js';
 import { pillName } from '../../lib/names.js';
 import { LiveDot } from './CasinoBuilding.jsx';
 
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
-const M_TEXT = '#EDEDED';
-const M_DIM = '#A1A1A1';
-const M_BORDER = 'rgba(255,255,255,0.12)';
+const M_TEXT = 'var(--text-primary)';
+const M_DIM = 'var(--text-secondary)';
+const M_BORDER = 'var(--edge)';
 
 // Where the other seats stand, as fractions of the picture. Verbatim from the
 // ref: five places, which is exactly a six-max table minus the hero.
@@ -94,7 +96,7 @@ function heatOfSeat(seat) {
  * @param onWatch   tap handler; without one the felt is a picture
  */
 export function TableFelt({
-  felt, agentId = null, heroHole = null, accent = M_TEAL, scale = 1,
+  felt, agentId = null, heroHole = null, accent = AGENT_TEAL, scale = 1,
   label = null, live = true, onWatch = null, ariaLabel = null,
 }) {
   if (!felt) return null;
@@ -174,9 +176,9 @@ export function TableFelt({
         <div style={{
           position: 'absolute', left: '50%', top: '44%', transform: 'translate(-50%,-50%)',
           display: 'flex', alignItems: 'center', gap: px(6), padding: `${px(2)}px ${px(9)}px`,
-          borderRadius: px(11), background: 'rgba(10,14,14,0.66)', border: `1px solid ${M_BORDER}`,
+          borderRadius: px(11), background: 'var(--v5-panel)', border: `1px solid ${M_BORDER}`,
         }}>
-          <span style={{ fontFamily: OSWALD, fontSize: px(7), letterSpacing: '0.12em', color: '#6B6B6B' }}>POT</span>
+          <span style={{ fontFamily: OSWALD, fontSize: px(7), letterSpacing: '0.12em', color: 'var(--text-muted)' }}>POT</span>
           <span style={{
             fontFamily: '"JetBrains Mono",ui-monospace,monospace', fontSize: px(11),
             fontWeight: 700, color: M_GOLD,
@@ -208,7 +210,7 @@ export function TableFelt({
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: px(2),
         }}>
           <span style={{
-            fontSize: px(8), color: M_TEXT, background: 'rgba(8,12,12,0.9)',
+            fontSize: px(8), color: M_TEXT, background: 'var(--v5-raised)',
             border: `1px solid ${accent}55`, borderRadius: px(7),
             padding: `${px(1.5)}px ${px(7)}px`, whiteSpace: 'nowrap',
           }}>{pillName(hero.name)}</span>
@@ -251,9 +253,9 @@ export function TableFelt({
   const frame = {
     position: 'relative', width: '100%', minHeight: 0, overflow: 'hidden', padding: 0,
     borderRadius: px(10), display: 'block', textAlign: 'left',
-    border: `1px solid ${felt.hot ? `${M_GOLD}66` : hero ? `${M_GOLD}3D` : M_BORDER}`,
-    background: 'radial-gradient(ellipse at 50% 42%, #24312C 0%, #16201E 72%)',
-    boxShadow: felt.hot ? `0 0 20px ${M_GOLD}2E` : 'none',
+    border: `1px solid ${felt.hot ? `color-mix(in srgb, ${M_GOLD} 40%, transparent)` : hero ? `color-mix(in srgb, ${M_GOLD} 23.92%, transparent)` : M_BORDER}`,
+    background: 'radial-gradient(ellipse at 50% 42%, var(--felt-center) 0%, var(--felt-edge) 72%)',
+    boxShadow: felt.hot ? `0 0 20px color-mix(in srgb, ${M_GOLD} 18.04%, transparent)` : 'none',
   };
 
   const props = {

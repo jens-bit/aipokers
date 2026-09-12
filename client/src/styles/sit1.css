@@ -22,8 +22,8 @@
   align-self: center;
   padding: 2.5px 9px 3.5px;
   border-radius: 8px;
-  background: rgba(8, 12, 12, 0.9);
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.11));
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 11%, transparent));
   font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
   font-size: 9px;
   font-weight: 600;
@@ -33,10 +33,10 @@
 }
 
 .owner-hero__pill.is-turn {
-  background: rgba(205, 179, 128, 0.12);
-  border-color: var(--sys-gold, #CDB380);
-  box-shadow: 0 0 12px rgba(205, 179, 128, 0.33);
-  color: var(--sys-gold, #CDB380);
+  background: color-mix(in srgb, var(--gold-reward) 12%, transparent);
+  border-color: var(--sys-gold, var(--gold-reward));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--gold-reward) 33%, transparent);
+  color: var(--sys-gold, var(--gold-reward));
 }
 
 /* His two cards, face up, bigger than the ghost's because these are the cards
@@ -78,8 +78,8 @@
 .sit-bet {
   flex-shrink: 0;
   padding: 9px 12px 12px;
-  background: #101A18;
-  border-top: 1px solid rgba(255, 255, 255, 0.11);
+  background: var(--bg-secondary);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 11%, transparent);
   touch-action: none;
 }
 
@@ -92,7 +92,7 @@
 /* 52·Y2 — three things say it is on you and none of them is a banner. This is
    the third: the verbs come up onto the raised glass with a gold edge. */
 .sit-strip[data-turn='yes'] .sit-strip__glass {
-  border-color: rgba(205, 179, 128, 0.35);
+  border-color: color-mix(in srgb, var(--gold-reward) 35%, transparent);
 }
 
 .sit-strip__head {
@@ -107,12 +107,12 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.14em;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
 }
 
 .sit-strip__sub {
   font-size: 10.5px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .sit-strip__row {
@@ -130,8 +130,8 @@
   gap: 1px;
   padding: 11px 0 10px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -142,7 +142,7 @@
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .sit-verb__note {
@@ -156,17 +156,17 @@
 .sit-verb--check:not(:disabled) .sit-verb__name { color: var(--sys-dim, #9A9A9A); }
 
 .sit-verb--call:not(:disabled) {
-  border-color: rgba(0, 212, 170, 0.33);
-  background: rgba(0, 212, 170, 0.07);
+  border-color: color-mix(in srgb, var(--accent) 33%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 .sit-verb--call:not(:disabled) .sit-verb__name,
-.sit-verb--call:not(:disabled) .sit-verb__note { color: var(--sys-teal, #00D4AA); }
+.sit-verb--call:not(:disabled) .sit-verb__note { color: var(--sys-teal, var(--accent)); }
 
 .sit-verb--bet:not(:disabled) {
-  border-color: rgba(205, 179, 128, 0.33);
-  background: rgba(205, 179, 128, 0.05);
+  border-color: color-mix(in srgb, var(--gold-reward) 33%, transparent);
+  background: color-mix(in srgb, var(--gold-reward) 5%, transparent);
 }
-.sit-verb--bet:not(:disabled) .sit-verb__name { color: var(--sys-gold, #CDB380); }
+.sit-verb--bet:not(:disabled) .sit-verb__name { color: var(--sys-gold, var(--gold-reward)); }
 
 /* A verb that is not on offer is present and unpressable — the ref draws all
    four at 52·Y1, before the action is on him. */
@@ -188,7 +188,7 @@
 }
 
 .sit-bet__glass {
-  border-color: rgba(205, 179, 128, 0.35);
+  border-color: color-mix(in srgb, var(--gold-reward) 35%, transparent);
 }
 
 .sit-bet__head {
@@ -203,14 +203,14 @@
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.14em;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
 }
 
 .sit-bet__meta {
   flex: 1;
   min-width: 0;
   font-size: 10.5px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -226,7 +226,7 @@
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   cursor: pointer;
 }
 
@@ -244,15 +244,15 @@
   gap: 2px;
   padding: 8px 0 7px;
   border-radius: 9px;
-  border: 1px solid rgba(205, 179, 128, 0.27);
-  background: rgba(205, 179, 128, 0.05);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 27%, transparent);
+  background: color-mix(in srgb, var(--gold-reward) 5%, transparent);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .sit-size.is-all {
-  border-color: var(--sys-gold, #CDB380);
-  background: rgba(205, 179, 128, 0.12);
+  border-color: var(--sys-gold, var(--gold-reward));
+  background: color-mix(in srgb, var(--gold-reward) 12%, transparent);
 }
 
 .sit-size__key {
@@ -263,13 +263,13 @@
   color: var(--sys-dim, #9A9A9A);
 }
 
-.sit-size.is-all .sit-size__key { color: var(--sys-gold, #CDB380); }
+.sit-size.is-all .sit-size__key { color: var(--sys-gold, var(--gold-reward)); }
 
 .sit-size__amt {
   font-family: var(--sys-font-mono, "JetBrains Mono", ui-monospace, monospace);
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
 }
 
 .sit-bet__any {
@@ -279,8 +279,8 @@
   margin-top: 8px;
   height: 40px;
   border-radius: 9px;
-  border: 1px solid var(--sys-border, rgba(255, 255, 255, 0.11));
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 11%, transparent));
+  background: color-mix(in srgb, var(--text-primary) 3%, transparent);
   padding: 0 6px 0 12px;
 }
 
@@ -294,22 +294,22 @@
   /* BUG-02 is a hard floor: iOS Safari zooms the whole Mini App when a field
      under 16px takes focus, and the zoom does not come back. */
   font-size: 16px;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
 }
 
-.sit-bet__input::placeholder { color: var(--sys-muted, #6B6B6B); }
+.sit-bet__input::placeholder { color: var(--sys-muted, var(--text-muted)); }
 
 .sit-bet__go {
   flex-shrink: 0;
-  border: 1px solid rgba(205, 179, 128, 0.4);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 40%, transparent);
   border-radius: 8px;
-  background: rgba(205, 179, 128, 0.08);
+  background: color-mix(in srgb, var(--gold-reward) 8%, transparent);
   padding: 6px 13px;
   font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   cursor: pointer;
 }
 
@@ -327,7 +327,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 0;
-  border-top: 1px solid var(--sys-border, rgba(255, 255, 255, 0.11));
+  border-top: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 11%, transparent));
 }
 
 .table-sheet__sit-text {
@@ -342,39 +342,39 @@
   font-family: var(--sys-font-display, "Playfair Display", Georgia, serif);
   font-size: 15px;
   font-weight: 600;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
 }
 
 .table-sheet__sit-sub {
   font-size: 11.5px;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
 .table-sheet__watch {
   flex-shrink: 0;
-  border: 1px solid rgba(0, 212, 170, 0.45);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: 9px;
-  background: rgba(0, 212, 170, 0.09);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
   padding: 9px 14px;
   font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.12em;
-  color: var(--sys-teal, #00D4AA);
+  color: var(--sys-teal, var(--accent));
   cursor: pointer;
 }
 
 .table-sheet__sit-go {
   flex-shrink: 0;
-  border: 1px solid rgba(205, 179, 128, 0.45);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 45%, transparent);
   border-radius: 9px;
-  background: rgba(205, 179, 128, 0.09);
+  background: color-mix(in srgb, var(--gold-reward) 9%, transparent);
   padding: 9px 14px;
   font-family: var(--sys-font-label, Oswald, "Arial Narrow", sans-serif);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.12em;
-  color: var(--sys-gold, #CDB380);
+  color: var(--sys-gold, var(--gold-reward));
   cursor: pointer;
 }
 

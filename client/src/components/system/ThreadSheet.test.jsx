@@ -43,8 +43,9 @@ describe('the sheet', () => {
 
   it('is the same glass as everything else on the screen', () => {
     const sheet = rule('.thread-sheet');
-    expect(sheet).toMatch(/background:\s*rgba\(13,\s*23,\s*21,\s*0\.72\)/);
-    expect(sheet).toMatch(/backdrop-filter:\s*blur\(18px\) saturate\(1\.2\)/);
+    expect(sheet).toMatch(/background:\s*var\(--v5-panel\)/);
+    expect(sheet).toMatch(/backdrop-filter:\s*var\(--v5-blur\)/);
+    expect(sheet).toMatch(/border-top:\s*1px solid var\(--v5-edge-up\)/);
   });
 
   // A read opens in exactly the same place, in exactly the same material, so
@@ -52,7 +53,9 @@ describe('the sheet', () => {
   it('the read sheet is the same layer, in the same glass', () => {
     const read = rule('.read-sheet');
     expect(read).toMatch(/height:\s*70%/);
-    expect(read).toMatch(/rgba\(13,\s*23,\s*21,\s*0\.72\)/);
+    expect(read).toMatch(/background:\s*var\(--v5-panel\)/);
+    expect(read).toMatch(/backdrop-filter:\s*var\(--v5-blur\)/);
+    expect(read).toMatch(/border-top:\s*1px solid var\(--v5-edge-up\)/);
     expect(read).not.toMatch(/var\(--sys-panel/);
   });
 

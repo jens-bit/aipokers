@@ -7,8 +7,8 @@ import { modeMeta, pocketFill } from '../../lib/wallet.js';
 
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
 const MONO = '"JetBrains Mono",ui-monospace,monospace';
-const M_MUTED = '#6B6B6B';
-const M_TEXT = '#EDEDED';
+const M_MUTED = 'var(--text-muted)';
+const M_TEXT = 'var(--text-primary)';
 
 export function Lbl({ children, size = 9.5, color = M_MUTED }) {
   return (
@@ -31,11 +31,12 @@ export function Num({ children, size = 14, weight = 700, color = M_TEXT }) {
 // carries a judgement — CUT OFF is grey, not red.
 export function ModeTag({ mode }) {
   const m = modeMeta(mode);
+  const color = ({ topup: 'var(--text-secondary)', allowance: 'var(--accent)', auto: 'var(--gold-reward)', cut: 'var(--text-muted)' })[mode] ?? 'var(--text-secondary)';
   return (
     <span
       className="wal-tag"
       data-mode={mode}
-      style={{ color: m.color, background: `${m.color}14`, border: `1px solid ${m.color}44` }}
+      style={{ color, background: `color-mix(in srgb, ${color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 27%, transparent)` }}
     >
       {m.label}
     </span>

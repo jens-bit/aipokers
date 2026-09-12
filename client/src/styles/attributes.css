@@ -24,9 +24,9 @@
   height: 14px;
   left: var(--band-lo);
   width: var(--band-w);
-  background: rgba(205, 179, 128, 0.18);
-  border-left: 1px solid rgba(205, 179, 128, 0.60);
-  border-right: 1px solid rgba(205, 179, 128, 0.60);
+  background: color-mix(in srgb, var(--gold-reward) 18%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--gold-reward) 60%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--gold-reward) 60%, transparent);
 }
 
 .attr-track__fill {
@@ -35,11 +35,11 @@
   width: var(--cur);
   border-radius: 3px;
   background: var(--sys-teal);
-  box-shadow: 0 0 8px rgba(0, 212, 170, 0.33);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 33%, transparent);
 }
 
 .attr-track--dim .attr-track__fill {
-  background: rgba(0, 212, 170, 0.33);
+  background: color-mix(in srgb, var(--accent) 33%, transparent);
   box-shadow: none;
 }
 
@@ -51,10 +51,10 @@
   width: 2px;
   height: 12px;
   border-radius: 1px;
-  background: #EDEDED;
+  background: var(--text-primary);
 }
 
-.attr-track--dim .attr-track__cap { background: rgba(0, 212, 170, 0.53); }
+.attr-track--dim .attr-track__cap { background: color-mix(in srgb, var(--accent) 53%, transparent); }
 
 /* the caret at the high end — one session after the band narrows, then it
  * retires. The only animation on the bar. */
@@ -139,7 +139,7 @@
 .attr-focus {
   border-radius: 10px;
   background: var(--sys-panel);
-  border: 1px solid rgba(0, 212, 170, 0.27);
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
   padding: 11px 13px 12px;
   margin-top: 1px;
 }
@@ -241,12 +241,12 @@
 
 .fatigue-line__block--on {
   background: var(--sys-teal);
-  box-shadow: 0 0 6px rgba(0, 212, 170, 0.27);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 27%, transparent);
 }
 
 .fatigue-line--worn .fatigue-line__block--on {
   background: var(--sys-gold);
-  box-shadow: 0 0 6px rgba(205, 179, 128, 0.27);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold-reward) 27%, transparent);
 }
 
 .fatigue-line__word {
@@ -283,8 +283,8 @@
   gap: 10px;
   padding: 9px 12px;
   border-radius: 8px;
-  background: rgba(0, 212, 170, 0.04);
-  border: 1px solid rgba(0, 212, 170, 0.20);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .growth-tick__delta {
@@ -403,8 +403,8 @@
   height: 15px;
   padding: 0 5px;
   border-radius: 3px;
-  background: rgba(0, 212, 170, 0.08);
-  border: 1px solid rgba(0, 212, 170, 0.24);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -437,8 +437,8 @@
   height: 24px;
   padding: 0 9px;
   border-radius: 4px;
-  background: rgba(205, 179, 128, 0.04);
-  border: 1px solid rgba(205, 179, 128, 0.24);
+  background: color-mix(in srgb, var(--gold-reward) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 24%, transparent);
   white-space: nowrap;
 }
 
@@ -458,7 +458,7 @@
 .nature-chip__rule {
   width: 1px;
   height: 12px;
-  background: rgba(205, 179, 128, 0.27);
+  background: color-mix(in srgb, var(--gold-reward) 27%, transparent);
 }
 
 .nature-chip--l .nature-chip__rule { height: 15px; }
@@ -485,7 +485,7 @@
   padding: 0 11px;
   border-radius: 4px;
   background: transparent;
-  border: 1px dashed rgba(205, 179, 128, 0.33);
+  border: 1px dashed color-mix(in srgb, var(--gold-reward) 33%, transparent);
 }
 
 .nature-forming__label {
@@ -541,16 +541,16 @@
   font-weight: 600;
   letter-spacing: 0.13em;
   color: var(--sys-gold);
-  background: rgba(205, 179, 128, 0.08);
-  border: 1px solid rgba(205, 179, 128, 0.27);
+  background: color-mix(in srgb, var(--gold-reward) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 27%, transparent);
   border-radius: 3px;
   padding: 2px 5px;
 }
 
 .attr-cost--earned .attr-cost__key {
   color: var(--sys-teal);
-  background: rgba(0, 212, 170, 0.08);
-  border-color: rgba(0, 212, 170, 0.27);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 27%, transparent);
 }
 
 /* WATCH-6 · "why the hand went wrong", as a surface rather than a hard-coded
@@ -560,16 +560,16 @@
   padding: 11px 13px;
   border-radius: 10px;
   margin-top: 10px;
-  background: #28282F;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bg-tertiary);
+  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 
 .dsk-panel--watch .attr-why {
   border-radius: 13px;
-  background: rgba(13, 23, 21, 0.72);
+  background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  border-color: rgba(205, 179, 128, 0.33);
+  border-color: color-mix(in srgb, var(--gold-reward) 33%, transparent);
 }
 
 /* ── BodyBars (PROFILE-2) ──────────────────────────────────────────────────
@@ -582,7 +582,7 @@
   box-shadow: none;
 }
 
-.attr-track--heat .attr-track__cap { background: var(--heat-color, #EDEDED); }
+.attr-track--heat .attr-track__cap { background: var(--heat-color, var(--text-primary)); }
 
 /* A bar coloured by its own reading.
  *
@@ -596,7 +596,7 @@
   background: var(--tint, var(--sys-teal));
   box-shadow: none;
 }
-.attr-track--tinted .attr-track__cap { background: var(--tint, #EDEDED); }
+.attr-track--tinted .attr-track__cap { background: var(--tint, var(--text-primary)); }
 
 .body-bars { display: flex; flex-direction: column; gap: 12px; }
 

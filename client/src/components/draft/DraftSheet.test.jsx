@@ -107,9 +107,9 @@ describe('DRAFT-2: one glass, and it is the thread\'s', () => {
     // The sheet names the token, not a colour...
     expect(declared('.draft-sheet', 'background')).toBe('var(--glass-raised)');
     expect(declared('.draft-sheet', 'border-top')).toContain('var(--glass-edge-up)');
-    // ...and the token is V5GLASS.raised / .edgeUp from board 26's ThreadSheet.
-    expect(declared(':root', '--glass-raised')).toBe('rgba(18, 30, 28, 0.84)');
-    expect(declared(':root', '--glass-edge-up')).toBe('rgba(255, 255, 255, 0.17)');
+    // ...and the draft aliases the same theme-aware glass as the room and felt.
+    expect(declared(':root', '--glass-raised')).toBe('var(--v5-raised)');
+    expect(declared(':root', '--glass-edge-up')).toBe('var(--v5-edge-up)');
     expect(declared('.draft-sheet', 'backdrop-filter')).toContain('var(--glass-blur)');
   });
 

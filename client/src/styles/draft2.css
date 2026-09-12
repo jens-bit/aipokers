@@ -18,11 +18,11 @@
  */
 
 :root {
-  --glass-panel: rgba(13, 23, 21, 0.72);
-  --glass-raised: rgba(18, 30, 28, 0.84);
-  --glass-edge: rgba(255, 255, 255, 0.11);
-  --glass-edge-up: rgba(255, 255, 255, 0.17);
-  --glass-blur: blur(18px) saturate(1.2);
+  --glass-panel: var(--v5-panel);
+  --glass-raised: var(--v5-raised);
+  --glass-edge: var(--v5-edge);
+  --glass-edge-up: var(--v5-edge-up);
+  --glass-blur: var(--v5-blur);
 }
 
 /* ── the screen ──────────────────────────────────────────────────────────── */
@@ -33,7 +33,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #1A1A1E;
+  background: var(--bg-primary);
   position: relative;
 }
 
@@ -46,7 +46,7 @@
   min-height: 0;
   position: relative;
   overflow: hidden;
-  background: #1A1A1E;
+  background: var(--bg-primary);
 }
 
 /* the room itself, dimmed to almost nothing: he is not in it yet */
@@ -76,7 +76,7 @@
 .draft2__veil {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(6, 10, 10, 0.55) 0%, rgba(6, 10, 10, 0.8) 100%);
+  background: linear-gradient(180deg, rgba(6, 10, 10, 0.55) 0%, var(--scrim) 100%);
   pointer-events: none;
 }
 
@@ -131,11 +131,11 @@
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   white-space: nowrap;
 }
 
-.draft2__cap[data-named='true'] { color: var(--sys-gold, #CDB380); }
+.draft2__cap[data-named='true'] { color: var(--sys-gold, var(--gold-reward)); }
 
 /* ── the sheet ───────────────────────────────────────────────────────────── */
 
@@ -181,7 +181,7 @@
   width: 30px;
   height: 3px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--text-primary) 18%, transparent);
 }
 
 .draft-sheet__spacer { flex: 1; }
@@ -191,7 +191,7 @@
   font-size: 8px;
   font-weight: 600;
   letter-spacing: 0.16em;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
   white-space: nowrap;
 }
 
@@ -241,13 +241,13 @@
 .draft-row--sys .draft-row__bubble {
   background: var(--glass-raised);
   border: 1px solid var(--glass-edge);
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
 }
 
 .draft-row--you .draft-row__bubble {
-  background: rgba(0, 212, 170, 0.11);
-  border: 1px solid rgba(0, 212, 170, 0.30);
-  color: var(--sys-text, #EDEDED);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--sys-text, var(--text-primary));
 }
 
 /* ── the composer, and the one gold button that replaces it ──────────────── */
@@ -258,7 +258,7 @@
   gap: 8px;
   height: 44px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
   border: 1px solid var(--glass-edge);
   padding: 0 8px 0 14px;
   box-sizing: border-box;
@@ -271,7 +271,7 @@
   border: none;
   background: none;
   outline: none;
-  color: var(--sys-text, #EDEDED);
+  color: var(--sys-text, var(--text-primary));
   /* 16px or iOS zooms the whole Mini App on focus. */
   font-size: 16px;
   font-family: inherit;
@@ -281,7 +281,7 @@
    Safari zoom the whole Mini App on focus, and a ::placeholder rule counts —
    the placeholder and its input are the same box. The ref draws this line at
    12.5px; 12.5px is not available to us on a real phone. */
-.draft-sheet__input::placeholder { color: var(--sys-muted, #6B6B6B); }
+.draft-sheet__input::placeholder { color: var(--sys-muted, var(--text-muted)); }
 
 .draft-sheet__send {
   width: 30px;
@@ -290,9 +290,9 @@
   flex-shrink: 0;
   padding: 0;
   border-radius: 15px;
-  background: rgba(0, 212, 170, 0.15);
-  border: 1px solid rgba(0, 212, 170, 0.33);
-  color: #00D4AA;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 33%, transparent);
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -300,9 +300,9 @@
 }
 
 .draft-sheet__send:disabled {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.10);
-  color: var(--sys-muted, #6B6B6B);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  color: var(--sys-muted, var(--text-muted));
   cursor: default;
 }
 
@@ -332,14 +332,14 @@
   height: 48px;
   min-height: 48px;
   border-radius: 12px;
-  background: var(--sys-gold, #CDB380);
-  color: #120C04;
+  background: var(--sys-gold, var(--gold-reward));
+  color: var(--on-accent);
   font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  box-shadow: 0 4px 18px rgba(205, 179, 128, 0.27);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--gold-reward) 27%, transparent);
 }
 
 .draft-sheet .next-action__btn:hover { background: #DCC69B; }
@@ -350,7 +350,7 @@
   margin: 9px 2px 0;
   font-size: 11.5px;
   line-height: 1.45;
-  color: var(--sys-dim, #A1A1A1);
+  color: var(--sys-dim, var(--text-secondary));
 }
 
 .draft2 .draft-sheet__price-act {
@@ -359,9 +359,9 @@
   min-height: 0;
   padding: 0 13px;
   border-radius: 11px;
-  background: rgba(205, 179, 128, 0.08);
-  border: 1px solid rgba(205, 179, 128, 0.40);
-  color: var(--sys-gold, #CDB380);
+  background: color-mix(in srgb, var(--gold-reward) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold-reward) 40%, transparent);
+  color: var(--sys-gold, var(--gold-reward));
   font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
   font-size: 9.5px;
   font-weight: 600;
@@ -379,9 +379,9 @@
   z-index: 260;
   padding: 3px 8px;
   border-radius: 8px;
-  background: rgba(8, 12, 12, 0.9);
-  border: 1px solid rgba(0, 212, 170, 0.40);
-  color: #00D4AA;
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
   font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
   font-size: 8px;
   font-weight: 600;
@@ -448,8 +448,8 @@
   padding: 0 14px;
   border: none;
   border-radius: 10px;
-  background: var(--sys-gold, #CDB380);
-  color: #120C04;
+  background: var(--sys-gold, var(--gold-reward));
+  color: var(--on-accent);
   font-family: var(--sys-font-cond, "Oswald", "Helvetica Neue", sans-serif);
   font-size: 11.5px;
   font-weight: 600;
@@ -465,9 +465,9 @@
   min-height: 0;
   padding: 0 11px;
   border-radius: 14px;
-  border: 1px solid rgba(0, 212, 170, 0.27);
-  background: rgba(0, 212, 170, 0.05);
-  color: #00D4AA;
+  border: 1px solid color-mix(in srgb, var(--accent) 27%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  color: var(--accent);
   font-family: inherit;
   font-size: 12.5px;
   text-transform: none;
@@ -475,7 +475,7 @@
   cursor: pointer;
 }
 
-.draft-sheet__chip:hover { background: rgba(0, 212, 170, 0.11); }
+.draft-sheet__chip:hover { background: color-mix(in srgb, var(--accent) 11%, transparent); }
 
 /* The app button reset must not enlarge the already-authored secondary link. */
 .draft-sheet .next-action__link {
@@ -483,10 +483,10 @@
   font-size: 12px;
   text-transform: none;
   letter-spacing: normal;
-  color: var(--sys-muted, #6B6B6B);
+  color: var(--sys-muted, var(--text-muted));
 }
 
-.draft-sheet__composer:focus-within { border-color: #00D4AA66; box-shadow: 0 0 0 3px #00D4AA12; }
+.draft-sheet__composer:focus-within { border-color: color-mix(in srgb, var(--accent) 40%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 7.1%, transparent); }
 
 /* A keyboard-sized viewport belongs to the conversation. The first line and
    composer remain usable while the room is temporarily covered. */

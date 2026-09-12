@@ -1,18 +1,18 @@
 /* Board 42 C1–C3. Geometry from mood-agent.jsx; hit targets remain 44px. */
-.agent-view{position:relative;display:flex;flex-direction:column;flex:1;min-height:0;width:100%;overflow:hidden;background:#0D1413;color:#EDEDED;font:12px Inter,-apple-system,sans-serif;letter-spacing:normal}
+.agent-view{position:relative;display:flex;flex-direction:column;flex:1;min-height:0;width:100%;overflow:hidden;background:var(--bg-primary);color:var(--text-primary);font:12px Inter,-apple-system,sans-serif;letter-spacing:normal}
 .agent-view button{font-family:Oswald,sans-serif;cursor:pointer;letter-spacing:.1em}
 .agent-view button:disabled{cursor:default;opacity:.4}
 .agent-view .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.agent-view__header{height:40px;flex-shrink:0;display:flex;align-items:center;gap:9px;padding:0 12px;background:#0C1211;border-bottom:1px solid #ffffff1f}
-.agent-view__back{position:relative;display:grid;place-items:center;padding:0;min-height:0;width:20px;height:36px;flex-shrink:0;border:0;background:none;color:#A1A1A1}
+.agent-view__header{height:40px;flex-shrink:0;display:flex;align-items:center;gap:9px;padding:0 12px;background:var(--bg-secondary);border-bottom:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent)}
+.agent-view__back{position:relative;display:grid;place-items:center;padding:0;min-height:0;width:20px;height:36px;flex-shrink:0;border:0;background:none;color:var(--text-secondary)}
 .agent-view__back:before,.agent-view__live:before{content:"";position:absolute;inset:-4px -10px}
 .agent-view__name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.agent-view__live{position:relative;margin-left:auto;min-height:0;padding:3px 7px;flex-shrink:0;font-size:8px;border-radius:4px;border:1px solid #00d4aa4d;background:transparent;color:#00D4AA}
-.agent-view__stage{position:relative;flex-shrink:0;height:264px;overflow:hidden;background:repeating-linear-gradient(0deg,transparent 0 41px,#ffffff07 41px 42px),radial-gradient(ellipse at 42% 62%,#1E2826 0%,#151D1C 58%,#101615 100%)}
+.agent-view__live{position:relative;margin-left:auto;min-height:0;padding:3px 7px;flex-shrink:0;font-size:8px;border-radius:4px;border:1px solid color-mix(in srgb, var(--accent) 30.2%, transparent);background:transparent;color:var(--accent)}
+.agent-view__stage{position:relative;flex-shrink:0;height:264px;overflow:hidden;background:repeating-linear-gradient(0deg,transparent 0 41px,color-mix(in srgb, var(--text-primary) 2.7%, transparent) 41px 42px),radial-gradient(ellipse at 42% 62%,var(--bg-tertiary) 0%,var(--bg-secondary) 58%,var(--bg-primary) 100%)}
 .agent-view__glow{position:absolute;left:calc(36.4% - 116px);bottom:24px;width:232px;height:250px;pointer-events:none}
 .agent-view__shadow{position:absolute;left:calc(36.4% - 64px);bottom:18px;width:128px;height:13px;border-radius:50%;background:radial-gradient(ellipse,#0008,transparent 72%)}
 .agent-view__body{position:absolute;left:36.4%;bottom:24px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:7px}
-.agent-view__body .home-pill{min-width:68px;border-color:#ffffff1f;padding:3px 8px 5px;border-radius:8px}
+.agent-view__body .home-pill{min-width:68px;border-color:color-mix(in srgb, var(--text-primary) 12.2%, transparent);padding:3px 8px 5px;border-radius:8px}
 .agent-view__body .home-pill__name{font:9.5px Inter,sans-serif;letter-spacing:normal}
 .agent-view__body .home-pill__bars{width:52px}
 .agent-view__breath{position:relative;width:178px;height:178px;animation:agentBreathe 4.2s ease-in-out infinite}
@@ -20,18 +20,18 @@
 .agent-view__bottle{position:absolute;left:calc(36.4% + 84px);bottom:75px;width:11px;height:30px}
 .agent-view__bottle i{position:absolute;left:3px;top:0;width:5px;height:9px;border-radius:1px;background:#3E5B32}
 .agent-view__bottle b{position:absolute;left:0;top:8px;width:11px;height:22px;border-radius:2px 2px 3px 3px;background:linear-gradient(100deg,#4A6B3A,#2C4222);border:1px solid #0006}
-.agent-view__bottle span{position:absolute;left:1.5px;top:15px;width:8px;height:7px;border-radius:1px;background:#cdb38044}
+.agent-view__bottle span{position:absolute;left:1.5px;top:15px;width:8px;height:7px;border-radius:1px;background:color-mix(in srgb, var(--gold-reward) 26.7%, transparent)}
 @keyframes agentBreathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .agent-view__speech{position:absolute;left:calc(36.4% + 78px);right:12px;top:67px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;z-index:2}
-.agent-view__bubble{position:relative;max-width:150px;padding:6px 10px;border-radius:11px;background:#141c1bf0;border:1px solid #ffffff24;color:#A1A1A1;font-size:11px;line-height:1.38;overflow-wrap:anywhere;max-height:146px;overflow:auto}
-.agent-view__bubble.is-want{background:#2A2415;border-color:#cdb38066;color:#CDB380}
-.agent-view__speech:before{content:"";position:absolute;left:-3px;top:13px;width:7px;height:7px;z-index:1;background:#141C1B;border-left:1px solid #ffffff24;border-bottom:1px solid #ffffff24;transform:rotate(45deg)}
-.agent-view__speech:has(.is-want):before{background:#2A2415;border-color:#cdb38066}
+.agent-view__bubble{position:relative;max-width:150px;padding:6px 10px;border-radius:11px;background:color-mix(in srgb, var(--bg-secondary) 94.1%, transparent);border:1px solid color-mix(in srgb, var(--text-primary) 14.1%, transparent);color:var(--text-secondary);font-size:11px;line-height:1.38;overflow-wrap:anywhere;max-height:146px;overflow:auto}
+.agent-view__bubble.is-want{background:var(--bg-tertiary);border-color:color-mix(in srgb, var(--gold-reward) 40%, transparent);color:var(--gold-reward)}
+.agent-view__speech:before{content:"";position:absolute;left:-3px;top:13px;width:7px;height:7px;z-index:1;background:var(--bg-secondary);border-left:1px solid color-mix(in srgb, var(--text-primary) 14.1%, transparent);border-bottom:1px solid color-mix(in srgb, var(--text-primary) 14.1%, transparent);transform:rotate(45deg)}
+.agent-view__speech:has(.is-want):before{background:var(--bg-tertiary);border-color:color-mix(in srgb, var(--gold-reward) 40%, transparent)}
 .agent-view__answers{display:flex;gap:3px;width:100%}
-.agent-view__answers button{position:relative;min-height:26px;height:26px;flex:1;min-width:0;padding:0 3px;border:1px solid #ffffff1f;border-radius:13px;font-size:9px;color:#A1A1A1;background:#ffffff0d}
+.agent-view__answers button{position:relative;min-height:26px;height:26px;flex:1;min-width:0;padding:0 3px;border:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent);border-radius:13px;font-size:9px;color:var(--text-secondary);background:color-mix(in srgb, var(--text-primary) 5.1%, transparent)}
 .agent-view__answers button:before{content:"";position:absolute;inset:-9px 0}
-.agent-view__answers button:first-child{color:#00D4AA;border-color:#00d4aa66;background:#00d4aa1f}
-.agent-view__actions{height:66px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 12px;background:linear-gradient(180deg,#101a1800,#101A18 42%)}
+.agent-view__answers button:first-child{color:var(--accent);border-color:color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 12.2%, transparent)}
+.agent-view__actions{height:66px;flex-shrink:0;display:flex;align-items:center;gap:6px;padding:0 12px;background:linear-gradient(180deg,color-mix(in srgb, var(--bg-secondary) 0%, transparent),var(--bg-secondary) 42%)}
 /* BUG-197 — the action row's type and ink, ported from mood-agent.jsx 143-155.
    The geometry was already right: 66px row, 6px gap, 0 12px, the 1.85/1/1/1
    split, 46px buttons at radius 10. What the port had dropped was everything
@@ -46,8 +46,8 @@
    Two inks, not one: the icon and the number are M_DIM #C3C3C6, the three
    labels under the icons are M_MUTED #9E9EA2. Flattening both to #A1A1A1 is
    what made the row read as one grey block. */
-.agent-view__actions button{flex:1;min-width:0;min-height:46px;height:46px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;border:1px solid #ffffff1f;background:linear-gradient(#ffffff06,#ffffff02);color:#C3C3C6;font-size:7.5px}
-.agent-view__actions button:not(.agent-view__deploy)>span{font-family:Oswald,Inter,sans-serif;font-size:7.5px;font-weight:600;letter-spacing:.1em;color:#9E9EA2;white-space:nowrap}
+.agent-view__actions button{flex:1;min-width:0;min-height:46px;height:46px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;border:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent);background:linear-gradient(color-mix(in srgb, var(--text-primary) 2.4%, transparent),color-mix(in srgb, var(--text-primary) 0.8%, transparent));color:var(--text-secondary);font-size:7.5px}
+.agent-view__actions button:not(.agent-view__deploy)>span{font-family:Oswald,Inter,sans-serif;font-size:7.5px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);white-space:nowrap}
 /* min-width:auto, against the row's blanket min-width:0, because DEPLOY is the
    one button here whose contents cannot be compressed: both spans are nowrap.
    The authored button is 157.7px — its own min-content — and the remaining
@@ -55,59 +55,59 @@
    flex share of 146.5px instead and paid for the difference out of its 12px
    inner padding, which is invisible at 9px and 10.7px short at the authored
    10px. The three plain buttons keep min-width:0; they have room. */
-.agent-view__actions button.agent-view__deploy{flex:1.85;min-width:auto;padding:0 12px;flex-direction:row;background:#00d4aa1c;border-color:#00d4aa59;gap:7px}
-.agent-view__deploy b{font-family:Oswald,Inter,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.14em;color:#00D4AA;white-space:nowrap}
+.agent-view__actions button.agent-view__deploy{flex:1.85;min-width:auto;padding:0 12px;flex-direction:row;background:color-mix(in srgb, var(--accent) 11%, transparent);border-color:color-mix(in srgb, var(--accent) 34.9%, transparent);gap:7px}
+.agent-view__deploy b{font-family:Oswald,Inter,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.14em;color:var(--accent);white-space:nowrap}
 /* Scoped through .agent-view__actions to clear BUG-188's broad reset:
    `.home1 button, .home1 button span { font-family: inherit }` is two classes
    deep and outranks a single-class family rule, so inside the desk rail — where
    the companion panel sits in .home1--desk — the pocket line silently fell back
    to the panel's Inter. The phone sheet is not inside .home1 and never showed
    it. Same declaration, one class further in, so both surfaces read the mono. */
-.agent-view__actions .agent-view__deploy span{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:normal;color:#C3C3C6;white-space:nowrap}
+.agent-view__actions .agent-view__deploy span{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:normal;color:var(--text-secondary);white-space:nowrap}
 .agent-view__thread{flex:1;min-height:0;overflow:hidden auto;padding:8px 12px 4px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none}
 .agent-view__thread::-webkit-scrollbar{display:none}
 .agent-view__thread-space{margin-top:auto}
 .agent-view__line{flex-shrink:0;display:flex;gap:7px;align-items:flex-end;justify-content:flex-start}
 .agent-view__line.is-mine{justify-content:flex-end}
 .agent-view__head{width:26px;height:26px;flex-shrink:0}
-.agent-view__text{max-width:252px;padding:6px 10px;border-radius:12px 12px 12px 3px;background:#141c1bf0;border:1px solid #ffffff21;font:11.5px/1.38 Inter,sans-serif;color:#A1A1A1;overflow-wrap:anywhere;white-space:pre-wrap}
-.is-mine .agent-view__text{background:#cdb3801a;border-color:#cdb38044;color:#CDB380;border-radius:12px 12px 3px 12px}
-.agent-view__note{flex-shrink:0;margin-left:33px;font:10px/1.4 Inter,sans-serif;color:#6B6B6B}
+.agent-view__text{max-width:252px;padding:6px 10px;border-radius:12px 12px 12px 3px;background:color-mix(in srgb, var(--bg-secondary) 94.1%, transparent);border:1px solid color-mix(in srgb, var(--text-primary) 12.9%, transparent);font:11.5px/1.38 Inter,sans-serif;color:var(--text-secondary);overflow-wrap:anywhere;white-space:pre-wrap}
+.is-mine .agent-view__text{background:color-mix(in srgb, var(--gold-reward) 10.2%, transparent);border-color:color-mix(in srgb, var(--gold-reward) 26.7%, transparent);color:var(--gold-reward);border-radius:12px 12px 3px 12px}
+.agent-view__note{flex-shrink:0;margin-left:33px;font:10px/1.4 Inter,sans-serif;color:var(--text-muted)}
 .agent-view__hand{margin-left:33px;flex-shrink:0}
-.agent-hand-card{display:flex;align-items:center;gap:8px;width:222px;max-width:100%;min-height:62px;padding:6px 8px;border-radius:8px;border:1px solid #00d4aa3d;background:linear-gradient(#182825f0,#101a18f0);text-align:left}
+.agent-hand-card{display:flex;align-items:center;gap:8px;width:222px;max-width:100%;min-height:62px;padding:6px 8px;border-radius:8px;border:1px solid color-mix(in srgb, var(--accent) 23.9%, transparent);background:linear-gradient(color-mix(in srgb, var(--bg-tertiary) 94.1%, transparent),color-mix(in srgb, var(--bg-secondary) 94.1%, transparent));text-align:left}
 .agent-hand-card__board{display:flex;gap:1.5px;flex-shrink:0}
 .agent-hand-card__detail{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.agent-hand-card__detail>span:first-child{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;color:#00D4AA}
+.agent-hand-card__detail>span:first-child{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;color:var(--accent)}
 .agent-hand-card__detail b{font:700 11px 'JetBrains Mono',monospace;letter-spacing:normal}
-.agent-hand-card__detail small{font:600 6.5px Oswald,sans-serif;border:1px solid #00d4aa59;border-radius:2.5px;padding:1px 3px}
-.agent-hand-card__line{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#6B6B6B;font:9.5px Inter,sans-serif;letter-spacing:normal}
-.agent-hand-card__replay{color:#CDB380;font:600 6.5px Oswald,sans-serif;flex-shrink:0}
+.agent-hand-card__detail small{font:600 6.5px Oswald,sans-serif;border:1px solid color-mix(in srgb, var(--accent) 34.9%, transparent);border-radius:2.5px;padding:1px 3px}
+.agent-hand-card__line{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--text-muted);font:9.5px Inter,sans-serif;letter-spacing:normal}
+.agent-hand-card__replay{color:var(--gold-reward);font:600 6.5px Oswald,sans-serif;flex-shrink:0}
 .agent-view__proposal{display:flex;gap:6px;margin-top:6px}
-.agent-view__proposal button{border:1px solid #cdb38044;background:#cdb3801a;color:#CDB380;border-radius:8px;font-size:10px;padding:4px 8px}
-.agent-view__composer{flex-shrink:0;padding:10px 12px max(10px,env(safe-area-inset-bottom));background:#101A18;border-top:1px solid #ffffff1f}
-.agent-view__composer>div{display:flex;align-items:center;height:42px;padding:0 6px 0 14px;border-radius:21px;border:1px solid #ffffff1f;background:linear-gradient(#ffffff06,#ffffff02)}
-.agent-view__composer input{flex:1;min-width:0;height:40px;padding:0;border:0;background:transparent;color:#EDEDED;font:16px Inter,sans-serif;outline:none}
-.agent-view__composer button{position:relative;display:grid;place-items:center;flex-shrink:0;width:30px;min-height:30px;height:30px;padding:0;border:0;border-radius:50%;background:#00D4AA;color:#0A0A0A}
+.agent-view__proposal button{border:1px solid color-mix(in srgb, var(--gold-reward) 26.7%, transparent);background:color-mix(in srgb, var(--gold-reward) 10.2%, transparent);color:var(--gold-reward);border-radius:8px;font-size:10px;padding:4px 8px}
+.agent-view__composer{flex-shrink:0;padding:10px 12px max(10px,env(safe-area-inset-bottom));background:var(--bg-secondary);border-top:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent)}
+.agent-view__composer>div{display:flex;align-items:center;height:42px;padding:0 6px 0 14px;border-radius:21px;border:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent);background:linear-gradient(color-mix(in srgb, var(--text-primary) 2.4%, transparent),color-mix(in srgb, var(--text-primary) 0.8%, transparent))}
+.agent-view__composer input{flex:1;min-width:0;height:40px;padding:0;border:0;background:transparent;color:var(--text-primary);font:16px Inter,sans-serif;outline:none}
+.agent-view__composer button{position:relative;display:grid;place-items:center;flex-shrink:0;width:30px;min-height:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--accent);color:var(--on-accent)}
 .agent-view__composer button:before{content:"";position:absolute;inset:-7px}
-.agent-view__composer button:disabled{background:#ffffff12;color:#6B6B6B;opacity:1}
-.agent-view__error{padding:6px 12px;background:#2A2415;color:#CDB380;font:12px Inter,sans-serif;flex-shrink:0}
-.agent-view__fund{position:absolute;inset:0;z-index:20;background:#101A18;display:flex;flex-direction:column;overflow:auto}
+.agent-view__composer button:disabled{background:color-mix(in srgb, var(--text-primary) 7.1%, transparent);color:var(--text-muted);opacity:1}
+.agent-view__error{padding:6px 12px;background:var(--bg-tertiary);color:var(--gold-reward);font:12px Inter,sans-serif;flex-shrink:0}
+.agent-view__fund{position:absolute;inset:0;z-index:20;background:var(--bg-secondary);display:flex;flex-direction:column;overflow:auto}
 .agent-view__fund .wal-sheet{position:static;flex:1}
 @media(max-height:480px){.agent-view__stage{height:140px}.agent-view__body{bottom:4px;gap:3px}.agent-view__breath,.agent-view__breath>svg{width:100px;height:100px}.agent-view__speech{left:calc(36.4% + 48px);top:12px}.agent-view__bubble{max-height:80px}.agent-view__actions{height:54px}}
 @media(prefers-reduced-motion:reduce){.agent-view__breath{animation:none}}
 /* Board 42 C9: 380px column, 132px body in its 268px stage. */
 .agent-view--desktop .agent-view__header{height:44px;padding:0 15px;gap:8px}
 .agent-view--desktop .agent-view__name{font-size:13px}
-.agent-view--desktop .agent-view__close{margin-left:auto;width:24px;height:32px;min-height:0;padding:0;border:0;background:none;color:#6B6B6B;font:20px Inter,sans-serif;flex-shrink:0}
+.agent-view--desktop .agent-view__close{margin-left:auto;width:24px;height:32px;min-height:0;padding:0;border:0;background:none;color:var(--text-muted);font:20px Inter,sans-serif;flex-shrink:0}
 .agent-view--desktop .agent-view__live+.agent-view__close{margin-left:0}
-.agent-view--desktop .agent-view__stage{height:268px;background:radial-gradient(ellipse at 44% 66%,#1E2826 0%,#151D1C 60%,#101615 100%)}
+.agent-view--desktop .agent-view__stage{height:268px;background:radial-gradient(ellipse at 44% 66%,var(--bg-tertiary) 0%,var(--bg-secondary) 60%,var(--bg-primary) 100%)}
 .agent-view--desktop .agent-view__body{left:32.1%;bottom:32px;gap:7px}
 .home1--desk .agent-view .home-pill{opacity:1}
 .agent-view--desktop .agent-view__breath{width:132px;height:132px}
 .agent-view--desktop .agent-view__shadow{left:32.1%;bottom:27px;width:96px;height:12px}
 .agent-view--desktop .agent-view__speech{left:50%;top:96px;right:12px}
 .agent-view--desktop .agent-view__bottle{left:calc(32.1% + 60px);bottom:34px}
-.agent-view--desktop .agent-view__actions{height:60px;border-bottom:1px solid #ffffff1f;background:#0E1413}
+.agent-view--desktop .agent-view__actions{height:60px;border-bottom:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent);background:var(--bg-secondary)}
 .agent-view--desktop .agent-view__actions button{height:40px;min-height:40px;border-radius:9px;font-size:7px}
 .agent-view--desktop .agent-view__actions .agent-view__deploy{flex:1.7;padding:0 7px;gap:5px}
 .agent-view--desktop .agent-view__deploy b{font-size:9.5px}
@@ -122,21 +122,21 @@
 .agent-view--desktop .agent-view__composer>div{height:40px}
 @media(min-width:1100px){.agent-view--desktop .agent-view__composer input{font-size:12.5px}}
 .agent-view--desktop .agent-view__composer button{width:28px;height:28px;min-height:28px}
-.dsk-agent-back{flex-shrink:0;border:0;border-top:1px solid #ffffff1f;background:#101A18;color:#00D4AA;padding:14px;font:12px Inter,sans-serif}
-.dsk-root .dsk3-roster{background:#232329}
+.dsk-agent-back{flex-shrink:0;border:0;border-top:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent);background:var(--bg-secondary);color:var(--accent);padding:14px;font:12px Inter,sans-serif}
+.dsk-root .dsk3-roster{background:var(--bg-secondary)}
 .dsk-roster-row--home{gap:10px;min-height:72px}
 .dsk-roster-row--home .dsk-roster-row__name-line{flex-wrap:wrap;gap:2px 7px;align-items:baseline}
 .dsk-roster-row--home .dsk-roster-row__name{font:600 12px Inter,sans-serif}
 .dsk-roster-row--home .dsk-roster-row__line{display:block;font:10px Inter,sans-serif;color:#8C8C8C;margin-top:2px}
-.dsk-roster-place{color:#A1A1A1;font:600 7.5px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase}
-.dsk-roster-place.is-live{color:#00D4AA}
+.dsk-roster-place{color:var(--text-secondary);font:600 7.5px Oswald,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+.dsk-roster-place.is-live{color:var(--accent)}
 .dsk-roster-face{position:relative;width:38px;height:38px;flex-shrink:0}
-.dsk-roster-face i{position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:#CDB380;border:1.5px solid #0E1413;box-shadow:0 0 6px #CDB380}
+.dsk-roster-face i{position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--gold-reward);border:1.5px solid #0E1413;box-shadow:0 0 6px var(--gold-reward)}
 .dsk-roster-bars.felt-bars{position:static;display:flex;flex-direction:column;width:120px;max-width:100%;gap:2.5px;margin-top:5px;transform:none}
 .dsk-roster-bars .felt-bars__track{height:2.5px}
 .agent-view__proposal-details{margin-top:6px;font-size:10px;line-height:1.6}
-.home-carry-help{position:absolute;z-index:12;left:12px;right:12px;top:50px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #cdb38044;border-radius:10px;background:#101a18f0;color:#CDB380;font:11px Inter,sans-serif}
-.home-carry-help span{flex:1}.home-carry-help button{min-height:44px;border:0;background:none;color:#A1A1A1;font:11px Inter,sans-serif}
+.home-carry-help{position:absolute;z-index:12;left:12px;right:12px;top:50px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid color-mix(in srgb, var(--gold-reward) 26.7%, transparent);border-radius:10px;background:color-mix(in srgb, var(--bg-secondary) 94.1%, transparent);color:var(--gold-reward);font:11px Inter,sans-serif}
+.home-carry-help span{flex:1}.home-carry-help button{min-height:44px;border:0;background:none;color:var(--text-secondary);font:11px Inter,sans-serif}
 
 /* Profile funding stays inside the companion column. */
 .dsk-panel--agent{position:relative}

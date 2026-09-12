@@ -12,11 +12,11 @@ import { accentFor } from '../floor/atoms.jsx';
 import { CALL_IN, GIVE, money, pnlTone, pocketOf, rowActions, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { Lbl, ModeTag, Num, PocketBar } from './atoms.jsx';
 
-const M_TEXT = '#EDEDED';
-const M_MUTED = '#6B6B6B';
-const M_FAINT = '#3F3F3F';
-const M_TEAL = '#00D4AA';
-const M_RED = '#FF4D4F';
+const M_TEXT = 'var(--text-primary)';
+const M_MUTED = 'var(--text-muted)';
+const M_FAINT = 'var(--text-faded)';
+const M_TEAL = 'var(--accent)';
+const M_RED = 'var(--error)';
 
 // WALLET-5 · what a called-in row says about itself, in the sheet's own
 // register. While he is still at a table it is a promise about the next few
@@ -54,7 +54,7 @@ export function PocketRow({ agent, index = 0, only = null, onFund, onCollect, on
   // Without a host that owns that navigation it stays a plain, inert frame
   // rather than a button that does nothing.
   const ghost = <MoodGhost mood={moodOf(agent)} heat={heatOf(agent)} accent={accent} size={36} ring={false} />;
-  const ghostStyle = { border: `1px solid ${accent}44` };
+  const ghostStyle = { border: `1px solid color-mix(in srgb, ${accent} 27%, transparent)` };
 
   return (
     <div

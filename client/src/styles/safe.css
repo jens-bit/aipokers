@@ -53,8 +53,8 @@
   overflow: hidden auto;
   -webkit-overflow-scrolling: touch;
   border-radius: 16px 16px 0 0;
-  border-top: 1px solid var(--glass-edge-up, rgba(255, 255, 255, 0.17));
-  background: var(--glass-raised, rgba(18, 30, 28, 0.84));
+  border-top: 1px solid var(--glass-edge-up, color-mix(in srgb, var(--text-primary) 17%, transparent));
+  background: var(--glass-raised, color-mix(in srgb, var(--bg-secondary) 84%, transparent));
   backdrop-filter: var(--glass-blur, blur(18px) saturate(1.2));
   -webkit-backdrop-filter: var(--glass-blur, blur(18px) saturate(1.2));
   box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.5);
@@ -101,7 +101,7 @@
   width: 30px;
   height: 3.5px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.22);
+  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
 }
 
 /* ── the head ────────────────────────────────────────────────────────────── */
@@ -127,7 +127,7 @@
   border: none;
   border-radius: 9px;
   background: transparent;
-  color: #EDEDED;
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -135,12 +135,12 @@
   font-family: "Playfair Display", Georgia, serif;
   font-size: 16px;
   font-weight: 600;
-  color: #EDEDED;
+  color: var(--text-primary);
 }
 
 .safe__sub {
   font-size: 10.5px;
-  color: #6B6B6B;
+  color: var(--text-muted);
 }
 
 /* ── the pages ───────────────────────────────────────────────────────────── */
@@ -185,7 +185,7 @@
   font-size: 44px;
   font-weight: 400;
   letter-spacing: 0.005em;
-  color: #CDB380;
+  color: var(--gold-reward);
   line-height: normal;
 }
 
@@ -225,7 +225,7 @@
 
 .safe__verb-note {
   font-size: 9.5px;
-  color: #6B6B6B;
+  color: var(--text-muted);
 }
 
 /* ── tonight, in three lines ─────────────────────────────────────────────── */
@@ -237,7 +237,7 @@
   align-items: baseline;
   gap: 9px;
   padding: 7px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 
 .safe__tonight .safe__line:first-of-type { margin-top: 8px }
@@ -250,7 +250,7 @@
 .safe__line-label {
   display: block;
   font-size: 11.5px;
-  color: #EDEDED;
+  color: var(--text-primary);
 }
 
 /* The sentence that caused the figure. It is never optional. */
@@ -258,7 +258,7 @@
   display: block;
   margin-top: 1.5px;
   font-size: 10px;
-  color: #6B6B6B;
+  color: var(--text-muted);
 }
 
 /* ── the pull, and the ledger ────────────────────────────────────────────── */
@@ -282,7 +282,7 @@
   font-weight: 600;
   letter-spacing: 0.13em;
   text-transform: uppercase;
-  color: #A1A1A1;
+  color: var(--text-secondary);
 }
 
 .safe__ledger { padding: 16px 0 0 }
@@ -294,7 +294,7 @@
 }
 
 .wal-ledger--flush .wal-ledger__row {
-  border-bottom-color: rgba(255, 255, 255, 0.05);
+  border-bottom-color: color-mix(in srgb, var(--text-primary) 5%, transparent);
 }
 
 /* ── the rules page ──────────────────────────────────────────────────────── */
@@ -303,7 +303,7 @@
 
 .safe-rule {
   padding: 11px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
 }
 
 .safe__rules .safe-rule:first-child { border-top: none }
@@ -316,7 +316,7 @@
 
 .safe-rule__name {
   font-size: 13px;
-  color: #EDEDED;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -331,13 +331,13 @@
   padding: 16px 16px 6px;
   font-size: 12px;
   line-height: 1.5;
-  color: #A1A1A1;
+  color: var(--text-secondary);
   text-align: center;
 }
 
-.safe__read-state { padding: 10px 16px; color: #A1A1A1; font-size: 12px; line-height: 1.5; text-align: center; }
+.safe__read-state { padding: 10px 16px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; text-align: center; }
 .safe__read-state p { margin: 0 0 4px; }
-.safe__read-state .safe__retry { margin-top: 6px; min-height: 44px; padding: 8px 20px; color: #00D4AA; background: #00D4AA12; border: 1px solid #00D4AA55; border-radius: 8px; cursor: pointer; }
+.safe__read-state .safe__retry { margin-top: 6px; min-height: 44px; padding: 8px 20px; color: var(--accent); background: color-mix(in srgb, var(--accent) 7.1%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 33.3%, transparent); border-radius: 8px; cursor: pointer; }
 fieldset.safe__pages { min-width: 0; margin: 0; padding: 0; border: 0; }
 .safe__verb:disabled { opacity: .45; cursor: wait; }
 
