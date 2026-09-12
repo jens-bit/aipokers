@@ -86,13 +86,15 @@ Visiting projections and their labels exist, but the visit lifecycle has no auth
 
 ## Watch
 
-*Mostly unpaired, composition frozen by decision.* The approved Watch composition is retained and not reopened. The ordinary-win card is ported and pair-inspected (BUG-173, C8a). The big win and the bust exist and run, with originally synthesized audio — the reference supplies no recording, so those phases have never been paired and the sound has never been judged against anything.
+*Result frames paired; working composition retained by decision.* The ordinary-win card remains ported (BUG-173, C8a). SHOW-4 now puts board26 52q and52r beside the built felt at native390x647: raised glass, amount typography, winner hands, dimming and lost-seat treatment follow the source. Actual payout chips target their measured recipients, including opponent and split wins. Effects wait for the visible all-in result and cold entry does not replay them.
+
+Named differences remain: the working Watch hero still has cards, status and its existing seat layout; identities and stacks use actual state; the product's staggered animation is captured at one instant while the board freezes three separate burst phases. The source caption contradicts its cards: KK on Kc9c4c2c5h is three kings, not kings full; 99 makes three nines, not a pair. Product keeps truthful hand naming and a content-sized receipt. The two pairs are artifacts/show/show-4-52q-pair.png and show-4-52r-pair.png. They use the final two of the revised run's three-pair budget. Audio is synthesized; the source supplies no recording, so no recording match is claimed.
 
 **Open**
 - **BUG-176** — two-seat miniature legibility, shared with Home's TV.
 - **BUG-31** — the prediction beat has no home in the current watch layout.
 
-**On the phone:** watch a hand to showdown and look at the ordinary win card. If you can catch a big win or a bust, look at those too — and listen, because nobody has judged the sound yet.
+**On the phone:** watch a hand to showdown. The result must identify the actual winner; split pots say shared. Catch a big win or bust with sound on, then leave or change camera while it plays. Judge the sound and pace on the deployed phone; local tests and still pairs do not settle that experience.
 
 ## Safe / Fridge
 
