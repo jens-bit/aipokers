@@ -565,7 +565,41 @@ async function retireAgent(agentId) {
 
 
 // ── Main screen ────────────────────────────────────────────────────────────
-export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired, companion = false, sendWhisper = null }) {
+export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired, companion = false, sendWhisper = null }) {
+  // Home can hand us its compact socket projection before the roster REST
+  // response arrives. Keep what is already known while the full profile loads;
+  // career, skills and action targets must all read the same presented agent.
+  const agentId = openedAgent?.id;
+  const ownerId = getUserId();
+  const initData = getTelegramInitData();
+  const [detail, setDetail] = useState(null);
+  const agent = useMemo(() => (
+    detail && detail.agentId === agentId && detail.ownerId === ownerId && detail.initData === initData
+      ? { ...openedAgent, ...detail.agent }
+      : openedAgent
+  ), [openedAgent, detail, agentId, ownerId, initData]);
+
+  useEffect(() => {
+    if (!agentId) return;
+    let alive = true;
+    const request = new AbortController();
+    fetch(`/api/agents/${encodeURIComponent(agentId)}?userId=${encodeURIComponent(ownerId)}`, {
+      headers: { 'x-telegram-init-data': initData }, signal: request.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const view = data?.agent ?? data;
+        if (!alive || !view || typeof view !== 'object' || Array.isArray(view)) return;
+        if (view.id != null && String(view.id) !== String(agentId)) return;
+        // A scoped attrLog-only reply can still extend the cached profile;
+        // an unrelated successful envelope is not an agent record.
+        if (view.id == null && !Array.isArray(view.attrLog)) return;
+        setDetail({ agentId, ownerId, initData, agent: view });
+      })
+      .catch(() => { /* Keep the last confirmed readings on a failed read. */ });
+    return () => { alive = false; request.abort(); };
+  }, [agentId, ownerId, initData]);
+
   const [showDetails, setShowDetails] = useState(false);
   useEffect(() => { setShowDetails(false); }, [agent?.id]);
   const [visitStatus, setVisitStatus] = useState(null);
@@ -670,30 +704,8 @@ export function AgentProfileScreen({ agent, onBack, onOpenChat, onWatch, onFund,
 
   // Which bar is tapped open. Null = the cluster reads as one silhouette.
   const [expand, setExpand] = useState(null);
-  // attrLog is promised on GET /api/agents/:id; the list projection may carry it
-  // too. Only reach for the detail endpoint once the engine is actually sending
-  // attributes — on main today there is nothing to fetch.
-  const [detailLog, setDetailLog] = useState(null);
-
-  const agentId = agent?.id;
-  const needsLog = !!agent?.attrs && !Array.isArray(agent?.attrLog);
-
-  useEffect(() => {
-    if (!agentId || !needsLog) return;
-    let alive = true;
-    fetch(`/api/agents/${encodeURIComponent(agentId)}?userId=${encodeURIComponent(getUserId())}`,
-      { headers: { 'x-telegram-init-data': getTelegramInitData() } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const log = data?.agent?.attrLog ?? data?.attrLog;
-        if (alive && Array.isArray(log)) setDetailLog({ agentId, log });
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [agentId, needsLog]);
-
   const character = useMemo(() => normalizeAttrs(agent), [agent]);
-  const attrLog = detailLog?.agentId === agentId ? detailLog.log : (Array.isArray(agent?.attrLog) ? agent.attrLog : []);
+  const attrLog = Array.isArray(agent?.attrLog) ? agent.attrLog : [];
   const seriesOf = useMemo(() => (key) => seriesFor(attrLog, key), [attrLog]);
 
   // PROFILE-2 — the split. normalizeAttrs still returns all six in canon order,

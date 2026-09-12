@@ -588,7 +588,7 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
 // top-right avatar (job 9). ChatsScreen below is still the composition of the
 // two and is still what the roster sheet's route resolves to; nothing on the
 // tab bar reaches its list half any more.
-export function AgentThread({ agent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry }) {
+export function AgentThread({ agent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange }) {
   const userId   = getUserId();
   const accent   = accentFor(agent);
   const agState  = stateOf(agent);
@@ -601,7 +601,9 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
   const [chat, setChat]             = useState([]);
   // WIRE-1: the hand he is showing off, opened from the poster in the recap.
   const [replayHand, setReplayHand]  = useState(null);
-  const [draft, setDraft]           = useState('');
+  const [localDraft, setLocalDraft] = useState('');
+  const draft = draftValue ?? localDraft;
+  const setDraft = onDraftChange ?? setLocalDraft;
   const [loading, setLoading]       = useState(false);
   const [proposalAccepting, setProposalAccepting] = useState(false);
   const feedRef   = useRef(null);

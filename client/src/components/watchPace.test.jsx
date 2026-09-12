@@ -440,11 +440,11 @@ describe('WATCH-7: the ceremony belongs to the end of the session', () => {
     expect(block.querySelector('.watch-ceremony__took').textContent).toContain('42 HANDS');
   });
 
-  it('offers the floor and the conversation when he still has chips', () => {
+  it('offers Home and the conversation when he still has chips', () => {
     const { container } = renderWatch(settledGame(), { sessionEnd: ended() });
     const labels = [...container.querySelectorAll('.watch-ceremony__acts .watch-btn')]
       .map((b) => b.textContent);
-    expect(labels).toEqual(['Back to the floor', 'Talk to The Grinder about tonight']);
+    expect(labels).toEqual(['Back home', 'Talk to The Grinder about tonight']);
   });
 
   // A busted agent has one thing he needs and it is not conversation.
@@ -456,7 +456,7 @@ describe('WATCH-7: the ceremony belongs to the end of the session', () => {
     expect(block.querySelector('.watch-ceremony__head').textContent).toBe('BUSTED');
     const labels = [...block.querySelectorAll('.watch-ceremony__acts .watch-btn')]
       .map((b) => b.textContent);
-    expect(labels).toEqual(['Fund him again', 'Back to the floor']);
+    expect(labels).toEqual(['Fund him again', 'Back home']);
     expect(block.querySelector('.watch-ceremony__fund').className).toContain('watch-btn--primary');
   });
 

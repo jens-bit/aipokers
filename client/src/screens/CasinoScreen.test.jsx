@@ -32,6 +32,7 @@ function startOnBoard() {
 }
 afterEach(() => {
   try { sessionStorage.removeItem('agentic_casino_view'); } catch { /* n/a */ }
+  try { sessionStorage.removeItem('agentic_casino_room'); } catch { /* n/a */ }
 });
 
 const POCKET = { mode: 'allowance', cap: 5000, broke: false, collectable: 0, pnl: 0 };
@@ -517,8 +518,11 @@ describe('CASINO-2 job 5 · a doorway is a place you walk into', () => {
     await user.click(within(view).getByRole('button', { name: /Watch table tbl-fixture/ }));
 
     expect(onSpectate).toHaveBeenCalledWith('tbl-fixture');
-    // ...and the room gets out of the way of the felt it just sent you to.
-    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
+    // App replaces this screen with Watch. Keep the room and view ready for
+    // the return instead of changing the owner's destination to the board.
+    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
+    expect(sessionStorage.getItem('agentic_casino_room')).toBe('floor');
+    expect(sessionStorage.getItem('agentic_casino_view')).toBe('floor');
   });
 
   it('and the way back out is the way you came in', async () => {
@@ -552,6 +556,17 @@ describe('CASINO-2 job 5 · a doorway is a place you walk into', () => {
 // ── BUGS-C job 12 · the casino opens on the floor ───────────────────────────
 
 describe('BUGS-C job 12: the floor first', () => {
+  it.each([
+    { saved: 'upstairs', initialRoomId: 'floor' },
+    { saved: 'removed-room', initialRoomId: null },
+  ])('HOME-3: an explicit room or a current fallback handles saved $saved', async ({ saved, initialRoomId }) => {
+    sessionStorage.setItem('agentic_casino_view', 'floor');
+    sessionStorage.setItem('agentic_casino_room', saved);
+    routeFloor();
+    renderCasino({ initialRoomId });
+    expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
+  });
+
   beforeEach(() => { telegram.signIn(); });
 
   it('BUGS-C-12: initial casino render mounts the floor, not the building', async () => {

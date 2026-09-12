@@ -86,3 +86,14 @@ HOME-2 final gate on candidate139919e: test:all passed on its single run. Server
 Resume from: record HOME-2 local merge, then HOME-3 using reviewed f755567,44d757a and scoped built journey checks c8dbf08,f58c236. SHOW-4 remains preserved and queued. Deadline18:28UTC; pair count1/3. Nothing pushed.
 
 HOME-2 local main merge: ed23d9a. Final gates recorded above. Resume from: HOME-3.
+
+
+### HOME-3 — candidate, scoped browser checks passed
+
+Branch codex/home-3 from main6aa8c28. Reviewed checkpoints f755567 and44d757a hydrate owner-scoped full Profile detail, preserve unsent Chat drafts by owner/agent, keep the original Chat return through Profile/Watch, and retain Casino room/view through Watch. Session exits now say Back home; Watch stays eager and its game composition is unchanged. A full profile request replaces the earlier attrLog-only read, preserves cached readings while pending/failed, and rejects late/wrong-agent responses.
+
+Support gates:108 profile/App checks, then192 affected journey and adjacent checks, with the named failures observed before repair. Test-only c8dbf08 andf58c236 add six built journeys. All six passed on the first built run: short-phone roster/Chat/Profile/stats/drafts, delayed roster detail hydration, public home Watch and actual YOU cards/check action/return, twice-returned Upstairs plus nested Profile CHAT, desktop Upstairs Watch/return/Home, and returning guest Home with no guest mint. Expected credentialed reads and actual watch/join/action wire messages are asserted; no model or live server calls.
+
+Root inspected populated Profile, the short-phone YOU hand, returned Upstairs, and desktop Watch captures. Pair count remains1/3; journeys require no new reference pair. No full HOME-3 gate has run yet.
+
+Resume from: run single HOME-3 test:all, record gates and merge locally if green. Then fourth/final job only: saved SHOW-4WIP7a67267 plus reviewed364dcbe and673368a. The fourth job still needs root browser checks, two named pairs and its full gate. Deadline18:28UTC unchanged. Nothing pushed or deployed.

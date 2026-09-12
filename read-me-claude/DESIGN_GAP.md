@@ -58,13 +58,13 @@ Board 24's first-five-minutes path — all fourteen frames — is partial, and i
 
 ## Agent
 
-*Partial, with the expensive half already matched.* The batch-53 companion audit put C1 and C2 beside the product natively: the 178px saved portrait and the 264px stage match. Profile shows real statistics and returns directly to Chat.
+*Partial, with the expensive half already matched.* The batch-53 companion audit put C1 and C2 beside the product natively: the 178px saved portrait and the 264px stage match. HOME-3 now verifies full Profile detail from compact Home state, real career/skills while the roster is still loading, and both returns to the retained Chat draft. The existing portrait/stage composition stays. Its single full gate is recorded in ASTRA_NIGHT.md.
 
 **Open**
 - **BUG-197** — the phone action strip loses the authored weight, number size and ink: 400-weight labels where the source says 600, `#A1A1A1` where the current muted role is `#9E9EA2`, 9px numbers where the source says 10px mono, and `.1em` tracking on DEPLOY instead of `.14em`. Scoped to the phone AgentView; the portrait and the stage are not rebuilt.
 - **BUG-196** — Profile's RECENT costs carry no event time and sort behind older growth entries. `buildFlaggedEntry` records a numeric `flaggedAt` that the overview never reads, so a freshly flagged cost sorts as time zero.
 
-**On the phone:** open an agent and look at the lettering in the action strip under him — the labels, the numbers, the word DEPLOY. Then open Profile and check RECENT is genuinely newest-first with real times on it.
+**On the phone:** type an unsent Chat message, open Profile and check his actual career/skills. Use either Back or CHAT and confirm the message is still there; the next Back should return to the room you came from. Earlier BUG-196/197 typography/time fixes are recorded in0.13.0; this job changes neither the portrait nor the stage.
 
 ## Roster
 
@@ -82,7 +82,7 @@ Visiting projections and their labels exist, but the visit lifecycle has no auth
 
 **Open** — nothing named.
 
-**On the phone:** enter the casino. You should land on the floor, and Board should still be one tap away.
+**On the phone:** enter the casino deliberately from Home. Open another room, watch a table, then leave Watch: the same floor and room should return. Board remains one tap away; Home is the explicit exit. HOME-3 verifies this on phone and desktop.
 
 ## Watch
 
