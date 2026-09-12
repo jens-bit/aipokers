@@ -13,6 +13,10 @@ export default defineConfig({
   // TEST-1: client tests run under jsdom. Test files are *.test.jsx so the
   // server's src/**/*.test.js discovery never picks them up.
   test: {
+    // Keep the same bounded jsdom workload locally and in Actions. Decorative
+    // Home trees are expensive; extra workers contend for the test deadline.
+    minWorkers: 1,
+    maxWorkers: 2,
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.js'],

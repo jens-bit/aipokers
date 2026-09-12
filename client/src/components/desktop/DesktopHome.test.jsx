@@ -259,13 +259,20 @@ it('BUG-107: a newly arrived agent opens his birth card and can be dealt in', as
   const onDeployAgent = vi.fn();
   renderHome({ onDeployAgent });
   await openAgent(restingAgent.name);
+  expect(screen.getByTestId('home-rail')).toHaveAttribute('data-panel', 'agent');
   const newborn = { ...restingAgent, id: 'newborn-107', name: 'New Arrival' };
   fetchMock.route('/api/agents', { agents: [...agentsResponse.agents, newborn] });
   fireEvent.focus(window);
-  const deal = await screen.findByRole('button', { name: 'Deal him in' });
+  // The birth card lives in its own rail. Scanning every decorative room SVG
+  // with findByRole can exhaust the CI test's budget (BUG-107).
+  const birthTitle = await screen.findByText('The card he was born with');
+  const birthPanel = within(birthTitle.closest('.dsk-panel'));
+  expect(birthPanel.getByText(newborn.name.toUpperCase())).toBeInTheDocument();
+  const deal = birthPanel.getByRole('button', { name: 'Deal him in' });
   await userEvent.click(deal);
+  expect(onDeployAgent).toHaveBeenCalledOnce();
   expect(onDeployAgent).toHaveBeenCalledWith(expect.objectContaining({ id: newborn.id }));
-  expect(screen.queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+  expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
 });
 
 it.each([true, false])('a birth handled by the draft never opens a second birth card (draft still open: %s)', async (stillDrafting) => {
