@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { WatchScreen, feltGeometry } from './WatchScreen.jsx';
+import { WatchScreen, WatchFelt, feltGeometry } from './WatchScreen.jsx';
 import { betweenHandsGame, midHandGame, spectatorConfig } from '../test/fixtures/game.js';
 import { agentsResponse } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -378,6 +378,8 @@ describe('W3-1 the rope', () => {
   it('W3-1: draws hero equity from the snapshot, on every frame', () => {
     const { container } = renderWatch(paced('calm', { heroEquity: 0.71 }));
     expect(container.querySelector('.tug__value').textContent).toBe('71%');
+    expect(container.querySelector('.tug__legend')).toHaveTextContent('Est. pot share');
+    expect(screen.getByRole('img', { name: 'Estimated pot share 71 percent' })).toHaveAttribute('title', expect.stringContaining('including ties'));
   });
 
   it('W3-1: the snapshot beats the last decision', () => {
@@ -407,7 +409,7 @@ describe('W3-1 the rope', () => {
       heroEquity: 0.64,
     };
     const { container } = renderWatch(heads);
-    expect(container.querySelector('.tug__villain').textContent).toBe('DOYLE_V3');
+    expect(container.querySelector('.tug__villain').textContent).toBe('vs DOYLE_V3');
 
     // Three-handed and both still in: the owner is watching his agent, not
     // refereeing, so the far end stays unlabelled.
@@ -425,6 +427,47 @@ describe('W3-1 the rope', () => {
 });
 
 // ── W3-2 · two tabs, and READ ───────────────────────────────────────────────
+
+describe('BUG-143 current hand at the table', () => {
+  const holding = (extra = {}) => ({ ...midHandGame, ...extra,
+    seats: midHandGame.seats.map((seat, index) => index ? seat : { ...seat, isAI: true, holeCards: ['Ah', 'Ad'] }),
+  });
+
+  it('waits for both hole cards and clears the old hand on a new deal', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = render(<WatchFelt game={holding({ community: [], street: 'preflop' })} mySeat={0}/>);
+      expect(container.querySelector('.watch-hero__hand-name')).toBeNull();
+      act(() => vi.advanceTimersByTime(90));
+      expect(container.querySelector('.watch-hero__hand-name')).toBeNull();
+      act(() => vi.advanceTimersByTime(90));
+      expect(container.querySelector('.watch-hero__hand-name')).toHaveTextContent('pair of aces');
+      rerender(<WatchFelt game={holding({ handNumber: 2, community: [], street: 'preflop' })} mySeat={0}/>);
+      expect(container.querySelector('.watch-hero__hand-name')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('uses the revealed board, never the final runout or a stale action description', () => {
+    const game = holding({ street: 'complete', pace: 'allin', community: ['Ac', '7d', '2s', '7h', 'As'],
+      heroHand: 'four aces', result: { winners: [{ seat: 0, amount: 100 }], showdown: [] } });
+    const { container, rerender } = render(<WatchFelt game={game} mySeat={0} flipped={3}/>);
+    expect(container.querySelector('.watch-hero__hand-name')).toHaveTextContent('three aces');
+    expect(container.querySelector('.watch-hero__strip')).not.toHaveTextContent('four aces');
+    rerender(<WatchFelt game={game} mySeat={0} flipped={4}/>);
+    expect(container.querySelector('.watch-hero__hand-name')).toHaveTextContent('aces full of sevens');
+    rerender(<WatchFelt game={game} mySeat={0} flipped={5}/>);
+    expect(container.querySelector('.watch-hero__hand-name')).toHaveTextContent('four aces');
+  });
+
+  it.each(['public', 'folded', 'between'])('keeps the %s view free of a misleading current hand', (state) => {
+    const game = holding({ street: 'complete', community: ['Ac', '7d', '2s'], result: { winners: [], showdown: [] } });
+    if (state === 'public') game.seats[0].holeCards = [];
+    if (state === 'folded') game.seats[0].folded = true;
+    if (state === 'between') { game.street = 'waiting'; game.result = null; }
+    const { container } = render(<WatchFelt game={game} mySeat={state === 'public' ? -1 : 0}/>);
+    expect(container.querySelector('.watch-hero__hand-name')).toBeNull();
+  });
+});
 
 describe('W3-2 the panel', () => {
   beforeEach(() => {

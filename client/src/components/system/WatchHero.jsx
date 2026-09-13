@@ -118,7 +118,7 @@ export function WatchHero({
   says, mood = 'neutral', accent = '#00D4AA', heat = 45, pose = 'hold', bet, event, brow, won,
   hole, landed = 2, mucking = false, between = false,
   equity, villain, bigRope, deadRope,
-  stack, pos, street, toCall = 0, action, tag, warm, note,
+  stack, pos, street, currentHand = null, toCall = 0, action, tag, warm, note,
   cost, onTapFace, actionLabel = "Open the thread", timer = null, timerOf = 12,
   // WATCH-8 job 2: the body. Two 2px lines along the strip's bottom edge —
   // STAMINA from volume, HEAT from outcomes, and they never share a channel.
@@ -194,10 +194,10 @@ export function WatchHero({
             <div className="watch-felt__hero-divider" />
           </>
         )}
-        <div>
-          <span className="watch-felt__hero-lbl" title={name ?? undefined} aria-label={name ?? undefined}>{name ? pillName(name) : 'Street'}</span>
+        <div className="watch-hero__holding">
+          <span className="watch-felt__hero-lbl" title={name ?? undefined} aria-label={currentHand ? undefined : name ?? undefined}>{currentHand ? `${street} · Hand now` : name ? pillName(name) : 'Street'}</span>
           <div className="watch-hero__stack-row">
-            <span className="watch-felt__hero-num is-dim">{street || '—'}</span>
+            <span className={`watch-felt__hero-num is-dim${currentHand ? ' watch-hero__hand-name' : ''}`} title={currentHand ?? undefined}>{currentHand || street || '—'}</span>
             {pos && <span className="watch-felt__hero-pos">{pos}</span>}
           </div>
         </div>

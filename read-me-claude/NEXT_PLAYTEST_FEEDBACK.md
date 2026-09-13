@@ -71,6 +71,10 @@ These are source observations, not proof of what is deployed. The immediate impl
 
 ## Development loop and next playtest
 
+**New priority, 13 September — WATCH-MULTI-1:** Jens reports that two owned agents playing at separate tables cause Watch to switch between them and mix their cards. Recorded before investigation. Reproduce and repair active table/agent isolation ahead of further cosmetic work; verify socket routing and queued/staged presentation across repeated switches. The cause and any privacy impact remain unconfirmed.
+
+13 September implementation note: owned-agent Watch now names the current hand in the existing status strip on phone and desktop. It uses only the served hole cards and visible board, and keeps result/winner copy separate. The shared percentage is labelled **Est. pot share**, with **vs** before the opponent: source review confirmed fractional credit for ties against random opponent holdings. Unknown estimates stay unknown. Human-seat/replay hand-name expansion, table movement and normal-speed whisper diagnosis remain separate work. See CASINO_ENTRY_HANDOFF.md for validation.
+
 Keep the scope economical: reproduce one chosen journey, fix the smallest coherent cause, and inspect the built phone/desktop interaction at normal speed. Reuse existing source and browser gates; rerun affected checks after a fix rather than repeatedly running unchanged broad suites. Use isolated data, keyless automated checks and owned processes. No production changes, env/key operations, assistant push or paid test calls are implied by this plan.
 
 For the next candidate, capture: casino role choice → real play/Watch → owned-agent or opponent inspection → close/Back → current-hand explanation → private message/result → return Home. Include the casino-owned-table route, short phone layout and transitions after a win. Record which reports were reproduced, repaired, left unconfirmed or deferred for a product decision.

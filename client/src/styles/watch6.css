@@ -140,6 +140,14 @@
   gap: 5px;
 }
 
+.watch-hero__holding { min-width: 0; }
+.watch-hero__hand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.watch-hero__stack-row .watch-felt__hero-pos { flex-shrink: 0; }
+
 /* ── WATCH-7 · the hand-end receipt ────────────────────────────────────────
    The WON/LOST block is gone from the end of a hand. What is left is this: one
    number over his strip, 1.5s, and the felt keeps playing underneath — it

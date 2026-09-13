@@ -33,6 +33,22 @@ export function parseCard(card) {
   return { v, suit };
 }
 
+// Current holding, from two known hole cards and only the board already face
+// up. A partially animated flop has no label until its third card lands.
+// Keep handName's five-card contract for existing result/share callers.
+export function currentHandName(hole, visibleBoard = []) {
+  if (!Array.isArray(hole) || hole.length !== 2 || !Array.isArray(visibleBoard) || visibleBoard.length > 5) return null;
+  const cards = [...hole, ...visibleBoard];
+  if (cards.some(card => typeof card !== 'string' || card.length !== 2 || !parseCard(card))) return null;
+  const parsed = cards.map(parseCard);
+  if (new Set(parsed.map(card => `${card.v}${card.suit}`)).size !== cards.length) return null;
+  if (visibleBoard.length === 0) {
+    const [a, b] = parsed;
+    return a.v === b.v ? `pair of ${PLURAL[a.v]}` : `${SINGULAR[Math.max(a.v, b.v)]}-high`;
+  }
+  return handName(cards);
+}
+
 // The high card of the best straight in `values`, or null. The wheel is the
 // only special case: an ace plays low, and A-2-3-4-5 is a five-high straight.
 function straightHigh(values) {

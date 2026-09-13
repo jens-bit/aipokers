@@ -38,7 +38,7 @@ describe('DP-3 — the replay drives the live stage', () => {
   it('BUG-97: recorded equity does not depend on a spoken line', () => {
     const hand = { ...badBeatHand, streets: badBeatHand.streets.map(s => ({ ...s, reasoning: null })) };
     const { container } = render(<DeskReplayStage hand={hand} agentName="The Grinder" autoPlay={false} />);
-    expect(screen.getByLabelText(/Hero equity 81 percent/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Estimated pot share 81 percent/)).toBeInTheDocument();
     expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('81.0%');
   });
 
@@ -59,7 +59,7 @@ describe('DP-3 — the replay drives the live stage', () => {
   it('brings the rope with it, reading the beat\'s own equity', () => {
     render(<DeskReplayStage hand={badBeatHand} agentName="The Grinder" autoPlay={false} />);
     // badBeatHand opens at 81%.
-    expect(screen.getByLabelText(/Hero equity 81 percent/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Estimated pot share 81 percent/)).toBeInTheDocument();
   });
 
   it('shows his line for the beat that is playing', () => {

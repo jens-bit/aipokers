@@ -123,7 +123,7 @@ describe('DP-1 — the rope under the board', () => {
     );
     const tug = container.querySelector('.dtb__tug .tug');
     expect(tug).toBeTruthy();
-    expect(screen.getByLabelText(/Hero equity 71 percent/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Estimated pot share 71 percent/)).toBeInTheDocument();
     expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('71.0%');
   });
 
@@ -163,7 +163,7 @@ describe('DP-1 — the rope under the board', () => {
         lastDecision={{ seat: 0, equity: 0.2, action: { type: 'bet', amount: 40 } }}
       />,
     );
-    expect(screen.getByLabelText(/Hero equity 71 percent/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Estimated pot share 71 percent/)).toBeInTheDocument();
     expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('71.0%');
 
     rerender(
@@ -173,7 +173,7 @@ describe('DP-1 — the rope under the board', () => {
         lastDecision={{ seat: 0, equity: 0.2, action: { type: 'bet', amount: 40 } }}
       />,
     );
-    expect(screen.getByLabelText(/Hero equity 20 percent/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Estimated pot share 20 percent/)).toBeInTheDocument();
     expect(container.querySelector('.dtb__equity-val')).toHaveTextContent('20.0%');
     expect(container.querySelector('.dtb__tug .tug--dead')).toBeNull();
   });
@@ -181,7 +181,7 @@ describe('DP-1 — the rope under the board', () => {
   it('sits dead centre before the deal rather than empty', () => {
     const { container } = render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
     expect(container.querySelector('.dtb__tug .tug--dead')).toBeTruthy();
-    expect(screen.getByLabelText(/Equity not known yet/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Estimated pot share not known yet/)).toBeInTheDocument();
   });
 
   it('fattens with the heated half of the ladder, and not before', () => {

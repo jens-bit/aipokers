@@ -47,6 +47,7 @@ import { Bubble } from './system/Bubble.jsx';
 import { MoodGhost } from './system/MoodGhost.jsx';
 import { GhostHandLayer } from './system/GhostHands.jsx';
 import { WatchHero, heroPose, betBand } from './system/WatchHero.jsx';
+import { currentHandName } from './share/handName.js';
 import { OwnerHero } from './system/OwnerHero.jsx';
 import { SitStrip } from './system/SitStrip.jsx';
 import { ThreadSheet } from './system/ThreadSheet.jsx';
@@ -1235,6 +1236,8 @@ export function WatchFelt({
           stack={heroStack}
           pos={posLabel(heroSeat, game)}
           street={street}
+          currentHand={!between && !queued && !heroMuck && !heroData?.folded && heroLanded === 2 && mySeat >= 0 && mySeat === heroSeat
+            ? currentHandName(heroData?.holeCards, community.slice(0, landed)) : null}
           toCall={toCall}
           action={actionLabel}
           tag={pace === 'allin' && !settled ? 'HOLDING' : null}

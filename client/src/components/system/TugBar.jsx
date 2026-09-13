@@ -24,15 +24,17 @@ export function TugBar({ equity, villain, big, dead }) {
       <div
         className="tug__track"
         role="img"
-        aria-label={live ? `Hero equity ${Math.round(equity)} percent` : 'Equity not known yet'}
+        aria-label={live ? `Estimated pot share ${Math.round(equity)} percent` : 'Estimated pot share not known yet'}
+        title="Estimated share at showdown, including ties, against random opponent hands."
       >
         <div className="tug__fill" style={{ width: `${pct}%` }} />
         <div className="tug__seam" style={{ left: `calc(${pct}% - 1px)` }} />
       </div>
       <div className="tug__legend">
+        <span className="tug__label">Est. pot share</span>
         <span className="tug__value">{live ? `${Math.round(equity)}%` : '—'}</span>
         <span className="tug__spacer" />
-        {villain && <span className="tug__villain">{villain.toUpperCase()}</span>}
+        {villain && <span className="tug__villain">vs {villain.toUpperCase()}</span>}
       </div>
     </div>
   );

@@ -466,6 +466,19 @@ for (const { viewport, guest = false, casino = 'start' } of [
     await expect(felt.locator('.watch-hero__cards')).toContainText('K');
     await expect(felt.locator('.seat-ghost')).toHaveCount(1);
     await expect(felt.locator('.seat-ghost')).toContainText('Granite');
+    await expect(felt.locator('.watch-hero__hand-name')).toHaveText('ace-high');
+    await expect(felt.locator('.watch-hero__holding')).toContainText('FLOP · Hand now');
+    await expect(felt.locator('.tug__label')).toHaveText('Est. pot share');
+    await expect(felt.locator('.tug__villain')).toHaveText('vs GRANITE');
+    for (const selector of ['.watch-hero__hand-name', '.tug__legend']) {
+      // Chromium rounds a fully contained fractional text rectangle to an
+      // intersection ratio just below 1; check the actual viewport edges.
+      const bounds = await felt.locator(selector).boundingBox();
+      expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.y).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+      expect(await felt.locator(selector).evaluate(el => el.scrollWidth - el.clientWidth), `${selector} fits the table`).toBeLessThanOrEqual(1);
+    }
     expect(await page.evaluate(() => window.__firstSessionWire.filter(message => message.type === 'watch')))
       .toContainEqual(expect.objectContaining({ tableId: fixture.casinoTableId, agentId: AGENT.id }));
     await page.evaluate(() => { window.__companionFelt = document.querySelector('.watch-felt'); });

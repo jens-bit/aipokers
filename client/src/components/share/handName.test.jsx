@@ -2,7 +2,26 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { handName, parseCard } from './handName.js';
+import { currentHandName, handName, parseCard } from './handName.js';
+
+describe('currentHandName', () => {
+  it('names the starting cards without claiming a made five-card hand', () => {
+    expect(currentHandName(['8h', '2s'], [])).toBe('eight-high');
+    expect(currentHandName(['Ah', 'Ad'], [])).toBe('pair of aces');
+  });
+  it('uses the best visible five cards, including a hand entirely on the board', () => {
+    expect(currentHandName(['8h', '2s'], ['8c', '7d', '3c'])).toBe('pair of eights');
+    expect(currentHandName(['8h', '2s'], ['Ah', 'Kh', 'Qh', 'Jh', 'Th'])).toBe('royal flush');
+  });
+  it('requires two known, distinct hole cards and a complete visible flop', () => {
+    for (const hole of [[], [null, null], ['Ah'], ['Ah', 'AH'], ['Ah', 'bad']]) {
+      expect(currentHandName(hole, ['Ac', '7d', '3c'])).toBeNull();
+    }
+    expect(currentHandName(['Ah', 'Ad'], ['Ac'])).toBeNull();
+    expect(currentHandName(['Ah', 'Ad'], ['Ac', '7d'])).toBeNull();
+    expect(currentHandName(['Ah', 'Ad'], ['Ah', '7d', '3c'])).toBeNull();
+  });
+});
 
 describe('parseCard', () => {
   it('reads rank and suit, case-insensitively', () => {
