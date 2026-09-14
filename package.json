@@ -17,6 +17,7 @@
     "test:data": "node scripts/verify-chips.js",
     "export:json": "node scripts/export-json.js",
     "talk:eval": "node scripts/talk-eval.js",
+    "stamina:measure": "node scripts/measure-stamina.js",
     "smoke": "node scripts/smoke-hand.js",
     "smoke:browser": "playwright test -c playwright.smoke.config.js",
     "test:home2": "playwright test -c playwright.home2.config.js",

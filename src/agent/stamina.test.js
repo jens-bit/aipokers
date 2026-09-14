@@ -44,8 +44,12 @@ test('LIFE-1: his STAMINA attribute decides what a hand costs him', () => {
   assert.ok(weak / strong >= 3, `a weak agent should tire at least 3x faster (${weak / strong})`);
 });
 
-test('LIFE-1: a hand at the kitchen table costs half a hand at the casino', () => {
+test('LIFE-1: a hand at the kitchen table costs less than one at the casino', () => {
+  // Stated against the dial rather than against a number, because the dial is
+  // measured (scripts/measure-stamina.js) and has already moved once.
   assert.equal(handCost(50, { home: true }), handCost(50) * HOME_HAND_WEIGHT);
+  assert.ok(HOME_HAND_WEIGHT > 0 && HOME_HAND_WEIGHT < 1,
+    'a home hand is real work and is cheaper than a casino hand');
 });
 
 test('LIFE-1: playing costs the reserve, and the cost survives the session', () => {
@@ -63,14 +67,78 @@ test('LIFE-1: a household that only ever plays at home can still reach worn', ()
   // THE FINDING, as a test. HOME_MAX_HANDS is 40 and a home game is followed
   // by a ten-minute cooldown, so this is an evening of kitchen poker and
   // nothing else — the exact situation that used to cost an agent nothing.
+  //
+  // The cycle is the real one: 40 hands two minutes apart, then ten minutes
+  // off, with `seatedSince` set — so he is credited the rest he had between
+  // games and none for the hands themselves. The bound is stated as HOURS
+  // rather than as a game count, because hours is what an owner experiences
+  // and a game count would quietly pass if the cycle were retuned.
   const agent = { attrs: { STAMINA: 50 } };
   let now = NOW;
-  for (let game = 0; game < 12; game++) {
-    spendStamina(agent, 40, { staminaAttr: 50, home: true, now });
-    now += 15 * 60_000;             // five minutes of play, ten off
+  let hours = 0;
+  for (let game = 0; game < 400 && staminaStageNow(agent, { now }) !== 'worn'; game++) {
+    spendStamina(agent, 40, { staminaAttr: 50, home: true, now: now + 120_000, seatedSince: now });
+    now += 12 * 60_000;             // two minutes of play, ten off
+    hours = (now - NOW) / 3_600_000;
   }
   assert.equal(staminaStageNow(agent, { now }), 'worn',
     'an evening of kitchen poker has to be able to put him to sleep');
+  // And it is an EVENING, not forty minutes and not a fortnight. Both ends
+  // matter: the first cut of these dials wore him out in forty minutes and
+  // left him asleep for three quarters of his life.
+  assert.ok(hours > 1 && hours < 10, `took ${hours.toFixed(1)}h of kitchen poker`);
+});
+
+test('LIFE-1 follow-up: he is not paid for resting during the hands he played', () => {
+  // The bug this pins: the kitchen table charges once per hand, so crediting
+  // the whole gap since the last write as rest paid an agent two hours of
+  // recovery for the two hours he spent at the table. At these rates that
+  // very nearly cancels the drain, which is not a mechanic — it is a coin
+  // toss about whether an agent can get tired at all.
+  const seated = { attrs: { STAMINA: 50 }, stamina: { left: 80, at: NOW } };
+  const loose = { attrs: { STAMINA: 50 }, stamina: { left: 80, at: NOW } };
+  const twoHoursLater = NOW + 2 * HOUR;
+  spendStamina(seated, 100, { staminaAttr: 50, now: twoHoursLater, seatedSince: NOW });
+  spendStamina(loose, 100, { staminaAttr: 50, now: twoHoursLater });
+  assert.ok(seated.stamina.left < loose.stamina.left,
+    `a man at the table for two hours must not be rested by them (${seated.stamina.left} vs ${loose.stamina.left})`);
+  assert.equal(seated.stamina.left, 80 - 100 * handCost(50),
+    'he is charged against what he sat down with, exactly');
+});
+
+test('LIFE-1 follow-up: he sleeps until RESTED, not until he stops being spent', () => {
+  // Without the hysteresis the feature cannot work at all: being worn is what
+  // takes him out of the kitchen game, so a plain threshold makes him cross
+  // WORN_AT, leave, recover a tenth of a point, come back, play one hand and
+  // be worn again — for ever. Nobody would ever see him asleep, which is the
+  // symptom this whole tree is about.
+  const agent = { stamina: { left: WORN_AT - 1, at: NOW, stage: 'worn' } };
+  assert.equal(staminaStageNow(agent, { now: NOW }), 'worn');
+  // One point past the bottom of worn is still asleep.
+  agent.stamina = { left: WORN_AT + 1, at: NOW, stage: 'worn' };
+  assert.equal(staminaStageNow(agent, { now: NOW }), 'worn', 'he does not wake at WORN_AT');
+  // Rested is where he gets up.
+  agent.stamina = { left: SETTLED_AT, at: NOW, stage: 'worn' };
+  assert.equal(staminaStageNow(agent, { now: NOW }), 'fresh');
+  // And it is one-way: an agent on his way DOWN reads settled, not worn.
+  const falling = { stamina: { left: WORN_AT + 1, at: NOW, stage: 'fresh' } };
+  assert.equal(staminaStageNow(falling, { now: NOW }), 'settled');
+});
+
+test('LIFE-1 follow-up: the committed stage does not depend on when a write lands', () => {
+  // The bug: the stored stage is only updated BY a write, so a man who slept
+  // himself back over SETTLED_AT between two charges had no write of his own
+  // in that window — and evaluating the new stage against the stale 'worn'
+  // pinned him asleep again on the first hand of the game he had just woken
+  // up for. spendStamina recovers the stage from the RECOVERED reserve first.
+  const agent = { attrs: { STAMINA: 50 }, stamina: { left: 10, at: NOW, stage: 'worn' } };
+  // Three hours later he is well past SETTLED_AT and genuinely awake...
+  const woken = NOW + 3 * HOUR;
+  assert.equal(staminaStageNow(agent, { now: woken }), 'fresh');
+  // ...so being dealt into a game must not put him straight back to sleep.
+  spendStamina(agent, 40, { staminaAttr: 50, home: true, now: woken + 120_000, seatedSince: woken });
+  assert.notEqual(agent.stamina.stage, 'worn',
+    'he woke up before that hand was dealt; the charge must not un-wake him');
 });
 
 test('LIFE-1: resting gives it back, on its own clock, with nothing running', () => {

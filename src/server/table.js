@@ -2848,7 +2848,11 @@ export class Table {
       let reserveStage = 'fresh';
       try {
         reserveStage = chargeAgentStamina(agentId, this.agentUserIds[seat],
-          Math.max(0, sessionHands - charged), { home: !!this.home });
+          Math.max(0, sessionHands - charged),
+          // Since he SAT DOWN, not since the last charge: recovery is credited
+          // for the rest he had before the seat and never for the hours he has
+          // spent in it. seatSeatedAt is already kept for SERVER-3.
+          { home: !!this.home, seatedSince: this.seatSeatedAt[seat] ?? null });
         this._staminaChargedAtHand[seat] = sessionHands;
       } catch (err) {
         console.error('[table] stamina charge failed:', err.message);

@@ -1876,13 +1876,15 @@ export function noteAgentFatigue(agentId, userId, { stage = 'fresh', sessionHand
  * kitchen table being free was the whole reason a household that never leaves
  * the flat could not get tired.
  */
-export function chargeAgentStamina(agentId, userId, hands, { home = false, now = Date.now() } = {}) {
+export function chargeAgentStamina(agentId, userId, hands, { home = false, now = Date.now(), seatedSince = null } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return 'fresh';
   const n = Math.max(0, Number(hands) || 0);
   if (n > 0) {
-    spendStamina(agent, n, { staminaAttr: agent.attrs?.STAMINA ?? null, home, now });
+    // `seatedSince` is what stops him being paid for resting during the very
+    // hands he is being charged for — see spendStamina.
+    spendStamina(agent, n, { staminaAttr: agent.attrs?.STAMINA ?? null, home, now, seatedSince });
     saveStore(userId ?? 'anon');
   }
   return staminaStageNow(agent, { now, resting: false });
@@ -2110,8 +2112,23 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // worse of the two, so neither can hide the other — four hundred hands
   // tonight makes him worn however full the reserve is, and an empty reserve
   // makes him worn on hand one of a fresh session.
+  //
+  // SEATED means a casino seat OR his own kitchen chair. The kitchen table
+  // does not set activeTableId, so `presence` calls a man playing cards at
+  // home 'resting' — correct for the casino's accounting and wrong for a
+  // reserve, which must not pay him for resting during the hands it is
+  // charging him for.
+  const seatedNow = presence === 'playing' || !!(liveTables?.homeTableOf?.(agent.id));
+  // COMMIT the recovery he has earned, rather than only reading it. This is
+  // the one place that runs often enough to be the reserve's clock, and the
+  // stage it settles is what the HYSTERESIS reads next time: a man who falls
+  // asleep between two charges has no write of his own to record it with, and
+  // without this his sleep is never committed, so he wakes at WORN_AT instead
+  // of at SETTLED_AT and flickers in and out of the kitchen game for ever.
+  // That flicker is precisely the "never seen an agent sleep" symptom.
+  if (!seatedNow) restStamina(agent, { now: Date.now() });
   fatigue = worseStage(fatigue, staminaStageNow(agent, {
-    now: Date.now(), resting: presence !== 'playing',
+    now: Date.now(), resting: !seatedNow,
   }));
   if (presence !== 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
   const effective = presence === 'playing'
@@ -2281,7 +2298,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     // itself, which is the only place an owner can see it at all.
     body: bodyLevels({
       stage: fatigue,
-      stamina: staminaPercent(agent, { now: Date.now(), resting: presence !== 'playing' }),
+      stamina: staminaPercent(agent, { now: Date.now(), resting: !seatedNow }),
       heat: agent.mood?.heat ?? null,
     }),
     sessionHands,

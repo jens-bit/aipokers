@@ -59,19 +59,43 @@ export const HAND_COST = 0.6;
 export const HAND_COST_LOW = 1.2;   // STAMINA 0
 export const HAND_COST_HIGH = 0.3;  // STAMINA 100
 
-// A hand at the kitchen table costs half what a hand in the casino does. It is
-// still work — the whole point of this file is that an evening in is not free,
-// because for most households an evening in is ALL there is — but it is a game
-// with people he lives with for chips that are not real, and pricing it the
-// same as a rung at the casino would make the casino pointless.
-export const HOME_HAND_WEIGHT = 0.5;
+// A hand at the kitchen table costs a THIRD of a hand in the casino, and the
+// number comes from measurement rather than from taste (scripts/measure-stamina.js).
+//
+// The first cut said a half, on the reasoning that an evening in is lighter
+// work than a rung at the casino. That reasoning is right and the number was
+// still badly wrong, because it priced the two per HAND and the two deal at
+// wildly different rates. The kitchen table deals HOME_MAX_HANDS = 40 hands
+// every twelve minutes, for ever, whether or not anybody is watching — about
+// 200 hands an hour and 4,800 a day. A casino session is a hundred-odd hands
+// and then it is over. At a half, a household wore itself out in forty minutes
+// and its agents were asleep for three quarters of their lives, which is not a
+// companion, it is a coma.
+//
+// A third was chosen off the sweep in that script rather than argued for: it
+// puts an agent asleep about a quarter of the time in a two-handed household
+// and about two fifths in a four-handed one, in naps of an hour and a half,
+// and it is the lowest setting at which an owner opening the app twice a day
+// finds somebody asleep on most days rather than most weeks. A fifth was too
+// little (8% asleep, one opening in six) and a half was far too much (three
+// quarters of his life). The (c) table in the script is the only reason to
+// believe any of these three numbers.
+// Env-overridable like every other pace dial in this repo (HOME_PAUSE_MS,
+// UNWATCHED_HAND_PAUSE_MS): it is the one number most likely to want turning
+// on the VPS after a week of watching real households, and turning it should
+// not need a deploy.
+export const HOME_HAND_WEIGHT = Number(process.env.HOME_HAND_WEIGHT ?? 0.3);
 
-// What an hour out of a seat gives back. 15 points takes a spent agent from
-// empty to full in a little under seven hours and from 'worn' to 'fresh' in
-// about two and a quarter — deliberately close to restedFatigue's own two
-// hours per stage, so the two recoveries a client can see do not visibly
-// disagree with each other.
-export const RECOVER_PER_HOUR = 15;
+// What an hour out of a seat gives back. 22 points takes a spent agent from
+// empty to full in four and a half hours, and from the bottom of 'worn' back
+// to rested — which is the nap the hysteresis above makes him take — in about
+// an hour and a half. That is the number an owner actually experiences, and it
+// is the one the measurement script reports as (b).
+//
+// It is also within sight of restedFatigue's own two hours per stage, which
+// matters because both recoveries are visible on the same card and two clocks
+// that visibly disagree read as a bug.
+export const RECOVER_PER_HOUR = Number(process.env.STAMINA_RECOVER_PER_HOUR ?? 22);
 
 const HOUR_MS = 3_600_000;
 
@@ -86,19 +110,42 @@ const num = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
+export const STAGES = Object.freeze(['fresh', 'settled', 'worn']);
+
 /**
- * The three-stage word for a reserve.
+ * The three-stage word for a reserve, with HYSTERESIS.
  *
  * A missing reserve reads as 'fresh', not as 'worn'. Every agent made before
  * this file existed has no reserve on his record, and the alternative answer
  * would put the whole roster to sleep on the deploy that shipped it.
+ *
+ * WHY `was` EXISTS, and it is not a refinement — without it the feature does
+ * not work at all. homeGame.eligible drops a worn agent from the kitchen
+ * table, so being worn is what STOPS the drain. A plain threshold therefore
+ * produces a flicker rather than a sleep: he crosses WORN_AT, leaves the game,
+ * recovers 0.1 of a point, is no longer worn, is dealt back in, plays one more
+ * hand and is worn again — for ever, at whatever rate the tick runs. Nobody
+ * would ever see him asleep, which is the exact symptom this whole tree is
+ * about.
+ *
+ * So the trigger is asymmetric, the way a person's is: he goes to sleep when
+ * he is spent, and he gets up when he is RESTED — not the instant he stops
+ * being exhausted. Once worn he stays worn until the reserve is back to
+ * SETTLED_AT, which is the same number that means 'fresh'.
  */
-export function staminaStage(left) {
+export function staminaStage(left, was = null) {
   const v = num(left);
   if (v === null) return 'fresh';
+  if (was === 'worn') return v >= SETTLED_AT ? 'fresh' : 'worn';
   if (v >= SETTLED_AT) return 'fresh';
   if (v >= WORN_AT) return 'settled';
   return 'worn';
+}
+
+/** The stage his record last settled on, for the hysteresis above. */
+export function storedStage(agent) {
+  const was = agent?.stamina?.stage;
+  return STAGES.includes(was) ? was : null;
 }
 
 /** What one hand costs him, in reserve points. Never negative, never zero. */
@@ -137,7 +184,7 @@ export function staminaNow(agent, { now = Date.now(), resting = true } = {}) {
 
 /** His stage right now, in one call — the form every caller actually wants. */
 export function staminaStageNow(agent, opts = {}) {
-  return staminaStage(staminaNow(agent, opts));
+  return staminaStage(staminaNow(agent, opts), storedStage(agent));
 }
 
 /**
@@ -150,14 +197,44 @@ export function staminaStageNow(agent, opts = {}) {
  * Returns the new reserve. Mutates `agent.stamina` and nothing else — no save,
  * no emit; the caller owns persistence, exactly as noteAgentFatigue does.
  */
-export function spendStamina(agent, hands, { staminaAttr = null, home = false, now = Date.now() } = {}) {
+export function spendStamina(agent, hands, {
+  staminaAttr = null, home = false, now = Date.now(), seatedSince = null,
+} = {}) {
   if (!agent) return STAMINA_MAX;
   const n = Math.max(0, num(hands) ?? 0);
-  // The gap since the last write is rest by definition: whatever he was doing,
-  // these hands are being charged now and everything before them is behind him.
-  const before = staminaNow(agent, { now, resting: true });
+  // THE REST HE HAD BEFORE HE SAT DOWN COUNTS. THE TIME HE SPENT PLAYING DOES
+  // NOT. The first cut credited the whole gap since the last write as rest,
+  // which is wrong in the case that matters most: the kitchen table charges
+  // once per hand, so an agent playing for two hours was being paid two hours
+  // of recovery for the two hours he spent at the table. At the rates below
+  // that very nearly cancels the drain, and "very nearly" is not a mechanic —
+  // it is a coin toss about whether an agent can get tired at all.
+  //
+  // `seatedSince` is the moment he took the seat (table.js has it already, as
+  // seatSeatedAt). Recovery is credited up to that instant and no further.
+  // Without it the old behaviour stands, which is right for a caller that is
+  // not a table.
+  const sat = num(seatedSince);
+  const until = sat === null ? now : Math.min(now, sat);
+  const before = staminaNow(agent, { now: until, resting: true });
+  // THE STAGE HE HAD WHEN HE SAT DOWN, not the one his record last wrote.
+  //
+  // This line is the whole difference between a hysteresis that works and one
+  // that depends on when a write happens to land. The stored stage is only
+  // updated BY a write; a man who slept himself back over SETTLED_AT between
+  // two charges has no write of his own in that window, so evaluating the new
+  // stage against the stale 'worn' pins him asleep again the instant he is
+  // charged for the first hand of the game he has just woken up for — for
+  // ever, at whatever rate the household deals. Recovering the stage from the
+  // RECOVERED reserve first makes the answer independent of write timing,
+  // which is what a state machine has to be.
+  const was = staminaStage(before, storedStage(agent));
   const left = clamp(before - n * handCost(staminaAttr, { home }));
-  agent.stamina = { left: Math.round(left * 10) / 10, at: now };
+  agent.stamina = {
+    left: Math.round(left * 10) / 10,
+    at: now,
+    stage: staminaStage(left, was),
+  };
   return agent.stamina.left;
 }
 
@@ -172,7 +249,11 @@ export function spendStamina(agent, hands, { staminaAttr = null, home = false, n
 export function restStamina(agent, { now = Date.now() } = {}) {
   if (!agent) return STAMINA_MAX;
   const left = staminaNow(agent, { now, resting: true });
-  agent.stamina = { left: Math.round(left * 10) / 10, at: now };
+  agent.stamina = {
+    left: Math.round(left * 10) / 10,
+    at: now,
+    stage: staminaStage(left, storedStage(agent)),
+  };
   return agent.stamina.left;
 }
 
@@ -184,8 +265,6 @@ export function restStamina(agent, { now = Date.now() } = {}) {
  * hide the other: four hundred hands tonight makes him worn whatever the
  * reserve says, and an empty reserve makes him worn on hand one.
  */
-export const STAGES = Object.freeze(['fresh', 'settled', 'worn']);
-
 export function worseStage(a, b) {
   const ia = STAGES.indexOf(a);
   const ib = STAGES.indexOf(b);
