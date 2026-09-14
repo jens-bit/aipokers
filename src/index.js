@@ -51,8 +51,25 @@ app.use('/api/share/prepare', express.json({ limit: SHARE_BODY_LIMIT }));
 app.use(express.json());
 
 // General rate limit on all API routes. Configurable via env.
+//
+// MONEY-1 job 4 — 60 A MINUTE WAS NOT A BUDGET, IT WAS THE BUG.
+//
+// Two things were wrong and the key was the bigger one (rateLimit.js now
+// defaults to the forwarded address, so this is genuinely per client rather
+// than per site). The number is the other half: this app polls on three timers
+// at once — the roster every 10s, the floor every 10s, the home and the header
+// every 30s — which is 16 requests a minute before the owner has touched
+// anything, and opening the safe costs another three. Sixty left under 4x
+// headroom for a client whose own idle traffic is a quarter of it, so a screen
+// change or a second tab was enough to make the next read come back 429 and the
+// safe say "Could not read your safe."
+//
+// 180 is three a second sustained, which is still a real abuse guard and is far
+// above anything the client does. It does NOT relax the guard that matters:
+// model spend is limited separately by RATE_LIMIT_CHAT_MAX (10/min, on
+// /api/agents/chat and /build) and bounded overall by MAX_CONCURRENT_TABLES.
 const rlWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
-app.use('/api', rateLimiter({ windowMs: rlWindowMs, max: Number(process.env.RATE_LIMIT_MAX ?? 60) }));
+app.use('/api', rateLimiter({ windowMs: rlWindowMs, max: Number(process.env.RATE_LIMIT_MAX ?? 180) }));
 
 // GUEST-1: POST /api/guest, GET /api/guest/me and POST /api/guest/claim.
 // Registered FIRST among the API routes because importing guest.js is what

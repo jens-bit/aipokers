@@ -430,6 +430,52 @@ export function seedOwner(profile, { float = POCKET_FLOAT } = {}) {
 // The shapes the client reads. Kept here, next to the rules that produce them,
 // so the UI contract and the money logic cannot drift apart.
 
+// How many lines the safe is handed. SAFE-2 pages twelve at a time and grows as
+// it is scrolled, so this is the ceiling on what there is to scroll to. Raised
+// from twenty by MONEY-1: the list now carries table movement as well as the
+// owner's own, and a busy night of buy-ins would otherwise push every top-up
+// off the end of the record within an hour.
+const LEDGER_VIEW = 40;
+
+// MONEY-1 job 4 — EVERY MONEY CHANGE THE OWNER CAN SEE.
+//
+// The safe used to show the WALLET's ledger and only that, which holds five
+// types: fund, refill, collect, seed, item. A buy-in and a cash-out are written
+// to the POCKET's ledger (debitBuyIn / creditCashOut below) and to no other, so
+// the two events that move the most money in this product were invisible on the
+// one screen that exists to explain where the money went. That is Jens's
+// "nothing visibly leaves the safe when an agent buys in", and it is also why
+// "the way you earn money" looked wrong: the earning was never shown.
+//
+// This is a VIEW and not a second ledger. Nothing is written anywhere; the
+// stored wallet ledger still contains exactly the entries that explain the safe
+// balance, which is what scripts/audit-chips.js reconciles against, and the
+// pocket ledgers still hold their own. What changes is that the read merges
+// them, newest first, with every line tagged by the agent it belongs to so the
+// sheet can say his name.
+//
+// Only `buyin` and `cashout` are taken from the pockets. Every other pocket
+// entry — fund, refill, collect, seed — is one half of a transfer whose other
+// half is already on the wallet ledger, and including both would draw one
+// event twice.
+function ledgerView(wallet, agents) {
+  const rows = Array.isArray(wallet?.ledger) ? [...wallet.ledger] : [];
+  for (const agent of Array.isArray(agents) ? agents : []) {
+    const entries = agent?.pocket?.ledger;
+    if (!Array.isArray(entries)) continue;
+    for (const e of entries) {
+      if (e?.type !== 'buyin' && e?.type !== 'cashout') continue;
+      // The stored entry has no agentId on it — a pocket ledger has no need of
+      // one, because it is all one man. The view does: the safe prints a name.
+      rows.push({ ...e, agentId: e.agentId ?? agent.id ?? null });
+    }
+  }
+  // Newest first. A missing ts sorts oldest, which is where an entry written
+  // before ids and timestamps existed belongs.
+  rows.sort((a, b) => (Number(b?.ts) || 0) - (Number(a?.ts) || 0));
+  return rows.slice(0, LEDGER_VIEW);
+}
+
 // What GET /api/wallet returns. Mirrors WALLET in design-refs/mood-wallet.jsx
 // ({ balance, staked, session }) plus the "Playing" tile beside them.
 export function walletProjection(wallet, agents, { sessionNet = 0 } = {}) {
@@ -445,7 +491,7 @@ export function walletProjection(wallet, agents, { sessionNet = 0 } = {}) {
     staked,
     session: Number.isFinite(sessionNet) ? sessionNet : 0,
     playing: { live, total: list.length },
-    ledger: Array.isArray(wallet?.ledger) ? wallet.ledger.slice(-20).reverse() : [],
+    ledger: ledgerView(wallet, list),
   };
 }
 

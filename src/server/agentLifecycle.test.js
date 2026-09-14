@@ -121,7 +121,17 @@ test('AGENTS-2: retire, the cap, and what a retired agent is', async (t) => {
         chat: [],
         agents: [
           mkAgent('bar', 'The Nit'),
-          mkAgent('seated', 'Loose Cannon', { status: 'playing', activeTableId: 'tbl-1' }),
+          // MONEY-1: a seated agent has PAID to be there. The fixture's own
+          // comment below ("he sat down on 3,000, the buy-in is already out of
+          // it") always said so; the record did not, and a cash-out is now
+          // refused for a stay with no buy-in behind it — which is what stops
+          // one seat being paid out twice. So the stay is on the ledger, where
+          // a real deploy writes it.
+          mkAgent('seated', 'Loose Cannon', {
+            status: 'playing', activeTableId: 'tbl-1',
+            pocket: { balance: 3_000, mode: 'auto', cap: 2_000, realised: -1_000,
+              ledger: [{ id: 'seed-buyin', ts: 1, type: 'buyin', amount: -1_000, tableId: 'tbl-1' }] },
+          }),
           mkAgent('spare1', 'River Rat'),
           mkAgent('spare2', 'The Clock'),
         ],

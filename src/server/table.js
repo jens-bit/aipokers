@@ -17,6 +17,9 @@ import {
   getAgentAttributes,
   noteAgentFatigue,
   finishAgentSession,
+  // MONEY-1 job 3: the rail. Every seat an owner's agent takes is paid for
+  // through this, WATCH's door included.
+  chargeSeatBuyIn,
   recordOpponentHand,
   getAgentBioRole,
   getAgentBio,
@@ -114,6 +117,7 @@ import {
   TALK_INTERVAL_HANDS,
 } from '../agent/tableTalk.js';
 import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js';
+import { seatedElsewhere, seatedElsewhereMessage } from './seating.js';
 import { appendLine as appendThreadLine, ThreadKind, ThreadCategory, ThreadSource, OWNER as THREAD_OWNER, ROOM as THREAD_ROOM } from './thread.js';
 import { homeSessionId } from './homeNight.js';
 import { canAffordTable } from './wallet.js';
@@ -151,6 +155,10 @@ export const SEAT_LIMIT = 6;
 export const MAX_SEATS = Math.min(SEAT_LIMIT, Math.max(2, Number(process.env.MAX_SEATS ?? 6)));
 // Occupied, chipped seats needed before a hand can be dealt.
 export const MIN_TO_DEAL = 2;
+
+// MONEY-1 job 5: one agent, one table. The rule and the authority live in
+// seating.js — a leaf, because tableRegistry imports this file and this file
+// imports agentProfiles, so all three need somewhere neutral to meet.
 
 // ── BUGS-B/1: the lonely table ──────────────────────────────────────────────
 //
@@ -926,6 +934,15 @@ export class Table {
   startAgentSession({ agentId, userId, displayName, strategy, memoryContext = '', agentProfile = null, buyIn } = {}) {
     if (this.closed) return null;
     if (this.pending.filter((p) => p !== null).length > 0) return null;
+    // MONEY-1 job 5: before the House is seated, not after — a refusal here
+    // must not leave a complementary regular sitting at an empty felt.
+    {
+      const other = seatedElsewhere(this, agentId);
+      if (other) {
+        console.log(`[table:${this.tableId}] ${displayName || agentId} is already at ${other.tableId} — not starting a second session`);
+        return null;
+      }
+    }
     const profile = agentProfile ? normalizeProfile(agentProfile) : null;
     const stack = Number.isInteger(buyIn) ? buyIn : this.bigBlind * 100;
 
@@ -978,6 +995,17 @@ export class Table {
     if (this.closed) return null;
     if (!this.hasFreeSeat()) return null;
     if (agentId && this.agentIds.includes(agentId)) return null;
+    // MONEY-1 job 5: one agent, one table. Refused with null, like a full
+    // table, because every caller already handles that — and the caller with
+    // something to say about it (deploy) asks the registry itself so it can
+    // name the felt rather than reporting a generic failure.
+    {
+      const other = seatedElsewhere(this, agentId);
+      if (other) {
+        console.log(`[table:${this.tableId}] ${displayName || agentId} is already at ${other.tableId} — refused`);
+        return null;
+      }
+    }
     // MATCH-1: two agents of the same owner never sit at the same CASINO
     // table. The matchmaker refuses these before they get here, but the
     // matchmaker is not the only door into a seat, and a rule that only holds
@@ -2004,8 +2032,43 @@ export class Table {
     // owner's agents at one casino table. It throws rather than returning a
     // seat, because a WATCH that quietly attached the watcher to somebody
     // else's seat would be a worse answer than an error the client can show.
+    // MONEY-1 job 5: HIM first, then his stablemates. These are two different
+    // rules and they had one message between them — an owner told "another of
+    // your agents is already at this table" about the agent who is standing at
+    // the table has been told something that is not true.
+    {
+      const other = seatedElsewhere(this, agentId);
+      if (other) throw new Error(seatedElsewhereMessage(displayName, other));
+    }
     if (!this.home && this.seatsAgentOfOwner(userId)) {
       throw new Error('another of your agents is already at this table');
+    }
+
+    // MONEY-1 job 3 — WATCH IS A DOOR INTO A SEAT, SO IT PAYS LIKE ONE.
+    //
+    // This branch used to call seatAI with no buyIn at all, which took the
+    // `bigBlind * 100` default and put a full stack of chips in front of an
+    // owner's agent that no pocket had been debited for (MONEY_AUDIT.md §6.2,
+    // row 3). The session-end ceremony then credited the whole final stack
+    // back, so one WATCH minted a buy-in plus whatever he won with it.
+    //
+    // chargeSeatBuyIn is the same rail deploy uses: it debits the pocket, moves
+    // the chips into the bank and writes both ledgers in one transaction, and
+    // it REFUSES rather than granting. A refusal throws, because a watcher who
+    // cannot afford the table has to be told — silently attaching him to
+    // somebody else's seat is the answer this door has always refused to give.
+    let watchBuyIn;
+    if (agentId && userId != null && !this.home) {
+      const paid = chargeSeatBuyIn(agentId, userId, {
+        amount: this.defaultBuyIn(), tableId: this.tableId,
+      });
+      if (paid.ok) watchBuyIn = paid.moved;
+      // `already`: his deploy paid for this seat and he is attaching to it.
+      // `unknown`: no agent record exists, so nothing can ever be credited for
+      // this seat either — see chargeSeatBuyIn. Everything else is a genuine
+      // refusal and the watcher has to be told.
+      else if (paid.already) watchBuyIn = paid.buyIn;
+      else if (!paid.unknown) throw new Error(paid.reason || 'his pocket does not cover this table');
     }
 
     // A second spectator (new agent joining) cancels any pending House fallback.
@@ -2021,6 +2084,7 @@ export class Table {
       userId,
       memoryContext,
       agentProfile,
+      buyIn: watchBuyIn,
     });
     this.spectators.push({ ws, spectatorSeat: seat });
     this._refreshNextDealForViewer();
