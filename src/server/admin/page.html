@@ -129,6 +129,28 @@
   .pill.red { color: var(--red); border-color: #FF4D4F60; }
   .more { margin-top: 8px; }
 
+  /* ── ADMIN-2: the write panel ───────────────────────────────────────── */
+  .ops-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 10px;
+  }
+  .ops-card h3 {
+    margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .ops-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .ops-row input[type="text"], .ops-row input[type="number"] {
+    font: inherit; font-family: var(--mono); font-size: 12px; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+  }
+  .ops-row input[type="text"].wide { flex: 1 1 160px; min-width: 100px; }
+  .ops-row label.check { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--dim); }
+  .ops-row button.danger { border-color: var(--red); color: var(--red); }
+  .ops-row button.danger:hover { color: var(--bg); background: var(--red); }
+  .ops-msg { font-family: var(--mono); font-size: 11px; margin-top: 4px; min-height: 14px; }
+  .ops-msg.err { color: var(--red); }
+  .ops-msg.ok { color: var(--teal); }
+
   /* ── The gate ───────────────────────────────────────────────────────── */
   #gate { max-width: 340px; margin: 18vh auto 0; text-align: left; }
   #gate p { color: var(--dim); font-size: 13px; }
@@ -196,6 +218,73 @@
     <h2>Recent births</h2>
     <div class="scroll"><table id="births"></table></div>
   </section>
+
+  <section id="ops">
+    <h2>Operations — write panel (ADMIN-2)</h2>
+    <p class="meta" style="margin-bottom:10px">Every action below writes to the audit log at the foot of this section. The owner and agent ids here are the real ones — paste them from wherever you got them, not from the masked rows above.</p>
+
+    <div class="ops-card">
+      <h3>Owner — adjust chips</h3>
+      <div class="ops-row">
+        <input type="text" id="opOwnerA" class="wide" placeholder="owner id" aria-label="Owner id">
+        <input type="number" id="opAmount" placeholder="amount (+/−)" aria-label="Amount" style="width:120px">
+        <input type="text" id="opReasonA" class="wide" placeholder="reason (required)" aria-label="Reason">
+        <label class="check"><input type="checkbox" id="opAdjustConfirm"> confirm</label>
+        <button type="button" id="opAdjust">Adjust</button>
+      </div>
+      <div class="ops-row">
+        <input type="text" id="opOwnerR" class="wide" placeholder="owner id" aria-label="Owner id for reset">
+        <input type="text" id="opReasonR" class="wide" placeholder="reason (optional)" aria-label="Reset reason">
+        <label class="check"><input type="checkbox" id="opResetConfirm"> confirm</label>
+        <button type="button" class="danger" id="opReset">Reset to clean balance</button>
+      </div>
+      <div class="ops-row">
+        <input type="text" id="opOwnerL" class="wide" placeholder="owner id" aria-label="Owner id for ledger">
+        <button type="button" id="opLedger">Load ledger</button>
+      </div>
+      <div id="opOwnerMsg" class="ops-msg" role="alert"></div>
+      <div class="scroll" style="margin-top:6px"><table id="opLedgerTable"></table></div>
+    </div>
+
+    <div class="ops-card">
+      <h3>Agent — rename, retire, unseat, force state</h3>
+      <div class="ops-row">
+        <input type="text" id="opAgentOwner" class="wide" placeholder="owner id" aria-label="Owner id for agent action">
+        <input type="text" id="opAgentId" class="wide" placeholder="agent id" aria-label="Agent id">
+      </div>
+      <div class="ops-row">
+        <input type="text" id="opName" class="wide" placeholder="new name" aria-label="New name">
+        <button type="button" id="opRename">Rename</button>
+      </div>
+      <div class="ops-row">
+        <label class="check"><input type="checkbox" id="opRetireConfirm"> confirm</label>
+        <button type="button" class="danger" id="opRetire">Retire (hide, reversible)</button>
+        <button type="button" id="opUnretire">Unretire (show again)</button>
+      </div>
+      <div class="ops-row">
+        <label class="check"><input type="checkbox" id="opUnseatConfirm"> confirm</label>
+        <button type="button" class="danger" id="opUnseat">Unseat from table</button>
+      </div>
+      <div class="ops-row">
+        <select id="opFatigue" aria-label="Force fatigue">
+          <option value="">fatigue — no change</option>
+          <option value="fresh">fresh</option>
+          <option value="settled">settled</option>
+          <option value="worn">worn</option>
+        </select>
+        <input type="text" id="opMoodState" placeholder="mood state" aria-label="Mood state" style="width:110px">
+        <input type="number" id="opMoodHeat" placeholder="heat 0–100" aria-label="Mood heat" style="width:100px">
+        <button type="button" id="opForce">Force state</button>
+      </div>
+      <div id="opAgentMsg" class="ops-msg" role="alert"></div>
+    </div>
+
+    <div class="ops-card">
+      <h3>Audit log</h3>
+      <div class="ops-row"><button type="button" id="opAuditReload">Reload</button></div>
+      <div class="scroll"><table id="opAuditTable"></table></div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -218,6 +307,27 @@
       if (res.status === 429) throw new Error('Too many requests — this page allows six a minute.');
       if (!res.ok) throw new Error('Server said ' + res.status + '.');
       return res.json();
+    });
+  }
+
+  // ADMIN-2: the write panel's own calls. Same key, its own separate and
+  // tighter rate window (writeGuard.js) — a 429 here means the WRITE budget,
+  // not the read one above, and a 401 means the key rather than a missing
+  // confirm, which the server reports as a plain 400 with its own message.
+  function post(path, body) {
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'x-admin-key': state.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+      cache: 'no-store',
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (json) {
+        if (res.status === 404) throw new Error('No dashboard here — ADMIN_KEY is not set on this server.');
+        if (res.status === 401) throw new Error('That key was refused.');
+        if (res.status === 429) throw new Error('Too many writes — this panel allows three a minute, per endpoint.');
+        if (!res.ok) throw new Error(json.error || ('Server said ' + res.status + '.'));
+        return json;
+      });
     });
   }
 
@@ -533,6 +643,134 @@
       .then(owners);
   }
 
+  // ── ADMIN-2: the write panel ─────────────────────────────────────────────
+
+  function opMsg(id, text, ok) {
+    var node = document.getElementById(id);
+    node.textContent = text || '';
+    node.className = 'ops-msg' + (text ? (ok ? ' ok' : ' err') : '');
+  }
+
+  function ledgerTable(payload) {
+    fillTable(document.getElementById('opLedgerTable'), [
+      { label: 'when', left: true, cell: function (r) { return td(ago(r.ts), 'l'); } },
+      { label: 'type', left: true, cell: function (r) { return td(r.type || '—', 'l dim'); } },
+      { label: 'amount', cell: function (r) { return td((r.amount > 0 ? '+' : '') + num(r.amount)); } },
+      { label: 'reason', left: true, cell: function (r) { return td(r.reason || r.agentId || '—', 'l dim'); } },
+    ], payload.rows);
+  }
+
+  function auditTable(payload) {
+    fillTable(document.getElementById('opAuditTable'), [
+      { label: 'when', left: true, cell: function (r) { return td(ago(r.ts), 'l'); } },
+      { label: 'key', cell: function (r) { return td(r.keyId, 'dim'); } },
+      { label: 'action', left: true, cell: function (r) { return td(r.action, 'l'); } },
+      { label: 'target', left: true, cell: function (r) { return td(r.target, 'l dim'); } },
+      { label: 'reason', left: true, cell: function (r) { return td(r.reason || '—', 'l'); } },
+      { label: 'before', cell: function (r) { return td(JSON.stringify(r.before)); } },
+      { label: 'after', cell: function (r) { return td(JSON.stringify(r.after)); } },
+    ], payload.rows);
+  }
+
+  function loadAudit() { return get('/api/admin/audit?limit=50').then(auditTable); }
+
+  function wireOps() {
+    document.getElementById('opAdjust').addEventListener('click', function () {
+      var owner = document.getElementById('opOwnerA').value.trim();
+      var amount = Number(document.getElementById('opAmount').value);
+      var reason = document.getElementById('opReasonA').value.trim();
+      var confirm = document.getElementById('opAdjustConfirm').checked;
+      if (!owner || !amount) return opMsg('opOwnerMsg', 'owner id and a non-zero amount are required', false);
+      post('/api/admin/owners/' + encodeURIComponent(owner) + '/adjust', { amount: amount, reason: reason, confirm: confirm })
+        .then(function (r) { opMsg('opOwnerMsg', 'ok — ' + num(r.before) + ' → ' + num(r.after), true); loadAudit(); })
+        .catch(function (e) { opMsg('opOwnerMsg', e.message, false); });
+    });
+
+    document.getElementById('opReset').addEventListener('click', function () {
+      var owner = document.getElementById('opOwnerR').value.trim();
+      var reason = document.getElementById('opReasonR').value.trim();
+      var confirm = document.getElementById('opResetConfirm').checked;
+      if (!owner) return opMsg('opOwnerMsg', 'owner id is required', false);
+      post('/api/admin/owners/' + encodeURIComponent(owner) + '/reset', { reason: reason, confirm: confirm })
+        .then(function (r) { opMsg('opOwnerMsg', 'ok — ' + num(r.before) + ' → ' + num(r.after), true); loadAudit(); })
+        .catch(function (e) { opMsg('opOwnerMsg', e.message, false); });
+    });
+
+    document.getElementById('opLedger').addEventListener('click', function () {
+      var owner = document.getElementById('opOwnerL').value.trim();
+      if (!owner) return opMsg('opOwnerMsg', 'owner id is required', false);
+      get('/api/admin/owners/' + encodeURIComponent(owner) + '/ledger?limit=50')
+        .then(ledgerTable)
+        .catch(function (e) { opMsg('opOwnerMsg', e.message, false); });
+    });
+
+    function agentIds() {
+      return {
+        owner: document.getElementById('opAgentOwner').value.trim(),
+        agent: document.getElementById('opAgentId').value.trim(),
+      };
+    }
+    function agentPath(ids, action) {
+      return '/api/admin/owners/' + encodeURIComponent(ids.owner) + '/agents/' + encodeURIComponent(ids.agent) + '/' + action;
+    }
+    function needIds(ids) {
+      if (ids.owner && ids.agent) return true;
+      opMsg('opAgentMsg', 'owner id and agent id are required', false);
+      return false;
+    }
+
+    document.getElementById('opRename').addEventListener('click', function () {
+      var ids = agentIds();
+      if (!needIds(ids)) return;
+      post(agentPath(ids, 'rename'), { name: document.getElementById('opName').value })
+        .then(function (r) { opMsg('opAgentMsg', 'ok — "' + r.before + '" → "' + r.after + '"', true); loadAudit(); })
+        .catch(function (e) { opMsg('opAgentMsg', e.message, false); });
+    });
+
+    document.getElementById('opRetire').addEventListener('click', function () {
+      var ids = agentIds();
+      if (!needIds(ids)) return;
+      post(agentPath(ids, 'retire'), { confirm: document.getElementById('opRetireConfirm').checked })
+        .then(function () { opMsg('opAgentMsg', 'ok — hidden from the roster', true); loadAudit(); })
+        .catch(function (e) { opMsg('opAgentMsg', e.message, false); });
+    });
+
+    document.getElementById('opUnretire').addEventListener('click', function () {
+      var ids = agentIds();
+      if (!needIds(ids)) return;
+      post(agentPath(ids, 'unretire'), {})
+        .then(function () { opMsg('opAgentMsg', 'ok — back on the roster', true); loadAudit(); })
+        .catch(function (e) { opMsg('opAgentMsg', e.message, false); });
+    });
+
+    document.getElementById('opUnseat').addEventListener('click', function () {
+      var ids = agentIds();
+      if (!needIds(ids)) return;
+      post(agentPath(ids, 'unseat'), { confirm: document.getElementById('opUnseatConfirm').checked })
+        .then(function () { opMsg('opAgentMsg', 'ok — seat released', true); loadAudit(); })
+        .catch(function (e) { opMsg('opAgentMsg', e.message, false); });
+    });
+
+    document.getElementById('opForce').addEventListener('click', function () {
+      var ids = agentIds();
+      if (!needIds(ids)) return;
+      var body = {};
+      var fatigue = document.getElementById('opFatigue').value;
+      if (fatigue) body.fatigue = fatigue;
+      var moodState = document.getElementById('opMoodState').value.trim();
+      var moodHeat = document.getElementById('opMoodHeat').value;
+      if (moodState || moodHeat) body.mood = { state: moodState || undefined, heat: moodHeat === '' ? undefined : Number(moodHeat) };
+      post(agentPath(ids, 'force-state'), body)
+        .then(function () { opMsg('opAgentMsg', 'ok — state forced', true); loadAudit(); })
+        .catch(function (e) { opMsg('opAgentMsg', e.message, false); });
+    });
+
+    document.getElementById('opAuditReload').addEventListener('click', function () {
+      loadAudit().catch(function (e) { opMsg('opAgentMsg', e.message, false); });
+    });
+  }
+  wireOps();
+
   function stamp(s) {
     var bits = [
       (s.system.gitSha.value || 'no sha').slice(0, 7),
@@ -549,7 +787,7 @@
         board(s);
         cohorts(s);
         stamp(s);
-        return Promise.all([loadOwners(), get('/api/admin/agents/recent').then(births)]);
+        return Promise.all([loadOwners(), get('/api/admin/agents/recent').then(births), loadAudit()]);
       })
       .then(function () { document.getElementById('err').textContent = ''; })
       .catch(function (e) { document.getElementById('err').textContent = e.message; });
