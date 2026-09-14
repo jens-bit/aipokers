@@ -17,6 +17,7 @@ import {
   getAgentAttributes,
   noteAgentFatigue,
   chargeAgentStamina,   // LIFE-1
+  noteOwnerHand,        // LIFE-1 job 6
 
   finishAgentSession,
   recordOpponentHand,
@@ -44,6 +45,9 @@ import { applyDips } from '../agent/dips.js';
 // LIFE-1: the reserve's own vocabulary. table.js charges it and reports the
 // worse of the two tiredness readings; stamina.js owns both.
 import { worseStage } from '../agent/stamina.js';
+// LIFE-1 job 6: the hands he has played against his own owner, and the one
+// thing he says about how the owner played them.
+import { ownerHandComment } from '../agent/ownerHands.js';
 import { bodyLevels } from '../shared/levels.js';   // LIFE-1 job 2
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
@@ -2605,7 +2609,13 @@ export class Table {
         };
       }
     }
-    this.currentHandActionLog.push({ seat, street, actionType: action.type });
+    // LIFE-1 job 6: the amount rides along now. opponentStats.recordHand reads
+    // seat/street/actionType and ignores the rest, so this is additive there;
+    // what needs it is the line he says about a bet the owner actually made.
+    this.currentHandActionLog.push({
+      seat, street, actionType: action.type,
+      ...(Number.isFinite(action.amount) ? { amount: action.amount } : {}),
+    });
     this._threadAction(seat, action);
   }
 
@@ -3198,10 +3208,106 @@ export class Table {
       }
     }
 
+    // LIFE-1 job 6: the hand the OWNER was in. Only at his own kitchen table,
+    // only when he is actually sitting at it, and deliberately after the loop
+    // above rather than inside it — it needs the whole hand settled, and it is
+    // a different book from anything the loop writes.
+    try {
+      this._recordOwnerHands(result, seatSnapshots);
+    } catch (err) {
+      console.error('[table] owner hand note failed:', err.message);
+    }
+
     // EVENT-1: the hand-end hook. It lives here rather than in _handCompleted
     // because the cooler has already been classified once, a few lines up, and
     // classifying it twice is how two definitions of a cooler get born.
     this._emitCasinoEvents(result, coolerHand);
+  }
+
+  /**
+   * LIFE-1 job 6 — file the hand the owner just played, from each of HIS
+   * agents' side, and say one thing about how he played it.
+   *
+   * WHY IT IS ITS OWN METHOD AND ITS OWN BOOK. The loop above splits on
+   * `this.home` and the split is right: a kitchen hand writes the biography
+   * but not the evidence and not the career record, because an evening in is
+   * not poker he played for anyone. The consequence nobody wanted is that the
+   * one hand an owner most wants talked about — the one he was IN — was the
+   * only hand in the product that left no trace at all.
+   *
+   * Nothing here reaches a model. The kitchen table's standing rule is
+   * templates and nothing else (handTalk.js rule 2), and a remark about the
+   * owner's own play is not the place to start making an exception.
+   */
+  _recordOwnerHands(result, seatSnapshots) {
+    if (!this.home || !this.homeOwnerId || !this.game) return;
+
+    // The owner's own seat: a body with no agent behind it at his own table.
+    // A House regular is an AI seat, so this cannot pick one up by accident.
+    const ownerSeat = this.pending.findIndex((p, i) =>
+      p !== null && !this.aiSeats[i] && !this.agentIds[i]);
+    if (ownerSeat === -1) return;
+    if (!this._seatIsInGame(ownerSeat)) return;
+
+    const ownerActions = this.currentHandActionLog
+      .filter((e) => e.seat === ownerSeat)
+      .map((e) => ({ street: e.street, type: e.actionType, amount: e.amount }));
+    if (ownerActions.length === 0) return;
+
+    const winners = Array.isArray(result?.winners) ? result.winners : [];
+    const showdown = result?.type === 'showdown';
+    const ownerWon = winners.some((w) => w.seat === ownerSeat);
+    const ownerFolded = !!this.game.seats[ownerSeat]?.folded;
+    // His cards only if the hand actually got to showdown. A line that names a
+    // card nobody turned over would be the felt telling on itself.
+    const ownerShowed = showdown && !ownerFolded
+      ? [...(this.game.seats[ownerSeat]?.holeCards ?? [])]
+      : null;
+    const board = [...(this.game.community ?? [])];
+    const ownerName = this._seatLabel(ownerSeat);
+
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      if (String(this.agentUserIds[seat] ?? '') !== this.homeOwnerId) continue;
+      if (!this._seatIsInGame(seat)) continue;
+      const mine = [...(this.game.seats[seat]?.holeCards ?? [])];
+      // The engine names his hand; this file never evaluates one. Only ever
+      // HIS own, so it cannot leak anybody else's.
+      let myHand = null;
+      try {
+        if (mine.length >= 2 && board.length >= 3) {
+          myHand = plainHandName(evaluate([...mine, ...board]));
+        }
+      } catch { myHand = null; }
+
+      const entry = {
+        handNumber: this.game.handNumber,
+        ownerName, ownerActions, ownerFolded, ownerWon, ownerShowed,
+        mine, myHand, board,
+        pot: result?.pot ?? 0,
+        iWon: winners.some((w) => w.seat === seat),
+        showdown,
+      };
+
+      try {
+        noteOwnerHand(agentId, this.agentUserIds[seat], entry);
+      } catch (err) {
+        console.error('[table] owner hand write failed:', err.message);
+      }
+
+      // And the line, if there is one worth saying. Most hands there is not:
+      // a fold preflop is not an event, and a remark after every single hand
+      // is the table-talk pathology TLK-1 already capped once.
+      const line = ownerHandComment(entry);
+      if (line) {
+        try {
+          this.sendChat(seat, line, true, { from: agentId, to: THREAD_OWNER });
+        } catch (err) {
+          console.error('[table] owner hand line failed:', err.message);
+        }
+      }
+    }
   }
 
   // ── EVENT-1 · the floor ticker ─────────────────────────────────

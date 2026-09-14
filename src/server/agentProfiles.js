@@ -13,6 +13,8 @@ import { opponentRecallContext } from './opponentRecall.js';
 // LIFE-1 job 5 (TALK-2): the facts he can cite, the four laws, and the
 // deterministic gate that grades the reply afterwards. No model call.
 import { selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes } from '../agent/talk.js';
+// LIFE-1 job 6: the hands he has played against the person holding the phone.
+import { recordOwnerHand, ownerHandsContext } from '../agent/ownerHands.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
@@ -1872,6 +1874,23 @@ export function setAgentStamina(agentId, userId, left, { now = Date.now() } = {}
 }
 
 /**
+ * LIFE-1 job 6 — file one hand the owner played against him.
+ *
+ * The narrow accessor in noteAgentFatigue's style: table.js owns the hand and
+ * knows nothing about records, this owns the record and knows nothing about
+ * tables. The entry is already assembled from the engine result, so nothing
+ * here decides anything — it stores and saves.
+ */
+export function noteOwnerHand(agentId, userId, entry) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const stored = recordOwnerHand(agent, entry);
+  if (stored) saveStore(userId ?? 'anon');
+  return stored;
+}
+
+/**
  * LIFE-1 — what is left in him, 0-100, and the word for it.
  *
  * The one reading every surface asks for. It banks the recovery earned so far
@@ -3460,6 +3479,11 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   // And the four laws, each written against the reply that failed. `said` is
   // in scope so a direct question can be named as one.
   const lawsBlock = talkLaws(agent, { said, lastShapes: ensureShapes(agent) });
+  // LIFE-1 job 6: and the hands the two of you have actually played. Placed
+  // beside his own recent hands rather than inside them, because these are
+  // the only hands in the product where the owner is a PLAYER rather than a
+  // spectator, and what he is asked about them is what he made of YOUR play.
+  const ownerHandsBlock = ownerHandsContext(agent);
 
   // BUGS-B/2: he is at a felt with a hand running, so the owner leaning in is
   // a WHISPER and has to be answered as one — what is on the board, what he is
@@ -3473,7 +3497,7 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${readsBlock}${factsBlock}${moodLine}${pepLine}${proposalLine}
+  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${readsBlock}${factsBlock}${ownerHandsBlock}${moodLine}${pepLine}${proposalLine}
 CURRENT PLACE: ${scene.description}. This current place wins over old chat or memories. Do not invent places, opponents or current table conditions.${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
