@@ -1,6 +1,24 @@
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { spokenOwnerReply } from './ownerReply.js';
+// LIFE-1 job 2: three dots, not a bar. One definition of what half-empty
+// means, in src/shared/ so the screen and the server read it the same way.
+import { bodyLevels } from '../shared/levels.js';
+// LIFE-1 job 3: the standing instructions and plans, in the owner's own
+// words. A fourth book beside poker, opponents and the owner ledger.
+import { recordOwnerInstruction, ownerInstructionsContext } from '../agent/ownerInstructions.js';
+// LIFE-1 job 4: the opponent model, in the living room. Same unlock rule the
+// felt gates its briefing on — see the note at the top of opponentRecall.js.
+import { opponentRecallContext } from './opponentRecall.js';
+// LIFE-1 job 5 (TALK-2): the facts he can cite, the four laws, and the
+// deterministic gate that grades the reply afterwards. No model call.
+import { selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes } from '../agent/talk.js';
+// LIFE-1 job 6: the hands he has played against the person holding the phone.
+import { recordOwnerHand, ownerHandsContext } from '../agent/ownerHands.js';
+// LIFE-1: the reserve. What playing costs him across sessions, and what
+// resting gives back — the only thing in the system that can make an agent
+// who never leaves the flat reach 'worn' and go to sleep.
+import { staminaStageNow, worseStage, staminaPercent, restStamina, spendStamina, feedStamina } from '../agent/stamina.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 // GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
 // only enforced here — see the note at the top of that file for why the two
@@ -46,6 +64,7 @@ import {
   birthAttributes,
   effectiveAttrs,
   restedFatigue,
+
   logAttrChange,
   firstWordsFor,
   applySessionGrowth,
@@ -78,15 +97,22 @@ import {
   isItem as isFridgeItem, ITEM_IDS as FRIDGE_ITEM_IDS,
   // SERVER-5 job 5: the food ask only fires when there is something in.
   hasStock as fridgeHasStock,
+  // LIFE-1 follow-up 3: what the food puts back, and the refusal asked over
+  // every one of an item's effects rather than only over the cooling.
+  staminaEffectOf, itemHelp,
 } from './fridge.js';
 import { bus as casinoBus } from './events.js';
 import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import {
   Where, locationFor, routineFor, stampLocation, homeStateMessage,
+  // LIFE-1: the three states an idle body can be caught in that are not
+  // his nature's habit — he has just been fed, he is still up from tonight,
+  // he is steaming.
+  isCelebrating, SULK_HEAT,
 } from './home.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
-import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet, agentHasActiveVisit } from './store.js';
+import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet, agentHasActiveVisit, loadAgentById } from './store.js';
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ensureRosterIdentities } from './identity.js';
 import { identityOf } from '../shared/identity.js';
@@ -1960,6 +1986,41 @@ export function getAgentMood(agentId, userId) {
 // The values here are the STORED ones. Fatigue is a within-session state, so
 // the caller (table.js) runs them through effectiveAttrs with its own session
 // hand count before handing them to a decision.
+/**
+ * LIFE-1 follow-up 1 — one agent's stored attributes WITHOUT knowing whose he
+ * is.
+ *
+ * getAgentAttributes below needs an owner, because every ordinary caller is
+ * acting for one. The opponent model is the exception: a read is keyed on
+ * `agent_<id>` and that agent belongs to somebody else, so his DECEPTION —
+ * half of the evidence bar for reading him — is not reachable through any
+ * owner the caller has.
+ *
+ * The LOADED CACHE IS ASKED FIRST, and that ordering is the point rather than
+ * an optimisation: if his owner is live in this process, the cached record is
+ * the one the felt is also reading, and going to the database instead could
+ * hand the conversation a different number from the one the table is using
+ * this second — which is exactly the disagreement this job exists to remove.
+ */
+export function agentAttrsById(agentId) {
+  const id = String(agentId ?? '');
+  if (!id) return null;
+  for (const profile of Object.values(store ?? {})) {
+    const found = profile?.agents?.find((a) => a.id === id);
+    if (found) {
+      ensureAttributes(found);
+      return found.attrs ?? null;
+    }
+  }
+  try {
+    const row = loadAgentById(id);
+    return row?.attrs ?? null;
+  } catch (err) {
+    console.error('[agents] attribute lookup failed:', err.message);
+    return null;
+  }
+}
+
 export function getAgentAttributes(agentId, userId) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
@@ -1991,6 +2052,83 @@ export function noteAgentFatigue(agentId, userId, { stage = 'fresh', sessionHand
   saveStore(userId ?? 'anon');
   emitAgentChange(userId);
   return true;
+}
+
+/**
+ * LIFE-1 — charge the reserve for hands he has just played.
+ *
+ * The narrow accessor in noteAgentFatigue's own style: table.js owns the hand
+ * count and knows nothing about records, this owns the record and knows
+ * nothing about tables. Returns the fatigue stage the reserve now puts him at,
+ * so the caller can fold it into the stage it writes.
+ *
+ * `home` halves the charge — see HOME_HAND_WEIGHT. It is still a charge: the
+ * kitchen table being free was the whole reason a household that never leaves
+ * the flat could not get tired.
+ */
+export function chargeAgentStamina(agentId, userId, hands, { home = false, now = Date.now(), seatedSince = null } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return 'fresh';
+  const n = Math.max(0, Number(hands) || 0);
+  if (n > 0) {
+    // `seatedSince` is what stops him being paid for resting during the very
+    // hands he is being charged for — see spendStamina.
+    spendStamina(agent, n, { staminaAttr: agent.attrs?.STAMINA ?? null, home, now, seatedSince });
+    saveStore(userId ?? 'anon');
+  }
+  return staminaStageNow(agent, { now, resting: false });
+}
+
+/**
+ * LIFE-1 — set the reserve outright.
+ *
+ * The narrow accessor in noteAgentFatigue's style, and the only way anything
+ * outside stamina.js writes the number without playing hands for it. Two
+ * callers are legitimate: a fixture stating what "rested" means for the agent
+ * it is about to assert on, and any future path that hands an owner a way to
+ * put him straight to bed. Nothing in the normal run of play uses it — the
+ * reserve is supposed to be earned back an hour at a time.
+ */
+export function setAgentStamina(agentId, userId, left, { now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const v = Math.max(0, Math.min(100, Number(left) || 0));
+  agent.stamina = { left: v, at: now };
+  saveStore(userId ?? 'anon');
+  return agent.stamina;
+}
+
+/**
+ * LIFE-1 job 6 — file one hand the owner played against him.
+ *
+ * The narrow accessor in noteAgentFatigue's style: table.js owns the hand and
+ * knows nothing about records, this owns the record and knows nothing about
+ * tables. The entry is already assembled from the engine result, so nothing
+ * here decides anything — it stores and saves.
+ */
+export function noteOwnerHand(agentId, userId, entry) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const stored = recordOwnerHand(agent, entry);
+  if (stored) saveStore(userId ?? 'anon');
+  return stored;
+}
+
+/**
+ * LIFE-1 — what is left in him, 0-100, and the word for it.
+ *
+ * The one reading every surface asks for. It banks the recovery earned so far
+ * when he is at rest, so the stored number stops drifting away from the true
+ * one, and it is the same pair JOB 2's three dots are drawn from.
+ */
+export function staminaOf(agent, { now = Date.now(), resting = true } = {}) {
+  if (!agent) return { left: 100, stage: 'fresh' };
+  if (resting) restStamina(agent, { now });
+  const left = staminaPercent(agent, { now, resting });
+  return { left, stage: staminaStageNow(agent, { now, resting }) };
 }
 
 // Set the agent's mood record wholesale (used by table.js after applying
@@ -2158,6 +2296,31 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     const since = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
     fatigue = restedFatigue(agent.fatigue ?? 'fresh', since);
   }
+  // LIFE-1: and the RESERVE, which is the half that survives standing up.
+  // restedFatigue walks the session's own stage back to 'fresh' in four hours
+  // whatever the week has been like; the reserve is the week. He reads as the
+  // worse of the two, so neither can hide the other — four hundred hands
+  // tonight makes him worn however full the reserve is, and an empty reserve
+  // makes him worn on hand one of a fresh session.
+  //
+  // SEATED means a casino seat OR his own kitchen chair. The kitchen table
+  // does not set activeTableId, so `presence` calls a man playing cards at
+  // home 'resting' — correct for the casino's accounting and wrong for a
+  // reserve, which must not pay him for resting during the hands it is
+  // charging him for.
+  const seatedNow = presence === 'playing' || !!(liveTables?.homeTableOf?.(agent.id));
+  // COMMIT the recovery he has earned, rather than only reading it. This is
+  // the one place that runs often enough to be the reserve's clock, and the
+  // stage it settles is what the HYSTERESIS reads next time: a man who falls
+  // asleep between two charges has no write of his own to record it with, and
+  // without this his sleep is never committed, so he wakes at WORN_AT instead
+  // of at SETTLED_AT and flickers in and out of the kitchen game for ever.
+  // That flicker is precisely the "never seen an agent sleep" symptom.
+  if (!seatedNow) restStamina(agent, { now: Date.now() });
+  fatigue = worseStage(fatigue, staminaStageNow(agent, {
+    now: Date.now(), resting: !seatedNow,
+  }));
+  if (presence !== 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
     : null;
@@ -2226,11 +2389,19 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // survives any one of them would put him in a room he is not in.
   if (location.where === Where.HOME && agent.headingTo) agent.headingTo = null;
   const routine = routineFor({
+    id: agent.id,
     nature: agent.nature,
     where: location.where,
     atHomeTable: !!homeTable,
     studying: !!agent.study,
     broke: presence === 'broke',
+    // LIFE-1: the three new ways an evening at home can look. All three are
+    // read off facts the record already carries — the fridge stamps
+    // `lastSnackAt`, finishAgentSession stamps the session log, mood owns the
+    // heat — so nothing here is a second source of truth for any of them.
+    tilted: (agent.mood?.heat ?? 0) >= SULK_HEAT,
+    fedAt: agent.lastSnackAt ?? null,
+    celebrating: isCelebrating(lastSessionResult(agent)),
     fatigue,
     unseenRecap: !!agent.unseenRecap,
   });
@@ -2310,6 +2481,16 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     bornAt: agent.createdAt ?? agent.bornAt ?? null,
     homeTableId: homeTable?.tableId ?? null,
     fatigue,
+    // LIFE-1 job 2: the two body readings as THREE STATES, in the one shape
+    // every surface carries them in. Additive — `fatigue` and `mood.heat` are
+    // both still exactly where they were, so a client that has never heard of
+    // this field sees what it saw before. `stamina` also carries the reserve
+    // itself, which is the only place an owner can see it at all.
+    body: bodyLevels({
+      stage: fatigue,
+      stamina: staminaPercent(agent, { now: Date.now(), resting: !seatedNow }),
+      heat: agent.mood?.heat ?? null,
+    }),
     sessionHands,
     effectiveAttrs: effective,
     flaggedCount: (agent.sessionFlagged?.length ?? 0),
@@ -3161,10 +3342,28 @@ export function giveItemTo(agent, userId, item) {
   ensureMood(agent);
   ensureStats(agent);
 
-  // "He's fine. Save it." — the ref's own line. Handing a beer to a level agent
-  // takes nothing out of the fridge, because there is no heat to take off him.
-  if (!isMoodSoothable(agent.mood)) {
-    return { ok: false, status: 400, body: { error: "He's fine. Save it.", spent: 0, soothed: false } };
+  // LIFE-1 follow-up 3 — "He's fine. Save it.", asked over ALL of this item's
+  // effects instead of only over the cooling.
+  //
+  // What was here: `if (!isMoodSoothable(agent.mood))`, refusing every item to
+  // anyone who was not frustrated, tilted or sulking. applyItem floors heat at
+  // the neutral midpoint, which is where a resting agent sits by default — so
+  // for the commonest state in the product, neutral at heat 30, every item was
+  // refused, nothing left the fridge and nothing happened. That is why the
+  // fridge appeared to do nothing. It also refused a snack to a spent but calm
+  // agent, which is the exact case a snack now exists for.
+  //
+  // The reserve is read RESTED here on purpose: an agent being handed food is
+  // by definition not in a seat, and asking whether the snack would help has
+  // to use the number he actually has, not the one he had an hour ago.
+  const help = itemHelp(item, {
+    mood: agent.mood,
+    staminaLeft: staminaPercent(agent, { resting: true }),
+  });
+  if (!help.any) {
+    return { ok: false, status: 400, body: {
+      error: "He's fine. Save it.", spent: 0, soothed: false, reason: help.reason,
+    } };
   }
 
   const profile = getOrCreate(userId);
@@ -3188,19 +3387,20 @@ export function giveItemTo(agent, userId, item) {
     };
   }
 
+  // Cooling is applied when there is heat to take off him, and simply skipped
+  // when there is not — it is no longer the thing that decides whether the
+  // item may be handed over at all.
   const result = applyMoodItem(agent.mood, heatEffectOf(item), {
     cause: item === 'beer' ? 'a beer' : 'something to eat',
   });
-  if (!result.cooled) {
-    return {
-      ok: false,
-      status: 400,
-      body: { error: "He's fine. Save it.", spent: 0, soothed: false, reason: result.reason },
-    };
-  }
 
   takeFromFridge(wallet, item);
-  agent.mood = result.mood;
+  if (result.cooled) agent.mood = result.mood;
+  // LIFE-1 follow-up 3: and the food half. Bounded inside feedStamina, which
+  // clamps to a full reserve and runs the stage through the same hysteresis a
+  // charge does — so a snack can genuinely help a sleeping agent up, but only
+  // by getting him all the way back to rested.
+  const fed = help.feeds ? feedStamina(agent, staminaEffectOf(item)) : null;
   recordOwnerEvent(agent, 'item_given', { item });
 
   // SERVER-5 job 1: when he last ate. Hunger is measured from this, and being
@@ -3214,8 +3414,13 @@ export function giveItemTo(agent, userId, item) {
   // never plays again is not carrying a hangover in his record forever.
   if (item === 'beer') agent.drinkPending = true;
 
+  // The visible effect, in his own voice. The snack's line says what it did
+  // for him rather than thanking you, because "Cheers." for a thing that put
+  // a quarter of his evening back is a thinner moment than the item deserves.
   agent.lastMoment = {
-    text: item === 'beer' ? 'Cheers. Needed that.' : 'Cheers.',
+    text: item === 'beer'
+      ? 'Cheers. Needed that.'
+      : (help.feeds ? 'Cheers. That will keep me going a while.' : 'Cheers.'),
     mood: agent.mood?.state ?? 'neutral',
     at: Date.now(),
   };
@@ -3231,8 +3436,11 @@ export function giveItemTo(agent, userId, item) {
       // and a client that prints "−200" on a drink he already owned is telling
       // the owner he was charged twice.
       spent: 0,
-      soothed: true,
+      soothed: !!result.cooled,
       drinking: item === 'beer',
+      // LIFE-1 follow-up 3: what the food put back, so a client can draw the
+      // reserve moving rather than infer it from the next push.
+      ...(fed === null ? {} : { stamina: { left: fed, restored: staminaEffectOf(item) } }),
       mood: { state: agent.mood.state, heat: agent.mood.heat },
       moment: agent.lastMoment,
       fridge: fridgeProjection(wallet),
@@ -3438,6 +3646,20 @@ export function tryApplyPepTalk(agentId, userId) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// LIFE-1: the evening he just finished, in the two facts the room needs. The
+// session log is capped at ten and written by finishAgentSession; an agent who
+// has never finished one has no last evening, which is the honest answer.
+export function lastSessionResult(agent) {
+  const log = Array.isArray(agent?.sessionLog) ? agent.sessionLog : [];
+  const last = log[log.length - 1] ?? null;
+  if (!last) return { pnl: null, endedAt: null, hands: 0 };
+  return {
+    pnl: Number.isFinite(Number(last.net)) ? Number(last.net) : null,
+    endedAt: Number.isFinite(Number(last.endedAt)) ? Number(last.endedAt) : null,
+    hands: Number(last.hands) || 0,
+  };
+}
+
 // Format a single hand summary into a compact line for the memory-update prompt.
 function formatHandForPrompt(h) {
   const verdict = h.won ? 'WON' : 'LOST';
@@ -3454,14 +3676,14 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], table = null } = {}) {
+// LIFE-1 job 4 added `said` — the message being answered. The prompt has to
+// know which opponent was NAMED in it, because "can you see the stats on
+// Granite" and "how is the field" want different halves of the same book,
+// and shipping the whole ledger every turn would be a data dump.
+export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], table = null, said = '' } = {}) {
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
-  const recentHands = (agent.recentHands || []).slice(0, 3);
-  const recentBrief = recentHands.length > 0
-    ? recentHands.map((h) => `${h.won ? 'won' : 'lost'} ${h.potSize ?? 0}-chip pot`).join(', ')
-    : 'no hands yet';
   const statsLine = handsPlayed > 0
     ? `${handsPlayed} hands played, ${winRate}% win rate`
     : 'no hands played yet';
@@ -3506,6 +3728,31 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   // has been on his back all week gets a different answer to one who reads his
   // hands back, and that difference is the whole feature.
   const ownerBlock = ownerMemoryContext(agent);
+  // LIFE-1 job 3: and what he has been TOLD. Separate from the block above and
+  // adjacent to it on purpose — one is how the relationship reads, the other is
+  // the standing orders that came out of it, and an agent that cannot tell them
+  // apart answers "what did I say about the low room" with a mood.
+  const toldBlock = ownerInstructionsContext(agent);
+  // LIFE-1 job 4: and what he knows about the men he has played. Gated on
+  // exactly the rule table.js gates the in-hand briefing on — an agent who can
+  // ACT on a read at the felt can talk about it at home, and one who cannot,
+  // cannot. Below the bar the block tells him to say so plainly, which is the
+  // answer "Nah, I can't see the stats" was standing in for.
+  const readsBlock = opponentRecallContext(agent, said);
+  // LIFE-1 job 5: the hands he actually played, with the cards and the line.
+  // What this replaces is `recentBrief` — "won 200-chip pot, lost 400-chip
+  // pot": three outcomes with no cards, no street and no action, which is why
+  // an agent asked what happened had nothing to say and said something
+  // evasive. That was a failure of supply, not of voice.
+  const factsBlock = selfFacts(agent, { state: scene.description });
+  // And the four laws, each written against the reply that failed. `said` is
+  // in scope so a direct question can be named as one.
+  const lawsBlock = talkLaws(agent, { said, lastShapes: ensureShapes(agent) });
+  // LIFE-1 job 6: and the hands the two of you have actually played. Placed
+  // beside his own recent hands rather than inside them, because these are
+  // the only hands in the product where the owner is a PLAYER rather than a
+  // spectator, and what he is asked about them is what he made of YOUR play.
+  const ownerHandsBlock = ownerHandsContext(agent);
 
   // BUGS-B/2: he is at a felt with a hand running, so the owner leaning in is
   // a WHISPER and has to be answered as one — what is on the board, what he is
@@ -3519,14 +3766,14 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${natureBlock}${bioBlock}${ownerBlock}${moodLine}${pepLine}${proposalLine}
+  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${readsBlock}${factsBlock}${ownerHandsBlock}${moodLine}${pepLine}${proposalLine}
 CURRENT PLACE: ${scene.description}. This current place wins over old chat or memories. Do not invent places, opponents or current table conditions.${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 
-Answer what your owner actually said. Small talk can be about life at home; do not turn every message into poker coaching. Do not default to "yo" or another stock greeting. Do not call the tables soft without evidence from the current game. Let your nature, your own memories and today's mood distinguish your reply from the other agents.
+Small talk can be about life at home; do not turn every message into poker coaching. Do not default to "yo" or another stock greeting. Do not call the tables soft without evidence from the current game. Let your nature, your own memories and today's mood distinguish your reply from the other agents.
 
-Speak directly to your owner. No stage directions or narrated gestures in asterisks, brackets or parentheses. Never claim that chat moved you, deployed you, bought anything or transferred chips. Those actions require the existing game controls; explain the control when relevant, without pretending it has been used.
+Speak directly to your owner. Never claim that chat moved you, deployed you, bought anything or transferred chips. Those actions require the existing game controls; explain the control when relevant, without pretending it has been used.${lawsBlock}
 
 You already exist. Never ask what kind of poker agent to create. Mention hands or opponents only when the supplied facts support them; admit when you do not know.`;
 }
@@ -3548,10 +3795,14 @@ function ownerChatScene(agent, table = null) {
   if (casinoTableExists) return { atHome: false, description: 'at the casino, waiting for a game' };
   const sinceRest = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
   const routine = routineFor({
+    id: agent.id,
     nature: agent.nature, studying: !!agent.study,
-    fatigue: restedFatigue(agent.fatigue ?? 'fresh', sinceRest),
+    fatigue: worseStage(restedFatigue(agent.fatigue ?? 'fresh', sinceRest), staminaStageNow(agent)),
     unseenRecap: !!agent.unseenRecap,
     broke: agent.pocket?.mode !== 'auto' && Number.isFinite(agent.pocket?.balance) && isBroke(agent.pocket.balance),
+    tilted: (agent.mood?.heat ?? 0) >= SULK_HEAT,
+    fedAt: agent.lastSnackAt ?? null,
+    celebrating: isCelebrating(lastSessionResult(agent)),
   });
   return { atHome: true, description: `at home, ${routine.label}` };
 }
@@ -4125,6 +4376,21 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   // a needle or a real question writes a line — small talk is not a fact
   // about the owner, and silence writes nothing because there is no
   // message to write from.
+  // LIFE-1 job 3: and what he was TOLD goes in the instruction book, which is
+  // a different book from the one above and deliberately so. ownerMemory keeps
+  // his READ ON YOU, paraphrased; this keeps YOUR WORDS, verbatim, because the
+  // whole value of "from now on only play the low room" is its content. Most
+  // messages are neither an instruction nor a plan and write nothing.
+  //
+  // Before the reply is built, so a plan made in THIS message is already in
+  // the prompt that answers it — an agent who has to be told a thing twice
+  // before he can refer to it is the bug.
+  try {
+    recordOwnerInstruction(existingAgent, content);
+  } catch (err) {
+    console.error('[instructions] record failed:', err.message);
+  }
+
   if (said.kind === 'needle') {
     recordOwnerEvent(existingAgent, 'needle', {
       text: content,
@@ -4150,7 +4416,9 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
     saveStore(userId);
     // A template answer is still his answer: it reaches the felt the same way
-    // a generated one does.
+    // a generated one does — and LIFE-1 job 5: it counts as a shape, or the
+    // reply after it is the only one in the conversation with no rule on it.
+    noteShape(existingAgent, msg);
     const seat = deliverWhisper(table, existingAgent.id, msg);
     return {
       chat: [{ role: 'assistant', content: msg }],
@@ -4164,7 +4432,7 @@ export async function ownerChatTurn(existingAgent, userId, content) {
 
   let reply = ownerControlReply(existingAgent, content, tableCtx);
   if (!reply) {
-    const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx });
+    const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx, said: content });
     try {
       reply = await callClaude([{ role: 'user', content }], systemText, 100,
         { ownerId: userId, kind: MeterKind.CHAT });
@@ -4173,8 +4441,28 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     }
   }
   const spoken = spokenOwnerReply(reply);
+  // LIFE-1 job 5: grade what came back, against the same four laws the prompt
+  // states, and repair it from the facts when it breaks one. Deterministic and
+  // free — there is no second model call here, and the cost router is
+  // untouched: owner chat is one call per owner message exactly as before.
+  //
+  // The repair only ever uses a value that was already in the prompt, and
+  // returns null when there is nothing honest to say, in which case his own
+  // weak sentence stands. A fallback that invented a hand would be a worse
+  // failure than the flat reply it replaced.
+  let graded = spoken;
+  let talkFaults = [];
+  if (spoken) {
+    talkFaults = faultsIn({ said: content, reply: spoken, lastShapes: ensureShapes(existingAgent) });
+    if (talkFaults.length) {
+      const repaired = repairReply(existingAgent, { said: content, faults: talkFaults });
+      if (repaired) graded = repaired;
+    }
+  }
   const fallback = unavailableOwnerReply(existingAgent, content, tableCtx);
-  const msg = spoken || fallback.message;
+  const msg = graded || fallback.message;
+  // What form he just used, so the next reply cannot reuse it.
+  noteShape(existingAgent, msg);
   existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
   if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
   saveStore(userId);
@@ -4182,6 +4470,11 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   return {
     chat: [{ role: 'assistant', content: msg }],
     ...(!spoken && fallback.unavailable ? { replyUnavailable: true } : {}),
+    // LIFE-1 job 5: which of the four laws the model's own line broke, when it
+    // broke any. Diagnostic only — nothing renders it; it is what makes
+    // `npm run talk:eval` able to say WHY a line failed rather than only that
+    // it did.
+    ...(talkFaults.length ? { talkFaults } : {}),
     // BUGS-B/2: where his answer landed, so a client can tell "he said it at
     // the table" from "he said it in the thread". Null when he is not seated.
     whisper: whisperView && seat !== null ? whisperView : null,

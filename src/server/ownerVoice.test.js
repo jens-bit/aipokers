@@ -11,6 +11,7 @@ import { NATURES } from '../agent/attributes.js';
 import { deriveRoles } from '../agent/bio.js';
 import { saveProfile, loadProfile, _closeForTests } from './store.js';
 import { buildAgentChatSystem, installAgentProfileRoutes, setLiveTableProvider, reloadOwners, restAgent, ownerChatTurn, agentsOf } from './agentProfiles.js';
+import { idleCycle, ROUTINE_LABELS } from './home.js';
 
 function character(nature = 'Rock', extra = {}) {
   return {
@@ -24,6 +25,13 @@ function character(nature = 'Rock', extra = {}) {
 
 const emptyRegistry = { hasTable: () => false, getTable: () => null, homeTableOf: () => null };
 after(() => { setLiveTableProvider(null); _closeForTests(); });
+
+// LIFE-1 — the labels a nature's idle cycle can produce, as one alternation.
+// Written here rather than inlined three times so a cycle that gains a habit
+// cannot leave one of the three cases asserting on a stale list.
+function labelsFor(nature) {
+  return [...new Set(idleCycle(nature).map((key) => ROUTINE_LABELS[key]))].join('|');
+}
 
 test('FIRST-CHAT-1: chat offers existing movement controls without calling a model or moving money or seats', async t => {
   process.env.ANTHROPIC_API_KEY = 'test-must-not-call';
@@ -125,7 +133,12 @@ test('BUG-142: a home conversation has its real routine, not a stale casino flag
     activeTableId: 'closed-table', status: 'playing',
     mood: { state: 'neutral', heat: 30, cause: 'rested at the bar' },
   }));
-  assert.match(prompt, /CURRENT PLACE: at home, reading/);
+  // LIFE-1: an idle body is somewhere in his nature's cycle now rather than
+  // pinned to one habit for life, so the assertion is on the cycle. What
+  // this case is about is unchanged: the place is HIS REAL ROUTINE at home,
+  // never a stale casino flag and never the removed bar.
+  assert.match(prompt, new RegExp(`CURRENT PLACE: at home, (?:${labelsFor('Rock')})`));
+  assert.doesNotMatch(prompt, /at the bar|at a casino/);
   assert.doesNotMatch(prompt, /at the bar|already built and playing/);
   assert.match(prompt, /Do not invent places, opponents or current table conditions/);
   assert.match(prompt, /Do not default to .yo./i);
@@ -194,7 +207,8 @@ test('BUG-142: keyless owner chat saves honest replies and reaches the home-game
       return response.json();
     };
     const location = await send('where are you?');
-    assert.match(location.chat[0].content, /at home, reading/i);
+    assert.match(location.chat[0].content,
+      new RegExp(`at home, (?:${labelsFor('Rock')})`, 'i'));   // LIFE-1: his cycle, not one pose
     const unavailable = await send('what is your favourite song?');
     assert.equal(unavailable.replyUnavailable, true);
     assert.match(unavailable.chat[0].content, /cannot answer.*right now/i);
@@ -249,7 +263,8 @@ test('BUG-142: a failed model request uses the same honest saved reply as an abs
     assert.equal(response.status, 200);
     assert.equal(captured.length, 1);
     assert.match(captured[0].system[0].text, /Nature: Showman/);
-    assert.match(captured[0].system[0].text, /CURRENT PLACE: at home, pacing/);
+    assert.match(captured[0].system[0].text,
+      new RegExp(`CURRENT PLACE: at home, (?:${labelsFor('Showman')})`));   // LIFE-1
     assert.equal(body.replyUnavailable, true);
     assert.match(body.chat[0].content, /cannot answer.*right now/i);
     assert.equal(loadProfile('failed-voice').agents[0].chatHistory.at(-1).content, body.chat[0].content);

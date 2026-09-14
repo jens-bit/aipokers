@@ -22,7 +22,10 @@
 //      times.
 //   2. ITEMS TOUCH STATE, NEVER SKILL — with the beer's one honest exception,
 //      which is that a drink makes him play WORSE (§ below). Nothing in here
-//      buys an edge; the whole ladder of prices is small on purpose.
+//      buys an edge; the whole ladder of prices is small on purpose. LIFE-1
+//      added the second STATE an item can touch: the stamina reserve. Still
+//      not a skill, and still not an edge — a fed agent plays exactly as well
+//      as a hungry one, he simply stays up longer.
 //   3. AN EMPTY FRIDGE IS NOT A PUNISHMENT. "he will simply say so" is the
 //      design's own line. The want does not vanish and it does not nag: it
 //      changes what he says to "we're out of beer", and pressing yes opens the
@@ -42,12 +45,36 @@
 // for that one session so the client can draw the bottle, and it is gone the
 // next time he sits down.
 
-// The two items, their stock price, and what one of them does to his head.
+// LIFE-1 follow-up 3 · WHAT A SNACK IS FOR.
+//
+// design-refs/mood-snack.jsx draws the snack and states the scope law this
+// file already quotes: "items touch STATE, never SKILL. One snack, one
+// effect." The board's parenthetical names that one effect as a mood step,
+// because when it was drawn there was no other STATE for an item to touch.
+// There is now — the stamina reserve (src/agent/stamina.js) — and feeding a
+// hungry man is what food is actually for.
+//
+// So a snack puts SNACK_STAMINA back. It keeps its small heat effect, and that
+// is a deliberate reading of the law rather than a second effect smuggled in:
+// the law's target is an item that becomes a grab-bag of buffs, and eating is
+// ONE act whose consequences are that he is less hungry and a little calmer.
+// Neither number touches a skill. Dropping the cooling would also have broken
+// wants.js's `long_grind`, which is a HEAT-triggered ask ("Something to eat
+// wouldn't hurt. Long night.") answered with a snack.
+//
+// A quarter of the reserve: enough to be worth doing, not enough to replace
+// sleeping. A worn agent cannot be fed awake by one snack — the hysteresis in
+// stamina.js wants him back at SETTLED_AT before he gets up — which is the
+// right shape for a Tamagotchi. Three of them will do it, and that is a real
+// choice about stock rather than a free button.
+export const SNACK_STAMINA = 25;
+
+// The two items, their stock price, and what each of them does to him.
 // Prices are the brief's: a beer is twice a snack, and both are small enough
 // that stocking the fridge is never a decision anybody agonises over.
 export const ITEMS = Object.freeze({
-  beer:  Object.freeze({ id: 'beer',  label: 'a beer',  price: 200, heat: -15, session: 'drinking' }),
-  snack: Object.freeze({ id: 'snack', label: 'a snack', price: 100, heat: -8,  session: null }),
+  beer:  Object.freeze({ id: 'beer',  label: 'a beer',  price: 200, heat: -15, stamina: 0, session: 'drinking' }),
+  snack: Object.freeze({ id: 'snack', label: 'a snack', price: 100, heat: -8,  stamina: SNACK_STAMINA, session: null }),
 });
 
 export const ITEM_IDS = Object.freeze(Object.keys(ITEMS));
@@ -67,6 +94,11 @@ const OUT_LINES = Object.freeze({
   snack: "we're out of snacks",
 });
 
+// LIFE-1 follow-up 3: "is he upset" has one definition and it lives in
+// mood.js. Imported rather than restated — a second copy of that rule is a
+// second chance for the fridge and the thread to disagree about one man.
+import { isSoothable } from '../agent/mood.js';
+
 const count = (n) => (Number.isFinite(Number(n)) ? Math.max(0, Math.floor(Number(n))) : 0);
 
 export function isItem(id) {
@@ -79,6 +111,60 @@ export function priceOf(itemId) {
 
 export function heatEffectOf(itemId) {
   return ITEMS[itemId]?.heat ?? 0;
+}
+
+export function staminaEffectOf(itemId) {
+  return ITEMS[itemId]?.stamina ?? 0;
+}
+
+// ── "He's fine. Save it." — asked over ALL of an item's effects ─────────────
+//
+// THE BUG THIS REPLACES, and it is the reason the fridge appeared to do
+// nothing. giveItemTo refused any item to an agent who was not SOOTHABLE
+// (frustrated, tilted or sulking), and applyItem floors heat at the neutral
+// midpoint — which is exactly where a resting agent sits by default. So for
+// the overwhelmingly common state, neutral at heat 30, EVERY item was refused
+// with "He's fine. Save it.", nothing left the fridge and nothing changed.
+// Verified rather than assumed: a calm agent was refused both items, and a
+// spent-but-calm agent was refused a snack — the precise case the snack now
+// exists for.
+//
+// The gate was written when cooling was the only thing an item could do. It
+// asks over every effect now, per item, and says WHICH of them it could not
+// help with, so the refusal is a sentence about this item and this man rather
+// than one string for both.
+//
+// The beer is still refused to a calm agent, and that is correct rather than
+// an oversight: its only benefit is the cooling, and its other half is a
+// PENALTY he carries into his next session. Handing it to a man who is fine is
+// all cost. "He's fine. Save it." is the right answer and now it is the right
+// answer for a stated reason.
+/**
+ * What this item could actually do for him right now. Pure: facts in, an
+ * answer out — the module's fourth rule.
+ *
+ * COOLING IS JUDGED ON HIS MOOD STATE, not on a heat number over a floor, and
+ * that is deliberate rather than convenient. "He's fine" is a thing the mood
+ * system already has an opinion about (isSoothable: frustrated, tilted or
+ * sulking), the board's refusal copy is written about a state, and an owner
+ * whose agent has just been talked down from tilted to neutral should be told
+ * to save the second beer rather than sold one for the five points of heat
+ * still technically above the floor. A first cut of this used the floor and
+ * verify-personality-layer.js caught the drift.
+ *
+ * @param mood        his mood record, { state, heat }
+ * @param staminaLeft his reserve, 0-100 (100 when a caller has none to give)
+ */
+export function itemHelp(itemId, { mood = null, staminaLeft = 100 } = {}) {
+  if (!isItem(itemId)) return { any: false, cools: false, feeds: false, reason: 'unknown item' };
+  const left = Number.isFinite(Number(staminaLeft)) ? Number(staminaLeft) : 100;
+  const cools = heatEffectOf(itemId) < 0 && isSoothable(mood);
+  const feeds = staminaEffectOf(itemId) > 0 && left < 100;
+  const any = cools || feeds;
+  return {
+    any, cools, feeds,
+    reason: any ? 'ok' : (staminaEffectOf(itemId) > 0 ? 'rested and level' : 'level'),
+  };
 }
 
 /** What he says when that shelf is empty. */

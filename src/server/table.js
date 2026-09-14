@@ -16,6 +16,9 @@ import {
   setAgentMood,
   getAgentAttributes,
   noteAgentFatigue,
+  chargeAgentStamina,   // LIFE-1
+  noteOwnerHand,        // LIFE-1 job 6
+
   finishAgentSession,
   // MONEY-1 job 3: the rail. Every seat an owner's agent takes is paid for
   // through this, WATCH's door included.
@@ -42,6 +45,13 @@ import { classifyCooler } from './cooler.js';
 import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 // SERVER-5 job 1: the states he arrived in, applied where the drink's cost is.
 import { applyDips } from '../agent/dips.js';
+// LIFE-1: the reserve's own vocabulary. table.js charges it and reports the
+// worse of the two tiredness readings; stamina.js owns both.
+import { worseStage } from '../agent/stamina.js';
+// LIFE-1 job 6: the hands he has played against his own owner, and the one
+// thing he says about how the owner played them.
+import { ownerHandComment } from '../agent/ownerHands.js';
+import { bodyLevels } from '../shared/levels.js';   // LIFE-1 job 2
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
   hotTableIds,
@@ -373,6 +383,9 @@ export class Table {
     this._needledThisSession   = Array(maxSeats).fill(0);     // cap mood event once per session per seat
     this._talkHandNumber       = -1;                          // last hand any agent talked (one per hand)
     this._talkLastHandBySeat   = Array(maxSeats).fill(-1);    // last hand this seat talked
+    // LIFE-1: how many of this seat's hands the reserve has already been
+    // charged for. Without it every pass would re-charge the whole session.
+    this._staminaChargedAtHand = Array(maxSeats).fill(0);
     this._prefoldStreakBySeat  = Array(maxSeats).fill(0);     // consecutive preflop-fold hands per seat
     // MST-1: chips live on the table, not inside whichever Game instance is
     // current -- the Game is rebuilt whenever the roster changes.
@@ -589,6 +602,7 @@ export class Table {
     ['pendingNeedle',          () => null],   // TLK-1
     ['_needledThisSession',    () => 0],      // TLK-1
     ['_talkLastHandBySeat',    () => -1],     // TLK-1
+    ['_staminaChargedAtHand',  () => 0],      // LIFE-1
     ['_prefoldStreakBySeat',   () => 0],      // TLK-1
     ['seatSessionIds',   () => null],   // SERVER-3
     ['seatSeatedAt',     () => 0],      // SERVER-3
@@ -1674,6 +1688,20 @@ export class Table {
   // the stored agent record rather than plumbed through every seating path, so
   // House seats and player seats (which have no agent) simply get null and
   // every hook falls through to its pre-attribute behaviour.
+  // LIFE-1 job 2 — the felt's two body readings, as three states each.
+  //
+  // Beside _seatFatigue and drawn from the same two facts the seat already
+  // reports, so the dots and the pip can never disagree. A seat with no agent
+  // behind it (a House regular, a human) gets the resting reading, exactly as
+  // it already does for mood — not a blank, because a blank on the felt reads
+  // as "unknown" and there is nothing unknown about a House regular.
+  _seatBody(seat) {
+    return bodyLevels({
+      stage: this._seatFatigue(seat),
+      heat: this._seatMood(seat)?.heat ?? null,
+    });
+  }
+
   _seatAttrs(seat) {
     const agentId = this.agentIds[seat];
     if (!agentId) return null;
@@ -2211,6 +2239,7 @@ export class Table {
         identity:    this._seatIdentity(i),
         // WATCH-8: 'fresh' | 'settled' | 'worn', or null — see _seatFatigue.
         fatigue:     this._seatFatigue(i),
+        body:        this._seatBody(i),   // LIFE-1 job 2
         // FRIDGE-1: the bottle beside him, for this session only.
         drinking:    !!this.seatDrinking[i],
         // SERVER-5: what he walked in carrying — [{ attr, delta, why }], and
@@ -2285,6 +2314,7 @@ export class Table {
           mood: this._seatMood(i),
           identity: this._seatIdentity(i),
           fatigue: this._seatFatigue(i),
+          body: this._seatBody(i),   // LIFE-1 job 2
           drinking: !!this.seatDrinking[i],
           // Cards in his hands, drawn as backs. Never the cards themselves.
           inHand: inHand && dealtIn && !g.seats[i]?.folded,
@@ -2643,7 +2673,13 @@ export class Table {
         };
       }
     }
-    this.currentHandActionLog.push({ seat, street, actionType: action.type });
+    // LIFE-1 job 6: the amount rides along now. opponentStats.recordHand reads
+    // seat/street/actionType and ignores the rest, so this is additive there;
+    // what needs it is the line he says about a bet the owner actually made.
+    this.currentHandActionLog.push({
+      seat, street, actionType: action.type,
+      ...(Number.isFinite(action.amount) ? { amount: action.amount } : {}),
+    });
     this._threadAction(seat, action);
   }
 
@@ -2847,23 +2883,53 @@ export class Table {
   // changes; the crossing into 'worn' is the one time he mentions it, and it
   // never pushes a notification — fatigue fixes itself at the bar.
   _updateSeatFatigue() {
-    // HOME-STATE-1: fatigue is the cost side of the attribute curve — it is
-    // what a session of work takes out of him — so it is off at home for the
-    // same reason growth is. An evening in must not be able to wear him out,
-    // and it must not be able to rest him either: the stored stage is left
-    // exactly where the casino left it and recovers on its own clock.
-    if (this.home) return;
+    // LIFE-1 CHANGED THIS FUNCTION'S FIRST LINE. It used to open `if
+    // (this.home) return;` — HOME-STATE-1's rule that an evening in can
+    // neither wear him out nor rest him. The playtest finding that overruled
+    // it: "I have never seen an agent sleep once." The arithmetic behind that
+    // is plain once the two bounds are put side by side — fatigueOnset is 40
+    // to 160 hands and HOME_MAX_HANDS is 40, so the kitchen table could not
+    // reach 'settled' on its best evening, and for a household that never
+    // leaves the flat the kitchen table is the only poker there is.
+    //
+    // So home hands now count. They count HALF (stamina.js HOME_HAND_WEIGHT),
+    // and they count against the RESERVE rather than against the within-session
+    // curve, which is what keeps the casino's own numbers untouched: the six
+    // effective attributes a home hand is played with are exactly what they
+    // were, because `eff` below is unchanged. What an evening in now does is
+    // take something out of him that is still gone tomorrow morning.
     for (let seat = 0; seat < this.maxSeats; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
       const eff = this._seatAttrs(seat);
       if (!eff) continue;
       const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+      // LIFE-1: charge the reserve for whatever he has played since the last
+      // time this ran, never for the whole session again. Double-charging a
+      // seat once per hand for every hand it had ever played would empty any
+      // reserve in a dozen hands.
+      const charged = this._staminaChargedAtHand[seat] ?? 0;
+      let reserveStage = 'fresh';
+      try {
+        reserveStage = chargeAgentStamina(agentId, this.agentUserIds[seat],
+          Math.max(0, sessionHands - charged),
+          // Since he SAT DOWN, not since the last charge: recovery is credited
+          // for the rest he had before the seat and never for the hours he has
+          // spent in it. seatSeatedAt is already kept for SERVER-3.
+          { home: !!this.home, seatedSince: this.seatSeatedAt[seat] ?? null });
+        this._staminaChargedAtHand[seat] = sessionHands;
+      } catch (err) {
+        console.error('[table] stamina charge failed:', err.message);
+      }
+      // The worse of the two readings — see stamina.js worseStage. At the
+      // casino this is almost always the session's own stage, which is why
+      // nothing about a casino night reads differently than it did.
+      const stage = worseStage(eff.fatigue, reserveStage);
       try {
         noteAgentFatigue(agentId, this.agentUserIds[seat], {
-          stage: eff.fatigue,
+          stage,
           sessionHands,
-          moment: eff.fatigue === 'worn' ? wornMomentFor(sessionHands) : null,
+          moment: stage === 'worn' ? wornMomentFor(sessionHands) : null,
         });
       } catch (err) {
         console.error('[table] fatigue note failed:', err.message);
@@ -2876,7 +2942,11 @@ export class Table {
       // between hands inside _handCompleted, and the departure check a few
       // lines below either frees the seat or closes the table exactly as it
       // does for a sit-out.
-      if (eff.fatigue === 'worn' && !this.seatLeaving[seat]
+      // LIFE-1: keyed on the combined stage, and still a CASINO rule. At home
+      // nobody stands up from his own kitchen table mid-evening: homeGame's
+      // own `eligible` already drops a worn agent on the next sync, which is
+      // the same departure arriving through the door that owns the room.
+      if (stage === 'worn' && !this.home && !this.seatLeaving[seat]
           && !this._pendingSitOut.has(seat) && !this._benchAfterHand.has(seat)) {
         this.seatLeaving[seat] = true;
         this.seatEndReason[seat] = 'worn';
@@ -3206,10 +3276,106 @@ export class Table {
       }
     }
 
+    // LIFE-1 job 6: the hand the OWNER was in. Only at his own kitchen table,
+    // only when he is actually sitting at it, and deliberately after the loop
+    // above rather than inside it — it needs the whole hand settled, and it is
+    // a different book from anything the loop writes.
+    try {
+      this._recordOwnerHands(result, seatSnapshots);
+    } catch (err) {
+      console.error('[table] owner hand note failed:', err.message);
+    }
+
     // EVENT-1: the hand-end hook. It lives here rather than in _handCompleted
     // because the cooler has already been classified once, a few lines up, and
     // classifying it twice is how two definitions of a cooler get born.
     this._emitCasinoEvents(result, coolerHand);
+  }
+
+  /**
+   * LIFE-1 job 6 — file the hand the owner just played, from each of HIS
+   * agents' side, and say one thing about how he played it.
+   *
+   * WHY IT IS ITS OWN METHOD AND ITS OWN BOOK. The loop above splits on
+   * `this.home` and the split is right: a kitchen hand writes the biography
+   * but not the evidence and not the career record, because an evening in is
+   * not poker he played for anyone. The consequence nobody wanted is that the
+   * one hand an owner most wants talked about — the one he was IN — was the
+   * only hand in the product that left no trace at all.
+   *
+   * Nothing here reaches a model. The kitchen table's standing rule is
+   * templates and nothing else (handTalk.js rule 2), and a remark about the
+   * owner's own play is not the place to start making an exception.
+   */
+  _recordOwnerHands(result, seatSnapshots) {
+    if (!this.home || !this.homeOwnerId || !this.game) return;
+
+    // The owner's own seat: a body with no agent behind it at his own table.
+    // A House regular is an AI seat, so this cannot pick one up by accident.
+    const ownerSeat = this.pending.findIndex((p, i) =>
+      p !== null && !this.aiSeats[i] && !this.agentIds[i]);
+    if (ownerSeat === -1) return;
+    if (!this._seatIsInGame(ownerSeat)) return;
+
+    const ownerActions = this.currentHandActionLog
+      .filter((e) => e.seat === ownerSeat)
+      .map((e) => ({ street: e.street, type: e.actionType, amount: e.amount }));
+    if (ownerActions.length === 0) return;
+
+    const winners = Array.isArray(result?.winners) ? result.winners : [];
+    const showdown = result?.type === 'showdown';
+    const ownerWon = winners.some((w) => w.seat === ownerSeat);
+    const ownerFolded = !!this.game.seats[ownerSeat]?.folded;
+    // His cards only if the hand actually got to showdown. A line that names a
+    // card nobody turned over would be the felt telling on itself.
+    const ownerShowed = showdown && !ownerFolded
+      ? [...(this.game.seats[ownerSeat]?.holeCards ?? [])]
+      : null;
+    const board = [...(this.game.community ?? [])];
+    const ownerName = this._seatLabel(ownerSeat);
+
+    for (let seat = 0; seat < this.maxSeats; seat++) {
+      const agentId = this.agentIds[seat];
+      if (!agentId) continue;
+      if (String(this.agentUserIds[seat] ?? '') !== this.homeOwnerId) continue;
+      if (!this._seatIsInGame(seat)) continue;
+      const mine = [...(this.game.seats[seat]?.holeCards ?? [])];
+      // The engine names his hand; this file never evaluates one. Only ever
+      // HIS own, so it cannot leak anybody else's.
+      let myHand = null;
+      try {
+        if (mine.length >= 2 && board.length >= 3) {
+          myHand = plainHandName(evaluate([...mine, ...board]));
+        }
+      } catch { myHand = null; }
+
+      const entry = {
+        handNumber: this.game.handNumber,
+        ownerName, ownerActions, ownerFolded, ownerWon, ownerShowed,
+        mine, myHand, board,
+        pot: result?.pot ?? 0,
+        iWon: winners.some((w) => w.seat === seat),
+        showdown,
+      };
+
+      try {
+        noteOwnerHand(agentId, this.agentUserIds[seat], entry);
+      } catch (err) {
+        console.error('[table] owner hand write failed:', err.message);
+      }
+
+      // And the line, if there is one worth saying. Most hands there is not:
+      // a fold preflop is not an event, and a remark after every single hand
+      // is the table-talk pathology TLK-1 already capped once.
+      const line = ownerHandComment(entry);
+      if (line) {
+        try {
+          this.sendChat(seat, line, true, { from: agentId, to: THREAD_OWNER });
+        } catch (err) {
+          console.error('[table] owner hand line failed:', err.message);
+        }
+      }
+    }
   }
 
   // ── EVENT-1 · the floor ticker ─────────────────────────────────
@@ -3922,6 +4088,9 @@ export class Table {
       identity: this._seatIdentity(i),
       // WATCH-8: and how worn he is, for the second of the two body bars.
       fatigue: this._seatFatigue(i),
+      // LIFE-1 job 2: the same pair as three states. On STATE as well as on
+      // liveGameView for exactly the reason the mood note above gives.
+      body: this._seatBody(i),
       // FRIDGE-1: he had a beer before this one. Public, like the posture is —
       // a bottle on the felt is the sort of thing everybody at a table can see.
       drinking: !!this.seatDrinking[i],
