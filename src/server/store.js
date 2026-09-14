@@ -954,6 +954,26 @@ export function listOwners() {
   `).all().map((r) => r.owner_id);
 }
 
+// ── MONEY-1 · the house's own chips ──────────────────────────────────────────
+//
+// One integer, in `meta` rather than in a table of its own, because that is
+// genuinely what it is: a single server-wide counter with no rows, no history
+// and no owner. houseBank.js is the rule; this is only where the number sleeps.
+//
+// `null` means "this database has never had one", which is a different answer
+// from zero — a zero bank would refuse to pay a winner. houseBank.js seeds it
+// on first use and that is the only place the float is decided.
+export function loadHouseBank() {
+  const raw = metaGet(conn(), 'house_bank');
+  if (raw === null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.floor(n) : null;
+}
+
+export function saveHouseBank(balance) {
+  metaSet(conn(), 'house_bank', Math.floor(Number(balance) || 0));
+}
+
 // SEED-1: one-time seed of every owner's wallet from the per-agent bankrolls
 // that existed before this feature. The rule and its justification are in
 // docs/WALLET_DESIGN.md; seedOwner() in wallet.js is the rule itself, kept

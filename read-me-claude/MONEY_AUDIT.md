@@ -552,3 +552,106 @@ Nothing in this job touched `46.62.169.246` or `data/app.db` in any checkout.
 The measurement ran in a scratch cwd under the session scratchpad and its
 database was discarded. `audit-chips.js` cannot write to a database even if
 pointed at one, but it prints balances, so it should be run on a copy.
+
+---
+
+## 12. Job 3 — the fix
+
+### The model
+
+One new module, `src/server/houseBank.js`: **the casino's own chips**, a single
+persisted integer in `meta` (not a wallet row — the house is not an owner and
+would otherwise turn up in `listOwners()` and every loop that walks owners).
+
+    A buy-in moves chips POCKET -> BANK.     The cage takes his money.
+    A cash-out moves chips BANK  -> POCKET.  The cage pays him out.
+    Everything on a felt is a CLAIM against the bank, not chips of its own.
+    Therefore:  Σ safes + Σ pockets + bank  is constant, always.
+
+Table stacks are deliberately outside that sum, and this is the one thing worth
+reading twice. It is not a redefinition chosen to make the books balance — §6.1
+found that a stack *already was* a display number rather than a holding. What
+changed is that the number is now backed: while a man is seated, his chips are
+inside the bank, and the stack is the claim. Adding `live` on top would count
+them twice.
+
+The consequence that matters: **the House needed no funding logic at all.** Its
+stack is notional like every other, so `_seatHouseRegulars` is untouched — a
+fresh regular still sits down with 100bb and the felt still refills. The
+difference is at the rail: an agent who takes 6,000 off three busted Houses is
+paid 6,000 **out of the bank**, and the bank is 6,000 lighter. The house lost
+tonight, which is a thing that can happen and is now a number somebody can read.
+
+`HOUSE_FLOAT` is 50,000,000 and is not a gate: `pay` is always honoured, and a
+bank that went negative would log loudly rather than refuse to pay a winner. A
+bank that could have a bad night and stop paying would be a worse bug than the
+one it replaces.
+
+### What changed, file by file
+
+| Where | What |
+|---|---|
+| `src/server/houseBank.js` | new. `balance/take/pay/reset`, cached and written through. |
+| `store.js:958` | `loadHouseBank` / `saveHouseBank` over the existing `meta` table. |
+| `agentProfiles.js` `chargeSeatBuyIn` | **the rail in**. Debits the pocket, moves the chips to the bank, writes both ledgers, persists in one `saveProfile` transaction — and **refuses**, naming both numbers, where the old code discarded `debitBuyIn`'s result (§6.3). Exported, because there is more than one door into a seat. |
+| `agentProfiles.js` `refundSeatBuyIn` | a stay that never happened, given back. Distinct from a cash-out: it must not read as a night. |
+| `agentProfiles.js` `deployAgent` | the charge moved from step 10 of 12 to **before the seat**, and the charged figure is passed to `joinAgentSession` / `startAgentSession` as `buyIn` — so a stack at a table *is* the buy-in that paid for it, rather than a second independent computation of the same rule. A seat that fails after payment refunds. |
+| `agentProfiles.js` `finishAgentSession` | **the rail out**. Pays from the bank, and only for an **open stay** — the pocket's own ledger holds a `buyin` for this table with no `cashout` after it. That check is what makes settlement idempotent. |
+| `agentProfiles.js` `reconcileActiveSessions` | a restart now **voids** each stale stay: the buy-in comes back out of the bank. Not the stack — nobody knows what that was, and inventing it is the same mistake as minting a House seat. It is what a cardroom does with a game it cannot finish. |
+| `agentProfiles.js` `POST /finish` | **stops orphaning the seat.** See below. |
+| `table.js` `addSpectator` | the WATCH door pays like a door (§6.2, row 3). Already-admitted (his own deploy paid) and agentless fixture seats are distinguished from a genuine refusal. |
+| `scripts/audit-chips.js` | `chipsInExistence` is now safes + pockets + bank, and the CLI reads the bank out of `meta`. |
+
+### The double-payment nobody had found
+
+`POST /api/agents/:id/finish` cleared `activeTableId` and set the agent idle
+**while leaving him seated at a running table**. Two bugs in one line:
+
+- **the money** — his buy-in stayed outstanding with nothing owning it, and when
+  the table eventually closed the ceremony ran a second time and paid a second
+  cash-out against one buy-in;
+- **the seat** — the record said "not playing" while the felt said otherwise, so
+  the very next deploy sat him at a *second* table. This is a direct cause of
+  job 5's complaint, and it is a stale seat record rather than a missing lock.
+
+It now asks the table to sit him out after the hand (`sitOutSeat`, the public
+door, which keeps the promise the copy makes) and lets the real ceremony settle
+him. `activeTableId` stays set until the table actually releases him.
+
+### What the tests assert
+
+`src/server/chipConservation.test.js`, twelve tests. Every one of them reads
+`Σ safes + Σ pockets + bank` **out of SQLite** before an event and after it and
+asserts equality — so what is checked is what is persisted, not what happens to
+be in memory. The six the queue named, each with its own test:
+
+| event | and what it proves |
+|---|---|
+| buy-in | the pocket falls by exactly what the bank gains, and the seat holds exactly that |
+| bust | the house keeps what he lost; nothing is paid out |
+| win | the house pays what he won; the bank is exactly that much lighter |
+| leave mid-hand | he finishes the hand, then settles — conserving at both moments |
+| table close | conserves whatever is in front of whom |
+| server restart | the stay is **voided**: his buy-in comes back, not the 5,000 nobody can prove |
+
+Plus: a refused buy-in moves nothing and seats nobody; `chargeSeatBuyIn` names
+both numbers in its refusal; three busted Houses no longer mint; and a second
+settlement for one buy-in pays nothing.
+
+### Two notes for the deploy
+
+1. **The first boot after this ships seeds the bank at 50,000,000 and logs it.**
+   Agents who are mid-session at that moment have stacks the bank never took
+   money for, so their cash-outs come out of the float. That is a one-time dip
+   in the bank and is *correct* — those chips were already in their stacks. It
+   creates nothing for any owner.
+2. **The same boot refunds every stale stay.** Every agent whose record says
+   `playing` at a table that no longer exists gets his buy-in back. Expect a
+   run of `[wallet] voided …` lines once, and never again for the same stays.
+
+### What this does NOT do
+
+It does not recover the chips the old leak minted. Jens's inflated prod
+balances stay inflated, exactly as BUG-136's did, and for the same reason: the
+alternative is taking chips off people for a bug that was not theirs. What it
+does is stop the number growing.

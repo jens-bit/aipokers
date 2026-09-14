@@ -169,13 +169,31 @@ function openBuyInFor(ledger, tableId) {
 /**
  * Reconcile a whole database's worth of owners.
  *
- * @param owners  [{ ownerId, wallet, agents }]
- * @param stacks  Map<agentId, chips>, or null
- * @param houseStacks  chips sitting in front of UNOWNED seats (the House). Only
- *                     an in-process caller can know this, and it is the number
- *                     that decides whether the felt is a closed system.
+ * ── What "every chip that exists" means, after MONEY-1 job 3 ─────────────────
+ *
+ * Three places and no others:
+ *
+ *     chipsInExistence = SUM(safes) + SUM(pockets) + houseBank
+ *
+ * Table stacks are deliberately NOT in that sum. Under the bank model a stack
+ * is a CLAIM against the house — a buy-in moves pocket -> bank and a cash-out
+ * moves bank -> pocket, so the chips a seat is playing with are already counted
+ * inside `houseBank` for as long as he is sitting there. Adding `live` on top
+ * would count every seated agent's chips twice.
+ *
+ * That is not a redefinition to make the books balance; it is what the audit
+ * found the stacks already were (MONEY_AUDIT.md §6.1, "a display number, not a
+ * balance"). The difference is that the display number is now backed by
+ * something. `live` is still reported, because what is in front of a man is
+ * worth being able to read — it is a view, not a holding.
+ *
+ * @param owners     [{ ownerId, wallet, agents }]
+ * @param stacks     Map<agentId, chips> for the `live` column, or null
+ * @param houseBank  the bank's balance. Without it there is no total to
+ *                   conserve and `chipsInExistence` is null rather than a
+ *                   number that happens to add up.
  */
-export function auditChips(owners, { stacks = null, houseStacks = null } = {}) {
+export function auditChips(owners, { stacks = null, houseBank = null } = {}) {
   const rows = owners.map((o) => auditOwner(o.ownerId, o.wallet, o.agents, stacks));
   const sum = (k) => rows.reduce((n, r) => n + (r[k] ?? 0), 0);
   return {
@@ -184,13 +202,8 @@ export function auditChips(owners, { stacks = null, houseStacks = null } = {}) {
       safe: sum('safe'),
       pockets: sum('pockets'),
       live: stacks ? sum('live') : null,
-      house: houseStacks,
-      // The only number that answers "were chips created". Everything owned by
-      // somebody, plus everything sitting in front of a House seat, is every
-      // chip that exists.
-      chipsInExistence: stacks
-        ? sum('safe') + sum('pockets') + sum('live') + int(houseStacks)
-        : null,
+      houseBank,
+      chipsInExistence: houseBank === null ? null : sum('safe') + sum('pockets') + int(houseBank),
       ledger: sum('ledger'),
       diff: sum('diff'),
       owners: rows.length,
@@ -204,6 +217,22 @@ export function auditChips(owners, { stacks = null, houseStacks = null } = {}) {
 // better-sqlite3 is a CommonJS native addon. Required lazily, so the pure
 // arithmetic above stays importable by a test that never opens a database.
 const require = createRequire(import.meta.url);
+
+/** The house bank as stored, or null on a database that has never had one. */
+export function readHouseBank(file) {
+  const Database = require('better-sqlite3');
+  const d = new Database(file, { readonly: true, fileMustExist: true });
+  try {
+    const raw = d.prepare("SELECT value FROM meta WHERE key = 'house_bank'").get()?.value ?? null;
+    if (raw === null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.floor(n) : null;
+  } catch {
+    return null;   // a database old enough to predate the bank
+  } finally {
+    d.close();
+  }
+}
 
 /** Every owner in `file`, as auditChips() wants them. Opens READONLY. */
 export function readOwners(file) {
@@ -275,6 +304,16 @@ function report(result, { file }) {
     pad(money(t.ledger), 13), pad(money(t.diff), 11),
   ].join(''));
   lines.push('');
+  if (t.houseBank === null) {
+    lines.push('house bank: this database has none. Nothing can be conserved against, because');
+    lines.push('  there is no counterparty on record for what is on the felts.');
+  } else {
+    lines.push(`house bank          : ${money(t.houseBank)}`);
+    lines.push(`CHIPS IN EXISTENCE  : ${money(t.chipsInExistence)}   (safes + pockets + bank)`);
+    lines.push('  A table stack is a claim against the bank, not a fourth pile, so `live`');
+    lines.push('  above is a view and is deliberately not added in.');
+  }
+  lines.push('');
 
   if (t.live === null) {
     const seated = result.owners.reduce((n, o) => n + o.seatedClaimed, 0);
@@ -345,7 +384,9 @@ if (isMain) {
     process.exit(1);
   }
 
-  const result = auditChips(owners);
+  let bank = null;
+  try { bank = readHouseBank(file); } catch { /* reported as "none" below */ }
+  const result = auditChips(owners, { houseBank: bank });
   if (asJson) console.log(JSON.stringify({ file, ...result }, null, 2));
   else console.log(report(result, { file }));
 

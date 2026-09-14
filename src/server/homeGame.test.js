@@ -440,8 +440,19 @@ test('HOME-STATE-1: the same ending on a casino table DOES all of it', () => {
 
   const table = registry.getOrCreateTable('tbl-casino', { smallBlind: 10, bigBlind: 20, maxSeats: 2 });
   assert.equal(table.home, false);
+  // MONEY-1: a casino seat is PAID FOR — that is the other half of what
+  // separates it from the kitchen table, and a cash-out is now refused for a
+  // stay with no buy-in behind it. This is the one line a real deploy does that
+  // seatAI on its own does not.
+  assert.equal(profiles.chargeSeatBuyIn('cs', 'casino', { amount: 2_000, tableId: 'tbl-casino' }).ok, true);
   table.seatAI({ agentId: 'cs', userId: 'casino', displayName: 'Big Slick', strategy: 'x', buyIn: 2_000 });
   table.seatAI({ displayName: 'House', strategy: 'y', buyIn: 2_000 });
+  // He is up 500 when the room closes. It has to be a number other than the
+  // buy-in or the round trip is exact and the assertion below proves nothing:
+  // MONEY-1 made a session that neither won nor lost leave the pocket exactly
+  // where it found it, which is the point of the whole tree.
+  table.seatStacks[0] = 2_500;
+  table.seatStacks[1] = 1_500;
   table.closeTable('session ended', { recap: 'called it a night' });
 
   const after = profiles.presentedRoster('casino', { owner: true })[0];
@@ -450,4 +461,5 @@ test('HOME-STATE-1: the same ending on a casino table DOES all of it', () => {
   // This is the contrast that makes the test above mean something: the two
   // paths are the same code, and only `home` separates them.
   assert.notEqual(after.pocket.balance, before.pocket.balance);
+  assert.equal(after.pocket.balance, before.pocket.balance + 500, 'and by exactly what he won');
 });

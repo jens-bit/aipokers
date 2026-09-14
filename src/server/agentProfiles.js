@@ -107,6 +107,10 @@ import {
   collectMoment, callInMoment, brokeMoment, appendEntry,
   ensureEarned, recordEarned, STAKES,
 } from './wallet.js';
+// MONEY-1 job 3: the counterparty for every chip that goes onto a felt. A
+// buy-in moves pocket -> bank, a cash-out moves bank -> pocket, and the two
+// together are what make `Σ safes + Σ pockets + bank` a constant.
+import * as houseBank from './houseBank.js';
 import { slotsProjection, slotBlocker, SLOT_CAP } from './slots.js';
 import {
   DRAFT_MAX_WORDS,
@@ -422,6 +426,25 @@ export function reconcileActiveSessions() {
       const stale = (agent.activeTableId || agent.status === 'playing') &&
         !(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId));
       if (!stale) continue;
+      // MONEY-1 job 3 — HIS BUY-IN COMES HOME.
+      //
+      // A table stack is not persisted anywhere (MONEY_AUDIT.md §4), so a
+      // process that dies mid-session takes every chip on every felt with it.
+      // Before this, that was pure destruction: the pocket had been debited,
+      // the cash-out never ran, and the next deploy charged him a second time.
+      //
+      // The stay is VOIDED rather than settled — he gets his buy-in back, not
+      // whatever he happened to be sitting behind, because nobody knows what
+      // that was and inventing it is the same class of mistake as minting a
+      // House stack. It is what a cardroom does with a game it cannot finish,
+      // and it is exactly conserving: the bank gives back what the bank took.
+      if (agent.activeTableId) {
+        const back = refundSeatBuyIn(agent.id, userId, { tableId: agent.activeTableId });
+        if (back.ok) {
+          console.log(`[wallet] voided ${agent.name || agent.id}'s stay at ${agent.activeTableId} — ` +
+            `${back.moved.toLocaleString('en-US')} back in his pocket`);
+        }
+      }
       if (agent.activeTableId) activeTables.delete(agent.activeTableId);
       agent.status = 'idle';
       agent.activeTableId = null;
@@ -800,6 +823,136 @@ function mirrorBankroll(agent) {
   ensurePocket(agent);
   agent.bankroll = agent.pocket.balance;
   return agent.pocket;
+}
+
+// ── MONEY-1 job 3 · the rail ────────────────────────────────────────────────
+//
+// Two functions, and between them every chip that goes onto a felt and comes
+// back off one. Nothing else in the product is allowed to put chips in front of
+// an owner's agent, and nothing else is allowed to take them back.
+//
+// THE OPEN STAY IS THE LOCK. A pocket's own ledger already records a `buyin`
+// with a tableId when he sits and a `cashout` with the same tableId when he
+// leaves, so "is he currently bought in here" is a question the record can
+// answer without a second bookkeeping structure to keep in sync. That is what
+// makes the pair idempotent: a second cash-out for a stay that is already
+// settled finds nothing open and pays nothing, which is the guard the
+// /finish-then-close path needed (it used to credit twice).
+
+/**
+ * The buy-in this pocket has outstanding at `tableId`, or 0 when the stay is
+ * settled or never happened. Walks backwards so a pocket that has visited the
+ * same table twice reports the CURRENT stay.
+ */
+function openStayFor(pocket, tableId) {
+  const ledger = pocket?.ledger;
+  if (!Array.isArray(ledger) || !tableId) return 0;
+  for (let i = ledger.length - 1; i >= 0; i--) {
+    const e = ledger[i];
+    if (e?.tableId !== tableId) continue;
+    if (e.type === 'cashout') return 0;
+    if (e.type === 'buyin') return Math.max(0, -Math.floor(Number(e.amount) || 0));
+  }
+  return 0;
+}
+
+/**
+ * Take a buy-in. POCKET -> BANK, in one step, persisted in one transaction.
+ *
+ * Refuses rather than granting: a pocket that does not cover the buy-in gets
+ * `{ ok: false, reason }` naming the two numbers, and the caller must not seat
+ * him. Before MONEY-1 the deploy path called debitBuyIn and threw the result
+ * away, so an under-funded seat would have been filled with chips nobody paid
+ * for (MONEY_AUDIT.md §6.3).
+ *
+ * Exported because there is more than one door into a seat and every one of
+ * them has to come through here — see table.js's WATCH path.
+ */
+export function chargeSeatBuyIn(agentId, userId, { amount, tableId } = {}) {
+  const owner = String(userId ?? 'anon');
+  const profile = getOrCreate(owner);
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) {
+    // A seat with no agent record behind it. There is no pocket to debit and —
+    // crucially — no record for finishAgentSession to credit either, so it can
+    // never pay out and is not a leak. Seat-lifecycle fixtures drive the table
+    // this way; the product does not.
+    return { ok: false, moved: 0, reason: 'no such agent', unknown: true };
+  }
+
+  const pocket = ensurePocket(agent);
+  pocket.agentId = agent.id;
+  const want = Math.max(0, Math.floor(Number(amount) || 0));
+  if (want === 0) return { ok: false, moved: 0, reason: 'a buy-in of nothing is not a buy-in' };
+
+  // ALREADY ADMITTED. Two ways of knowing, and either is enough:
+  //
+  //   an open stay      his pocket ledger holds a buyin for this table with no
+  //                     cashout after it — he is bought in right now;
+  //   the record        `activeTableId` names this table, which is what a
+  //                     deploy writes and what WATCH is required to match
+  //                     (wsServer.js: "Deploy your agent before watching a new
+  //                     table"). A watcher attaching to the seat his own deploy
+  //                     paid for must not be charged a second time for it.
+  //
+  // Reported as a refusal rather than a no-op debit so the caller can tell the
+  // difference between "he is in" and "he just paid".
+  const open = openStayFor(pocket, tableId);
+  if (open > 0 || (tableId && agent.activeTableId === tableId)) {
+    return {
+      ok: false, moved: 0, already: true,
+      buyIn: open > 0 ? open : want,
+      reason: 'already bought in at this table',
+    };
+  }
+
+  const debit = debitBuyIn(pocket, want, tableId ?? null);
+  if (!debit.ok) {
+    return {
+      ok: false, moved: 0,
+      reason: `${agent.name || 'He'} has ${pocket.balance.toLocaleString('en-US')} in his pocket ` +
+        `and the buy-in here is ${want.toLocaleString('en-US')}.`,
+      required: want, available: pocket.balance,
+    };
+  }
+
+  houseBank.take(debit.moved, `buyin ${agent.id} @ ${tableId ?? '?'}`);
+  mirrorBankroll(agent);
+  appendLedger(agent, { ts: Date.now(), type: 'buyin', amount: debit.moved, tableId: tableId ?? null });
+  // saveProfile writes the agent record and the wallet in ONE transaction, so
+  // the debit and the record of it cannot be half-committed. The bank is its
+  // own row in `meta` and is written by houseBank.take above; a crash between
+  // the two would leave the bank holding chips the pocket still shows, which
+  // reads as the house being up and never as chips appearing from nowhere.
+  saveStore(owner);
+  return { ok: true, moved: debit.moved };
+}
+
+/**
+ * Give a buy-in back. BANK -> POCKET, for a seat that was charged and then
+ * never actually played — a failed session start, or a stay the server forgot
+ * about because it was restarted underneath it.
+ *
+ * Distinct from a cash-out on purpose: a cash-out is what he walked away with
+ * and is a result; this is the seat never having happened, and it must not
+ * register as a winning or losing night anywhere.
+ */
+export function refundSeatBuyIn(agentId, userId, { tableId } = {}) {
+  const owner = String(userId ?? 'anon');
+  const profile = getOrCreate(owner);
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return { ok: false, moved: 0, reason: 'no such agent' };
+
+  const pocket = ensurePocket(agent);
+  const open = openStayFor(pocket, tableId);
+  if (open <= 0) return { ok: false, moved: 0, reason: 'no open buy-in at that table' };
+
+  houseBank.pay(open, `refund ${agent.id} @ ${tableId ?? '?'}`);
+  creditCashOut(pocket, open, tableId ?? null);
+  mirrorBankroll(agent);
+  appendLedger(agent, { ts: Date.now(), type: 'cashout', amount: open, tableId: tableId ?? null });
+  saveStore(owner);
+  return { ok: true, moved: open };
 }
 
 // WALLET-1: the two owner-economy beats, written through the same
@@ -1495,13 +1648,38 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
 
   // Bankroll: credit the chips the agent walked away with. buyIn was already
   // debited on deploy, so adding sessionPnl restores net movement correctly.
-  if (typeof sessionPnl === 'number') {
+  //
+  // MONEY-1 job 3 — TWO THINGS CHANGED HERE, and they are the whole fix.
+  //
+  //   1. The chips are PAID OUT OF THE BANK. They used to be conjured: the
+  //      pocket went up by whatever was in front of him and nothing went down
+  //      anywhere, so an agent who had busted three House seats (each of which
+  //      arrived with a freshly minted 100bb, MONEY_AUDIT.md §6.1) was credited
+  //      chips that had never been debited from anybody. Now the cage pays him,
+  //      and the cage is lighter by exactly what it paid.
+  //   2. It only happens for an OPEN STAY. The credit was unconditional, so
+  //      every path that ended a session ran it — and there are three, one of
+  //      which (POST /finish) left the agent seated. Table close then ran the
+  //      ceremony a second time on the same seat and paid a second time. The
+  //      open-stay check makes the pair idempotent: settle once, and a repeat
+  //      finds nothing owed.
+  const openStay = openStayFor(ensurePocket(agent), tableId);
+  if (typeof sessionPnl === 'number' && openStay <= 0) {
+    // Not an error, and not silent. Either this stay has already been settled
+    // (the second ceremony for one seat, which is the bug the check exists for)
+    // or the seat was never charged — a door into a seat that does not come
+    // through chargeSeatBuyIn, which would be a leak if it paid out.
+    console.warn(`[wallet] no open buy-in for ${agent.name || agentId} at ${tableId ?? 'no table'} — ` +
+      'settling nothing. Either it is already settled or the seat was never charged.');
+  }
+  if (typeof sessionPnl === 'number' && openStay > 0) {
     ensureBankroll(agent);
     const creditAmount = typeof finalStack === 'number' ? finalStack
       : typeof buyInAmount === 'number' ? buyInAmount + sessionPnl : sessionPnl;
     // WALLET-1: the chips he walked away with come back to the POCKET — the
     // buy-in left it on deploy, so this restores net movement exactly. Money
     // stays in the pocket until the owner collects (§7.1).
+    houseBank.pay(creditAmount, `cashout ${agent.id} @ ${tableId ?? '?'}`);
     creditCashOut(ensurePocket(agent), creditAmount, tableId ?? null);
     mirrorBankroll(agent);
     appendLedger(agent, {
@@ -1510,26 +1688,34 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
       amount: creditAmount,
       tableId: tableId ?? null,
     });
-    // SLOTS-1: a winning session is what buys the next agent slot. The counter
-    // is the OWNER's, not the agent's — his stable earns it between them — and
-    // only the positive half counts, so a losing night costs him nothing he had
-    // already unlocked (slots.js, rule 2).
-    //
-    // This is the casino's session-end path and the only writer, which is what
-    // keeps the home game out of it: nothing at the kitchen table calls in
-    // here, so nothing at the kitchen table unlocks anything.
-    if (sessionPnl > 0) {
-      const wallet = walletFor(userId ?? 'anon');
-      recordEarned(wallet, sessionPnl);
-      saveWalletFor(userId ?? 'anon');
-      // ADMIN-1 job 2: wallets.earned is a LIFETIME total and can only answer
-      // "ever". "Chips won in the last 24 hours" is the one money number that
-      // says whether the floor is alive tonight, and it has to be filed as it
-      // happens because a lifetime counter cannot be differenced after the
-      // fact. Same figure, same moment, same rule — a losing session is not a
-      // debit, it is simply not a credit.
-      bumpTick('chips.won', { value: sessionPnl });
-    }
+  }
+
+  // SLOTS-1: a winning session is what buys the next agent slot. The counter
+  // is the OWNER's, not the agent's — his stable earns it between them — and
+  // only the positive half counts, so a losing night costs him nothing he had
+  // already unlocked (slots.js, rule 2).
+  //
+  // This is the casino's session-end path and the only writer, which is what
+  // keeps the home game out of it: nothing at the kitchen table calls in
+  // here, so nothing at the kitchen table unlocks anything.
+  //
+  // MONEY-1: deliberately OUTSIDE the open-stay gate above. What a man won is
+  // a fact about the session; whether the cage still owes him chips for it is
+  // a fact about the rail. Tying the earnings counter to the second would mean
+  // a stay that had already been settled reported a night that never happened —
+  // and it would make a record of play depend on an accounting detail it has
+  // nothing to do with.
+  if (typeof sessionPnl === 'number' && sessionPnl > 0) {
+    const wallet = walletFor(userId ?? 'anon');
+    recordEarned(wallet, sessionPnl);
+    saveWalletFor(userId ?? 'anon');
+    // ADMIN-1 job 2: wallets.earned is a LIFETIME total and can only answer
+    // "ever". "Chips won in the last 24 hours" is the one money number that
+    // says whether the floor is alive tonight, and it has to be filed as it
+    // happens because a lifetime counter cannot be differenced after the
+    // fact. Same figure, same moment, same rule — a losing session is not a
+    // debit, it is simply not a credit.
+    bumpTick('chips.won', { value: sessionPnl });
   }
 
   // ── ATTR-3: growth ─────────────────────────────────────────────────────────
@@ -4151,6 +4337,14 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   const admissionBefore = {
     wallet: structuredClone(wallet), pocket: structuredClone(pocket),
     drinkPending: agent.drinkPending,
+    // MONEY-1: the bank is the other end of every buy-in, so a rollback that
+    // does not restore it is not a rollback. Nor is one that leaves the legacy
+    // agent ledger carrying a buyin line for a seat nobody ever took — the
+    // charge now happens BEFORE the seat, so everything it writes is in scope
+    // for the undo.
+    bank: houseBank.balance(),
+    ledger: structuredClone(agent.ledger ?? []),
+    bankroll: agent.bankroll,
   };
 
   if (liveTables) {
@@ -4217,6 +4411,37 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
       : stakes.buyIn;
   }
 
+  // MONEY-1 job 3 — THE BUY-IN IS TAKEN BEFORE THE SEAT IS, AND IT IS THE SEAT.
+  //
+  // Both halves matter. Before this the debit was the tenth of twelve steps,
+  // after the seat already existed and after `activeTableId` had been written,
+  // with a rollback that only covered a throwing startAgentSession
+  // (MONEY_AUDIT.md §2-3). And the number the seat got — `bigBlind * 100`, read
+  // off the table — was computed independently of the number the pocket lost,
+  // so the two agreed by arithmetic coincidence and nothing asserted it.
+  //
+  // Now: charge, and if that fails nobody sits down; then hand the seat the
+  // exact figure that left the pocket, so a stack at a table IS the buy-in that
+  // paid for it. `charged` is what the rollback below has to give back.
+  let charged = null;
+  const takeBuyIn = (forTableId) => {
+    if (deployBuyIn <= 0) return { ok: true, moved: 0 };
+    const r = chargeSeatBuyIn(agent.id, userId, { amount: deployBuyIn, tableId: forTableId });
+    if (r.ok) charged = { amount: r.moved, tableId: forTableId };
+    return r;
+  };
+
+  if (candidate?.table) {
+    const paid = takeBuyIn(candidate.table.tableId);
+    if (!paid.ok) {
+      // He cannot afford the felt the matchmaker found. Not a downgrade and not
+      // a free seat: the gates above already established he can afford SOME
+      // room, so the honest answer is to open one at his own rung.
+      console.log(`[wallet] ${agent.name} could not pay into ${candidate.table.tableId}: ${paid.reason}`);
+      candidate = null;
+    }
+  }
+
   if (candidate?.table) {
     try {
       seat = candidate.table.joinAgentSession({
@@ -4226,6 +4451,7 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
         strategy: agent.strategy || '',
         memoryContext: getAgentMemoryContext(agent),
         agentProfile: agent.profile ?? null,
+        buyIn: charged?.amount,
       });
       if (Number.isInteger(seat) && seat >= 0) {
         tableId = candidate.table.tableId;
@@ -4235,6 +4461,12 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
       }
     } catch (err) {
       console.error('[agents] join failed, falling back to a fresh table:', err.message);
+    }
+    if (!joinedExisting && charged) {
+      // The seat did not happen. His money comes straight back, and the fresh
+      // table below charges him again — once.
+      refundSeatBuyIn(agent.id, userId, { tableId: charged.tableId });
+      charged = null;
     }
   }
 
@@ -4262,6 +4494,10 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
         freshTable = liveTables.getOrCreateTable(tableId, stakes
           ? { smallBlind: stakes.smallBlind, bigBlind: stakes.bigBlind }
           : {});
+        // MONEY-1: charged before the seat exists, so a refusal here means no
+        // seat rather than a seat nobody paid for.
+        const paid = takeBuyIn(tableId);
+        if (!paid.ok) throw new Error(paid.reason);
         seat = freshTable.startAgentSession({
           agentId: agent.id,
           userId,
@@ -4269,6 +4505,7 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
           strategy: agent.strategy || '',
           memoryContext: getAgentMemoryContext(agent),
           agentProfile: agent.profile ?? null,
+          buyIn: charged?.amount,
         });
         sessionStarted = Number.isInteger(seat) && seat >= 0;
         if (!sessionStarted) throw new Error('No session seat was created');
@@ -4282,6 +4519,17 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
           for (const key of Object.keys(target)) delete target[key];
           Object.assign(target, previous);
         }
+        // MONEY-1: and the other side of the transfer. Restoring only the
+        // pocket would leave the bank holding a buy-in for a seat that never
+        // existed — the same chips counted twice, which is a leak wearing a
+        // rollback's clothes. Snapshot-and-restore rather than refundSeatBuyIn
+        // because the pocket ledger is being wound back wholesale here: the
+        // stay is not being settled, it is being un-happened, and the record
+        // must not carry a buyin/cashout pair for a table nobody sat at.
+        houseBank.reset(admissionBefore.bank);
+        agent.ledger = admissionBefore.ledger;
+        agent.bankroll = admissionBefore.bankroll;
+        charged = null;
         if (admissionBefore.drinkPending === undefined) delete agent.drinkPending;
         else agent.drinkPending = admissionBefore.drinkPending;
         saveStore(userId);
@@ -4309,14 +4557,18 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   // window where nothing else can, between "he has been sent" and "the felt
   // exists", which is where a queued agent lives permanently.
   agent.headingTo = roomIdForStakes(stakes);
-  // WALLET-1: the buy-in leaves the POCKET; credited back (as finalStack)
-  // when the session ends. The old agent ledger keeps its entry too while
-  // agent.bankroll is still mirrored.
-  if (deployBuyIn > 0 && sessionStarted) {
-    debitBuyIn(pocket, deployBuyIn, tableId);
-    mirrorBankroll(agent);
-    appendLedger(agent, { ts: Date.now(), type: 'buyin', amount: deployBuyIn, tableId });
-    saveWalletFor(userId);
+  // MONEY-1: the buy-in was taken ABOVE, before the seat, by chargeSeatBuyIn —
+  // which also wrote the pocket ledger line, the legacy agent-ledger line and
+  // the bank's side of the transfer, and persisted all of it in one
+  // saveProfile transaction. What used to be here was the debit itself,
+  // running last and with its refusal discarded (MONEY_AUDIT.md §2, §6.3).
+  //
+  // What is left is the one case the charge cannot cover: a seat that was paid
+  // for and then did not start. `sessionStarted` false with a charge standing
+  // means the table took his money and gave him nothing, so it comes back.
+  if (charged && !sessionStarted) {
+    refundSeatBuyIn(agent.id, userId, { tableId: charged.tableId });
+    charged = null;
   }
   saveStore(userId);
   console.log(`[agents] deployed ${agent.name} to table ${tableId}${joinedExisting ? ` (joined seat ${seat})` : ''}${sessionStarted ? ' (autonomous session running)' : ' (awaiting client)'}`);
@@ -5336,6 +5588,42 @@ export function installAgentProfileRoutes(app) {
     if (visitRefusal) return res.status(visitRefusal.status).json(visitRefusal.body);
 
     const finishedTableId = agent.activeTableId ?? null;
+
+    // MONEY-1 jobs 3 and 5 — TAKE HIM OUT OF THE CHAIR FIRST.
+    //
+    // This route used to clear `activeTableId` and set him idle while leaving
+    // him SEATED at a running table, which is two bugs in one line:
+    //
+    //   the money  his buy-in stayed outstanding with nothing owning it, and
+    //              when the table eventually closed the ceremony ran a second
+    //              time and paid a second cash-out for one buy-in;
+    //   the seat   the record said "not playing" while the felt said otherwise,
+    //              so the very next deploy sat him at a SECOND table — the
+    //              stale seat record behind "one agent, one table".
+    //
+    // sitOutSeat(..., { afterHand: true }) is the public door and the one that
+    // keeps the promise the owner is making: he finishes the hand he is in and
+    // stands up. The between-hands reconcile then frees the seat and runs the
+    // real ceremony through finishAgentSession, which is what settles the
+    // money — so this route stops trying to end a session by forgetting about
+    // it. `activeTableId` stays set until the table actually releases him.
+    const liveSeatTable = finishedTableId ? (liveTables?.getTable?.(finishedTableId) ?? null) : null;
+    const liveSeat = liveSeatTable ? (liveSeatTable.agentIds?.indexOf(agentId) ?? -1) : -1;
+    if (liveSeatTable && liveSeat >= 0 && typeof liveSeatTable.sitOutSeat === 'function') {
+      try {
+        liveSeatTable.sitOutSeat(liveSeat, { afterHand: true });
+        agent.unseenRecap = true;
+        saveStore(userId);
+        emitAgentChange(userId);
+        return res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
+      } catch (err) {
+        console.error('[agents] could not sit him out, ending the record instead:', err.message);
+      }
+    }
+
+    // No live seat to release — the table is already gone. Settle whatever is
+    // still outstanding so the buy-in is not stranded, then end the record.
+    if (finishedTableId) refundSeatBuyIn(agentId, userId, { tableId: finishedTableId });
     if (agent.activeTableId) activeTables.delete(agent.activeTableId);
     agent.status = 'idle';
     agent.activeTableId = null;

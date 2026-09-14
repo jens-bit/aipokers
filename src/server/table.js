@@ -17,6 +17,9 @@ import {
   getAgentAttributes,
   noteAgentFatigue,
   finishAgentSession,
+  // MONEY-1 job 3: the rail. Every seat an owner's agent takes is paid for
+  // through this, WATCH's door included.
+  chargeSeatBuyIn,
   recordOpponentHand,
   getAgentBioRole,
   getAgentBio,
@@ -2008,6 +2011,33 @@ export class Table {
       throw new Error('another of your agents is already at this table');
     }
 
+    // MONEY-1 job 3 — WATCH IS A DOOR INTO A SEAT, SO IT PAYS LIKE ONE.
+    //
+    // This branch used to call seatAI with no buyIn at all, which took the
+    // `bigBlind * 100` default and put a full stack of chips in front of an
+    // owner's agent that no pocket had been debited for (MONEY_AUDIT.md §6.2,
+    // row 3). The session-end ceremony then credited the whole final stack
+    // back, so one WATCH minted a buy-in plus whatever he won with it.
+    //
+    // chargeSeatBuyIn is the same rail deploy uses: it debits the pocket, moves
+    // the chips into the bank and writes both ledgers in one transaction, and
+    // it REFUSES rather than granting. A refusal throws, because a watcher who
+    // cannot afford the table has to be told — silently attaching him to
+    // somebody else's seat is the answer this door has always refused to give.
+    let watchBuyIn;
+    if (agentId && userId != null && !this.home) {
+      const paid = chargeSeatBuyIn(agentId, userId, {
+        amount: this.defaultBuyIn(), tableId: this.tableId,
+      });
+      if (paid.ok) watchBuyIn = paid.moved;
+      // `already`: his deploy paid for this seat and he is attaching to it.
+      // `unknown`: no agent record exists, so nothing can ever be credited for
+      // this seat either — see chargeSeatBuyIn. Everything else is a genuine
+      // refusal and the watcher has to be told.
+      else if (paid.already) watchBuyIn = paid.buyIn;
+      else if (!paid.unknown) throw new Error(paid.reason || 'his pocket does not cover this table');
+    }
+
     // A second spectator (new agent joining) cancels any pending House fallback.
     if (this._houseFallbackTimer && this.pending.some((p) => p !== null)) {
       clearTimeout(this._houseFallbackTimer);
@@ -2021,6 +2051,7 @@ export class Table {
       userId,
       memoryContext,
       agentProfile,
+      buyIn: watchBuyIn,
     });
     this.spectators.push({ ws, spectatorSeat: seat });
     this._refreshNextDealForViewer();

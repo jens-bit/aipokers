@@ -98,20 +98,28 @@ test('more than one grant entry in a household is the BUG-136 signature', () => 
   assert.equal(looped.grantTotal, 30_000);
 });
 
-test('chipsInExistence counts the House, because the felt is only closed with it', () => {
+test('chipsInExistence is safes + pockets + the bank, and nothing else', () => {
   const owners = [{
     ownerId: 'o1',
     wallet: { balance: 8_000, ledger: [entry('seed', 8_000)] },
-    agents: [{ id: 'a1', activeTableId: 't', pocket: { balance: 0, ledger: [entry('seed', 2_000), entry('buyin', -2_000)] } }],
+    agents: [{
+      id: 'a1', activeTableId: 't',
+      pocket: { balance: 0, ledger: [entry('seed', 2_000), entry('buyin', -2_000, { tableId: 't' })] },
+    }],
   }];
   const stacks = new Map([['a1', 2_000]]);
 
-  const closed = auditChips(owners, { stacks, houseStacks: 2_000 });
-  assert.equal(closed.totals.chipsInExistence, 12_000);
+  // He is seated, so his 2,000 is inside the bank, not beside it. Adding the
+  // `live` column on top would count the same chips twice — see the note on
+  // auditChips() and houseBank.js.
+  const closed = auditChips(owners, { stacks, houseBank: 2_000 });
+  assert.equal(closed.totals.live, 2_000, 'what is in front of him is still reported');
+  assert.equal(closed.totals.chipsInExistence, 10_000, 'safe 8,000 + pocket 0 + bank 2,000');
 
-  // Without the House number there is no total to conserve, and the audit
-  // refuses to invent one.
-  const open = auditChips(owners, {});
+  // Without the bank there is no total to conserve, and the audit refuses to
+  // invent one rather than printing a number that happens to add up.
+  const open = auditChips(owners, { stacks });
   assert.equal(open.totals.chipsInExistence, null);
-  assert.equal(open.totals.live, null);
+  assert.equal(open.totals.houseBank, null);
+  assert.equal(open.totals.live, 2_000, 'the view survives; only the total is withheld');
 });
