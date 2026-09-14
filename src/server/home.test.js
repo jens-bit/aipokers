@@ -19,6 +19,8 @@ import path from 'node:path';
 import {
   Where, Routine, ROUTINE_LABELS, ROUTINE_BY_NATURE, DEFAULT_ROUTINE,
   routineFor, natureRoutine, locationFor, stampLocation, timeAtLocation,
+  idleCycle, idleRoutine, spreadIdleRoutines, isEating, isCelebrating,
+  EATING_MS, CELEBRATE_MS, IDLE_PHASE_MS, SULK_HEAT,
   homeStateMessage, isNewborn, NEWBORN_MS,
 } from './home.js';
 import { NATURES } from '../agent/attributes.js';
@@ -54,7 +56,16 @@ test('HOME-STATE-1: a nature that has not formed yet still has something to do',
 
 test('HOME-STATE-1: state beats nature, in the documented order', () => {
   const rock = { nature: 'Rock' };
-  assert.equal(routineFor(rock).key, Routine.READS, 'nothing else going on');
+  // LIFE-1 REWROTE THIS ONE ASSERTION, and the rule behind it. It used to read
+  // `assert.equal(routineFor(rock).key, Routine.READS)` — a Rock with nothing
+  // going on is reading, always and forever. That is the rule the playtest
+  // overruled ("every time I come home they just stand around"): a habit that
+  // never changes is a room that never changes. The rule now is that an idle
+  // agent is somewhere in HIS OWN nature's cycle and nowhere else, which is
+  // what keeps the character claim honest while letting the room move.
+  const idle = routineFor(rock).key;
+  assert.ok(idleCycle('Rock').includes(idle),
+    `a Rock at rest does one of a Rock's things, not ${idle}`);
 
   assert.equal(routineFor({ ...rock, unseenRecap: true }).key, Routine.WAITS);
   assert.equal(routineFor({ ...rock, fatigue: 'worn' }).key, Routine.SLEEPS);
@@ -393,7 +404,11 @@ test('HOME-STATE-1: FLOOR_SUB answers with a HOME_STATE, owner-scoped', async ()
     assert.ok(home, 'a subscriber gets his living room immediately');
     assert.equal(home.userId, 'own-wire');
     assert.equal(home.agents.length, 1);
-    assert.equal(home.agents[0].routine.key, Routine.READS);
+    // LIFE-1: an idle body is somewhere in his nature's cycle rather than
+    // pinned to one habit for life — see the rewritten ladder test above.
+    // What this case is actually about is that the routine RIDES the wire.
+    assert.ok(idleCycle('Rock').includes(home.agents[0].routine.key),
+      `a Rock on the wire was ${home.agents[0].routine.key}`);
     assert.equal(home.game.tableId, 'home-own-wire');
 
     // Somebody else's household never arrives on this socket.

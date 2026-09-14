@@ -62,7 +62,7 @@ const { Actions } = await import('../engine/game.js');
 const { setPersistEnabled } = await import('./opponentStats.js');
 const { bus: sessionBus } = await import('./sessions.js');
 const { readThread } = await import('./thread.js');
-const { getAgentPocket } = await import('./agentProfiles.js');
+const { getAgentPocket, setAgentStamina, noteAgentFatigue } = await import('./agentProfiles.js');
 
 setPersistEnabled(false);
 
@@ -286,6 +286,15 @@ test('SERVER-3: STAMINA reaching worn ends the session — he sits himself at th
 
 test('SERVER-3: a fresh seat plays on', () => {
   const { table } = seatedTable();
+  // LIFE-1: "fresh" now has a second half. The reserve persists across
+  // sessions on the RECORD, and every test in this file shares one seeded
+  // profile — so the two hundred hands the worn case above puts through Hero
+  // are still in him when this case starts, and a genuinely spent agent
+  // standing straight back up is the product working. Say what fresh means.
+  for (const id of ['hero', 'rival']) {
+    setAgentStamina(id, 'u1', 100);
+    noteAgentFatigue(id, 'u1', { stage: 'fresh', sessionHands: 0 });
+  }
   table.maybeStartHand({ clientDriven: true });
   const bus = captureBus(() => playDown(table));
   assert.equal(bus.length, 0, 'nobody stood up after one hand');

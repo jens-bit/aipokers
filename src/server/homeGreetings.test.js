@@ -1,6 +1,7 @@
 // HOME-2: recognizable hellos keep the existing nature voice when chat is unavailable.
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
+import { idleCycle, ROUTINE_LABELS } from './home.js';
 
 delete process.env.ANTHROPIC_API_KEY;
 delete process.env.OPENAI_API_KEY;
@@ -105,5 +106,9 @@ test('HOME-2: unsupported questions still say unavailable, even when they start 
   }
   const location = await say('Where are you?');
   assert.equal(location.replyUnavailable, undefined);
-  assert.match(location.chat[0].content, /at home, reading/i);
+  // LIFE-1: an idle body moves through his nature's cycle instead of holding
+  // one habit for life, so the assertion is on the cycle. The case is still
+  // that 'where are you' is answered from his REAL place, without a model.
+  const labels = [...new Set(idleCycle('Professor').map((k) => ROUTINE_LABELS[k]))].join('|');
+  assert.match(location.chat[0].content, new RegExp(`at home, (?:${labels})`, 'i'));
 });
