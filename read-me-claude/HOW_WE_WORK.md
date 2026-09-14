@@ -123,6 +123,8 @@ Cowork imports the zip, diffs it, and — for a big wave or after a long session
 
 The design is **frozen** once code is more than about two waves behind it; then only correction rounds on what the tabs are porting. Ports go one way, `design-refs/` → `client/src/`; port, don't redesign.
 
+**Refresh `design-refs/shipped/` before starting a wave.** Claude Design reads the code but cannot run the app, and its boards drift from what actually shipped for exactly that reason. `npm run shots` (SHOTS-1) rebuilds a ground-truth screenshot of every screen the app actually ships, real server, real seeded household, no mocks — see `design-refs/shipped/README.md`. A wave built against a stale pack corrects drift that was already fixed, or misses drift that is new.
+
 ## Pairs
 
 A pair is one picture: the reference on the left, the actual product on the right, same scale, same state. It is the only thing that settles "did that port land", and it is expensive — somebody has to render the frame, drive the product into the same state, put them side by side, and *look at them*. It earns that cost when a job has just changed that frame. It earns nothing when it is generated to fill a row in a table.
