@@ -72,6 +72,20 @@ async function waitForWatch() {
   expect(document.querySelector('.watch-screen')).toBeTruthy();
 }
 
+// MERGE-7: these ten cases boot the whole app and drive multi-screen journeys
+// through it, and they cost 1.7-3.8s EACH when they have the machine to
+// themselves. vitest's default deadline is 5s, and vite.config.js already
+// notes the reason it bites here: "Decorative Home trees are expensive; extra
+// workers contend for the test deadline." LIFE-1 added server work to the home
+// path and pushed the slowest of them (the retained-draft journey, measured at
+// 3722ms alone) over that 5s line under full-suite contention, while it passes
+// in isolation every time.
+//
+// So the deadline is wrong, not the test. It is raised here and only here, and
+// NOT ONE ASSERTION IS TOUCHED (Testing law #5) — a timeout is a statement
+// about how long the machine may take, never about what the product must do.
+// 20s still fails a genuine hang in reasonable time; it just stops failing
+// honest work that takes four seconds.
 describe('HOME-3: existing phone journeys preserve their place', () => {
   it('a floor table returns to the selected room after both Watch trips', async () => {
     const user = userEvent.setup();
@@ -230,4 +244,4 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     await user.click(exit);
     expect(await screen.findByTestId('home-screen')).toBeVisible();
   });
-});
+}, 20000);
