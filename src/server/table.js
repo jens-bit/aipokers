@@ -44,6 +44,7 @@ import { applyDips } from '../agent/dips.js';
 // LIFE-1: the reserve's own vocabulary. table.js charges it and reports the
 // worse of the two tiredness readings; stamina.js owns both.
 import { worseStage } from '../agent/stamina.js';
+import { bodyLevels } from '../shared/levels.js';   // LIFE-1 job 2
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
   hotTableIds,
@@ -1655,6 +1656,20 @@ export class Table {
   // the stored agent record rather than plumbed through every seating path, so
   // House seats and player seats (which have no agent) simply get null and
   // every hook falls through to its pre-attribute behaviour.
+  // LIFE-1 job 2 — the felt's two body readings, as three states each.
+  //
+  // Beside _seatFatigue and drawn from the same two facts the seat already
+  // reports, so the dots and the pip can never disagree. A seat with no agent
+  // behind it (a House regular, a human) gets the resting reading, exactly as
+  // it already does for mood — not a blank, because a blank on the felt reads
+  // as "unknown" and there is nothing unknown about a House regular.
+  _seatBody(seat) {
+    return bodyLevels({
+      stage: this._seatFatigue(seat),
+      heat: this._seatMood(seat)?.heat ?? null,
+    });
+  }
+
   _seatAttrs(seat) {
     const agentId = this.agentIds[seat];
     if (!agentId) return null;
@@ -2156,6 +2171,7 @@ export class Table {
         identity:    this._seatIdentity(i),
         // WATCH-8: 'fresh' | 'settled' | 'worn', or null — see _seatFatigue.
         fatigue:     this._seatFatigue(i),
+        body:        this._seatBody(i),   // LIFE-1 job 2
         // FRIDGE-1: the bottle beside him, for this session only.
         drinking:    !!this.seatDrinking[i],
         // SERVER-5: what he walked in carrying — [{ attr, delta, why }], and
@@ -2230,6 +2246,7 @@ export class Table {
           mood: this._seatMood(i),
           identity: this._seatIdentity(i),
           fatigue: this._seatFatigue(i),
+          body: this._seatBody(i),   // LIFE-1 job 2
           drinking: !!this.seatDrinking[i],
           // Cards in his hands, drawn as backs. Never the cards themselves.
           inHand: inHand && dealtIn && !g.seats[i]?.folded,
@@ -3897,6 +3914,9 @@ export class Table {
       identity: this._seatIdentity(i),
       // WATCH-8: and how worn he is, for the second of the two body bars.
       fatigue: this._seatFatigue(i),
+      // LIFE-1 job 2: the same pair as three states. On STATE as well as on
+      // liveGameView for exactly the reason the mood note above gives.
+      body: this._seatBody(i),
       // FRIDGE-1: he had a beer before this one. Public, like the posture is —
       // a bottle on the felt is the sort of thing everybody at a table can see.
       drinking: !!this.seatDrinking[i],

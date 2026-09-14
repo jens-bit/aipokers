@@ -1,6 +1,9 @@
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { spokenOwnerReply } from './ownerReply.js';
+// LIFE-1 job 2: three dots, not a bar. One definition of what half-empty
+// means, in src/shared/ so the screen and the server read it the same way.
+import { bodyLevels } from '../shared/levels.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
@@ -2208,6 +2211,16 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     bornAt: agent.createdAt ?? agent.bornAt ?? null,
     homeTableId: homeTable?.tableId ?? null,
     fatigue,
+    // LIFE-1 job 2: the two body readings as THREE STATES, in the one shape
+    // every surface carries them in. Additive — `fatigue` and `mood.heat` are
+    // both still exactly where they were, so a client that has never heard of
+    // this field sees what it saw before. `stamina` also carries the reserve
+    // itself, which is the only place an owner can see it at all.
+    body: bodyLevels({
+      stage: fatigue,
+      stamina: staminaPercent(agent, { now: Date.now(), resting: presence !== 'playing' }),
+      heat: agent.mood?.heat ?? null,
+    }),
     sessionHands,
     effectiveAttrs: effective,
     flaggedCount: (agent.sessionFlagged?.length ?? 0),

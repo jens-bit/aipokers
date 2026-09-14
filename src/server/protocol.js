@@ -41,6 +41,17 @@ export const ServerMsg = Object.freeze({
   // reason mood is: you can see across a real table that somebody has been
   // sitting there all night. A client that ignores the field sees exactly what
   // it saw before it existed.
+  // LIFE-1 job 2 (additive): every seat also carries `body` — the same two
+  // readings as THREE STATES rather than as two continuous bars:
+  //   { stamina: { level, dots, label, value }, heat: { level, dots, label, value } }
+  // `level` is the machine word ('fresh'|'settled'|'worn' for stamina, which is
+  // `fatigue` verbatim; 'level'|'simmering'|'steaming' for heat, cut on mood.js's
+  // own 40 and 60 band boundaries). `dots` is 1-3, how many are LIT. `label` is
+  // the words for a tap. Both `fatigue` and `mood.heat` remain exactly where
+  // they were, so a client that ignores this sees what it saw before it
+  // existed. src/shared/levels.js is the one definition, imported by both
+  // sides. See also the identical `body` on an agent projection and on
+  // HOME_STATE.agents.
   // SERVER-3 (additive): two things ride every STATE.
   //
   //   actionTimer — the acting seat's deadline, so the client can draw the

@@ -46,6 +46,7 @@
 // purpose.
 
 import { storedIdentity } from '../shared/identity.js';
+import { bodyLevels } from '../shared/levels.js';   // LIFE-1 job 2
 // LIFE-1: the one tilt threshold, owned by dips.js.
 import { TILT_HEAT } from '../agent/dips.js';
 
@@ -544,6 +545,11 @@ function homeAgentProjection(agent, { now = Date.now() } = {}) {
     location: agent.location ?? null,
     routine: agent.routine ?? null,
     fatigue: agent.fatigue ?? 'fresh',
+    // LIFE-1 job 2: the same three-state pair the agent view and the felt
+    // carry. Forwarded from the presented record rather than recomputed — this
+    // module knows about no profile (rule 3) and a second derivation is a
+    // second chance for the room and the card to disagree about one agent.
+    body: agent.body ?? bodyLevels({ stage: agent.fatigue ?? 'fresh', heat: agent.mood?.heat ?? null }),
     unseenRecap: !!agent.unseenRecap,
     study: agent.study ?? null,
     // BUG-168: a live TV picture can ride Home's existing pushes. This is
