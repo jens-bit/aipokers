@@ -4,6 +4,9 @@ import { spokenOwnerReply } from './ownerReply.js';
 // LIFE-1 job 2: three dots, not a bar. One definition of what half-empty
 // means, in src/shared/ so the screen and the server read it the same way.
 import { bodyLevels } from '../shared/levels.js';
+// LIFE-1 job 3: the standing instructions and plans, in the owner's own
+// words. A fourth book beside poker, opponents and the owner ledger.
+import { recordOwnerInstruction, ownerInstructionsContext } from '../agent/ownerInstructions.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
@@ -3431,6 +3434,11 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   // has been on his back all week gets a different answer to one who reads his
   // hands back, and that difference is the whole feature.
   const ownerBlock = ownerMemoryContext(agent);
+  // LIFE-1 job 3: and what he has been TOLD. Separate from the block above and
+  // adjacent to it on purpose — one is how the relationship reads, the other is
+  // the standing orders that came out of it, and an agent that cannot tell them
+  // apart answers "what did I say about the low room" with a mood.
+  const toldBlock = ownerInstructionsContext(agent);
 
   // BUGS-B/2: he is at a felt with a hand running, so the owner leaning in is
   // a WHISPER and has to be answered as one — what is on the board, what he is
@@ -3444,7 +3452,7 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${natureBlock}${bioBlock}${ownerBlock}${moodLine}${pepLine}${proposalLine}
+  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${moodLine}${pepLine}${proposalLine}
 CURRENT PLACE: ${scene.description}. This current place wins over old chat or memories. Do not invent places, opponents or current table conditions.${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
@@ -4054,6 +4062,21 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   // a needle or a real question writes a line — small talk is not a fact
   // about the owner, and silence writes nothing because there is no
   // message to write from.
+  // LIFE-1 job 3: and what he was TOLD goes in the instruction book, which is
+  // a different book from the one above and deliberately so. ownerMemory keeps
+  // his READ ON YOU, paraphrased; this keeps YOUR WORDS, verbatim, because the
+  // whole value of "from now on only play the low room" is its content. Most
+  // messages are neither an instruction nor a plan and write nothing.
+  //
+  // Before the reply is built, so a plan made in THIS message is already in
+  // the prompt that answers it — an agent who has to be told a thing twice
+  // before he can refer to it is the bug.
+  try {
+    recordOwnerInstruction(existingAgent, content);
+  } catch (err) {
+    console.error('[instructions] record failed:', err.message);
+  }
+
   if (said.kind === 'needle') {
     recordOwnerEvent(existingAgent, 'needle', {
       text: content,
