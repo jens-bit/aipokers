@@ -111,6 +111,7 @@ import {
 // buy-in moves pocket -> bank, a cash-out moves bank -> pocket, and the two
 // together are what make `Σ safes + Σ pockets + bank` a constant.
 import * as houseBank from './houseBank.js';
+import { seatedElsewhereMessage } from './seating.js';
 import { slotsProjection, slotBlocker, SLOT_CAP } from './slots.js';
 import {
   DRAFT_MAX_WORDS,
@@ -4279,20 +4280,66 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     } };
   }
 
-  // Already at a live table — hand back the same one rather than stacking a
-  // second autonomous session on top of the first.
-  if (agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)) {
-    return { status: 200, body: {
-      tableId: agent.activeTableId,
-      agentId: agent.id,
-      agentName: agent.name,
-      strategy: agent.strategy,
-      // BUGS-B/4: his name, not the word "agent". This response is what the
-      // client seats him under, and it was handing back a literal.
-      displayName: agent.name,
-      memoryContext: getAgentMemoryContext(agent),
-      alreadyPlaying: true,
-    } };
+  // ── MONEY-1 job 5 · ONE AGENT, ONE TABLE ──────────────────────────────────
+  //
+  // This guard used to read `agent.activeTableId && hasTable(activeTableId)`,
+  // which asks whether a TABLE exists and never whether HE IS IN IT. It held
+  // only while the record agreed with the felt, and the record is written AFTER
+  // the seat and cleared by a ceremony that can throw — so when they disagreed,
+  // deploy opened him a second table and charged a second buy-in.
+  //
+  // THE FELT IS THE AUTHORITY NOW. `tableOfAgent` walks the live seats, which
+  // cannot be stale because they are the state. The record is repaired from it
+  // rather than trusted, so a stay the process lost track of heals on the next
+  // deploy instead of forking.
+  //
+  // Asking for a DIFFERENT room while he is sitting is a refusal rather than a
+  // silent hand-back, and it names the felt. An owner who sent a man upstairs
+  // and was answered "here is the floor table you already had" has been given
+  // something he did not ask for, which is the same complaint SERVER-4's
+  // `cantAfford` exists to avoid.
+  {
+    const seatedAt = liveTables?.tableOfAgent?.(agent.id)
+      ?? (agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)
+        ? liveTables.getTable?.(agent.activeTableId) ?? null
+        : null);
+    if (seatedAt) {
+      const tableId = seatedAt.tableId ?? agent.activeTableId;
+      // The record caught up with the felt. Only a change is written, so a
+      // client polling deploy does not save on every poll.
+      if (agent.activeTableId !== tableId || agent.status !== 'playing') {
+        console.log(`[agents] repairing ${agent.name}'s record — he is at ${tableId}`);
+        agent.activeTableId = tableId;
+        agent.status = 'playing';
+        activeTables.add(tableId);
+        saveStore(userId);
+        emitAgentChange(userId);
+      }
+
+      const asked = rungRequested(body);
+      if (asked && !asked.bad && seatedAt.bigBlind !== asked.bigBlind) {
+        return { status: 409, body: {
+          error: 'alreadySeated',
+          message: seatedElsewhereMessage(agent.name, seatedAt),
+          tableId,
+          room: roomForBigBlind(seatedAt.bigBlind)?.id ?? null,
+          requested: { rung: asked.rung, label: asked.label },
+        } };
+      }
+
+      return { status: 200, body: {
+        tableId,
+        agentId: agent.id,
+        agentName: agent.name,
+        strategy: agent.strategy,
+        // BUGS-B/4: his name, not the word "agent". This response is what the
+        // client seats him under, and it was handing back a literal.
+        displayName: agent.name,
+        memoryContext: getAgentMemoryContext(agent),
+        alreadyPlaying: true,
+        room: roomForBigBlind(seatedAt.bigBlind)?.id ?? agent.headingTo ?? null,
+      } };
+    }
   }
 
   // GUEST-1: one casino session a day for an unclaimed owner.

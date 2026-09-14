@@ -11,6 +11,7 @@
 // graph stays acyclic.
 
 import { Table, MAX_SEATS } from './table.js';
+import { setSeatLookup } from './seating.js';
 import { pickTableToJoin } from './matchmaking.js';
 
 const tables = new Map(); // tableId -> Table
@@ -135,6 +136,60 @@ export function activeFloorTableCount() {
   }
   return n;
 }
+
+// ── MONEY-1 job 5 · the one authority on where a man is sitting ──────────────
+//
+// THE FELT IS THE AUTHORITY AND THE RECORD IS A CACHE OF IT.
+//
+// `agent.activeTableId` was the only thing any door asked, and it is written
+// AFTER the seat is taken and cleared by a ceremony that can throw — so it goes
+// stale, and a stale record is how one agent ended up at two tables. Worse, the
+// guard that read it asked `hasTable(activeTableId)`: whether a TABLE exists,
+// never whether HE IS IN IT.
+//
+// This walks the live seats instead, which cannot be stale because it IS the
+// state. Same shape as homeTableOf below, and for the same reason it gives
+// (BUG-16's law: the live table is the only witness) — that rule was right for
+// the living room and it is right for the floor.
+//
+// ── What counts as "a seat", and why the kitchen table does not ─────────────
+//
+// The home game is EXCLUDED, the same line seatedAgentIds and
+// countAutonomousTables already draw. The precise rule this enforces is:
+//
+//     A CASINO SEAT IS EXCLUSIVE.
+//
+// The kitchen table is not a casino seat. It has no buy-in, no session, no
+// ledger and no money of any kind (homeGame.js: "chips that came from nowhere
+// and go nowhere"), and it stands itself back down the moment somebody leaves
+// for work. Deploying from it is GOING TO WORK, not sitting at two tables — and
+// a rule that refused it would leave an agent unable to be sent to the casino
+// because he happened to be playing cards in his own living room.
+//
+// It cuts the other way too, and that is the half worth having: an agent who IS
+// at a casino table is found by this lookup, so the kitchen table's own
+// joinAgentSession now refuses to deal him in. Before, the only thing keeping
+// him out of both chairs at once was homeGame's roster sync noticing on its
+// next pass.
+export function tableOfAgent(agentId, { includeHome = false } = {}) {
+  if (!agentId) return null;
+  const id = String(agentId);
+  for (const table of tables.values()) {
+    if (table.closed) continue;
+    if (table.home && !includeHome) continue;
+    for (let seat = 0; seat < table.maxSeats; seat++) {
+      if (!table.pending?.[seat]) continue;
+      if (table.agentIds?.[seat] != null && String(table.agentIds[seat]) === id) return table;
+    }
+  }
+  return null;
+}
+
+// MONEY-1 job 5: teach table.js to ask. Done at module load rather than from a
+// setup function, because the thing that must be true is "this process knows
+// where its agents are sitting", and that is true the moment anything imports
+// the registry. Same argument as guest.js's resolver registration.
+setSeatLookup(tableOfAgent);
 
 // HOME-STATE-1: the home game this agent is sitting in right now, or null.
 // Asked by presentAgent, which needs it to answer "what is he doing" — a man

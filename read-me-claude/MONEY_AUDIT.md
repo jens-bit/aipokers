@@ -757,3 +757,108 @@ case 'cashout':
 
 `tonightOf()` needs nothing: its three lines are about the safe (brought home /
 fridge / given out), and a buy-in does not touch the safe. Filed in BUGS.md.
+
+---
+
+## 14. Job 5 — one agent, one table
+
+### The audit: which of the three was it?
+
+The queue offered three candidates. Two are ruled out and one is the answer.
+
+**Not a client that lets you tap twice.** `deployAgent` is synchronous — there
+is no `await` anywhere in its critical section — so two HTTP requests cannot
+interleave inside it, and the third or fourth tap has always been answered by
+the "already at a live table" fast path. The test
+`tapping deploy twice in one tick takes one seat and one buy-in` fires three
+deploys in one tick and passed *before* the fix as well as after; it is kept
+because it is the assertion that would catch someone making the function async.
+
+**Not a missing lock**, in the sense of a race. The single-threaded event loop
+is the lock.
+
+**It was a stale seat record, and the reason it could go stale is that the
+wrong question was being asked.** The guard read:
+
+```js
+agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId)
+```
+
+which asks whether **a table exists** — never whether **he is in it**. It held
+only for as long as the agent record agreed with the felt, and `activeTableId`
+is written *after* the seat is taken (§2, step 9) and cleared by a ceremony
+that is wrapped in a `try/catch` and swallows its own failures. Two paths made
+them disagree:
+
+- **`POST /finish`** cleared `activeTableId` and set him idle while leaving him
+  seated at a running table. The next deploy saw no table to hand back and
+  opened a second one. (This is the same defect as job 3's double cash-out, and
+  it is fixed there.)
+- **Every other door** — `joinAgentSession`, `startAgentSession`,
+  `addSpectator` — enforced `seatsAgentOfOwner`, which is MATCH-1's rule: *not
+  two of one owner's agents at one table*. None of them enforced anything at
+  all about **this agent** being at **some other table**. `matchmaking.js:149`
+  checks `agentIds.includes(agentId)` for one candidate table only.
+
+### The fix: the felt is the authority, the record is a cache of it
+
+- **`tableRegistry.tableOfAgent(agentId)`** walks the live seats. It cannot be
+  stale, because it *is* the state — the same argument `homeTableOf` already
+  made for the living room (BUG-16's law: the live table is the only witness).
+- **`src/server/seating.js`**, a new leaf: `setSeatLookup` / `seatOf` /
+  `seatedElsewhere` / `seatedElsewhereMessage`. It is its own file because three
+  modules need the same answer and no two of them may import each other —
+  `tableRegistry` imports `table.js`, and `table.js` imports `agentProfiles`.
+  The registry registers the lookup at module load.
+- **Every door asks it.** `joinAgentSession` and `startAgentSession` refuse with
+  `null`, which is exactly what a full table returns and which every caller
+  already handles. `addSpectator` throws, with the message below.
+  `startAgentSession` checks *before* seating the House, so a refusal cannot
+  leave a complementary regular at an empty felt.
+- **Deploy repairs the record from the felt** instead of trusting it. A stay the
+  process lost track of heals on the next deploy rather than forking.
+
+### The message
+
+`another of your agents is already at this table` was the only thing any of this
+produced, and it is about a different rule. An owner told that about the agent
+who is *standing at the table* has been told something untrue. The refusal now
+names the felt:
+
+> GRANITE is already sitting at table-9f3a. He plays one table at a time.
+
+and deploy, asked for a *different* room while he is seated, answers `409
+alreadySeated` carrying that sentence, the `tableId` and the room — rather than
+silently handing back the table he already had, which is the same complaint
+SERVER-4's `cantAfford` exists to avoid.
+
+### What "a seat" means — the kitchen table does not count
+
+`tableOfAgent` **excludes the home game**, the same line `seatedAgentIds` and
+`countAutonomousTables` already draw. The precise rule is:
+
+> **A casino seat is exclusive.**
+
+The kitchen table is not a casino seat: no buy-in, no session, no ledger, no
+money of any kind, and it stands itself back down the moment somebody leaves for
+work. Deploying from it is *going to work*, not sitting at two tables — and a
+rule that refused it would leave an agent unable to be sent to the casino
+because he was playing cards in his own living room. `verify-watch-v2.js` found
+exactly that within a minute of the first version of this change, which is why
+it is written down here.
+
+It cuts the other way too, and that half is a genuine improvement: an agent who
+**is** at a casino table is found by the lookup, so the kitchen table's own
+`joinAgentSession` now refuses to deal him in. Before, the only thing keeping
+him out of both chairs at once was homeGame's roster sync noticing on its next
+pass.
+
+### Tests
+
+`src/server/oneSeat.test.js` (9) and `src/server/seating.test.js` (8). The seat
+tests cover: the registry answering from the felt when the record has lost him;
+each of the three doors refusing; the refusal naming the table and *not* using
+MATCH-1's sentence; deploy handing back the right felt after the record was
+cleared, without a second buy-in; a different-room request refused; three
+deploys in one tick taking one seat and one buy-in; and two agents of one owner
+each holding a seat of their own.
