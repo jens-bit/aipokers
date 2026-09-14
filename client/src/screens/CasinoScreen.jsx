@@ -196,6 +196,13 @@ export function CasinoScreen({
   shellHeader = false,
   headerTarget = null,
   initialRoomId = null,
+  // BUG-202: the roster sheet is deliberately glass over the room, but this
+  // screen's own foreground panels (the deploy card, the conversation band)
+  // are dense text on an opaque surface, not the ambient art the glass
+  // design assumes is behind it — left up, they show through the blur and
+  // overlap the roster's own rows. True while the roster is open, so this
+  // screen can stand its own foreground panels down for it.
+  rosterOpen = false,
 }) {
   const [agents, setAgents] = useState([]);
   const [wallet, setWallet] = useState(null);
@@ -284,7 +291,7 @@ export function CasinoScreen({
     try { return await onSend(agent, text); }
     finally { setSending(false); }
   };
-  const conversation = !desktop && speaker && onSend ? <HomeThread
+  const conversation = !desktop && !rosterOpen && speaker && onSend ? <HomeThread
     key={speaker.id} agent={speaker} open={threadOpen} onToggle={setThreadOpen}
     onSend={sendConversation} sending={sending} privateContext="HIS CONVERSATION"
     placeholder={`Whisper to ${speaker.nickname || speaker.name}…`}
@@ -712,7 +719,7 @@ export function CasinoScreen({
       desktop={desktop}
       felts={feltsIn(felts, openRoom.id)}
       agents={mineByRoom[openRoom.id] ?? []}
-      play={!zoom && !fund && onDeployed && (pendingTable || playAgent) ? (
+      play={!rosterOpen && !zoom && !fund && onDeployed && (pendingTable || playAgent) ? (
         <div className="csn-floor-play" data-testid="casino-play">
           {pendingTable ? <>
             <p role="status" data-testid="casino-play-status">{pendingTable.payload.sessionStarted || pendingTable.payload.alreadyPlaying

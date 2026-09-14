@@ -957,6 +957,13 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
               wsUrl={WS_URL}
               onSend={sendToAgent}
               onOpenRoster={() => setRosterOpen(true)}
+              // BUG-202: the roster is glass over the room by design, but its
+              // own foreground panels (the deploy card, the conversation
+              // band) are dense opaque text, not ambient art — left up
+              // underneath, they show through the blur and fight the
+              // roster's own rows for the same pixels. Put them away while a
+              // sheet is reading them.
+              rosterOpen={rosterOpen}
               deployAgent={deployTarget?.agent ?? null}
               onCancelDeploy={() => setDeployTarget(null)}
               // HOME-2 job 1: you came in through the door; ← HOME is the way

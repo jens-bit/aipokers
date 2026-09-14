@@ -5,6 +5,7 @@
 - **One tap opens him, one tap closes him (BUG-200).** The roster's swipe-to-dismiss gesture was arming on the very first touch anywhere in the sheet, including an agent row or the ✕ — that state flip mid-touch is what made phone browsers swallow the click, so it took two or three taps to get in or out. A tap now stays a tap until the finger has actually moved.
 - **The agent view is the agent again, not a numbers screen (BUG-201).** "Open him" on an away agent's frame — on phone and on desktop — now opens his portrait, want, DEPLOY/GIVE CHIPS/CARRY/PROFILE row and whisper thread directly, the same door a body standing in the room already used. The numbers screen is one tap further in, from PROFILE.
 - **A stack now reads the app's own money format (BUG-207).** One table-stats line used the device's locale grouping instead of the shared formatter every other amount in the app uses; it could print a space instead of a comma depending on the machine.
+- **Opening the roster inside a casino room no longer overlaps the room (BUG-202).** The room's own deploy card and conversation band now stand down while the roster's glass sheet is up, instead of showing dense text straight through it.
 
 ## Warm game and truthful public Watch — local candidate (2026-09-12)
 
