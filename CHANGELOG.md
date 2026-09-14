@@ -1,5 +1,9 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## UI-1 playtest queue — local candidate (2026-09-14)
+
+- **One tap opens him, one tap closes him (BUG-200).** The roster's swipe-to-dismiss gesture was arming on the very first touch anywhere in the sheet, including an agent row or the ✕ — that state flip mid-touch is what made phone browsers swallow the click, so it took two or three taps to get in or out. A tap now stays a tap until the finger has actually moved.
+
 ## Warm game and truthful public Watch — local candidate (2026-09-12)
 
 - **Show the actual two players.** Public Home Watch no longer treats spectator seat -1 as a seated player. It frames a real occupied seat, displays its name and stack, keeps the other real players visible and identifies the view as Watching. Opponent decisions and speech stay attached to their actual actor; public cards remain private.

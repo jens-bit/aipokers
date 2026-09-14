@@ -9,7 +9,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 
 import { DISMISS_PX, useSheetDrag, isFieldTarget, inScrolledRegion } from './useSheetDrag.js';
 
-function Sheet({ onDismiss, enabled = true, withList = false }) {
+function Sheet({ onDismiss, enabled = true, withList = false, onRowTap }) {
   const drag = useSheetDrag(onDismiss, { enabled });
   return (
     <div
@@ -21,6 +21,7 @@ function Sheet({ onDismiss, enabled = true, withList = false }) {
     >
       <span data-testid="grab">grab</span>
       <input aria-label="say" />
+      <button type="button" data-testid="row-btn" onClick={onRowTap}>an agent</button>
       {withList && <div data-testid="list"><span data-testid="row">a row</span></div>}
     </div>
   );
@@ -101,6 +102,26 @@ describe('BUGS-A job 5 · dragging a sheet down', () => {
     fireEvent.mouseMove(window, { clientY: 400 });
     fireEvent.mouseUp(window);
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('BUG-200: a tap on a button inside the sheet never enters dragging', () => {
+    const onDismiss = vi.fn();
+    const onRowTap = vi.fn();
+    render(<Sheet onDismiss={onDismiss} onRowTap={onRowTap} />);
+    const btn = screen.getByTestId('row-btn');
+    const panel = screen.getByTestId('panel');
+    // A real tap: down and up with no travel in between — this is exactly
+    // what happened on the first tap of an agent row or the roster's ✕.
+    fireEvent.touchStart(btn, { touches: [{ clientY: 100 }] });
+    fireEvent.touchEnd(window);
+    expect(panel).not.toHaveClass('is-dragging');
+    expect(panel.style.transform).toBe('');
+    expect(onDismiss).not.toHaveBeenCalled();
+    // jsdom does not model a browser withholding the synthesized click, but a
+    // real one only does that in response to a mid-touch state/DOM change —
+    // asserting none happened is what this regression is actually guarding.
+    fireEvent.click(btn);
+    expect(onRowTap).toHaveBeenCalledTimes(1);
   });
 
   it('a disabled sheet does not move at all', () => {
