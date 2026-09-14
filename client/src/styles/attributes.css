@@ -573,16 +573,9 @@
 }
 
 /* ── BodyBars (PROFILE-2) ──────────────────────────────────────────────────
- * The split frame's top half. Same track as the skills, one difference: HEAT
- * runs the other way, so its fill is the band colour rather than skill teal.
- * A full skill bar is good news; a full heat bar is not. */
-
-.attr-track--heat .attr-track__fill {
-  background: var(--heat-color, var(--sys-teal));
-  box-shadow: none;
-}
-
-.attr-track--heat .attr-track__cap { background: var(--heat-color, var(--text-primary)); }
+ * The split frame's top half. STAMINA keeps the skills' own track — it is a
+ * trained attribute with a scouted band, unlike HEAT (LIFE-1-B: now three
+ * dots via BodyDots, styles/watch6.css, not a track at all). */
 
 /* A bar coloured by its own reading.
  *
@@ -608,14 +601,6 @@
   gap: 8px;
   margin-top: 5px;
   padding-left: 2px;
-}
-
-.body-bars__band {
-  font-family: var(--sys-font-label);
-  font-size: 8.5px;
-  font-weight: 600;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
 }
 
 .body-bars__composure {

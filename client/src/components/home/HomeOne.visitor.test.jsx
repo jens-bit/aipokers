@@ -25,8 +25,12 @@ it.each(['Rock', 'Professor', 'Grinder'])('BUG-175: a seated %s visitor shows on
   expect(body.querySelector('.home-one__hands [data-pose]')).toHaveAttribute('data-pose', 'hold');
   expect(body.querySelector('.mood-ghost')).toHaveAttribute('data-hood', 'indigo');
   expect(body.querySelector('stop[stop-color="#8B6BC4"]')).not.toBeNull();
-  expect(body.querySelector('[data-bar="stamina"] i').style.width).toBe('100%');
-  expect(body.querySelector('[data-bar="heat"] i').style.width).toBe('58%');
+  // LIFE-1-B: three dots, not a fill — fresh lights all three stamina dots,
+  // heat 58 is 'simmering' (src/shared/levels.js's cut is 60), two of three.
+  const litOf = (which) => [...body.querySelectorAll(`[data-bar="${which}"] .body-dots__dot`)]
+    .filter((d) => d.dataset.lit === 'true');
+  expect(litOf('stamina')).toHaveLength(3);
+  expect(litOf('heat')).toHaveLength(2);
   expect(screen.getByTestId('home-pill-guest')).toHaveTextContent('GUEST');
   expect(container.querySelector('.home-one__cards').textContent).toBe('');
 });

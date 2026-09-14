@@ -10,85 +10,50 @@
 // belong at the top of the card with his face, next to the mood they explain,
 // and not in a list of things he trains.
 //
-// The two bars sit on the same track as the skills so the card stays one
-// language — but HEAT runs the other way. A full skill bar is good news and a
-// full HEAT bar is not, so it is coloured by what it READS rather than in skill
-// teal. Its polarity is the whole reason it cannot be a seventh row.
+// HEAT runs the other way from a skill — a full skill bar is good news and a
+// full heat reading is not — so it is coloured by what it READS rather than
+// in skill teal. Its polarity is the whole reason it cannot be a seventh row.
 //
-// HOME-2 job 2 · the same rule the pill and the felt obey. Both bars on this
-// card are anchored at the LEFT WALL, and both take their colour from the one
-// pair of ramps in the product (system/FeltBodyBars.jsx): stamina green → amber
-// → red as it drains, heat ember → red as it fills. BUGS-A job 10's separation
-// is kept — two causes, two different reds — but its two drawings are not: this
-// card started heat at teal and the felt started it at teal too, so an
-// unbothered man read as a good reading rather than as no reading at all.
+// LIFE-1-B: heat is three dots now (system/FeltBodyBars.jsx's `BodyDots`,
+// reading src/shared/levels.js), the same reading the felt and the room pill
+// draw, tapped to reveal its word — "not tappable, because there is nothing
+// behind it" was true of a bare number and stopped being true once the
+// reading got a name.
 //
-// STAMINA stays tappable, like a skill: it is a trained attribute with a
-// scouted band and a 90-day series behind it. HEAT is not tappable, because
-// there is nothing behind it — heat is now.
+// STAMINA stays tappable in its OWN way: it is a trained attribute with a
+// scouted band and a 90-day series behind it, so it keeps the skills' own
+// track and expand behaviour rather than becoming a third dot row — heat and
+// this STAMINA are not the same axis (see BodyDots' own header comment).
 
 import { AttrCluster } from './AttrCluster.jsx';
-import { heatColor, staminaColor } from './FeltBodyBars.jsx';
-
-// The WORDS are verbatim from design-refs/mood-heat.jsx, and they are the
-// design: "tilted" at heat 30 and "tilted" at heat 90 are different rooms to
-// walk into.
-//
-// HOME-2 job 2 — the COLOURS are not here any more. They were a fourth
-// definition of heat's ramp (this card, the felt, the seat pill, the room's
-// pill), and the four disagreed: this one started at teal and passed through
-// grey. It reads FeltBodyBars' single ramp now, so a man who is boiling is the
-// same red on his card as he is over his head. The word and the colour are one
-// reading of one fact and they are taken at the same value.
-export const HEAT_BANDS = [
-  { max: 24,  word: 'cold' },
-  { max: 49,  word: 'warm' },
-  { max: 74,  word: 'hot' },
-  { max: 100, word: 'boiling' },
-];
-
-export function heatBand(heat) {
-  const h = Math.max(0, Math.min(100, Number.isFinite(heat) ? heat : 0));
-  const band = HEAT_BANDS.find((b) => h <= b.max) ?? HEAT_BANDS[HEAT_BANDS.length - 1];
-  return { ...band, color: heatColor(h) };
-}
+import { BodyDots, staminaColor } from './FeltBodyBars.jsx';
+import { heatLevel } from '../../../../src/shared/levels.js';
 
 /**
- * HEAT, on the skills' own track and in its own colour.
+ * HEAT, as three dots and its own colour.
  *
- * `composure` is the attribute underneath it — tilt resistance, the thing that
- * decides how fast heat climbs and how quickly it comes back down. It rides as
- * the caption rather than as a third bar: composure and heat are one fact read
- * twice, the stat and today's reading of it, and drawing them as two peers
- * would say they were independent.
+ * LIFE-1-B: heat's 0-100 was drawn as a continuous fill and named from a
+ * four-band word list this card alone kept (`cold`/`warm`/`hot`/`boiling`).
+ * `src/shared/levels.js`'s three states are what the felt and the room pill
+ * now read too, so this card reads the same one rather than a fourth
+ * definition of "what heat means". `composure` — tilt resistance, the thing
+ * that decides how fast heat climbs and how quickly it comes back down —
+ * rides as the caption rather than as a third dot row: composure and heat are
+ * one fact read twice, and drawing them as two peers would say they were
+ * independent.
  */
 export function HeatBar({ heat, composure }) {
-  const value = Math.max(0, Math.min(100, Number.isFinite(heat) ? Math.round(heat) : 0));
-  const band = heatBand(value);
-  // HOME-2 job 2: the fill is anchored at the LEFT and grows rightward, ember
-  // → red, off the one ramp in the product. A step rather than a gradient, for
-  // the reason this card of all surfaces cares about: it is where the reading
-  // is NAMED ("hot", "boiling"), and a named state whose colour changes
-  // continuously is a state with no edges.
-  const color = band.color;
+  const reading = heatLevel(heat);
   return (
     <div className="body-bars__heat">
       <div className="attr-bar" style={{ cursor: 'default' }}>
-        <span className="attr-bar__name">HEAT</span>
-        <span className="attr-bar__track">
-          <div className="attr-track attr-track--heat" style={{ '--cur': `${value}%`, '--heat-color': color }}>
-            <div className="attr-track__fill" />
-            <div className="attr-track__cap" />
-          </div>
-        </span>
-        <span className="attr-bar__value" style={{ color }}>{value}</span>
+        <BodyDots kind="heat" reading={reading} />
       </div>
-      <div className="body-bars__caption">
-        <span className="body-bars__band" style={{ color: band.color }}>{band.word}</span>
-        {Number.isFinite(composure) && (
+      {Number.isFinite(composure) && (
+        <div className="body-bars__caption">
           <span className="body-bars__composure">composure {Math.round(composure)}</span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

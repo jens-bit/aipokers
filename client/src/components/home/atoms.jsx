@@ -26,7 +26,8 @@ import { PHONE_ROOM, bubbleSide } from './flat.js';
 import { roomBubbleOffset } from './roomBubbles.js';
 import { presentRoutine } from './routines.js';
 import { fatigueOf } from '../../lib/attributes.js';
-import { heatColor, heatStep, staminaOf, staminaPct } from '../system/FeltBodyBars.jsx';
+import { BodyDots } from '../system/FeltBodyBars.jsx';
+import { staminaLevel, heatLevel } from '../../../../src/shared/levels.js';
 import { shortName } from '../../lib/names.js';
 
 // Stable birth identity, independent of the current name, mood or roster order.
@@ -101,50 +102,47 @@ export function RoutineProp({ kind, size }) {
 
 // ── The pill ────────────────────────────────────────────────────────────────
 //
-// His name, and the two lines that say what he has left in him. Both are drawn
-// as a rule rather than as a number: this is a room, and a room does not print
-// "heat 68" over somebody's head.
+// His name, and the two readings that say what he has left in him. Both are
+// drawn as three dots rather than as a number: this is a room, and a room
+// does not print "heat 68" over somebody's head — and a continuous bar was
+// claiming precision that a three-state word never had in the first place.
 //
-// ── HOME-2 job 2 · BOTH BARS ARE ANCHORED AT THE LEFT WALL ─────────────────
-//
-// What this replaces: stamina was THREE BLOCKS and heat was a rule, and the
-// justification was that two different shapes could never be read as two of the
-// same thing. Wave 56 gets the same separation out of two bars that run in
-// OPPOSITE DIRECTIONS, which is a stronger reading and costs a shape:
-//
-//   STAMINA  full is the whole bar; as it drains the RIGHT END RECEDES toward
-//            the left, green → amber → red.
-//   HEAT     empty is nothing; the fill GROWS rightward, ember → red.
-//
-// So a worn, tilted agent is a short red stub over a long red bar — and the
-// blocks could not have said that, because three blocks and one block are the
-// same picture at two lengths and carry no colour of their own.
-//
-// Both ramps come from system/FeltBodyBars.jsx, which is the one definition of
-// these colours in the product: the pill here, the strip over the felt, the
-// seat pill and the profile card cannot disagree about a man.
+// LIFE-1-B replaces the two opposite-direction bars wave 56 drew (stamina
+// draining from the right, heat filling from the left) with the shared dot
+// reading from `src/shared/levels.js` — one function turns fatigue's word and
+// heat's number into `{ level, dots, label, value }`, and `system/
+// FeltBodyBars.jsx`'s `BodyDots` is the one drawing of it. The pill here, the
+// strip over the felt, the seat pill and the profile card all read the same
+// reading now, in the same shape, and cannot disagree about a man.
 
-export function NamePill({ name, nickname = null, fatigue = 'fresh', heat = 45, news = false, guest = false }) {
-  const h = Math.max(0, Math.min(100, Number(heat) || 0));
-  // Fatigue is three stages on the wire and one length-and-colour on screen.
-  const stam = Math.round((staminaOf(fatigue) ?? 1) * 100);
+export function NamePill({
+  name, nickname = null, fatigue = 'fresh', heat = 45, news = false, guest = false,
+  // HomeOne's own call wears this pill on a body that is ALREADY one big tap
+  // target (his thread). A dot nested inside it that also answered taps would
+  // be two different taps fighting over the same finger, so that call passes
+  // `interactive={false}` and gets the compact, always-decorative dots — the
+  // same ones the felt's seat pill uses. AgentView's call sits in a plain div,
+  // not a button, and keeps the tap-for-word default.
+  interactive = true,
+}) {
+  const stamina = staminaLevel({ stage: fatigue });
+  const hot = heatLevel(heat);
   return (
-    <span className={`home-pill${news ? ' home-pill--news' : ''}${guest ? ' home-pill--guest' : ''}`} data-fatigue={fatigue} data-heat={heatStep(h)}>
+    <span className={`home-pill${news ? ' home-pill--news' : ''}${guest ? ' home-pill--guest' : ''}`} data-fatigue={fatigue} data-heat={hot.level}>
       {/* VISIT-1: he is not one of yours — the one fact this pill has to add,
           and the only place it is said. A body already reads as a stranger's
           the moment he is not one you can tap; this is what says WHY. */}
       {guest ? <span className="home-pill__guest" data-testid="home-pill-guest">GUEST</span> : null}
       {/* Board 29 HomeOne, reused by 42 C5: the name is primary text, not glow. */}
       <span className="home-pill__name" style={{ color: 'var(--text-primary)' }}>{shortName(name, nickname)}</span>
-      <span className="home-pill__bars" aria-hidden>
+      <span className="home-pill__bars">
         <span className="home-pill__bar" data-bar="stamina">
-          <i style={{ width: `${stam}%`, background: staminaPct(stam) }} />
+          <BodyDots kind="stamina" reading={stamina} compact={!interactive} />
         </span>
         <span className="home-pill__bar" data-bar="heat">
-          <i style={{ width: `${h}%`, background: heatColor(h) }} />
+          <BodyDots kind="heat" reading={hot} compact={!interactive} />
         </span>
       </span>
-      <span className="sr-only">{`stamina ${stam}, heat ${Math.round(h)}`}</span>
     </span>
   );
 }
@@ -254,6 +252,9 @@ export function HomeOne({
         heat={heat}
         news={!!news}
         guest={!!agent?.guest}
+        // This whole body is already one tap target (his thread); a second,
+        // nested one for the dots would be two taps contesting one finger.
+        interactive={false}
       />
 
       <span className="home-one__body" style={{ width: size, height: size }}>

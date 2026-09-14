@@ -682,43 +682,16 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-pill__name { font-size: 8.5px; font-weight: 600; letter-spacing: 0.02em; }
 
-/* ── HOME-2 job 2 · both bars anchored at the left wall ────────────────────
-   Stamina full is the WHOLE bar and its right end recedes leftward as it
-   drains; heat empty is nothing and its fill grows rightward. Two opposite
-   directions, so a worn tilted agent is a short stub over a long bar and the
-   two causes can never be read as one.
-
-   44 x 2 with 2px between them, which is the ref's own pill scale
-   (design-refs/mood-home.jsx, `ResourceBars` at w=44 h=2 gap=2). The COLOURS
-   are inline, off the one pair of ramps in the product — a rule here would be
-   a fifth definition of them. */
+/* ── LIFE-1-B · the two readings, as dots ───────────────────────────────────
+   Replaces wave 56's two opposite-direction bars. `system/FeltBodyBars.jsx`'s
+   `BodyDots` draws the dots themselves (styles/watch6.css); this only stacks
+   the two rows the way the ref's own pill scale did. */
 .home-pill__bars {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.home-pill__bar {
-  position: relative;
-  width: 44px;
-  height: 2px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--text-primary) 9%, transparent);
-  overflow: hidden;
-}
-.home-pill__bar i {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 2px;
-  /* Heat moves while you are looking at it; a jump between renders is a number
-     nobody sees change. */
-  transition: width 400ms ease-out, background 400ms linear;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-pill__bar i { transition: none; }
-}
+.home-pill__bar { display: block; }
 
 /* ── The bubble that flips rather than clips ─────────────────────────────── */
 

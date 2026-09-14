@@ -1051,70 +1051,69 @@
   pointer-events: none;
 }
 
-.felt-bars__track {
-  display: block;
-  position: relative;
-  height: 2px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--text-primary) 9%, transparent);
-  overflow: hidden;
-}
-
-/* One bar and the word for it. The word sits UNDER the rule it names, at the
-   smallest size this product sets, in the label face — it is a caption on a
-   measurement, not a heading. */
 .felt-bars__row { display: block; }
-.felt-bars__label {
-  display: block;
-  margin-top: 1px;
-  font-family: var(--sys-font-label, 'Oswald', sans-serif);
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  line-height: 1;
-  color: color-mix(in srgb, var(--text-primary) 42%, transparent);
-}
-
-
-.felt-bars__fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 1px;
-  /* Heat moves while you are looking at it; a jump between renders is a number
-     nobody sees change. */
-  transition: width 400ms ease-out, background 400ms linear;
-}
 
 /* Seat scale: inside the pill, clear of its radius, and one pixel of gap
-   instead of two — a 18px pill has no room for more and the pair still reads
-   as two lines rather than one thick one. */
+   instead of two — an 18px pill has no room for more and the pair still reads
+   as two rows rather than one thick one. */
 .felt-bars--seat {
   left: 7px;
   right: 7px;
   bottom: 1px;
   gap: 1px;
 }
-/* An 18px pill has no room for a word, and the strip above it has already
-   taught the owner what a green line and a red one mean. */
-.felt-bars--seat .felt-bars__label { display: none; }
 
-/* The pill has a 9px radius; the bars are inset past it, but a fill that runs
-   to 100% would still square off against the corner without this. */
+/* The pill has a 9px radius; the dots are inset past it, but this still
+   clips anything that would otherwise square off against the corner. */
 .seat-ghost__chip { overflow: hidden; }
 
-/* The strip is glass with 8px of padding; the bars sit inside it, under the
+/* The strip is glass with 8px of padding; the dots sit inside it, under the
    row, and the row gains the pixels they need so nothing lands on them.
-   BUGS-A job 10: two rules and the two words under them, rather than two
-   rules alone — 12px was the height of the pair unlabelled. Stated flat
-   rather than through :has(), because a selector the webview does not
-   understand would put the words over the row. */
+   BUGS-A job 10: two rows and the two words under them, rather than two rows
+   alone. Stated flat rather than through :has(), because a selector the
+   webview does not understand would put the words over the row. */
 .watch-hero__strip.watch-felt__hero { padding-bottom: 26px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .felt-bars__fill { transition: none; }
+/* ── LIFE-1-B · the dots, in one shape everywhere ───────────────────────────
+   `BodyDots` (system/FeltBodyBars.jsx) is the one component that draws a
+   `src/shared/levels.js` reading, so this is the one place its dots, its tap
+   target and its revealed word are sized — the felt strip, the seat pill, the
+   home pill and the profile card all pull from here. */
+.body-dots__tap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.body-dots__tap:focus-visible { outline: 1px solid var(--accent, currentColor); outline-offset: 2px; }
+.body-dots__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.body-dots__dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 30%, transparent);
+  background: transparent;
+}
+.body-dots__dot[data-lit="true"] { border-color: transparent; }
+.body-dots__word {
+  font-family: var(--sys-font-label, 'Oswald', sans-serif);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--text-primary) 42%, transparent);
+}
+/* An 18px seat pill has no room for a word, tapped or not, and the strip
+   above it has already taught the owner what each dot colour means. */
+.felt-bars--seat .body-dots__dot { width: 3px; height: 3px; }
 
 /* ── FRIDGE-1's bottle ────────────────────────────────────────────────────
    Beside his stack, because that is what it cost him. `seat.drinking` is not on
