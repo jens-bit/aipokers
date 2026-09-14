@@ -862,3 +862,45 @@ MATCH-1's sentence; deploy handing back the right felt after the record was
 cleared, without a second buy-in; a different-room request refused; three
 deploys in one tick taking one seat and one buy-in; and two agents of one owner
 each holding a seat of their own.
+
+---
+
+## 15. The same measurement, after the fix
+
+Job 2's simulation, re-run against the fixed branch. Same shape: scratch
+database, three owners, one agent each, no API key, three rounds of deploy →
+play → close.
+
+| moment | chips in existence |
+|---|---|
+| three owners drafted, nobody seated | 50,030,000 |
+| three agents seated (3 buy-ins) | 50,030,000 |
+| 70 hands in, still seated | 50,030,000 |
+| every session settled | **50,030,000** |
+
+**207 hands, 9 buy-ins, net created 0. Chips are conserved.**
+
+(50,030,000 is the 30,000 the three owners were granted plus the house float of
+50,000,000. The float being inside the total is the point: the bank is where the
+chips go while somebody is playing with them.)
+
+And the owners did not merely break even — they finished collectively up 727
+(30,727 against 30,000), and it came **out of the bank**: 49,999,273 against
+50,000,000. That is the whole fix in one line. Before, those 727 chips came from
+nowhere; now they came from the house, and the house is exactly 727 lighter.
+
+The audit tool's own reconciliation is green beside it: every owner's `diff` is
+zero, and no household carries more than one starting grant.
+
+### What is left open
+
+- **BUG-201's client half**, two cases in `client/src/lib/safeLines.js`. The
+  server sends `buyin` and `cashout` to the safe now; the sheet has a phrase for
+  the five older kinds of line and not yet for these, so a buy-in renders as
+  "Adjustment" with the right time and the right figure. Server-only queue.
+- **The inflated prod balances stay inflated.** Same call BUG-136 made, for the
+  same reason: the bug was not the players'. What changes is that the number
+  stops growing.
+- **BUG-200**, a pre-existing client test that asserts a US-formatted number and
+  fails under any other system locale. Red on `origin/main` before this branch
+  and untouched by it.
