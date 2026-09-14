@@ -10,6 +10,9 @@ import { recordOwnerInstruction, ownerInstructionsContext } from '../agent/owner
 // LIFE-1 job 4: the opponent model, in the living room. Same unlock rule the
 // felt gates its briefing on — see the note at the top of opponentRecall.js.
 import { opponentRecallContext } from './opponentRecall.js';
+// LIFE-1 job 5 (TALK-2): the facts he can cite, the four laws, and the
+// deterministic gate that grades the reply afterwards. No model call.
+import { selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes } from '../agent/talk.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
@@ -3393,10 +3396,6 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
-  const recentHands = (agent.recentHands || []).slice(0, 3);
-  const recentBrief = recentHands.length > 0
-    ? recentHands.map((h) => `${h.won ? 'won' : 'lost'} ${h.potSize ?? 0}-chip pot`).join(', ')
-    : 'no hands yet';
   const statsLine = handsPlayed > 0
     ? `${handsPlayed} hands played, ${winRate}% win rate`
     : 'no hands played yet';
@@ -3452,6 +3451,15 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   // cannot. Below the bar the block tells him to say so plainly, which is the
   // answer "Nah, I can't see the stats" was standing in for.
   const readsBlock = opponentRecallContext(agent, said);
+  // LIFE-1 job 5: the hands he actually played, with the cards and the line.
+  // What this replaces is `recentBrief` — "won 200-chip pot, lost 400-chip
+  // pot": three outcomes with no cards, no street and no action, which is why
+  // an agent asked what happened had nothing to say and said something
+  // evasive. That was a failure of supply, not of voice.
+  const factsBlock = selfFacts(agent, { state: scene.description });
+  // And the four laws, each written against the reply that failed. `said` is
+  // in scope so a direct question can be named as one.
+  const lawsBlock = talkLaws(agent, { said, lastShapes: ensureShapes(agent) });
 
   // BUGS-B/2: he is at a felt with a hand running, so the owner leaning in is
   // a WHISPER and has to be answered as one — what is on the board, what he is
@@ -3465,14 +3473,14 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${readsBlock}${moodLine}${pepLine}${proposalLine}
+  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${readsBlock}${factsBlock}${moodLine}${pepLine}${proposalLine}
 CURRENT PLACE: ${scene.description}. This current place wins over old chat or memories. Do not invent places, opponents or current table conditions.${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
 
-Answer what your owner actually said. Small talk can be about life at home; do not turn every message into poker coaching. Do not default to "yo" or another stock greeting. Do not call the tables soft without evidence from the current game. Let your nature, your own memories and today's mood distinguish your reply from the other agents.
+Small talk can be about life at home; do not turn every message into poker coaching. Do not default to "yo" or another stock greeting. Do not call the tables soft without evidence from the current game. Let your nature, your own memories and today's mood distinguish your reply from the other agents.
 
-Speak directly to your owner. No stage directions or narrated gestures in asterisks, brackets or parentheses. Never claim that chat moved you, deployed you, bought anything or transferred chips. Those actions require the existing game controls; explain the control when relevant, without pretending it has been used.
+Speak directly to your owner. Never claim that chat moved you, deployed you, bought anything or transferred chips. Those actions require the existing game controls; explain the control when relevant, without pretending it has been used.${lawsBlock}
 
 You already exist. Never ask what kind of poker agent to create. Mention hands or opponents only when the supplied facts support them; admit when you do not know.`;
 }
@@ -4115,7 +4123,9 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
     saveStore(userId);
     // A template answer is still his answer: it reaches the felt the same way
-    // a generated one does.
+    // a generated one does — and LIFE-1 job 5: it counts as a shape, or the
+    // reply after it is the only one in the conversation with no rule on it.
+    noteShape(existingAgent, msg);
     const seat = deliverWhisper(table, existingAgent.id, msg);
     return {
       chat: [{ role: 'assistant', content: msg }],
@@ -4138,8 +4148,28 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     }
   }
   const spoken = spokenOwnerReply(reply);
+  // LIFE-1 job 5: grade what came back, against the same four laws the prompt
+  // states, and repair it from the facts when it breaks one. Deterministic and
+  // free — there is no second model call here, and the cost router is
+  // untouched: owner chat is one call per owner message exactly as before.
+  //
+  // The repair only ever uses a value that was already in the prompt, and
+  // returns null when there is nothing honest to say, in which case his own
+  // weak sentence stands. A fallback that invented a hand would be a worse
+  // failure than the flat reply it replaced.
+  let graded = spoken;
+  let talkFaults = [];
+  if (spoken) {
+    talkFaults = faultsIn({ said: content, reply: spoken, lastShapes: ensureShapes(existingAgent) });
+    if (talkFaults.length) {
+      const repaired = repairReply(existingAgent, { said: content, faults: talkFaults });
+      if (repaired) graded = repaired;
+    }
+  }
   const fallback = unavailableOwnerReply(existingAgent, content, tableCtx);
-  const msg = spoken || fallback.message;
+  const msg = graded || fallback.message;
+  // What form he just used, so the next reply cannot reuse it.
+  noteShape(existingAgent, msg);
   existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
   if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
   saveStore(userId);
@@ -4147,6 +4177,11 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   return {
     chat: [{ role: 'assistant', content: msg }],
     ...(!spoken && fallback.unavailable ? { replyUnavailable: true } : {}),
+    // LIFE-1 job 5: which of the four laws the model's own line broke, when it
+    // broke any. Diagnostic only — nothing renders it; it is what makes
+    // `npm run talk:eval` able to say WHY a line failed rather than only that
+    // it did.
+    ...(talkFaults.length ? { talkFaults } : {}),
     // BUGS-B/2: where his answer landed, so a client can tell "he said it at
     // the table" from "he said it in the thread". Null when he is not seated.
     whisper: whisperView && seat !== null ? whisperView : null,
