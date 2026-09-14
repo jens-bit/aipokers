@@ -7,6 +7,9 @@ import { bodyLevels } from '../shared/levels.js';
 // LIFE-1 job 3: the standing instructions and plans, in the owner's own
 // words. A fourth book beside poker, opponents and the owner ledger.
 import { recordOwnerInstruction, ownerInstructionsContext } from '../agent/ownerInstructions.js';
+// LIFE-1 job 4: the opponent model, in the living room. Same unlock rule the
+// felt gates its briefing on — see the note at the top of opponentRecall.js.
+import { opponentRecallContext } from './opponentRecall.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
@@ -3382,7 +3385,11 @@ function formatHandForPrompt(h) {
 
 // Build the system prompt for an existing agent's owner-chat path.
 // The agent speaks as itself, references real stats, and never asks creation questions.
-export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], table = null } = {}) {
+// LIFE-1 job 4 added `said` — the message being answered. The prompt has to
+// know which opponent was NAMED in it, because "can you see the stats on
+// Granite" and "how is the field" want different halves of the same book,
+// and shipping the whole ledger every turn would be a data dump.
+export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], table = null, said = '' } = {}) {
   ensureStats(agent);
   ensureMood(agent);
   const { handsPlayed = 0, winRate = 0 } = agent.stats || {};
@@ -3439,6 +3446,12 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   // the standing orders that came out of it, and an agent that cannot tell them
   // apart answers "what did I say about the low room" with a mood.
   const toldBlock = ownerInstructionsContext(agent);
+  // LIFE-1 job 4: and what he knows about the men he has played. Gated on
+  // exactly the rule table.js gates the in-hand briefing on — an agent who can
+  // ACT on a read at the felt can talk about it at home, and one who cannot,
+  // cannot. Below the bar the block tells him to say so plainly, which is the
+  // answer "Nah, I can't see the stats" was standing in for.
+  const readsBlock = opponentRecallContext(agent, said);
 
   // BUGS-B/2: he is at a felt with a hand running, so the owner leaning in is
   // a WHISPER and has to be answered as one — what is on the board, what he is
@@ -3452,7 +3465,7 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
     ? `\nRecent thread — NEVER restate, re-explain, or re-surface any point already made here:\n${recentChat.map((m) => `${m.role === 'user' ? 'Owner' : 'You'}: ${m.content}`).join('\n')}`
     : '';
 
-  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${moodLine}${pepLine}${proposalLine}
+  return `You are ${agent.name}, a poker companion in Railbird. Strategy: ${agent.strategy || 'balanced tight-aggressive play'}. Stats: ${statsLine}. Recent: ${recentBrief}.${natureBlock}${bioBlock}${ownerBlock}${toldBlock}${readsBlock}${moodLine}${pepLine}${proposalLine}
 CURRENT PLACE: ${scene.description}. This current place wins over old chat or memories. Do not invent places, opponents or current table conditions.${tableBlock}${recentLines}
 
 HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat register, in your voice — think texting, not coaching. NO option menus ("wanna do X or Y?" is banned). At most ONE question per reply, and only when it earns its place. NEVER repeat a stat, grievance, or observation already in the recent thread above.
@@ -4116,7 +4129,7 @@ export async function ownerChatTurn(existingAgent, userId, content) {
 
   let reply = ownerControlReply(existingAgent, content, tableCtx);
   if (!reply) {
-    const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx });
+    const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx, said: content });
     try {
       reply = await callClaude([{ role: 'user', content }], systemText, 100,
         { ownerId: userId, kind: MeterKind.CHAT });
