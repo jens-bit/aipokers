@@ -109,7 +109,7 @@ import {
   isCelebrating, SULK_HEAT,
 } from './home.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
-import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet, agentHasActiveVisit } from './store.js';
+import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet, agentHasActiveVisit, loadAgentById } from './store.js';
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ensureRosterIdentities } from './identity.js';
 import { identityOf } from '../shared/identity.js';
@@ -1796,6 +1796,41 @@ export function getAgentMood(agentId, userId) {
 // The values here are the STORED ones. Fatigue is a within-session state, so
 // the caller (table.js) runs them through effectiveAttrs with its own session
 // hand count before handing them to a decision.
+/**
+ * LIFE-1 follow-up 1 — one agent's stored attributes WITHOUT knowing whose he
+ * is.
+ *
+ * getAgentAttributes below needs an owner, because every ordinary caller is
+ * acting for one. The opponent model is the exception: a read is keyed on
+ * `agent_<id>` and that agent belongs to somebody else, so his DECEPTION —
+ * half of the evidence bar for reading him — is not reachable through any
+ * owner the caller has.
+ *
+ * The LOADED CACHE IS ASKED FIRST, and that ordering is the point rather than
+ * an optimisation: if his owner is live in this process, the cached record is
+ * the one the felt is also reading, and going to the database instead could
+ * hand the conversation a different number from the one the table is using
+ * this second — which is exactly the disagreement this job exists to remove.
+ */
+export function agentAttrsById(agentId) {
+  const id = String(agentId ?? '');
+  if (!id) return null;
+  for (const profile of Object.values(store ?? {})) {
+    const found = profile?.agents?.find((a) => a.id === id);
+    if (found) {
+      ensureAttributes(found);
+      return found.attrs ?? null;
+    }
+  }
+  try {
+    const row = loadAgentById(id);
+    return row?.attrs ?? null;
+  } catch (err) {
+    console.error('[agents] attribute lookup failed:', err.message);
+    return null;
+  }
+}
+
 export function getAgentAttributes(agentId, userId) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);

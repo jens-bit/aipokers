@@ -700,6 +700,24 @@ export function loadVisitInvitation(token) {
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{32}$/.test(token)) return null;
   return jsonParse(conn().prepare('SELECT data FROM visit_invitations WHERE token = ?').get(token)?.data, null);
 }
+// LIFE-1 follow-up 1: one agent by id, WITHOUT knowing whose he is.
+//
+// Every other reader of this table comes in through an owner, because every
+// other reader is acting for one. The opponent model is the exception: a read
+// is keyed on `agent_<id>` and the agent behind it belongs to somebody else
+// entirely, so the subject's own DECEPTION — which is half of the evidence bar
+// for reading him — is not reachable through any owner the caller has.
+//
+// `WHERE id = ?` is not the primary key (that is owner_id, id) so this is a
+// scan. It is a scan of a table with a handful of rows per owner, done once
+// per named opponent in one conversation, and adding an index for it would be
+// a migration for a query that runs when somebody types a name.
+export function loadAgentById(agentId) {
+  const id = String(agentId ?? '');
+  if (!id) return null;
+  return jsonParse(conn().prepare('SELECT data FROM agents WHERE id = ? LIMIT 1').get(id)?.data, null);
+}
+
 export function invitationForAgent(agentId) {
   return jsonParse(conn().prepare('SELECT data FROM visit_invitations WHERE agent_id = ?').get(String(agentId))?.data, null);
 }

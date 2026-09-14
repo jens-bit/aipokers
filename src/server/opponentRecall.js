@@ -26,16 +26,24 @@
 // talk about it at home, and one who cannot, cannot. Inventing a second
 // number here would mean he could discuss a man he cannot yet play.
 //
-// ONE DIFFERENCE, STATED. At the table the subject's DECEPTION is read off
-// their live seat. In a conversation there is no seat and no subject record to
-// read, so `deception` is null and the gate is the hero's READS alone. That
-// makes the chat gate very slightly EASIER than the felt's for a deceptive
-// opponent. The alternative — withholding what he has already been briefed on
-// because the man is not currently sitting down — is worse, and the honest
-// version of the difference is that the felt knows something the living room
-// does not.
+// THE SUBJECT'S DECEPTION IS THE SUBJECT'S, NOT HIS SEAT'S. The first cut of
+// this file passed `deception: null` and wrote the difference down as a known
+// one: at the table the subject's DECEPTION comes off their live seat, and a
+// conversation has no seat. That was wrong about where the number lives.
+// DECEPTION is a STORED ATTRIBUTE on the subject's own record, and nothing a
+// seat adds can move it — fatigue erodes FOCUS and DISCIPLINE, a drink costs
+// DISCIPLINE, a dip costs DISCIPLINE and FOCUS, and none of the three touches
+// DECEPTION (see effectiveAttrs, _seatAttrs and dips.DIP_ATTRS). So
+// `_seatAttrs(i).DECEPTION` at the felt and the stored value are the same
+// number by construction, and reading it off the record makes the two gates
+// identical rather than merely close. opponentRecall.test.js pins that as an
+// equality against table.js's own call rather than as a claim in a comment.
 //
-// FOUR RULES.
+// A House regular has no six-attribute record — houseCast members carry a
+// four-number playing profile and nothing else — so his DECEPTION is null
+// here, which is exactly what `_seatAttrs` returns for that seat too.
+//
+// FIVE RULES.
 //
 //   1. THE FIGURES OR THE HONEST ADMISSION, never silence and never a bluff.
 //      Below the gate he is told, in the prompt, to say he has not played the
@@ -43,14 +51,17 @@
 //   2. THE NUMBERS ARE THE REAL NUMBERS. getRead's own output, formatted by
 //      reads.js so the read he quotes in the living room is word for word the
 //      read he is briefed with at the table.
-//   3. HE ONLY KNOWS WHO HE HAS PLAYED. The name is resolved against HIS OWN
+//   3. THE GATE IS THE FELT'S GATE, to the point. Same function, same two
+//      arguments, same figure compared against it.
+//   4. HE ONLY KNOWS WHO HE HAS PLAYED. The name is resolved against HIS OWN
 //      bioLedger, never a global directory. He cannot produce statistics on a
 //      man he has never sat with because he has never sat with him.
-//   4. NO MODEL CALL. Name matching is a scan of at most LEDGER_CAP entries.
+//   5. NO MODEL CALL. Name matching is a scan of at most LEDGER_CAP entries.
 
 import { getRead } from './opponentStats.js';
 import { readMinHands } from '../agent/attributes.js';
 import { formatOpponentRead, vpipLabel, classifyOpponent } from '../agent/reads.js';
+import { agentAttrsById } from './agentProfiles.js';
 
 // How many opponents he volunteers when the owner asks about the field in
 // general rather than about one man. Three: enough to be a survey, few enough
@@ -69,6 +80,34 @@ export function ledgerEntries(agent) {
   const ledger = agent?.bioLedger;
   if (!ledger || typeof ledger !== 'object') return [];
   return Object.values(ledger).filter((e) => e && e.playerId);
+}
+
+// How seatAI spells an agent's seat. `agent_<id>` for one of somebody's
+// agents, `house_<stableId>` for a House regular, `ai_<table>_<n>` for an
+// anonymous filler. Only the first has a record behind it.
+const AGENT_PLAYER_ID = /^agent_(.+)$/;
+
+/** The agent id behind an opponent's playerId, or null if there is not one. */
+export function agentIdOf(playerId) {
+  return AGENT_PLAYER_ID.exec(String(playerId ?? ''))?.[1] ?? null;
+}
+
+/**
+ * The subject's own DECEPTION — the half of the evidence bar that belongs to
+ * the man being read rather than to the man reading him.
+ *
+ * Null for a House regular and for an anonymous seat, which is what the felt
+ * sees for those seats too: `_seatAttrs` returns null without an agentId.
+ *
+ * `lookup` is injectable so this module stays testable with object literals,
+ * which is the law every other pure module here is written to.
+ */
+export function subjectDeception(playerId, { lookup = agentAttrsById } = {}) {
+  const agentId = agentIdOf(playerId);
+  if (!agentId) return null;
+  const attrs = lookup(agentId);
+  const v = Number(attrs?.DECEPTION);
+  return Number.isFinite(v) ? v : null;
 }
 
 /**
@@ -98,14 +137,17 @@ export function namedOpponent(agent, text) {
  * Returns { entry, read, gate, known } — `known` is the whole decision, and it
  * is readMinHands against handsObserved, which is table.js's line verbatim.
  */
-export function opponentKnowledge(agent, entry, { reads = null } = {}) {
+export function opponentKnowledge(agent, entry, { reads = null, lookup = agentAttrsById } = {}) {
   if (!entry) return null;
   const read = getRead(entry.playerId);
   const heroReads = reads ?? agent?.attrs?.READS ?? null;
-  // `deception` is null on purpose — see the note at the top of the file.
-  const gate = readMinHands({ reads: heroReads, deception: null });
+  // Both halves of the bar, from where each of them actually lives: the READS
+  // of the man doing the reading, and the DECEPTION of the man being read.
+  // This is table.js:_buildBriefing's call with the same two values in it.
+  const deception = subjectDeception(entry.playerId, { lookup });
+  const gate = readMinHands({ reads: heroReads, deception });
   const observed = Number(read?.handsObserved) || 0;
-  return { entry, read: read ?? null, gate, known: !!read && observed >= gate };
+  return { entry, read: read ?? null, gate, deception, known: !!read && observed >= gate };
 }
 
 // One opponent, in the words the briefing would use plus the history that is
@@ -113,7 +155,7 @@ export function opponentKnowledge(agent, entry, { reads = null } = {}) {
 // quote the same read; the ledger half is what only he can say — how the money
 // has actually gone between the two of them.
 function describe(agent, knowledge) {
-  const { entry, read, gate } = knowledge;
+  const { entry, read, gate, deception } = knowledge;
   const who = entry.displayName || entry.playerId;
   const together = `${entry.hands} hand${entry.hands === 1 ? '' : 's'} against him, `
     + `${entry.net >= 0 ? 'up' : 'down'} ${Math.abs(Math.round(entry.net))} chips overall`;
@@ -127,7 +169,9 @@ function describe(agent, knowledge) {
       + `pretend the feature does not exist.`;
   }
 
-  const lines = formatOpponentRead(read, { reads: agent?.attrs?.READS ?? null, deception: null });
+  // The same two values the gate used, so the briefing reads.js writes here is
+  // byte-for-byte the one it writes at the felt for this pair.
+  const lines = formatOpponentRead(read, { reads: agent?.attrs?.READS ?? null, deception });
   const shape = classifyOpponent(read);
   const extras = [
     entry.coolersTaken ? `he has coolered you ${entry.coolersTaken}×` : null,
@@ -153,7 +197,7 @@ function describe(agent, knowledge) {
  * all — and, more to the point, stops him saying he cannot see any stats when
  * he is looking at four sets of them.
  */
-export function opponentRecallContext(agent, text = '', { reads = null } = {}) {
+export function opponentRecallContext(agent, text = '', { reads = null, lookup = agentAttrsById } = {}) {
   const entries = ledgerEntries(agent);
   if (entries.length === 0) return '';
 
@@ -163,7 +207,7 @@ export function opponentRecallContext(agent, text = '', { reads = null } = {}) {
     : entries.slice().sort((a, b) => (b.hands ?? 0) - (a.hands ?? 0)).slice(0, RECALL_MAX);
 
   const described = chosen
-    .map((entry) => describe(agent, opponentKnowledge(agent, entry, { reads })))
+    .map((entry) => describe(agent, opponentKnowledge(agent, entry, { reads, lookup })))
     .filter(Boolean);
   if (described.length === 0) return '';
 

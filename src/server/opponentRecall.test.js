@@ -10,9 +10,11 @@ import assert from 'node:assert/strict';
 
 import {
   namedOpponent, opponentKnowledge, opponentRecallContext, ledgerEntries, RECALL_MAX,
+  subjectDeception, agentIdOf,
 } from './opponentRecall.js';
 import { recordHand, reset, setPersistEnabled } from './opponentStats.js';
-import { readMinHands } from '../agent/attributes.js';
+import { readMinHands, effectiveAttrs } from '../agent/attributes.js';
+import { applyDips, dipsFor } from '../agent/dips.js';
 
 setPersistEnabled(false);
 
@@ -57,11 +59,76 @@ test('LIFE-1: the threshold is readMinHands, not a number invented here', () => 
   reset();
   station('gran', 'Granite', 40);
   const him = hero({ reads: 50, ledger: { gran: entry('gran', 'Granite') } });
-  const k = opponentKnowledge(him, him.bioLedger.gran);
+  const k = opponentKnowledge(him, him.bioLedger.gran, { lookup: () => null });
   // The same call table.js makes to gate the in-hand briefing, with the same
   // arguments a conversation can supply.
   assert.equal(k.gate, readMinHands({ reads: 50, deception: null }));
   assert.equal(k.known, true, '40 observed hands is well past a neutral agent\'s bar');
+});
+
+// ── The subject's own DECEPTION ─────────────────────────────────
+
+test("LIFE-1 follow-up: an agent seat's playerId names the agent behind it", () => {
+  // seatAI's own spelling. Only the first of the three has a record behind it.
+  assert.equal(agentIdOf('agent_abc123'), 'abc123');
+  assert.equal(agentIdOf('house_doyle_v3'), null);
+  assert.equal(agentIdOf('ai_tbl_2'), null);
+  assert.equal(agentIdOf(null), null);
+});
+
+test("LIFE-1 follow-up: DECEPTION comes off the SUBJECT'S record, not a null", () => {
+  const lookup = (id) => (id === 'villain' ? { DECEPTION: 90 } : null);
+  assert.equal(subjectDeception('agent_villain', { lookup }), 90);
+  // A House regular carries a four-number playing profile and no attributes,
+  // which is exactly what _seatAttrs returns for that seat too.
+  assert.equal(subjectDeception('house_doyle_v3', { lookup }), null);
+  assert.equal(subjectDeception('agent_nobody', { lookup }), null);
+  // A record with a malformed attribute is not trusted into the arithmetic.
+  assert.equal(subjectDeception('agent_x', { lookup: () => ({ DECEPTION: 'very' }) }), null);
+});
+
+test('LIFE-1 follow-up: the chat gate and the felt gate are the SAME NUMBER', () => {
+  reset();
+  station('agent_villain', 'Villain', 40);   // seatAI's own spelling
+  // What the felt does, in full: _seatAttrs(i) is effectiveAttrs plus the
+  // drink's DISCIPLINE penalty plus the session dips, and DECEPTION survives
+  // all three untouched — so the felt's subject DECEPTION IS the stored
+  // attribute. Computed here the felt's way rather than asserted equal to
+  // itself, with every erosion this repo has turned up to maximum.
+  const villainAttrs = { READS: 40, FOCUS: 50, DISCIPLINE: 50, COMPOSURE: 50, DECEPTION: 88, STAMINA: 50 };
+  const worn = effectiveAttrs({ attrs: villainAttrs }, { sessionHands: 300 });
+  const seatAttrs = applyDips(
+    { ...worn, DISCIPLINE: worn.DISCIPLINE - 5 },
+    dipsFor({ fatigue: 'worn', stamina: 10, heat: 95 }));
+  const feltGate = readMinHands({ reads: 60, deception: seatAttrs.DECEPTION });
+
+  const him = hero({ reads: 60, ledger: { villain: entry('agent_villain', 'Villain') } });
+  const chat = opponentKnowledge(him, him.bioLedger.villain, {
+    lookup: (id) => (id === 'villain' ? villainAttrs : null),
+  });
+
+  assert.equal(seatAttrs.DECEPTION, 88, 'nothing a seat adds moves DECEPTION');
+  assert.equal(chat.deception, 88);
+  assert.equal(chat.gate, feltGate, 'the two gates must agree for the same pair');
+});
+
+test('LIFE-1 follow-up: a deceptive opponent takes longer to read, in chat too', () => {
+  reset();
+  station('agent_villain', 'Villain', 40);   // seatAI's own spelling
+  const him = hero({ reads: 50, ledger: { villain: entry('agent_villain', 'Villain') } });
+  const slippery = opponentKnowledge(him, him.bioLedger.villain, { lookup: () => ({ DECEPTION: 100 }) });
+  const open = opponentKnowledge(him, him.bioLedger.villain, { lookup: () => ({ DECEPTION: 0 }) });
+  assert.ok(slippery.gate > open.gate,
+    `a hard man to read should need more hands (${slippery.gate} vs ${open.gate})`);
+  // And it is a real gate rather than a decoration: it withholds a read the
+  // same evidence would have unlocked against an honest opponent.
+  const dull = hero({ reads: 0, ledger: { villain: entry('agent_villain', 'Villain') } });
+  assert.equal(opponentKnowledge(dull, dull.bioLedger.villain,
+    { lookup: () => ({ DECEPTION: 100 }) }).known, false,
+    '40 hands is not enough on the most deceptive opponent');
+  assert.equal(opponentKnowledge(dull, dull.bioLedger.villain,
+    { lookup: () => ({ DECEPTION: 0 }) }).known, true,
+    'the same 40 hands are enough on an honest one');
 });
 
 test('LIFE-1: a sharper agent needs fewer hands, exactly as at the table', () => {
