@@ -18,7 +18,7 @@ import { recordOwnerHand, ownerHandsContext } from '../agent/ownerHands.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
-import { staminaStageNow, worseStage, staminaPercent, restStamina, spendStamina } from '../agent/stamina.js';
+import { staminaStageNow, worseStage, staminaPercent, restStamina, spendStamina, feedStamina } from '../agent/stamina.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 // GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
 // only enforced here — see the note at the top of that file for why the two
@@ -97,6 +97,9 @@ import {
   isItem as isFridgeItem, ITEM_IDS as FRIDGE_ITEM_IDS,
   // SERVER-5 job 5: the food ask only fires when there is something in.
   hasStock as fridgeHasStock,
+  // LIFE-1 follow-up 3: what the food puts back, and the refusal asked over
+  // every one of an item's effects rather than only over the cooling.
+  staminaEffectOf, itemHelp,
 } from './fridge.js';
 import { bus as casinoBus } from './events.js';
 import { appendEntry as appendWalletEntry } from './wallet.js';
@@ -3152,10 +3155,28 @@ export function giveItemTo(agent, userId, item) {
   ensureMood(agent);
   ensureStats(agent);
 
-  // "He's fine. Save it." — the ref's own line. Handing a beer to a level agent
-  // takes nothing out of the fridge, because there is no heat to take off him.
-  if (!isMoodSoothable(agent.mood)) {
-    return { ok: false, status: 400, body: { error: "He's fine. Save it.", spent: 0, soothed: false } };
+  // LIFE-1 follow-up 3 — "He's fine. Save it.", asked over ALL of this item's
+  // effects instead of only over the cooling.
+  //
+  // What was here: `if (!isMoodSoothable(agent.mood))`, refusing every item to
+  // anyone who was not frustrated, tilted or sulking. applyItem floors heat at
+  // the neutral midpoint, which is where a resting agent sits by default — so
+  // for the commonest state in the product, neutral at heat 30, every item was
+  // refused, nothing left the fridge and nothing happened. That is why the
+  // fridge appeared to do nothing. It also refused a snack to a spent but calm
+  // agent, which is the exact case a snack now exists for.
+  //
+  // The reserve is read RESTED here on purpose: an agent being handed food is
+  // by definition not in a seat, and asking whether the snack would help has
+  // to use the number he actually has, not the one he had an hour ago.
+  const help = itemHelp(item, {
+    mood: agent.mood,
+    staminaLeft: staminaPercent(agent, { resting: true }),
+  });
+  if (!help.any) {
+    return { ok: false, status: 400, body: {
+      error: "He's fine. Save it.", spent: 0, soothed: false, reason: help.reason,
+    } };
   }
 
   const profile = getOrCreate(userId);
@@ -3179,19 +3200,20 @@ export function giveItemTo(agent, userId, item) {
     };
   }
 
+  // Cooling is applied when there is heat to take off him, and simply skipped
+  // when there is not — it is no longer the thing that decides whether the
+  // item may be handed over at all.
   const result = applyMoodItem(agent.mood, heatEffectOf(item), {
     cause: item === 'beer' ? 'a beer' : 'something to eat',
   });
-  if (!result.cooled) {
-    return {
-      ok: false,
-      status: 400,
-      body: { error: "He's fine. Save it.", spent: 0, soothed: false, reason: result.reason },
-    };
-  }
 
   takeFromFridge(wallet, item);
-  agent.mood = result.mood;
+  if (result.cooled) agent.mood = result.mood;
+  // LIFE-1 follow-up 3: and the food half. Bounded inside feedStamina, which
+  // clamps to a full reserve and runs the stage through the same hysteresis a
+  // charge does — so a snack can genuinely help a sleeping agent up, but only
+  // by getting him all the way back to rested.
+  const fed = help.feeds ? feedStamina(agent, staminaEffectOf(item)) : null;
   recordOwnerEvent(agent, 'item_given', { item });
 
   // SERVER-5 job 1: when he last ate. Hunger is measured from this, and being
@@ -3205,8 +3227,13 @@ export function giveItemTo(agent, userId, item) {
   // never plays again is not carrying a hangover in his record forever.
   if (item === 'beer') agent.drinkPending = true;
 
+  // The visible effect, in his own voice. The snack's line says what it did
+  // for him rather than thanking you, because "Cheers." for a thing that put
+  // a quarter of his evening back is a thinner moment than the item deserves.
   agent.lastMoment = {
-    text: item === 'beer' ? 'Cheers. Needed that.' : 'Cheers.',
+    text: item === 'beer'
+      ? 'Cheers. Needed that.'
+      : (help.feeds ? 'Cheers. That will keep me going a while.' : 'Cheers.'),
     mood: agent.mood?.state ?? 'neutral',
     at: Date.now(),
   };
@@ -3222,8 +3249,11 @@ export function giveItemTo(agent, userId, item) {
       // and a client that prints "−200" on a drink he already owned is telling
       // the owner he was charged twice.
       spent: 0,
-      soothed: true,
+      soothed: !!result.cooled,
       drinking: item === 'beer',
+      // LIFE-1 follow-up 3: what the food put back, so a client can draw the
+      // reserve moving rather than infer it from the next push.
+      ...(fed === null ? {} : { stamina: { left: fed, restored: staminaEffectOf(item) } }),
       mood: { state: agent.mood.state, heat: agent.mood.heat },
       moment: agent.lastMoment,
       fridge: fridgeProjection(wallet),

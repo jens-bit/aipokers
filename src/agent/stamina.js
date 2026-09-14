@@ -239,6 +239,35 @@ export function spendStamina(agent, hands, {
 }
 
 /**
+ * LIFE-1 follow-up 3 — put something back, from outside the clock.
+ *
+ * The snack. Bounded by construction: it is clamped to STAMINA_MAX like every
+ * other write here, and the caller's amount is the whole of the effect, so
+ * there is no path by which an item can hand him more than the reserve holds.
+ *
+ * The rest he has earned since the last write is credited FIRST, for the same
+ * reason spendStamina credits it: a snack must not quietly cancel an hour of
+ * sleeping by overwriting the number it was owed.
+ *
+ * The stage goes through the hysteresis exactly as a charge does, so feeding a
+ * sleeping agent can genuinely wake him — but only by getting him all the way
+ * back to rested, which at SNACK-sized amounts takes more than one.
+ */
+export function feedStamina(agent, amount, { now = Date.now() } = {}) {
+  if (!agent) return STAMINA_MAX;
+  const gain = Math.max(0, num(amount) ?? 0);
+  const before = staminaNow(agent, { now, resting: true });
+  const was = staminaStage(before, storedStage(agent));
+  const left = clamp(before + gain);
+  agent.stamina = {
+    left: Math.round(left * 10) / 10,
+    at: now,
+    stage: staminaStage(left, was),
+  };
+  return agent.stamina.left;
+}
+
+/**
  * Bank the recovery earned so far without spending anything.
  *
  * Used when a projection wants the record to stop lying — `staminaNow` already
