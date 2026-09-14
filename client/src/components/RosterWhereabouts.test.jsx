@@ -11,7 +11,7 @@ const cast = [
   { id:'kitchen', name:'Value Bot', location:{where:'home'}, routine:{key:'plays',label:'in the home game'}, homeTableId:'home-owner', liveGame:{tableId:'home-owner',blinds:'1/2',net:70}, pocket:{balance:80} },
 ];
 const expected = [
-  ['at the casino','25/50'], ['home','pacing'], ["visiting Fidde's",'1/2'], ['at your table','kitchen'],
+  ['at the casino','25/50'], ['at home','pacing'], ["visiting Fidde's",'1/2'], ['at your table','kitchen'],
 ];
 
 describe('BUG-167: authored C5 whereabouts', () => {
@@ -33,7 +33,7 @@ describe('BUG-167: authored C5 whereabouts', () => {
     expect(visitor.querySelector('.roster__where')).toHaveTextContent('visiting a friend');
     expect(visitor.querySelector('.roster__routine')).toBeNull();
     expect(visitor).toHaveAccessibleName('Visitor — visiting a friend. Open his thread.');
-    expect(home.querySelector('.roster__where').textContent).toBe('home');
+    expect(home.querySelector('.roster__where').textContent).toBe('at home');
     expect(home.querySelector('.roster__routine')).toHaveTextContent('reading');
     expect(within(home).getAllByText('—')).toHaveLength(2);
   });

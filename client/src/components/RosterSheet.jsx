@@ -60,7 +60,36 @@ export function rosterWhereabouts(agent) {
   if (presenceOf(agent) === 'playing' || (where && where !== 'home')) {
     return { where: 'at the casino', detail: roomLabel(agent?.location?.room) || agent?.liveGame?.blinds || null };
   }
-  return { where: 'home', detail: agent?.routine?.label || null };
+  // BUG-203: parallel with the other three sentences ("at your table", "at
+  // the casino", "visiting Fidde's") — "home" on its own read as a status
+  // word rather than a place, which is exactly what this line exists not to
+  // be.
+  return { where: 'at home', detail: agent?.routine?.label || null };
+}
+
+/**
+ * design-refs/mood-nav.jsx's `WHERE` map, ported alongside the sentence
+ * rather than instead of it (BUGS-A job 9's law against a bare status word is
+ * about the SENTENCE, not about colour). "You don't understand that they are
+ * out there" is a scanning problem — a muted 10px line reads the same for a
+ * man at home and a man at the casino until you actually read it. A coloured
+ * one-word badge answers "is he here" at a glance; the sentence beside it
+ * still answers "where, exactly" the way a fact about a man should.
+ */
+const ROSTER_BADGE = {
+  home: { c: '#7FA8C9', t: 'HOME' },
+  table: { c: '#7FA8C9', t: 'HOME' },
+  casino: { c: 'var(--accent)', t: 'CASINO' },
+  visiting: { c: 'var(--gold-reward)', t: 'VISITING' },
+};
+
+/** Which of the ref's four categories this row's sentence maps to. */
+export function rosterCategory(agent) {
+  if (agent?.visiting) return 'visiting';
+  if (homeGameOf(agent) && (agent?.location?.where ?? 'home') === 'home') return 'table';
+  const where = agent?.location?.where ?? null;
+  if (presenceOf(agent) === 'playing' || (where && where !== 'home')) return 'casino';
+  return 'home';
 }
 
 export function whereLine(agent) {
@@ -89,6 +118,9 @@ export function RosterRow({ agent, index, onOpen }) {
   const live = rosterLive(agent);
   const unread = hasUnread(agent);
   const whereabouts = rosterWhereabouts(agent);
+  const category = rosterCategory(agent);
+  const badge = ROSTER_BADGE[category];
+  const away = category !== 'home' && category !== 'table';
   // HOME-2 job 3: the same creature the room draws. A row that tinted him
   // differently from his body would be a second man with his name on it.
   const id = identityOf(agent);
@@ -99,10 +131,11 @@ export function RosterRow({ agent, index, onOpen }) {
         type="button"
         className="roster__row"
         data-agent={agent.id}
+        data-where={category}
         onClick={() => onOpen?.(agent)}
         aria-label={`${agent.name} — ${whereabouts.where}${whereabouts.detail ? ` · ${whereabouts.detail}` : ''}. Open his thread.`}
       >
-        <span className="roster__face">
+        <span className={`roster__face${away ? ' roster__face--away' : ''}`}>
           <MoodGhost
             mood={moodOf(agent)}
             heat={heatOf(agent)}
@@ -117,7 +150,11 @@ export function RosterRow({ agent, index, onOpen }) {
           {agent.want && <span className="roster__want" role="img" aria-label="Wants your attention"/>}
         </span>
         <span className="roster__id">
-          <span className="roster__name">{agent.name}</span>
+          <span className="roster__name-line">
+            <span className="roster__name">{agent.name}</span>
+            {/* design-refs/mood-nav.jsx's WHERE badge: is he here, at a glance. */}
+            <span className="roster__badge" style={{ color: badge.c }}>{badge.t}</span>
+          </span>
           <span className="roster__place"><span className="roster__where">{whereabouts.where}</span>
           {whereabouts.detail && <span className="roster__routine">{whereabouts.detail}</span>}</span>
         </span>

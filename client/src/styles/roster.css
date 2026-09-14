@@ -179,6 +179,12 @@
   flex-direction: column;
   gap: 1px;
 }
+.roster__name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
 .roster__name {
   font-size: 13px;
   color: var(--text-primary, var(--text-primary));
@@ -186,6 +192,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* design-refs/mood-nav.jsx's WHERE badge — a coloured word says "is he here"
+ * before the sentence beside it has to be read at all. */
+.roster__badge {
+  flex-shrink: 0;
+  font-family: 'Oswald', sans-serif;
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+}
+/* An away body is dimmed the same way HOME's own wall already dims a man who
+ * has stepped out — the fact that he is not here is a fact about his face,
+ * not only about a word beside it. */
+.roster__face--away .mood-ghost { opacity: 0.7; }
 .roster__where {
   font-size: 10px;
   color: var(--text-muted);

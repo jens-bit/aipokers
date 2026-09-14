@@ -7,6 +7,7 @@
 - **A stack now reads the app's own money format (BUG-207).** One table-stats line used the device's locale grouping instead of the shared formatter every other amount in the app uses; it could print a space instead of a comma depending on the machine.
 - **Opening the roster inside a casino room no longer overlaps the room (BUG-202).** The room's own deploy card and conversation band now stand down while the roster's glass sheet is up, instead of showing dense text straight through it.
 - **Stamina and heat draw as three dots (LIFE-1-B, client half).** Merged `feat/agent-life`'s three-state reading and ported the client off its old continuous bars — the felt, every seat, the room pill and the profile card all draw the same dots now, word on tap where nothing else already answers that tap.
+- **The roster says who's actually out (BUG-203).** Every row already named where an agent is; it now also wears a coloured HOME/CASINO/VISITING badge and dims an away man's face, so "he's not here" registers at a glance instead of on a careful read. Home reads "at home" now, parallel with the room's other three sentences.
 
 ## Agent life, memory and conversation — local candidate (2026-09-14, LIFE-1)
 

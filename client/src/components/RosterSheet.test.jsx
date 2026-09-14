@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { RosterRow, RosterSheet, whereLine, rosterWhereabouts, hasUnread, canSendVisiting } from './RosterSheet.jsx';
+import { RosterRow, RosterSheet, whereLine, rosterWhereabouts, rosterCategory, hasUnread, canSendVisiting } from './RosterSheet.jsx';
 import { AgentProfileScreen } from '../screens/AgentProfileScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
@@ -51,8 +51,8 @@ describe('BUGS-A job 9 · where he is, in the room own words', () => {
   });
 
   it('home is home', () => {
-    expect(whereLine(agent('a1', 'x'))).toBe('home');
-    expect(whereLine({})).toBe('home');
+    expect(whereLine(agent('a1', 'x'))).toBe('at home');
+    expect(whereLine({})).toBe('at home');
   });
 
   it('the dot is about YOU: something said that you have not read', () => {
@@ -60,9 +60,32 @@ describe('BUGS-A job 9 · where he is, in the room own words', () => {
     expect(hasUnread(agent('a1', 'x', { unseenRecap: true }))).toBe(true);
     expect(hasUnread(agent('a1', 'x', { want: { text: 'can I have a beer' } }))).toBe(true);
   });
+
+  // BUG-203: Jens, playing 2026-09-14 — "The roster up to the right needs to
+  // be better intuitive, because you don't understand that they are out
+  // there." The sentence was already there (`rosterWhereabouts`); the gap was
+  // that it was styled identically to every other row, so nothing said "here"
+  // vs "not here" until you actually read it. `rosterCategory` names which of
+  // design-refs/mood-nav.jsx's WHERE categories a row is in, for the badge.
+  it('BUG-203: names the category a coloured badge reads at a glance', () => {
+    expect(rosterCategory(agent('a1', 'x'))).toBe('home');
+    expect(rosterCategory(AT_TABLE)).toBe('casino');
+    expect(rosterCategory(agent('h', 'Home', { homeTableId: 'home-4242', liveGame: { tableId: 'home-4242' } }))).toBe('table');
+    expect(rosterCategory(agent('v', 'Visitor', { visiting: { hostName: 'Fidde' } }))).toBe('visiting');
+  });
 });
 
 describe('BUGS-A job 9 · the sheet', () => {
+  it('BUG-203: a row at the casino wears a CASINO badge and a dimmed face; one at home does not', () => {
+    const { container: away } = render(<RosterRow agent={AT_TABLE} index={0} onOpen={() => {}} />);
+    expect(within(away.querySelector('.roster__row')).getByText('CASINO')).toBeInTheDocument();
+    expect(away.querySelector('.roster__face--away')).toBeTruthy();
+
+    const { container: home } = render(<RosterRow agent={agent('a1', 'x')} index={0} onOpen={() => {}} />);
+    expect(within(home.querySelector('.roster__row')).getByText('HOME')).toBeInTheDocument();
+    expect(home.querySelector('.roster__face--away')).toBeNull();
+  });
+
   it('BUG-162: roster preserves pocket and casino results during no-stakes Home play', () => {
     render(<RosterRow agent={agent('h','Home player',{homeTableId:'kitchen',liveGame:{tableId:'kitchen',net:75,heroStack:200},pocket:{balance:3000},sessionLog:[{net:-120}]})} index={0} onOpen={()=>{}}/>);
     expect(screen.getByText('$3,000')).toBeInTheDocument();
@@ -90,9 +113,9 @@ describe('BUGS-A job 9 · the sheet', () => {
     fetchMock.route('/api/agents', { agents: [agent('a1', 'The Clock'), AT_TABLE] });
     render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);
 
-    const clock = await screen.findByRole('button', { name: /^The Clock — home/ });
+    const clock = await screen.findByRole('button', { name: /^The Clock — at home/ });
     expect(within(clock).getByText('The Clock')).toBeInTheDocument();
-    expect(within(clock).getByText('home')).toBeInTheDocument();
+    expect(within(clock).getByText('at home')).toBeInTheDocument();
     expect(within(clock).getByText('$2,400')).toBeInTheDocument();
 
     const slick = screen.getByRole('button', { name: /^Big Slick — at the casino/ });

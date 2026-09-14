@@ -37,7 +37,7 @@ test.describe('BUG-171: C5 readable muted roster text',()=>{
     await sheet.getByRole('button',{name:'Close',exact:true}).last().click();
     await expect(sheet).toBeHidden();
     await page.getByRole('button',{name:'Your agents',exact:true}).click();
-    await page.getByRole('button',{name:'Granite — home · reading. Open his thread.',exact:true}).click();
+    await page.getByRole('button',{name:'Granite — at home · reading. Open his thread.',exact:true}).click();
     await expect(page.getByRole('region',{name:"Granite's room",exact:true})).toBeVisible();
   });
 });
