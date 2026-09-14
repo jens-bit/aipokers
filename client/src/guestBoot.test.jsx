@@ -111,13 +111,43 @@ describe('GUEST-1 · which door', () => {
     expect(fetchMock.posts.filter((c) => c.url.includes('/api/guest'))).toHaveLength(0);
   });
 
-  it('a server that refuses to mint one falls through rather than mounting an ownerless app', async () => {
+  // GUEST-3 REPLACES THE OLD RULE HERE, ON PURPOSE.
+  //
+  // This case used to assert that a 429 guestCap fell through to /welcome. It
+  // did, and that was the bug Jens hit on prod: the page had just promised
+  // "free, no account needed", and a fifth visitor from one address got a
+  // Telegram wall and an empty seat ring with no reason beside it. The
+  // destination was never wrong; the silence was. A guestCap refusal now opens
+  // the same door WITH the server's sentence under a closed ring.
+  //
+  // The original protection — never mount an app with no owner behind it — is
+  // not lost: it is the case below, for every refusal that is not this one.
+  it('a capped address gets the door AND the reason, never a silent fallback', async () => {
     const replace = stubLocation('agenticpoker.app');
     telegram.signOut();
     mountPoint();
     fetchMock.route('/api/auth/config', { guest: true });
     fetchMock.route('/api/guest/me', { status: 404, body: {} });
-    fetchMock.route('/api/guest', { status: 429, body: { error: 'guestCap' } }, { method: 'POST' });
+    fetchMock.route('/api/auth/me', { status: 401, body: {} });
+    fetchMock.route('/api/guest', { status: 429, body: {
+      error: 'guestCap', perDay: 20,
+      message: 'That is enough new players from here today. Log in with Telegram, or come back tomorrow.',
+    } }, { method: 'POST' });
+
+    await (await import('./main.jsx')).booted;
+
+    expect(replace).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('guest-notice')).toHaveTextContent(/enough new players from here today/);
+    expect(screen.queryByText('ONE OPEN SEAT')).toBeNull();
+  });
+
+  it('any other refusal still falls through rather than mounting an ownerless app', async () => {
+    const replace = stubLocation('agenticpoker.app');
+    telegram.signOut();
+    mountPoint();
+    fetchMock.route('/api/auth/config', { guest: true });
+    fetchMock.route('/api/guest/me', { status: 404, body: {} });
+    fetchMock.route('/api/guest', { status: 503, body: {} }, { method: 'POST' });
 
     await (await import('./main.jsx')).booted;
 

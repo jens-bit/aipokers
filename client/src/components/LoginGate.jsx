@@ -16,7 +16,16 @@ import { getWebLogin, setWebLogin, clearWebLogin, getTelegramInitData } from '..
 const WIDGET_SRC = 'https://telegram.org/js/telegram-widget.js?22';
 const AUTH_CALLBACK = '__agenticTelegramAuth';
 
-export default function LoginGate({ children }) {
+/**
+ * @param seatClosed  GUEST-3: the guest door is shut for this visitor today, so
+ *                    the seat is not open and must not be drawn as though it
+ *                    were. The ring dims; the room stays lit behind it.
+ * @param notice      the SERVER's own sentence about why. Rendered verbatim
+ *                    under the ring — this component never writes its own
+ *                    reason, because a reason the client invents is a reason
+ *                    that drifts from the rule that produced it.
+ */
+export default function LoginGate({ children, seatClosed = false, notice = null }) {
   // 'checking' → asking the server | 'in' → authenticated | 'out' → show widget
   const [phase, setPhase] = useState('checking');
   const [botUsername, setBotUsername] = useState(null);   // null = not loaded yet
@@ -84,11 +93,15 @@ export default function LoginGate({ children }) {
           the same dashed rim the floor's own stool wears. */}
       <div className="ftu-login__room">
         <div className="ftu-login__glow" />
-        <div className="ftu-login__seat">
+        <div className={`ftu-login__seat${seatClosed ? ' ftu-login__seat--closed' : ''}`}>
           <div className="ftu-login__stool" />
-          <span className="ftu-login__seat-label">ONE OPEN SEAT</span>
+          <span className="ftu-login__seat-label">{seatClosed ? 'NO SEAT TONIGHT' : 'ONE OPEN SEAT'}</span>
         </div>
       </div>
+
+      {/* Under the ring, where the eye already is, rather than down beside the
+          button — the ring is the thing that changed and this says why. */}
+      {notice && <p className="ftu-login__notice" role="status" data-testid="guest-notice">{notice}</p>}
 
       <div className="ftu-login__pitch">
         <h1 className="ftu-login__head">There is a room,<br />and an open seat<br />in it.</h1>

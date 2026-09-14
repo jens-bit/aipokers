@@ -176,6 +176,25 @@
   letter-spacing: 0.06em;
 }
 
+/* GUEST-3: the seat is spoken for tonight. The room stays lit — the product is
+   still there and still worth signing in for — but the ring stops advertising
+   an opening that this visitor cannot take. Grey rather than teal, still rather
+   than drifting: teal is the colour of a thing you can have. */
+.ftu-login__seat--closed .ftu-login__stool {
+  border-color: rgba(255, 255, 255, 0.16);
+  animation: none;
+}
+.ftu-login__seat--closed .ftu-login__seat-label { color: var(--sys-muted, #6B6B6B); }
+
+.ftu-login__notice {
+  max-width: 30ch;
+  margin: 16px auto 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--sys-dim, #9E9EA2);
+}
+
 @keyframes ftu-drift {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-5px); }
