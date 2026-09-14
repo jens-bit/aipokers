@@ -350,11 +350,33 @@ test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)',
 });
 
 test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => {
-  test('BUG-86: condition tracks have a visible width and height',async({page})=>{
+  // MERGE-7 REWRITES THIS TO THE NEW RULE (Testing law #5).
+  //
+  // BUG-86 was filed when a condition reading was a continuous track that
+  // rendered at zero height on the desk roster — the reading was there in the
+  // DOM and invisible on the screen. LIFE-1-B deliberately retired the track:
+  // stamina is a THREE-STATE word the client used to multiply into a
+  // percentage, so a bar 63% full claimed precision the server does not have.
+  // Three dots is now the product, on purpose.
+  //
+  // So `.felt-bars__track` is gone and asserting on it asserts a rule we no
+  // longer want. The CLAIM is kept exactly — the reading must actually be
+  // drawn, not collapsed — and re-expressed against what draws it. The old
+  // `width > 80` is deliberately not carried over: it described a bar that
+  // spanned the roster row, and demanding it of three small dots would be
+  // demanding the product be the thing LIFE-1-B removed. In its place the test
+  // now asserts something the bar version could not: that all three dots are
+  // present and each one says whether it is lit, which is the information the
+  // track used to carry in its fill.
+  test('BUG-86: a condition reading is actually drawn on the desk roster',async({page})=>{
     await desk(page,SIZES[0]);
-    const track=await page.locator('.dsk-roster-bars .felt-bars__track').first().boundingBox();
-    expect(track.width).toBeGreaterThan(80);
-    expect(track.height).toBeGreaterThanOrEqual(2);
+    const row=page.locator('.dsk-roster-bars .body-dots__dots').first();
+    const box=await row.boundingBox();
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.height).toBeGreaterThanOrEqual(2);
+    const dots=row.locator('.body-dots__dot');
+    await expect(dots).toHaveCount(3);
+    for(let n=0;n<3;n++) expect(await dots.nth(n).getAttribute('data-lit')).toMatch(/^(true|false)$/);
   });
   for (const size of [{width:1280,height:800},...SIZES]) {
     test(`C9: conversation, identity and Carry work beside the room at ${size.width}`,async({page})=>{
@@ -653,7 +675,12 @@ test('BUG-100: desktop condition labels stay below the stack and equity',async({
   await page.reload();
   await page.getByRole('button',{name:/Standup/}).click();
   await page.getByRole('button',{name:'WATCH →'}).first().click();
-  await expect(page.locator('.watch-hero__strip .felt-bars__label')).toHaveCount(2);
+  // MERGE-7 (Testing law #5): LIFE-1-B replaced the two labelled bars with two
+  // dot readings, so `.felt-bars__label` no longer exists. The claim is
+  // unchanged — both conditions are present in the hero strip, and they sit
+  // below the stack and the equity — and the positional assertion below, which
+  // is what BUG-100 is actually about, is untouched.
+  await expect(page.locator('.watch-hero__strip .body-dots')).toHaveCount(2);
   await expect(page.locator('.watch-hero .tug__value')).toHaveText('64%');
   const bounds=await page.locator('.watch-hero__strip').evaluate(el=>({
     numbersBottom:Math.max(...[...el.querySelectorAll('.watch-felt__hero-num')].map(n=>n.getBoundingClientRect().bottom)),

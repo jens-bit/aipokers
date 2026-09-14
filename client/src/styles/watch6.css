@@ -1072,7 +1072,16 @@
    BUGS-A job 10: two rows and the two words under them, rather than two rows
    alone. Stated flat rather than through :has(), because a selector the
    webview does not understand would put the words over the row. */
-.watch-hero__strip.watch-felt__hero { padding-bottom: 26px; }
+/* MERGE-7 / BUG-100: 26px was calibrated for the old continuous bars. LIFE-1-B's
+   dots block is taller than the track it replaced (a dot row plus its word,
+   where the bar was a 2px track plus a label), and `.felt-bars` is anchored to
+   this strip's BOTTOM — so with the reservation unchanged the taller block grew
+   upwards and crossed the stack and equity numbers by about 7px. Measured on the
+   desk at 1440: bars top 716.4 against a numbers bottom of 719.1, where BUG-100
+   requires the bars to start at least 4px BELOW them. 34px restores the gap with
+   a little room to spare. The rule BUG-100 states is unchanged; only the number
+   that buys it had to move when the thing being reserved for got taller. */
+.watch-hero__strip.watch-felt__hero { padding-bottom: 34px; }
 
 /* ── LIFE-1-B · the dots, in one shape everywhere ───────────────────────────
    `BodyDots` (system/FeltBodyBars.jsx) is the one component that draws a
