@@ -41,6 +41,7 @@ import { buildFlaggedEntry } from './flaggedHands.js';
 import { studyLine } from '../agent/reads.js';
 import { Routine } from './home.js';
 import { _closeForTests } from './store.js';
+import { idleCycle } from './home.js';
 
 const tape = await import('./tapeRoom.js');
 
@@ -209,7 +210,11 @@ test('HOME-STATE-1: he goes in, ninety seconds pass, one line comes out', async 
 
   const done = profiles.presentedRoster('tape', { owner: true }).find((a) => a.id === 'student');
   assert.equal(done.study, null, 'out of the tape room');
-  assert.equal(done.routine.key, Routine.READS, 'back to his nature');
+  // LIFE-1: back to HIS NATURE means back into his nature's own cycle — the
+  // habit he lands in depends on the minute, the fact that he is out of the
+  // tape room and idle does not.
+  assert.ok(idleCycle(during.nature).includes(done.routine.key),
+    `back to his nature, not ${done.routine.key}`);
 
   const { status, body: seen } = await getJson(`${base}/api/agents/student/study?userId=tape`);
   assert.equal(status, 200);

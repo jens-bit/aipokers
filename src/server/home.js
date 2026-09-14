@@ -19,12 +19,21 @@
 //      home" cannot be recomputed from anything.
 //
 //   2. THE ROUTINE IS A CONSEQUENCE, NOT A ROLL. The same agent in the same
-//      state always does the same thing. His nature picks his idle habit and
-//      never changes it — a Hothead paces because he is a Hothead — and a
-//      STATE that overrides it (he is worn, he is broke, there is a recap he
-//      has not read) is a fact about him, not a random flavour line. Nothing
-//      here consults a clock or a random number, so the same snapshot taken
-//      twice reads the same twice.
+//      state at the same instant always does the same thing. A STATE that
+//      overrides his habit (he is worn, he is broke, he is steaming, somebody
+//      just fed him, he has just won) is a fact about him, not a random
+//      flavour line, and nothing here consults a random number.
+//
+//      LIFE-1 CHANGED THE SECOND HALF OF THIS RULE, deliberately. It used to
+//      read "his nature picks his idle habit and never changes it", and the
+//      consequence of "never changes it" was a room that never changed:
+//      a household of four came home to the same four poses it had been
+//      holding since they were born. So TIME IS NOW AN INPUT. `now` arrives as
+//      an argument like every other fact, the function is still pure, and the
+//      same snapshot taken twice at the same instant still reads the same
+//      twice — what it no longer does is read the same at 9pm as it did at
+//      2pm. His nature still decides WHICH habits are his; it no longer
+//      decides that he is stuck in one of them forever.
 //
 //   3. THIS MODULE KNOWS ABOUT NO TABLE AND NO PROFILE. Same law as
 //      rooms.js and floorChannel.js: everything arrives as arguments and the
@@ -37,6 +46,8 @@
 // purpose.
 
 import { storedIdentity } from '../shared/identity.js';
+// LIFE-1: the one tilt threshold, owned by dips.js.
+import { TILT_HEAT } from '../agent/dips.js';
 
 // ── Where ───────────────────────────────────────────────────────────────────
 
@@ -63,10 +74,13 @@ export const Routine = Object.freeze({
   // State routines — what has happened to him wins over what he is like.
   PLAYS:    'plays',      // he is in the home game
   TAPE:     'tape',       // the tape room: he is studying a flagged hand
-  SULKS:    'sulks',      // busted — no pocket, no casino, and he knows it
-  SLEEPS:   'sleeps',     // worn — the session took it out of him
+  EATS:     'eats',       // LIFE-1: there is food in him or in front of him
+  CELEBRATES: 'celebrates', // LIFE-1: he came home up and he is not over it
+  SULKS:    'sulks',      // busted, or steaming — and he knows it
+  SLEEPS:   'sleeps',     // worn — the day took it out of him
   WAITS:    'waits',      // there is a recap his owner has not read yet
-  // Nature routines — his idle habit, fixed at birth.
+  // Nature routines — the habits his nature gives him. LIFE-1: which of them
+  // he is in right now is a function of the clock, not a constant.
   PACES:    'paces',
   READS:    'reads',
   SHUFFLES: 'shuffles',
@@ -74,16 +88,52 @@ export const Routine = Object.freeze({
 });
 
 export const ROUTINE_LABELS = Object.freeze({
-  [Routine.PLAYS]:    'in the home game',
-  [Routine.TAPE]:     'in the tape room',
-  [Routine.SULKS]:    'sulking',
-  [Routine.SLEEPS]:   'asleep',
-  [Routine.WAITS]:    'waiting by the door',
-  [Routine.PACES]:    'pacing',
-  [Routine.READS]:    'reading',
-  [Routine.SHUFFLES]: 'shuffling',
-  [Routine.COUNTS]:   'counting chips',
+  [Routine.PLAYS]:      'in the home game',
+  [Routine.TAPE]:       'in the tape room',
+  [Routine.EATS]:       'eating',
+  [Routine.CELEBRATES]: 'celebrating',
+  [Routine.SULKS]:      'sulking',
+  [Routine.SLEEPS]:     'asleep',
+  [Routine.WAITS]:      'waiting by the door',
+  [Routine.PACES]:      'pacing',
+  [Routine.READS]:      'reading',
+  [Routine.SHUFFLES]:   'shuffling',
+  [Routine.COUNTS]:     'counting chips',
 });
+
+// LIFE-1 · THE IDLE ROTATION.
+//
+// The four idle habits are still the only four poses in the product, and his
+// nature still owns his signature one. What changed is that a nature now names
+// a CYCLE rather than a constant: his own habit in two of the four slots, and
+// two neighbouring habits in the others. So a Hothead is mostly pacing, which
+// is what a Hothead does, and is sometimes doing one of the two other things a
+// restless man does with his hands — and a room of four is never a row of four
+// identical poses held indefinitely.
+//
+// Two slots for the signature rather than three is the number that makes the
+// room read as alive rather than as twitchy: he is in character half the time
+// and recognisably himself the rest of it.
+export const IDLE_CYCLE_BY_NATURE = Object.freeze({
+  Hothead:   [Routine.PACES,    Routine.SHUFFLES, Routine.PACES,    Routine.COUNTS],
+  Rock:      [Routine.READS,    Routine.COUNTS,   Routine.READS,    Routine.SHUFFLES],
+  Shark:     [Routine.SHUFFLES, Routine.COUNTS,   Routine.SHUFFLES, Routine.PACES],
+  Grinder:   [Routine.COUNTS,   Routine.READS,    Routine.COUNTS,   Routine.SHUFFLES],
+  Professor: [Routine.READS,    Routine.PACES,    Routine.READS,    Routine.COUNTS],
+  Showman:   [Routine.PACES,    Routine.READS,    Routine.PACES,    Routine.SHUFFLES],
+  Gambler:   [Routine.SHUFFLES, Routine.PACES,    Routine.SHUFFLES, Routine.COUNTS],
+  Sphinx:    [Routine.COUNTS,   Routine.PACES,    Routine.COUNTS,   Routine.READS],
+});
+
+// The nature that has not formed yet. Same shape, built on DEFAULT_ROUTINE.
+export const DEFAULT_IDLE_CYCLE = Object.freeze([
+  Routine.COUNTS, Routine.SHUFFLES, Routine.COUNTS, Routine.READS,
+]);
+
+// How long he stays in one idle habit. Ninety seconds is short enough that an
+// owner who opens the app twice in an evening sees two different rooms, and
+// long enough that a room somebody is actually looking at is not a flick-book.
+export const IDLE_PHASE_MS = Number(process.env.IDLE_PHASE_MS ?? 90_000);
 
 // His idle habit, by nature. Four habits, eight natures: the four the brief
 // names are the anchors and the other four are placed against them by the
@@ -127,39 +177,140 @@ export const DEFAULT_ROUTINE = Routine.COUNTS;
  *      deliberate act outranks a standing state: it is the only one of these
  *      he chose, and showing him asleep instead would make the button look
  *      broken.
- *   3. broke       → SULKS. He cannot buy in. It is the loudest fact about
- *      him and the one the owner can do something about.
- *   4. worn        → SLEEPS.
- *   5. unseenRecap → WAITS. Quietest of the four: it is a nudge, not a state.
- *   6. otherwise   → his nature's habit.
+ *   3. fedAt       → EATS. LIFE-1. Placed directly under TAPE and above every
+ *      standing condition for exactly TAPE's reason: you opened the fridge and
+ *      handed him something a minute ago, and a man shown asleep with a
+ *      sandwich in his hand makes the fridge look broken. It is the shortest
+ *      routine in the list — see EATING_MS.
+ *   4. celebrating → CELEBRATES. LIFE-1. He came home up and has not come down
+ *      yet. Above SULKS because the same evening cannot earn both and the win
+ *      is the louder of them; below EATS because the owner's own act outranks
+ *      his mood.
+ *   5. broke | tilted → SULKS. LIFE-1 widened this: it used to be broke alone,
+ *      which meant the one state an owner most wants to SEE — he is steaming —
+ *      was invisible the moment he stood up from the felt. Heat at or above
+ *      SULK_HEAT is sulking; so is having no way to buy in.
+ *   6. worn        → SLEEPS.
+ *   7. unseenRecap → WAITS. Quietest of the four: it is a nudge, not a state.
+ *   8. otherwise   → where his nature's idle cycle stands at this instant.
+ *
+ * `slot` is the room's doing, not his: homeStateMessage hands each body in a
+ * household a different one so four idle agents are never in the same phase of
+ * their cycles at the same moment. An agent asked about on his own gets slot 0
+ * and is answered about honestly; nothing about a single agent's reading
+ * depends on it.
  */
 export function routineFor({
+  id = null,
   nature = null,
   where = Where.HOME,
   atHomeTable = false,
   studying = false,
   broke = false,
+  tilted = false,
+  fedAt = null,
+  celebrating = false,
   fatigue = 'fresh',
   unseenRecap = false,
+  slot = 0,
+  now = Date.now(),
 } = {}) {
   if (where !== Where.HOME) return null;
-  const key = routineKey({ nature, atHomeTable, studying, broke, fatigue, unseenRecap });
+  const key = routineKey({
+    id, nature, atHomeTable, studying, broke, tilted, fedAt, celebrating,
+    fatigue, unseenRecap, slot, now,
+  });
   return { key, label: ROUTINE_LABELS[key] };
 }
 
-function routineKey({ nature, atHomeTable, studying, broke, fatigue, unseenRecap }) {
+function routineKey({
+  id, nature, atHomeTable, studying, broke, tilted, fedAt, celebrating,
+  fatigue, unseenRecap, slot, now,
+}) {
   if (atHomeTable) return Routine.PLAYS;
   if (studying) return Routine.TAPE;
-  if (broke) return Routine.SULKS;
+  if (isEating(fedAt, now)) return Routine.EATS;
+  if (celebrating) return Routine.CELEBRATES;
+  if (broke || tilted) return Routine.SULKS;
   if (fatigue === 'worn') return Routine.SLEEPS;
   if (unseenRecap) return Routine.WAITS;
-  return natureRoutine(nature);
+  return idleRoutine({ id, nature, slot, now });
+}
+
+// How long a snack keeps him busy. Two minutes: long enough that an owner who
+// hands him something watches him eat it, short enough that "eating" is never
+// the answer to "what has he been doing all afternoon".
+export const EATING_MS = 120_000;
+
+/** Is he eating right now? Pure; `fedAt` is epoch ms or null. */
+export function isEating(fedAt, now = Date.now()) {
+  const at = Number(fedAt);
+  if (!Number.isFinite(at)) return false;
+  const since = now - at;
+  return since >= 0 && since < EATING_MS;
+}
+
+// The heat at which an idle agent reads as sulking. dips.js owns the number
+// (it is the same line a tilted session is dipped at, and the same one
+// wants.js raises the beer ask at); this is that number under the name this
+// file's ladder uses, never a second copy of it.
+export const SULK_HEAT = TILT_HEAT;
+
+// How long a winning session keeps him celebrating. Five minutes — the length
+// of a home game, deliberately: he is still going when the next one starts.
+export const CELEBRATE_MS = 300_000;
+
+/**
+ * Did the evening he just finished go well enough that he is still enjoying
+ * it? Pure. `pnl` is the session's chip result, `endedAt` when he stood up.
+ */
+export function isCelebrating({ pnl = null, endedAt = null, now = Date.now() } = {}) {
+  const n = Number(pnl);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  const at = Number(endedAt);
+  if (!Number.isFinite(at)) return false;
+  const since = now - at;
+  return since >= 0 && since < CELEBRATE_MS;
 }
 
 /** The idle habit for a nature, in any of the shapes a nature is carried in. */
 export function natureRoutine(nature) {
   const name = typeof nature === 'string' ? nature : nature?.name;
   return ROUTINE_BY_NATURE[name] ?? DEFAULT_ROUTINE;
+}
+
+/** His nature's cycle, in any of the shapes a nature is carried in. */
+export function idleCycle(nature) {
+  const name = typeof nature === 'string' ? nature : nature?.name;
+  return IDLE_CYCLE_BY_NATURE[name] ?? DEFAULT_IDLE_CYCLE;
+}
+
+// A small stable integer from an id. Not a hash with any property worth
+// naming — it exists so two agents of the same nature are not permanently in
+// step with each other, and `slot` is what GUARANTEES a household is not. An
+// agent with no id gets 0, the honest answer for a body not told who it is.
+export function idOffset(id) {
+  const s = String(id ?? '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 104729;
+  return h;
+}
+
+/**
+ * Which of his nature's habits he is in right now.
+ *
+ * Pure, and TOTAL — every nature has a cycle and every cycle has four slots,
+ * so this always names one of the four poses the client can already draw.
+ */
+export function idleRoutine({ id = null, nature = null, slot = 0, now = Date.now() } = {}) {
+  const cycle = idleCycle(nature);
+  const n = cycle.length;
+  const phase = Math.floor(Number(now) / IDLE_PHASE_MS);
+  const step = Number.isFinite(phase) ? phase : 0;
+  const slotN = Number(slot);
+  const offset = idOffset(id) + (Number.isFinite(slotN) ? slotN : 0);
+  const i = (((step + offset) % n) + n) % n;
+  return cycle[i];
 }
 
 // ── Location ────────────────────────────────────────────────────────────────
@@ -294,7 +445,9 @@ export function isNewborn(agent, { now = Date.now() } = {}) {
 export function homeStateMessage(userId, agents, game = null, { thread = null, fridge = null, visitor = null, now = Date.now() } = {}) {
   return {
     userId: String(userId ?? 'anon'),
-    agents: (agents ?? []).map((agent) => homeAgentProjection(agent, { now })),
+    // LIFE-1: the room, not the man, decides that two people are not doing the
+    // identical thing in the identical way. See spreadIdleRoutines.
+    agents: spreadIdleRoutines((agents ?? []).map((agent) => homeAgentProjection(agent, { now })), { now }),
     game: game ?? null,
     // SERVER-4: the room thread's unread marker, exactly parallel to an
     // agent's `unseenRecap` and deliberately NOT a boolean — `unreadSince` is
@@ -308,6 +461,53 @@ export function homeStateMessage(userId, agents, game = null, { thread = null, f
     visitor: visitor ?? null,
   };
 }
+
+// LIFE-1 · THE ROOM'S OWN RULE: not everybody at once.
+//
+// routineFor answers about ONE agent and cannot see the others, so on its own
+// it will happily put a household of four Rocks in four identical reading
+// poses — which is the thing the playtest actually complained about ("every
+// time I come home they just stand around"). The fix belongs here, at the one
+// place the whole room is in hand.
+//
+// Only IDLE routines are moved. A state routine is a fact — two agents who are
+// both worn are both asleep, and shuffling one of them awake to make the
+// picture livelier would be a lie about him. Idle habits are the ones where
+// nothing is at stake, so they are the ones allowed to give way.
+//
+// Greedy and in roster order: the first idle body keeps what he had, and each
+// one after him steps through his own cycle until he lands on a habit nobody
+// before him is in. A cycle carries three distinct habits, so up to three idle
+// agents are always doing three different things; a fourth may double up with
+// somebody, which is what a room of four people actually looks like. Nothing
+// here can produce a habit that is not already in that agent's own cycle.
+export function spreadIdleRoutines(projections, { now = Date.now() } = {}) {
+  const list = Array.isArray(projections) ? projections : [];
+  const taken = new Set();
+  for (const p of list) {
+    const key = p?.routine?.key;
+    if (!key || !IDLE_KEYS.has(key)) continue;
+    if (!taken.has(key)) { taken.add(key); continue; }
+    const cycle = idleCycle(p.nature);
+    let moved = null;
+    for (let slot = 1; slot < cycle.length; slot++) {
+      const next = idleRoutine({ id: p.id, nature: p.nature, slot, now });
+      if (!taken.has(next)) { moved = next; break; }
+    }
+    // Every habit in his cycle is already in the room: he keeps his own. Two
+    // people reading is a room; forcing a fourth pose that is not his would be
+    // inventing a character trait to fill a gap in a picture.
+    if (moved === null) { taken.add(key); continue; }
+    p.routine = { key: moved, label: ROUTINE_LABELS[moved] };
+    taken.add(moved);
+  }
+  return list;
+}
+
+// The four keys the spread is allowed to move. Derived from Routine rather
+// than written out, so a fifth idle pose cannot be added without this set
+// learning about it.
+const IDLE_KEYS = new Set([Routine.PACES, Routine.READS, Routine.SHUFFLES, Routine.COUNTS]);
 
 // The counts only. Prices and labels are GET /api/fridge's job — they never
 // change, so pushing them down a live socket on every home change would be

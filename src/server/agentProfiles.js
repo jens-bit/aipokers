@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { spokenOwnerReply } from './ownerReply.js';
+// LIFE-1: the reserve. What playing costs him across sessions, and what
+// resting gives back — the only thing in the system that can make an agent
+// who never leaves the flat reach 'worn' and go to sleep.
+import { staminaStageNow, worseStage, staminaPercent, restStamina, spendStamina } from '../agent/stamina.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 // GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
 // only enforced here — see the note at the top of that file for why the two
@@ -46,6 +50,7 @@ import {
   birthAttributes,
   effectiveAttrs,
   restedFatigue,
+
   logAttrChange,
   firstWordsFor,
   applySessionGrowth,
@@ -84,6 +89,10 @@ import { appendEntry as appendWalletEntry } from './wallet.js';
 import { THRESHOLDS } from './flaggedHands.js';
 import {
   Where, locationFor, routineFor, stampLocation, homeStateMessage,
+  // LIFE-1: the three states an idle body can be caught in that are not
+  // his nature's habit — he has just been fed, he is still up from tonight,
+  // he is steaming.
+  isCelebrating, SULK_HEAT,
 } from './home.js';
 import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
 import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet, agentHasActiveVisit } from './store.js';
@@ -1806,6 +1815,64 @@ export function noteAgentFatigue(agentId, userId, { stage = 'fresh', sessionHand
   return true;
 }
 
+/**
+ * LIFE-1 — charge the reserve for hands he has just played.
+ *
+ * The narrow accessor in noteAgentFatigue's own style: table.js owns the hand
+ * count and knows nothing about records, this owns the record and knows
+ * nothing about tables. Returns the fatigue stage the reserve now puts him at,
+ * so the caller can fold it into the stage it writes.
+ *
+ * `home` halves the charge — see HOME_HAND_WEIGHT. It is still a charge: the
+ * kitchen table being free was the whole reason a household that never leaves
+ * the flat could not get tired.
+ */
+export function chargeAgentStamina(agentId, userId, hands, { home = false, now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return 'fresh';
+  const n = Math.max(0, Number(hands) || 0);
+  if (n > 0) {
+    spendStamina(agent, n, { staminaAttr: agent.attrs?.STAMINA ?? null, home, now });
+    saveStore(userId ?? 'anon');
+  }
+  return staminaStageNow(agent, { now, resting: false });
+}
+
+/**
+ * LIFE-1 — set the reserve outright.
+ *
+ * The narrow accessor in noteAgentFatigue's style, and the only way anything
+ * outside stamina.js writes the number without playing hands for it. Two
+ * callers are legitimate: a fixture stating what "rested" means for the agent
+ * it is about to assert on, and any future path that hands an owner a way to
+ * put him straight to bed. Nothing in the normal run of play uses it — the
+ * reserve is supposed to be earned back an hour at a time.
+ */
+export function setAgentStamina(agentId, userId, left, { now = Date.now() } = {}) {
+  const profile = getOrCreate(userId ?? 'anon');
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const v = Math.max(0, Math.min(100, Number(left) || 0));
+  agent.stamina = { left: v, at: now };
+  saveStore(userId ?? 'anon');
+  return agent.stamina;
+}
+
+/**
+ * LIFE-1 — what is left in him, 0-100, and the word for it.
+ *
+ * The one reading every surface asks for. It banks the recovery earned so far
+ * when he is at rest, so the stored number stops drifting away from the true
+ * one, and it is the same pair JOB 2's three dots are drawn from.
+ */
+export function staminaOf(agent, { now = Date.now(), resting = true } = {}) {
+  if (!agent) return { left: 100, stage: 'fresh' };
+  if (resting) restStamina(agent, { now });
+  const left = staminaPercent(agent, { now, resting });
+  return { left, stage: staminaStageNow(agent, { now, resting }) };
+}
+
 // Set the agent's mood record wholesale (used by table.js after applying
 // events / decay). Persists.
 export function setAgentMood(agentId, userId, newMood) {
@@ -1971,6 +2038,16 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     const since = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
     fatigue = restedFatigue(agent.fatigue ?? 'fresh', since);
   }
+  // LIFE-1: and the RESERVE, which is the half that survives standing up.
+  // restedFatigue walks the session's own stage back to 'fresh' in four hours
+  // whatever the week has been like; the reserve is the week. He reads as the
+  // worse of the two, so neither can hide the other — four hundred hands
+  // tonight makes him worn however full the reserve is, and an empty reserve
+  // makes him worn on hand one of a fresh session.
+  fatigue = worseStage(fatigue, staminaStageNow(agent, {
+    now: Date.now(), resting: presence !== 'playing',
+  }));
+  if (presence !== 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
     : null;
@@ -2039,11 +2116,19 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // survives any one of them would put him in a room he is not in.
   if (location.where === Where.HOME && agent.headingTo) agent.headingTo = null;
   const routine = routineFor({
+    id: agent.id,
     nature: agent.nature,
     where: location.where,
     atHomeTable: !!homeTable,
     studying: !!agent.study,
     broke: presence === 'broke',
+    // LIFE-1: the three new ways an evening at home can look. All three are
+    // read off facts the record already carries — the fridge stamps
+    // `lastSnackAt`, finishAgentSession stamps the session log, mood owns the
+    // heat — so nothing here is a second source of truth for any of them.
+    tilted: (agent.mood?.heat ?? 0) >= SULK_HEAT,
+    fedAt: agent.lastSnackAt ?? null,
+    celebrating: isCelebrating(lastSessionResult(agent)),
     fatigue,
     unseenRecap: !!agent.unseenRecap,
   });
@@ -3251,6 +3336,20 @@ export function tryApplyPepTalk(agentId, userId) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// LIFE-1: the evening he just finished, in the two facts the room needs. The
+// session log is capped at ten and written by finishAgentSession; an agent who
+// has never finished one has no last evening, which is the honest answer.
+export function lastSessionResult(agent) {
+  const log = Array.isArray(agent?.sessionLog) ? agent.sessionLog : [];
+  const last = log[log.length - 1] ?? null;
+  if (!last) return { pnl: null, endedAt: null, hands: 0 };
+  return {
+    pnl: Number.isFinite(Number(last.net)) ? Number(last.net) : null,
+    endedAt: Number.isFinite(Number(last.endedAt)) ? Number(last.endedAt) : null,
+    hands: Number(last.hands) || 0,
+  };
+}
+
 // Format a single hand summary into a compact line for the memory-update prompt.
 function formatHandForPrompt(h) {
   const verdict = h.won ? 'WON' : 'LOST';
@@ -3361,10 +3460,14 @@ function ownerChatScene(agent, table = null) {
   if (casinoTableExists) return { atHome: false, description: 'at the casino, waiting for a game' };
   const sinceRest = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
   const routine = routineFor({
+    id: agent.id,
     nature: agent.nature, studying: !!agent.study,
-    fatigue: restedFatigue(agent.fatigue ?? 'fresh', sinceRest),
+    fatigue: worseStage(restedFatigue(agent.fatigue ?? 'fresh', sinceRest), staminaStageNow(agent)),
     unseenRecap: !!agent.unseenRecap,
     broke: agent.pocket?.mode !== 'auto' && Number.isFinite(agent.pocket?.balance) && isBroke(agent.pocket.balance),
+    tilted: (agent.mood?.heat ?? 0) >= SULK_HEAT,
+    fedAt: agent.lastSnackAt ?? null,
+    celebrating: isCelebrating(lastSessionResult(agent)),
   });
   return { atHome: true, description: `at home, ${routine.label}` };
 }

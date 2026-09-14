@@ -16,6 +16,8 @@ import {
   setAgentMood,
   getAgentAttributes,
   noteAgentFatigue,
+  chargeAgentStamina,   // LIFE-1
+
   finishAgentSession,
   recordOpponentHand,
   getAgentBioRole,
@@ -39,6 +41,9 @@ import { classifyCooler } from './cooler.js';
 import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 // SERVER-5 job 1: the states he arrived in, applied where the drink's cost is.
 import { applyDips } from '../agent/dips.js';
+// LIFE-1: the reserve's own vocabulary. table.js charges it and reports the
+// worse of the two tiredness readings; stamina.js owns both.
+import { worseStage } from '../agent/stamina.js';
 import {
   emitCasinoEvent, EventType, noteHandWin, bigPotThresholdBb, hotThresholdBb,
   hotTableIds,
@@ -365,6 +370,9 @@ export class Table {
     this._needledThisSession   = Array(maxSeats).fill(0);     // cap mood event once per session per seat
     this._talkHandNumber       = -1;                          // last hand any agent talked (one per hand)
     this._talkLastHandBySeat   = Array(maxSeats).fill(-1);    // last hand this seat talked
+    // LIFE-1: how many of this seat's hands the reserve has already been
+    // charged for. Without it every pass would re-charge the whole session.
+    this._staminaChargedAtHand = Array(maxSeats).fill(0);
     this._prefoldStreakBySeat  = Array(maxSeats).fill(0);     // consecutive preflop-fold hands per seat
     // MST-1: chips live on the table, not inside whichever Game instance is
     // current -- the Game is rebuilt whenever the roster changes.
@@ -581,6 +589,7 @@ export class Table {
     ['pendingNeedle',          () => null],   // TLK-1
     ['_needledThisSession',    () => 0],      // TLK-1
     ['_talkLastHandBySeat',    () => -1],     // TLK-1
+    ['_staminaChargedAtHand',  () => 0],      // LIFE-1
     ['_prefoldStreakBySeat',   () => 0],      // TLK-1
     ['seatSessionIds',   () => null],   // SERVER-3
     ['seatSeatedAt',     () => 0],      // SERVER-3
@@ -2783,23 +2792,49 @@ export class Table {
   // changes; the crossing into 'worn' is the one time he mentions it, and it
   // never pushes a notification — fatigue fixes itself at the bar.
   _updateSeatFatigue() {
-    // HOME-STATE-1: fatigue is the cost side of the attribute curve — it is
-    // what a session of work takes out of him — so it is off at home for the
-    // same reason growth is. An evening in must not be able to wear him out,
-    // and it must not be able to rest him either: the stored stage is left
-    // exactly where the casino left it and recovers on its own clock.
-    if (this.home) return;
+    // LIFE-1 CHANGED THIS FUNCTION'S FIRST LINE. It used to open `if
+    // (this.home) return;` — HOME-STATE-1's rule that an evening in can
+    // neither wear him out nor rest him. The playtest finding that overruled
+    // it: "I have never seen an agent sleep once." The arithmetic behind that
+    // is plain once the two bounds are put side by side — fatigueOnset is 40
+    // to 160 hands and HOME_MAX_HANDS is 40, so the kitchen table could not
+    // reach 'settled' on its best evening, and for a household that never
+    // leaves the flat the kitchen table is the only poker there is.
+    //
+    // So home hands now count. They count HALF (stamina.js HOME_HAND_WEIGHT),
+    // and they count against the RESERVE rather than against the within-session
+    // curve, which is what keeps the casino's own numbers untouched: the six
+    // effective attributes a home hand is played with are exactly what they
+    // were, because `eff` below is unchanged. What an evening in now does is
+    // take something out of him that is still gone tomorrow morning.
     for (let seat = 0; seat < this.maxSeats; seat++) {
       const agentId = this.agentIds[seat];
       if (!agentId) continue;
       const eff = this._seatAttrs(seat);
       if (!eff) continue;
       const sessionHands = Math.max(0, this.handsThisSession - (this.seatJoinedAtHand[seat] ?? 0));
+      // LIFE-1: charge the reserve for whatever he has played since the last
+      // time this ran, never for the whole session again. Double-charging a
+      // seat once per hand for every hand it had ever played would empty any
+      // reserve in a dozen hands.
+      const charged = this._staminaChargedAtHand[seat] ?? 0;
+      let reserveStage = 'fresh';
+      try {
+        reserveStage = chargeAgentStamina(agentId, this.agentUserIds[seat],
+          Math.max(0, sessionHands - charged), { home: !!this.home });
+        this._staminaChargedAtHand[seat] = sessionHands;
+      } catch (err) {
+        console.error('[table] stamina charge failed:', err.message);
+      }
+      // The worse of the two readings — see stamina.js worseStage. At the
+      // casino this is almost always the session's own stage, which is why
+      // nothing about a casino night reads differently than it did.
+      const stage = worseStage(eff.fatigue, reserveStage);
       try {
         noteAgentFatigue(agentId, this.agentUserIds[seat], {
-          stage: eff.fatigue,
+          stage,
           sessionHands,
-          moment: eff.fatigue === 'worn' ? wornMomentFor(sessionHands) : null,
+          moment: stage === 'worn' ? wornMomentFor(sessionHands) : null,
         });
       } catch (err) {
         console.error('[table] fatigue note failed:', err.message);
@@ -2812,7 +2847,11 @@ export class Table {
       // between hands inside _handCompleted, and the departure check a few
       // lines below either frees the seat or closes the table exactly as it
       // does for a sit-out.
-      if (eff.fatigue === 'worn' && !this.seatLeaving[seat]
+      // LIFE-1: keyed on the combined stage, and still a CASINO rule. At home
+      // nobody stands up from his own kitchen table mid-evening: homeGame's
+      // own `eligible` already drops a worn agent on the next sync, which is
+      // the same departure arriving through the door that owns the room.
+      if (stage === 'worn' && !this.home && !this.seatLeaving[seat]
           && !this._pendingSitOut.has(seat) && !this._benchAfterHand.has(seat)) {
         this.seatLeaving[seat] = true;
         this.seatEndReason[seat] = 'worn';
