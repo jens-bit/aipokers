@@ -444,3 +444,111 @@ way you earn money looks wrong".
 - **Job 5** needs one authority for "where is this agent seated", because there
   are four doors into a seat and `activeTableId` is written after the seat is
   taken.
+
+---
+
+## 11. Job 2 — reconciling the live data
+
+`scripts/audit-chips.js` (read-only; opens SQLite with `readonly: true,
+fileMustExist: true` and never goes through `store.js`, whose `conn()` applies
+the schema and imports `data/agents.json` on first use). Its pure half is tested
+in `src/test/auditChips.test.js`.
+
+```
+node scripts/audit-chips.js --db path/to/app.db     # table per owner
+node scripts/audit-chips.js --json                  # the same, machine-readable
+```
+
+Per owner it prints **safe**, **pockets**, **live** (stacks at running tables),
+**total**, **ledger** (the signed sum of the wallet ledger *and* every pocket
+ledger), and **diff** = (safe + pockets) − ledger. It also answers the
+household-level question directly: how many `grant` entries the household holds,
+which is BUG-136's fossil.
+
+Two honest limits are printed with the numbers rather than buried:
+
+- **`live` is null from a file.** Nothing persists a table stack (§4), so a cold
+  read cannot see the felt. The script says how many agents *claim* to be seated
+  and prices the unseen chips at one entry buy-in each. `auditChips()` is
+  exported so an in-process caller can hand it the live registry and get the
+  real number — which is what the measurement below does.
+- **`diff` is meaningless on a capped ledger.** `LEDGER_CAP = 100`
+  (`wallet.js:70`), so a long-lived pocket forgets its own beginning. The script
+  flags `(ledger capped)` beside any owner it cannot vouch for and excludes
+  them from its exit code.
+
+### The measurement
+
+Scratch database, three owners, one agent each, no API key (deterministic policy
+play), `MAX_SEATS=2`, `SESSION_MAX_HANDS=200`. Three rounds of deploy → play →
+close: **202 hands, 9 buy-ins.** Chips in existence = every safe + every pocket
++ every stack on a live felt + every **House** stack on a live felt, because
+only with the House counted is the felt a closed system.
+
+| moment | chips in existence |
+|---|---|
+| three owners drafted, nobody seated | 30,000 |
+| three agents seated (3 buy-ins) | **36,000** |
+| 70 hands in, still seated | 36,000 |
+| every session settled | **26,585** |
+
+**Chips are not conserved.** Two separate violations, visible in the two deltas:
+
+1. **+6,000 the moment they sat down.** Three House seats appeared with 2,000
+   each and nothing was debited for any of them (`startAgentSession`,
+   `table.js:942`). The owner side is clean here — three pockets each went down
+   exactly 2,000 — but the felt gained 6,000 from nowhere.
+2. **−9,415 at settlement.** The three agents cashed out; the three House
+   stacks ceased to exist. Net over the whole run: **−3,415 destroyed**, because
+   in this particular run the agents lost to the House.
+
+That sign is the giveaway. **The House is a faucet in both directions**: every
+chip an owner wins off it is minted, every chip it wins off an owner is burned.
+Jens's playtest saw the other sign of the same defect.
+
+### The compounding half, demonstrated deterministically
+
+The 202-hand run recorded **zero** House re-seats (`_seatHouseRegulars`), because
+a heads-up session that ends at the hand cap rarely busts its opponent. Driven
+directly, the mint is unambiguous — hero seated for 2,000 against a House seated
+for 2,000, then busting it three times:
+
+```
+seated hero + house: 4000 chips on the felt (2 x 2,000)
+hero busts the House : 4000 chips on the felt  <- conserved so far
+a fresh House sits   : 6000 chips on the felt  <- 2000 minted
+and again            : 8000 chips on the felt  <- 2000 minted
+and again            : 10000 chips on the felt
+hero's stack after three busted Houses: 8,000
+```
+
+He paid one 2,000 buy-in and has 8,000 in front of him; `finishAgentSession`
+(`agentProfiles.js:1505`) credits all 8,000 to his pocket. **6,000 of that never
+existed.** Repeat fourteen times over `SESSION_MAX_HANDS = 100` and the stack is
+30,000, which is the number in the playtest.
+
+### Legacy or live?
+
+**Both, and they are separable.**
+
+- **The BUG-136 draft loop is closed.** The gate at `agentProfiles.js:652-656`
+  requires `!w.startingGrantClaimed`, an empty roster, a zero balance, no
+  lifetime earnings and no prior `seed`/`grant` line, and the marker is written
+  unconditionally. The simulation drafted three agents and every household took
+  exactly one 10,000 grant; the audit's grant check found no owner with more than
+  one. Inflated balances that predate the fix are fossils and stay fossils.
+- **The House is a live leak and is still minting.** It is not legacy, it is not
+  bounded, and it compounds with session length. Measured above at +6,000 on
+  three seatings and +2,000 per busted opponent thereafter.
+
+So the answer to the question job 2 asks: Jens's inflated prod balances are
+**not only** BUG-136 residue. Whatever the draft loop left behind, the felt has
+been adding to it every night since, one buy-in per House that sat down and one
+more per House that busted.
+
+### Not run against prod
+
+Nothing in this job touched `46.62.169.246` or `data/app.db` in any checkout.
+The measurement ran in a scratch cwd under the session scratchpad and its
+database was discarded. `audit-chips.js` cannot write to a database even if
+pointed at one, but it prints balances, so it should be run on a copy.
