@@ -1,5 +1,13 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Admin write panel — local candidate (2026-09-14)
+
+- **A second, write-capable panel beside the read-only dashboard.** Adjust or reset an owner's chips (mandatory reason, balanced ledger entry), page his full ledger, rename an agent, hide or unhide him from the roster reversibly, unseat him from a table, and force his fatigue or mood — all behind the same `x-admin-key` header ADMIN-1 already required, all 404 with the key unset.
+- **Its own guard for writes.** A separate, tighter rate window than the read dashboard's, keyed to the real calling client rather than to the shared key everyone types, and a 401 (not the read panel's 403) on a wrong key.
+- **Every write leaves a line.** An append-only audit log — when, a one-way hash of which key, what happened, on whom, why, and the before/after — readable in the panel and never carrying the key itself.
+- **Confirm is mandatory on anything destructive.** A reset, a retire, an unseat, or a debit — none of them execute without an explicit confirm field.
+- **Two things recorded as gaps instead of built.** A reversible retire could not reuse the product's real one-way retirement (which also collects the agent's pocket into the wallet and is documented as not undoable); this one toggles the same roster-hiding flag without touching money instead, which is what makes the undo honest. Forcing an agent's "routine" directly has no lever — nothing stores one — so only fatigue and mood are force-able for real.
+
 ## Warm game and truthful public Watch — local candidate (2026-09-12)
 
 - **Show the actual two players.** Public Home Watch no longer treats spectator seat -1 as a seated player. It frames a real occupied seat, displays its name and stack, keeps the other real players visible and identifies the view as Watching. Opponent decisions and speech stay attached to their actual actor; public cards remain private.
