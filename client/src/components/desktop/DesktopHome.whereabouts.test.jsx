@@ -29,7 +29,7 @@ beforeEach(() => {
 async function initialHome(viewProps = props) {
   const view = render(<DesktopHome {...viewProps} />);
   const home = await screen.findByTestId('home-screen');
-  await waitFor(() => expect(roster().getByText('home')).toBeInTheDocument());
+  await waitFor(() => expect(roster().getByText('at home')).toBeInTheDocument());
   fireEvent.click(within(home).getByRole('button', { name: 'The door — the casino', exact: true }));
   await screen.findByTestId('casino-stage');
   return view;
@@ -71,5 +71,5 @@ it.each([
   fetchMock.route('/api/agents', { agents: [atTable] });
   view.rerender(<DesktopHome {...props} isWatching={isWatching} game={snapshot} />);
   expect(reads()).toBe(before);
-  expect(roster().getByText('home')).toBeInTheDocument();
+  expect(roster().getByText('at home')).toBeInTheDocument();
 });

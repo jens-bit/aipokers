@@ -3,147 +3,159 @@
 // "Fatigue is not mood. Mood comes from OUTCOMES and shows in the eyes and the
 // aura; fatigue comes from VOLUME and shows in posture and the meter. A
 // confident agent can be worn; a tilted agent can be fresh. They never share a
-// channel." Two bars, two causes, two colour ranges that cannot be confused.
+// channel." Two readings, two causes, two colour ranges that cannot be
+// confused.
+//
+// LIFE-1-B: both readings are three dots now, not a continuous fill — the
+// three-state word (fatigue) and the three-state cut of heat
+// (src/shared/levels.js) are what they always were; only the shape changed.
 
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import {
-  BodyBars, Bottle, HEAT_EMBER, HEAT_FIRE, HEAT_HOT, HEAT_WARM,
-  STAMINA_AMBER, STAMINA_FULL, STAMINA_LOW, STAMINA_SPENT,
-  heatColor, isDrinking, staminaColor, staminaOf, staminaPct,
+  BodyBars, BodyDots, Bottle, HEAT_EMBER, HEAT_FIRE, HEAT_WARM,
+  STAMINA_FULL, STAMINA_SPENT,
+  isDrinking,
 } from './FeltBodyBars.jsx';
+import { staminaLevel, heatLevel } from '../../../../src/shared/levels.js';
 
 const bars = (props) => render(<BodyBars {...props} />).container;
-const track = (c, which) => c.querySelector(`[data-bar="${which}"]`);
-const fill = (c, which) => track(c, which)?.querySelector('.felt-bars__fill');
+const row = (c, which) => c.querySelector(`[data-bar="${which}"]`);
+const dots = (c, which) => row(c, which)?.querySelectorAll('.body-dots__dot');
+const litColors = (c, which) => [...dots(c, which)].filter((d) => d.dataset.lit === 'true').map((d) => d.style.background);
+// jsdom normalises an inline hex background to rgb() when read back.
+const rgb = (hex) => {
+  const n = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+};
 
-describe('the two bars', () => {
-  it('are two, and each is two pixels', () => {
+describe('the two readings', () => {
+  it('are two, each three dots', () => {
     const c = bars({ fatigue: 'settled', heat: 40 });
-    expect(c.querySelectorAll('.felt-bars__track')).toHaveLength(2);
-    // jsdom computes no stylesheet height here, so the rule is the assertion —
-    // asserted where the rule lives, in watchBody.test.jsx.
-    expect(track(c, 'stamina')).toBeTruthy();
-    expect(track(c, 'heat')).toBeTruthy();
+    expect(c.querySelectorAll('.body-dots')).toHaveLength(2);
+    expect(dots(c, 'stamina')).toHaveLength(3);
+    expect(dots(c, 'heat')).toHaveLength(3);
   });
 
-  // HOME-2 job 2 · THREE STAGES, THREE PICTURES.
-  //
-  // The thirds this replaces (1 / 2/3 / 1/3) were arithmetic rather than a
-  // reading, and against the ref's step ramp they broke: fresh at 100 and
-  // settled at 67 are BOTH above the green threshold, so two of the three
-  // stages drew the same bar in the same colour. Each stage lands in a band of
-  // its own now — the whole bar in green, half of it in amber, and the short
-  // red stub the ref describes.
-  it('reads stamina off fatigue, one band per stage', () => {
-    expect(staminaOf('fresh')).toBe(1);
-    expect(staminaOf('settled')).toBeCloseTo(0.52);
-    expect(staminaOf('worn')).toBeCloseTo(0.16);
-    expect(staminaOf(undefined)).toBeNull();
-    expect(staminaOf('nonsense')).toBeNull();
+  // HOME-2 job 2's three-stages-three-pictures rule, restated in dots: each
+  // fatigue stage lights a different number of them, off the shared reading.
+  it('lights one, two or three stamina dots, one stage at a time', () => {
+    expect(staminaLevel({ stage: 'worn' }).dots).toBe(1);
+    expect(staminaLevel({ stage: 'settled' }).dots).toBe(2);
+    expect(staminaLevel({ stage: 'fresh' }).dots).toBe(3);
 
-    expect(fill(bars({ fatigue: 'fresh' }), 'stamina').style.width).toBe('100%');
-    expect(fill(bars({ fatigue: 'settled' }), 'stamina').style.width).toBe('52%');
-    expect(fill(bars({ fatigue: 'worn' }), 'stamina').style.width).toBe('16%');
+    const litCount = (fatigue) => [...dots(bars({ fatigue }), 'stamina')].filter((d) => d.dataset.lit === 'true').length;
+    expect(litCount('worn')).toBe(1);
+    expect(litCount('settled')).toBe(2);
+    expect(litCount('fresh')).toBe(3);
   });
 
   it('and the three stages are three different colours', () => {
-    const seen = ['fresh', 'settled', 'worn'].map((f) => staminaColor(staminaOf(f)).toUpperCase());
-    expect(seen).toEqual([STAMINA_FULL, STAMINA_AMBER, STAMINA_SPENT]);
+    const seen = ['fresh', 'settled', 'worn'].map((f) => litColors(bars({ fatigue: f }), 'stamina').at(-1));
     expect(new Set(seen).size).toBe(3);
   });
 
-  it('fills heat from 0 to 100', () => {
-    expect(fill(bars({ heat: 0 }), 'heat').style.width).toBe('0%');
-    expect(fill(bars({ heat: 62 }), 'heat').style.width).toBe('62%');
-    expect(fill(bars({ heat: 100 }), 'heat').style.width).toBe('100%');
-    // Nothing off the wire can push it past either end.
-    expect(fill(bars({ heat: 480 }), 'heat').style.width).toBe('100%');
-    expect(fill(bars({ heat: -20 }), 'heat').style.width).toBe('0%');
-  });
+  it('lights heat dots off the shared three-state cut', () => {
+    expect(heatLevel(10).dots).toBe(1);
+    expect(heatLevel(50).dots).toBe(2);
+    expect(heatLevel(90).dots).toBe(3);
 
-  // HOME-2 job 2 · the ref's two step functions, verbatim. Stamina runs green
-  // → amber → red as it SHORTENS; heat runs ember → red as it GROWS. Both are
-  // taken from design-refs/mood-home.jsx and this is the assertion that they
-  // were taken rather than approximated.
-  it('is the ref own ramp, step for step', () => {
-    expect([100, 61, 60, 36, 35, 19, 18, 0].map((v) => staminaPct(v).toUpperCase()))
-      .toEqual([
-        STAMINA_FULL, STAMINA_FULL, STAMINA_AMBER, STAMINA_AMBER,
-        STAMINA_LOW, STAMINA_LOW, STAMINA_SPENT, STAMINA_SPENT,
-      ]);
-    expect([0, 29, 30, 54, 55, 79, 80, 100].map((h) => heatColor(h).toUpperCase()))
-      .toEqual([
-        HEAT_EMBER, HEAT_EMBER, HEAT_WARM, HEAT_WARM,
-        HEAT_HOT, HEAT_HOT, HEAT_FIRE, HEAT_FIRE,
-      ]);
+    const litCount = (heat) => [...dots(bars({ heat }), 'heat')].filter((d) => d.dataset.lit === 'true').length;
+    expect(litCount(10)).toBe(1);
+    expect(litCount(50)).toBe(2);
+    expect(litCount(90)).toBe(3);
+    // Nothing off the wire can push it past either end.
+    expect(litCount(480)).toBe(3);
+    expect(litCount(-20)).toBe(1);
   });
 
   // BUGS-A job 10's separation, kept through the replacement. Two causes must
-  // never share a colour: both ramps end in red and the two reds are different
-  // ones — the dull blood red of an empty man, the fiery one of a furious one.
+  // never share a colour: both ramps end in red and the two reds are
+  // different ones — the dull blood red of an empty man, the fiery one of a
+  // furious one.
   it('the two ramps end in two different reds, and never meet anywhere', () => {
     expect(STAMINA_SPENT).not.toBe(HEAT_FIRE);
-    const stam = [0, 20, 40, 60, 80, 100].map((v) => staminaPct(v).toUpperCase());
-    const hot = [0, 20, 40, 60, 80, 100].map((h) => heatColor(h).toUpperCase());
-    for (const s of stam) expect(hot).not.toContain(s);
+    const stamReds = litColors(bars({ fatigue: 'worn' }), 'stamina');
+    const heatReds = litColors(bars({ heat: 100 }), 'heat');
+    for (const s of stamReds) expect(heatReds).not.toContain(s);
   });
 
-  // Heat's empty end is NOTHING, not a good reading. Teal there said "he is
-  // fine"; an ember says "there is barely anything to read", which is what an
-  // accumulation at zero actually is.
-  it('never touches green — an unbothered agent is an ember, not a teal', () => {
-    for (const h of [0, 10, 29, 50, 100]) {
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(heatColor(h).slice(i, i + 2), 16));
-      expect(r, `heat ${h} is warmer than it is green`).toBeGreaterThan(g);
-      expect(g).toBeGreaterThan(b);
-    }
-    // The ref's four stops are not a monotonic climb in any one channel — they
-    // are four chosen colours — so what is asserted is the two ENDS and the
-    // family, not an ordering the ref never claimed.
-    expect(heatColor(0).toUpperCase()).toBe(HEAT_EMBER);
-    expect(heatColor(100).toUpperCase()).toBe(HEAT_FIRE);
-  });
-
-  // A House regular has no agent behind him: no fatigue, no heat. Drawing a
-  // full green line for him would be the felt making something up.
-  it('draws only the bar it has data for, and nothing at all with neither', () => {
-    expect(track(bars({ heat: 40 }), 'stamina')).toBeNull();
-    expect(track(bars({ heat: 40 }), 'heat')).toBeTruthy();
-    expect(track(bars({ fatigue: 'worn' }), 'heat')).toBeNull();
+  // A House regular has no agent behind him: no fatigue, no heat. Lighting
+  // dots for him would be the felt making something up.
+  it('draws only the reading it has data for, and nothing at all with neither', () => {
+    expect(row(bars({ heat: 40 }), 'stamina')).toBeNull();
+    expect(row(bars({ heat: 40 }), 'heat')).toBeTruthy();
+    expect(row(bars({ fatigue: 'worn' }), 'heat')).toBeNull();
     expect(bars({}).querySelector('.felt-bars')).toBeNull();
     expect(bars({ fatigue: null, heat: null }).querySelector('.felt-bars')).toBeNull();
   });
 
-  it('has a seat scale that is the same two bars', () => {
+  it('has a seat scale that is the same two readings, at a smaller dot', () => {
     const c = bars({ fatigue: 'fresh', heat: 40, compact: true });
     expect(c.querySelector('.felt-bars').className).toContain('felt-bars--seat');
-    expect(c.querySelectorAll('.felt-bars__track')).toHaveLength(2);
+    expect(c.querySelectorAll('.body-dots')).toHaveLength(2);
   });
 
-  // BUGS-A job 10. Two unlabelled two-pixel lines under a name are a puzzle;
-  // the first thing anybody asked of them was which was which.
-  it('says what each line is, on first render and with no tap', () => {
+  // BUGS-A job 10. Two unlabelled two-pixel lines under a name were a puzzle;
+  // LIFE-1-B keeps the same law for the dots that replaced them — a reading
+  // says what it is before anybody has to tap it.
+  it('says what each reading is, on first render and with no tap', () => {
     const c = bars({ fatigue: 'settled', heat: 40 });
-    expect(track(c, 'stamina').querySelector('.felt-bars__label').textContent).toBe('STAMINA');
-    expect(track(c, 'heat').querySelector('.felt-bars__label').textContent).toBe('HEAT');
-    // The label is UNDER its own rule, which is what ties one to the other.
-    const row = track(c, 'stamina');
-    const bar = row.querySelector('.felt-bars__track');
-    const label = row.querySelector('.felt-bars__label');
-    expect(bar.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row(c, 'stamina').querySelector('.body-dots__word').textContent).toBe('STAMINA');
+    expect(row(c, 'heat').querySelector('.body-dots__word').textContent).toBe('HEAT');
   });
 
-  it('the seat pill carries none — 18px has no room for a word', () => {
+  it('reveals the word on tap, and puts it back on a second tap', () => {
+    const c = bars({ fatigue: 'worn', heat: 40 });
+    const button = row(c, 'stamina').querySelector('.body-dots__tap');
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(button);
+    expect(button.querySelector('.body-dots__word').textContent).toBe('Worn out');
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(button);
+    expect(button.querySelector('.body-dots__word').textContent).toBe('STAMINA');
+  });
+
+  it('the seat pill carries no word, tapped or not — 18px has no room for one', () => {
     const c = bars({ fatigue: 'fresh', heat: 40, compact: true });
-    expect(c.querySelectorAll('.felt-bars__label')).toHaveLength(0);
+    expect(c.querySelectorAll('.body-dots__word')).toHaveLength(0);
+    expect(c.querySelectorAll('.body-dots__tap')).toHaveLength(0);
     expect(c.querySelector('.felt-bars').className).not.toContain('felt-bars--labelled');
   });
 
-  it('a bar that is drawn alone still says which one it is', () => {
-    expect(bars({ heat: 40 }).querySelector('.felt-bars__label').textContent).toBe('HEAT');
-    expect(bars({ fatigue: 'worn' }).querySelector('.felt-bars__label').textContent).toBe('STAMINA');
+  it('a reading drawn alone still says which one it is', () => {
+    expect(bars({ heat: 40 }).querySelector('.body-dots__word').textContent).toBe('HEAT');
+    expect(bars({ fatigue: 'worn' }).querySelector('.body-dots__word').textContent).toBe('STAMINA');
+  });
+});
+
+describe('BodyDots on its own', () => {
+  it('renders nothing without a reading', () => {
+    const { container } = render(<BodyDots kind="stamina" reading={null} />);
+    expect(container.querySelector('.body-dots')).toBeNull();
+  });
+
+  it('colours a fresh stamina dot green and a worn one red', () => {
+    const { container: fresh } = render(<BodyDots kind="stamina" reading={staminaLevel({ stage: 'fresh' })} />);
+    const { container: worn } = render(<BodyDots kind="stamina" reading={staminaLevel({ stage: 'worn' })} />);
+    expect([...fresh.querySelectorAll('.body-dots__dot')].at(-1).style.background).toBe(rgb(STAMINA_FULL));
+    expect([...worn.querySelectorAll('.body-dots__dot')].at(0).style.background).toBe(rgb(STAMINA_SPENT));
+  });
+
+  it('colours a level heat dot as an ember and a steaming one fire', () => {
+    const { container: cool } = render(<BodyDots kind="heat" reading={heatLevel(10)} />);
+    const { container: hot } = render(<BodyDots kind="heat" reading={heatLevel(90)} />);
+    expect([...cool.querySelectorAll('.body-dots__dot')].at(0).style.background).toBe(rgb(HEAT_EMBER));
+    expect([...hot.querySelectorAll('.body-dots__dot')].at(-1).style.background).toBe(rgb(HEAT_FIRE));
+    const { container: mid } = render(<BodyDots kind="heat" reading={heatLevel(50)} />);
+    expect([...mid.querySelectorAll('.body-dots__dot')].at(1).style.background).toBe(rgb(HEAT_WARM));
+  });
+
+  it('says which reading it is in its accessible name', () => {
+    const { getByRole } = render(<BodyDots kind="heat" reading={heatLevel(50)} />);
+    expect(getByRole('button').getAttribute('aria-label')).toBe('Heat: Simmering');
   });
 });
 

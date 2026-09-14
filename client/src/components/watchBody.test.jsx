@@ -2,11 +2,12 @@
 //
 // THE BODY ON THE FELT. Two things about an agent are true all session and
 // neither was on the table: how much is left in him, and how hard he is
-// running. They ride the bottom edge of whatever already names him — his strip,
-// and every seat's name pill — as two 2px lines, so they cost the felt nothing.
+// running. They ride the bottom edge of whatever already names him — his
+// strip, and every seat's name pill — as three dots each (LIFE-1-B), so they
+// cost the felt nothing.
 //
-//   STAMINA  green → grey  · from VOLUME   (fatigue)
-//   HEAT     teal  → red   · from OUTCOMES (mood.heat)
+//   STAMINA  green → red    · from VOLUME   (fatigue)
+//   HEAT     ember → red    · from OUTCOMES (mood.heat)
 //
 // "A confident agent can be worn; a tilted agent can be fresh. They never share
 // a channel."
@@ -48,8 +49,8 @@ const draw = (game = withBody(), props = {}) =>
   render(<WatchScreen game={game} {...base} {...props} />);
 
 const barsIn = (el) => el && el.querySelector('.felt-bars');
-const fillOf = (el, which) => el
-  .querySelector(`[data-bar="${which}"] .felt-bars__fill`);
+const dotsOf = (el, which) => el.querySelectorAll(`[data-bar="${which}"] .body-dots__dot`);
+const litOf = (el, which) => [...dotsOf(el, which)].filter((d) => d.dataset.lit === 'true');
 
 beforeEach(() => {
   telegram.signIn();
@@ -57,18 +58,19 @@ beforeEach(() => {
 });
 
 describe('WATCH-8: the body, on his strip', () => {
-  it('carries both bars on the hero strip', () => {
+  it('carries both readings on the hero strip', () => {
     const { container } = draw(withBody({
       0: { fatigue: 'settled', mood: { state: 'frustrated', heat: 62 } },
     }));
     const strip = container.querySelector('.watch-hero__strip');
     const bars = barsIn(strip);
     expect(bars).toBeTruthy();
-    expect(bars.querySelectorAll('.felt-bars__track')).toHaveLength(2);
-    // HOME-2 job 2: settled is 52% of the line, in amber. The thirds this
-    // replaces put it at 67% and in the same green as fresh.
-    expect(fillOf(bars, 'stamina').style.width).toBe('52%');
-    expect(fillOf(bars, 'heat').style.width).toBe('62%');
+    expect(dotsOf(bars, 'stamina')).toHaveLength(3);
+    expect(dotsOf(bars, 'heat')).toHaveLength(3);
+    // HOME-2 job 2 / LIFE-1-B: settled lights two of three dots; heat 62 is
+    // 'steaming' (src/shared/levels.js's cut is 60), all three.
+    expect(litOf(bars, 'stamina')).toHaveLength(2);
+    expect(litOf(bars, 'heat')).toHaveLength(3);
   });
 
   // Volume and outcomes are different causes, so they are different colours at
@@ -85,30 +87,29 @@ describe('WATCH-8: the body, on his strip', () => {
 
     const fresh = draw(withBody({ 0: { fatigue: 'fresh', mood: { state: 'neutral', heat: 0 } } }));
     const strip = fresh.container.querySelector('.watch-hero__strip');
-    expect(rgb(fillOf(barsIn(strip), 'stamina'))).toEqual(hex(STAMINA_FULL));
-    expect(rgb(fillOf(barsIn(strip), 'heat'))).toEqual(hex(HEAT_EMBER));
+    expect(rgb(litOf(barsIn(strip), 'stamina').at(-1))).toEqual(hex(STAMINA_FULL));
+    expect(rgb(litOf(barsIn(strip), 'heat').at(0))).toEqual(hex(HEAT_EMBER));
 
     const boiling = draw(withBody({ 0: { fatigue: 'fresh', mood: { state: 'tilted', heat: 100 } } }));
     const hot = boiling.container.querySelector('.watch-hero__strip');
-    expect(rgb(fillOf(barsIn(hot), 'heat'))).toEqual(hex(HEAT_FIRE));
+    expect(rgb(litOf(barsIn(hot), 'heat').at(-1))).toEqual(hex(HEAT_FIRE));
 
     // The green end is not on the heat scale at any point, and the red end is
     // not on the stamina scale at any point.
-    expect(rgb(fillOf(barsIn(hot), 'stamina'))).not.toEqual(hex(HEAT_FIRE));
+    expect(rgb(litOf(barsIn(hot), 'stamina').at(-1))).not.toEqual(hex(HEAT_FIRE));
   });
 
-  // The felt never resizes for a fact about a seat. Both bars are absolute
-  // inside the surface that already names him.
-  it('is two pixels, absolutely placed, and costs the column no height', () => {
+  // The felt never resizes for a fact about a seat. Both readings are
+  // absolute inside the surface that already names him.
+  it('sits absolutely inside the surface that names him, and costs the column no height', () => {
     const css = watch6Css();
-    const rule = css.slice(css.indexOf('.felt-bars {'), css.indexOf('.felt-bars__fill'));
+    const rule = css.slice(css.indexOf('.felt-bars {'), css.indexOf('.felt-bars__row'));
     expect(rule).toContain('position: absolute');
-    expect(rule).toMatch(/\.felt-bars__track \{[^}]*height: 2px/);
   });
 });
 
 describe('WATCH-8: the body, on every name pill', () => {
-  it('carries the same two bars at seat scale', () => {
+  it('carries the same two readings at seat scale', () => {
     const { container } = draw(withBody({
       1: { fatigue: 'worn', mood: { state: 'tilted', heat: 88 } },
     }));
@@ -116,15 +117,16 @@ describe('WATCH-8: the body, on every name pill', () => {
     const bars = seat.querySelector('.seat-ghost__chip .felt-bars');
     expect(bars).toBeTruthy();
     expect(bars.className).toContain('felt-bars--seat');
-    // HOME-2 job 2: worn is the short red stub the ref describes.
-    expect(fillOf(bars, 'stamina').style.width).toBe('16%');
-    expect(fillOf(bars, 'heat').style.width).toBe('88%');
+    // HOME-2 job 2 / LIFE-1-B: worn lights the one dot the ref's short red
+    // stub described; heat 88 is steaming, all three.
+    expect(litOf(bars, 'stamina')).toHaveLength(1);
+    expect(litOf(bars, 'heat')).toHaveLength(3);
   });
 
   // A House regular has no agent behind him. Mood is always on the wire (a
-  // resting neutral); fatigue is not, and drawing a full green line for him
-  // would be the felt making something up.
-  it('draws no stamina line for a seat with no agent behind it', () => {
+  // resting neutral); fatigue is not, and lighting a full green dot row for
+  // him would be the felt making something up.
+  it('draws no stamina reading for a seat with no agent behind it', () => {
     const { container } = draw(withBody({ 1: { fatigue: null } }));
     const seat = container.querySelectorAll('.watch-felt__seat')[0];
     const bars = seat.querySelector('.felt-bars');

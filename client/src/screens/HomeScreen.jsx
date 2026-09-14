@@ -774,7 +774,16 @@ export function HomeScreen({
         accentFor={(a) => accentFor(a, agents.indexOf(a))}
         hooks={Math.max(0, (desktop ? AGENT_CAP : 3) - visibleAway.length)}
         onWatch={onWatch}
-        onOpenAgent={onProfile}
+        // BUG-207: "Open him" (the frame's own aria-label) means the agent
+        // view — his portrait, cards, blurb and whisper — the same door
+        // tapping a body in the room already opens, so this reuses tapAgent
+        // itself rather than the onProfile prop it was wired to before, which
+        // landed on the numbers screen. That also gets desktop's own rail for
+        // free, which a plain onOpenThread prop does not carry. PROFILE stays
+        // one tap further in, from AgentView's own button. A guest projection
+        // (a room visitor who is not one of the owner's own agents) never had
+        // a panel to open here — keep that boundary.
+        onOpenAgent={(a) => { if (!a?.guest) tapAgent(a); }}
       />
 
       {gameAgentIds.length > 0 ? (

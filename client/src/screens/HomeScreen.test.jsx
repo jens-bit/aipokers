@@ -248,8 +248,9 @@ describe('HOME-1 · the room', () => {
     const pill = body.querySelector('.home-pill');
     expect(pill).toBeTruthy();
     expect(pill).toHaveAttribute('data-fatigue', 'worn');
-    // HOME-2 job 2: the four steps have one vocabulary now, the ref's own.
-    expect(pill).toHaveAttribute('data-heat', 'fire');
+    // LIFE-1-B: the pill reads src/shared/levels.js's three-state cut now,
+    // the same one the felt reads — 82 is 'steaming'.
+    expect(pill).toHaveAttribute('data-heat', 'steaming');
     // Above: the pill precedes the body in document order, which is what the
     // column-flex renders as "over his head".
     const ghost = body.querySelector('.home-one__body');
@@ -287,25 +288,24 @@ describe('HOME-1 · the room', () => {
   // HOME-2 job 2 · the two bars run in opposite directions, and both start at
   // the left wall. A worn, tilted agent is a short red stub over a long red
   // bar — two opposite shapes, which is what separates the two causes.
-  it('draws a short stamina stub over a long heat bar for a worn, tilted man', async () => {
+  it('lights one stamina dot and three heat dots for a worn, tilted man', async () => {
     await boot([mkAgent('a1', 'The Clock', { fatigue: 'worn', mood: { state: 'tilted', heat: 82 } })]);
     const body = await screen.findByRole('button', { name: /The Clock — / });
-    const stam = body.querySelector('[data-bar="stamina"] i');
-    const heat = body.querySelector('[data-bar="heat"] i');
-    expect(stam.style.width).toBe('16%');
-    expect(heat.style.width).toBe('82%');
-    // Both fills start at the left edge of their own track, so the empty end
-    // of both bars is the same end.
-    for (const el of [stam, heat]) {
-      expect(window.getComputedStyle(el).left).toBe('0px');
-    }
+    const litOf = (which) => [...body.querySelectorAll(`[data-bar="${which}"] .body-dots__dot`)]
+      .filter((d) => d.dataset.lit === 'true');
+    // LIFE-1-B: worn lights the one dot the ref's short red stub described;
+    // heat 82 is steaming, all three.
+    expect(litOf('stamina')).toHaveLength(1);
+    expect(litOf('heat')).toHaveLength(3);
   });
 
-  it('and a fresh, cold man is the opposite pair', async () => {
+  it('and a fresh, cold man lights all three stamina dots and one heat dot', async () => {
     await boot([mkAgent('a1', 'The Clock', { fatigue: 'fresh', mood: { state: 'neutral', heat: 8 } })]);
     const body = await screen.findByRole('button', { name: /The Clock — / });
-    expect(body.querySelector('[data-bar="stamina"] i').style.width).toBe('100%');
-    expect(body.querySelector('[data-bar="heat"] i').style.width).toBe('8%');
+    const litOf = (which) => [...body.querySelectorAll(`[data-bar="${which}"] .body-dots__dot`)]
+      .filter((d) => d.dataset.lit === 'true');
+    expect(litOf('stamina')).toHaveLength(3);
+    expect(litOf('heat')).toHaveLength(1);
   });
 });
 
@@ -819,6 +819,19 @@ describe('BUGS-A job 7 · the taps that did nothing', () => {
     await boot([mkAgent('a1', 'The Clock'), away], null, { onWatch });
     await userEvent.click(await screen.findByTestId('home-frame-a3'));
     expect(onWatch).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
+  });
+
+  it('BUG-207: an away frame with no table yet opens his agent view, not the numbers screen', async () => {
+    const onOpenThread = vi.fn();
+    const onProfile = vi.fn();
+    const away = mkAgent('a3', 'Big Slick', {
+      location: loc('casino', { room: 'upstairs' }),
+      // Walking in — no liveGame yet, so the frame is not a "go watch" tap.
+    });
+    await boot([mkAgent('a1', 'The Clock'), away], null, { onOpenThread, onProfile });
+    await userEvent.click(await screen.findByTestId('home-frame-a3'));
+    expect(onOpenThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
+    expect(onProfile).not.toHaveBeenCalled();
   });
 });
 

@@ -32,6 +32,16 @@ import { useEffect, useRef, useState } from 'react';
 /** How far down the sheet has to travel before letting go dismisses it. */
 export const DISMISS_PX = 88;
 
+// BUG-206: a plain tap on a button inside the sheet (an agent row, the ✕) was
+// entering "dragging" on touchstart before the finger had moved at all — that
+// state flip (is-dragging class, transition:none) mid-gesture is what makes a
+// phone browser withhold the synthesized click for that touch, so the first
+// tap did nothing and it took two or three tries to land. A tap now stays a
+// tap — "dragging" only starts once the finger has actually travelled past
+// this many px, so a touch that never moves never touches React state and the
+// click fires normally.
+const TAP_SLOP_PX = 10;
+
 const FIELDS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /** Rule 1: a drag that starts in a field is the caret being placed. */
@@ -75,12 +85,44 @@ export function useSheetDrag(onDismiss, { threshold = DISMISS_PX, enabled = true
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
 
+  // Registered imperatively from begin(), not through an effect keyed on the
+  // `dragging` state — attaching them has to cause no re-render, or a plain
+  // tap would trip the same state flip this fix removes below.
+  const listeners = useRef(null);
+
+  function attach() {
+    if (listeners.current) return;
+    const onMouseMove = (e) => move(e.clientY);
+    const onTouchMove = (e) => { if (e.touches && e.touches[0]) move(e.touches[0].clientY); };
+    const onEnd = () => end();
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onEnd);
+    window.addEventListener('touchcancel', onEnd);
+    listeners.current = { onMouseMove, onEnd, onTouchMove };
+  }
+
+  function detach() {
+    const l = listeners.current;
+    if (!l) return;
+    window.removeEventListener('mousemove', l.onMouseMove);
+    window.removeEventListener('mouseup', l.onEnd);
+    window.removeEventListener('touchmove', l.onTouchMove);
+    window.removeEventListener('touchend', l.onEnd);
+    window.removeEventListener('touchcancel', l.onEnd);
+    listeners.current = null;
+  }
+
   function begin(y, target) {
     if (!enabled) return;
     if (isFieldTarget(target)) return;
     if (inScrolledRegion(target, ref.current)) return;
-    gesture.current = { y0: y, dy: 0 };
-    setDragging(true);
+    // Recorded, but not yet a drag — no state change (and so no re-render of
+    // whatever the finger just went down on) until move() confirms the finger
+    // actually travelled (see TAP_SLOP_PX above).
+    gesture.current = { y0: y, dy: 0, dragStarted: false };
+    attach();
   }
 
   function move(y) {
@@ -88,36 +130,27 @@ export function useSheetDrag(onDismiss, { threshold = DISMISS_PX, enabled = true
     if (!g) return;
     const travelled = Math.max(0, y - g.y0);
     g.dy = travelled;
+    if (!g.dragStarted) {
+      if (travelled <= TAP_SLOP_PX) return;
+      g.dragStarted = true;
+      setDragging(true);
+    }
     setDy(travelled);
   }
 
   function end() {
     const g = gesture.current;
     gesture.current = null;
+    detach();
+    if (!g?.dragStarted) return; // a tap that never moved — leave it to onClick
     setDragging(false);
     setDy(0);
     // Past the threshold it goes away; short of it, it springs back — which is
     // what makes the gesture safe to try.
-    if (g && g.dy > threshold) dismissRef.current?.();
+    if (g.dy > threshold) dismissRef.current?.();
   }
 
-  useEffect(() => {
-    if (!dragging) return undefined;
-    const onMouseMove = (e) => move(e.clientY);
-    const onTouchMove = (e) => { if (e.touches && e.touches[0]) move(e.touches[0].clientY); };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', end);
-    window.addEventListener('touchmove', onTouchMove, { passive: true });
-    window.addEventListener('touchend', end);
-    window.addEventListener('touchcancel', end);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', end);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', end);
-      window.removeEventListener('touchcancel', end);
-    };
-  }, [dragging]);
+  useEffect(() => detach, []);
 
   return {
     ref,

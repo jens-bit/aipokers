@@ -6,7 +6,7 @@
 //
 //   1. The thread survives: the rail merges this stay's STORED lines with what
 //      is being said now, by id, keeping the server's timestamps.
-//   2. The body: two 2px bars on his strip and on every seat chip.
+//   2. The body: two three-dot readings on his strip and on every seat chip.
 //   3. The bottle, beside his stack.
 
 import { render } from '@testing-library/react';
@@ -43,35 +43,38 @@ const stage = (over = {}) => render(
     onBack={() => {}} onSitOut={() => {}} />,
 ).container;
 
-const fillOf = (root, which) => root
-  .querySelector(`[data-bar="${which}"] .felt-bars__fill`);
+const dotsOf = (root, which) => root.querySelectorAll(`[data-bar="${which}"] .body-dots__dot`);
+const litOf = (root, which) => [...dotsOf(root, which)].filter((d) => d.dataset.lit === 'true');
 
 describe('WATCH-8 job 3: the desk carries the body too', () => {
-  it('puts both bars on his strip', () => {
+  it('puts both readings on his strip, as dots', () => {
     const c = stage();
     const strip = c.querySelector('.dtb__strip');
-    expect(strip.querySelectorAll('.felt-bars__track')).toHaveLength(2);
-    // HOME-2 job 2: settled is 52% of the line, in amber. The old thirds put
-    // it at 67% and in the same green as fresh.
-    expect(fillOf(strip, 'stamina').style.width).toBe('52%');
-    expect(fillOf(strip, 'heat').style.width).toBe('54%');
+    expect(dotsOf(strip, 'stamina')).toHaveLength(3);
+    expect(dotsOf(strip, 'heat')).toHaveLength(3);
+    // LIFE-1-B: settled lights two of three dots. Heat 54 is 'simmering'
+    // (src/shared/levels.js's cut is 60), also two.
+    expect(litOf(strip, 'stamina')).toHaveLength(2);
+    expect(litOf(strip, 'heat')).toHaveLength(2);
   });
 
   it('puts the same two on every seat chip', () => {
     const c = stage();
     const chip = c.querySelector('.dtb__seat .seat-chip');
-    expect(chip.querySelectorAll('.felt-bars__track')).toHaveLength(2);
-    // HOME-2 job 2: worn is the short red stub, 16% of the line.
-    expect(fillOf(chip, 'stamina').style.width).toBe('16%');
-    expect(fillOf(chip, 'heat').style.width).toBe('100%');
-    const rgb = /rgb\((\d+), (\d+), (\d+)\)/.exec(fillOf(chip, 'heat').style.background);
+    expect(dotsOf(chip, 'stamina')).toHaveLength(3);
+    expect(dotsOf(chip, 'heat')).toHaveLength(3);
+    // LIFE-1-B: worn lights the one dot the ref's short red stub described.
+    expect(litOf(chip, 'stamina')).toHaveLength(1);
+    // Heat 100 is steaming, all three, in the fire red.
+    expect(litOf(chip, 'heat')).toHaveLength(3);
+    const rgb = /rgb\((\d+), (\d+), (\d+)\)/.exec(litOf(chip, 'heat').at(-1).style.background);
     expect(rgb.slice(1).map(Number))
       .toEqual([1, 3, 5].map((i) => parseInt(HEAT_FIRE.slice(i, i + 2), 16)));
   });
 
   // A seat with no agent behind it has no fatigue, and a server that has never
   // heard of WATCH-8 sends none at all.
-  it('draws no stamina line where there is no fatigue to draw', () => {
+  it('draws no stamina reading where there is no fatigue to draw', () => {
     const c = stage({ seats: [seat({ displayName: 'Balanced v2.1' }), seat()] });
     expect(c.querySelector('.dtb__strip [data-bar="stamina"]')).toBeNull();
     expect(c.querySelector('.dtb__strip [data-bar="heat"]')).toBeTruthy();

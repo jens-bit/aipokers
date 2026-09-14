@@ -44,6 +44,9 @@
 // different scale — and two components sharing one class is how a 6px pair of
 // lines silently became 16px of nothing sitting over a seat's stack.
 
+import { useState } from 'react';
+import { staminaLevel, heatLevel } from '../../../../src/shared/levels.js';
+
 // Fatigue's three stages, as a fraction of the line.
 //
 // HOME-2 job 2 — the thirds are gone, and they had to go. The ref's ramp is a
@@ -124,54 +127,100 @@ export function heatStep(heat) {
   return n < 30 ? 'ember' : n < 55 ? 'warm' : n < 80 ? 'hot' : 'fire';
 }
 
-const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
+// ── LIFE-1-B · three dots, not a bar ────────────────────────────────────────
+//
+// src/shared/levels.js is the one place that turns fatigue's word and heat's
+// number into a three-state reading — { level, dots, label, value } — because
+// a bar drawn from a three-state word was claiming precision ('63% full')
+// that nobody, server included, actually has. This is the one place that
+// draws that reading, so the felt, the seat pill and the home pill cannot
+// draw three different pictures of the same three states.
+//
+// The dots keep the two ramps' colours (a fresh dot is the same green a full
+// bar used to be, a steaming one the same red) — only the SHAPE changed, from
+// a continuous fill to however many of three are lit. Tapping (or focusing)
+// reveals the word, same as the bar's old label did, because "three dots" on
+// its own is exactly as much of a puzzle as two unlabelled lines were.
+const DOT_COLOR = {
+  stamina: { fresh: STAMINA_FULL, settled: STAMINA_AMBER, worn: STAMINA_SPENT },
+  heat: { level: HEAT_EMBER, simmering: HEAT_WARM, steaming: HEAT_FIRE },
+};
 
 /**
- * The two lines.
+ * The dot row for one reading. `reading` is `staminaLevel()`/`heatLevel()`'s
+ * own shape from src/shared/levels.js — `{ level, dots, label, value }`.
+ * `compact` drops the tap-for-word affordance for the 18px seat pill, which
+ * has no room for the word even revealed, exactly as the old bar's label did.
+ */
+export function BodyDots({ kind, reading, compact = false, labelled = !compact }) {
+  const [open, setOpen] = useState(false);
+  if (!reading) return null;
+  const color = DOT_COLOR[kind]?.[reading.level] ?? STAMINA_AMBER;
+  const name = kind === 'stamina' ? 'Stamina' : 'Heat';
+  const dots = (
+    <span className="body-dots__dots">
+      {[1, 2, 3].map((n) => (
+        <i key={n} className="body-dots__dot" data-lit={n <= reading.dots}
+          style={n <= reading.dots ? { background: color, borderColor: color } : undefined} />
+      ))}
+    </span>
+  );
+  // A span with a button role, not a real <button>: every caller of this
+  // component (the home pill, a seat pill) already sits inside its own
+  // tappable body, and a <button> nested in a <button> is invalid HTML that
+  // browsers recover from by breaking one of the two taps. `stopPropagation`
+  // is what actually matters — without it, revealing the word would also
+  // fire whatever the ancestor's own tap opens.
+  const toggle = (e) => { e.stopPropagation(); setOpen((o) => !o); };
+  const onKeyDown = (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    toggle(e);
+  };
+  return (
+    <span className={`body-dots${compact ? ' body-dots--compact' : ''}`} data-kind={kind} data-level={reading.level}>
+      {labelled ? (
+        <span className="body-dots__tap" role="button" tabIndex={0} aria-expanded={open}
+          onClick={toggle} onKeyDown={onKeyDown} aria-label={`${name}: ${reading.label}`}>
+          {dots}
+          <span className="body-dots__word" aria-hidden={!open}>{open ? reading.label : name.toUpperCase()}</span>
+        </span>
+      ) : (
+        <span aria-label={`${name}: ${reading.label}`}>{dots}</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * The two readings, as dots.
  *
  * Either is drawn only when there is something to draw it from — a seat with no
- * agent behind it has no fatigue and no heat, and inventing a full green line
- * for a House regular would be the felt making something up. `compact` is the
+ * agent behind it has no fatigue and no heat, and inventing three lit dots for
+ * a House regular would be the felt making something up. `compact` is the
  * seat-pill scale; the default is the hero's strip.
  *
- * BUGS-A job 10 · THEY SAY WHAT THEY ARE, ON FIRST RENDER.
- *
- * Two unlabelled two-pixel lines under a name are a puzzle. Nothing about the
- * strip told anybody which was which, and the first thing an owner asked of
- * them was "what am I looking at" — a question a label answers once and
- * forever. Eight pixels, under the bar it belongs to, never a tooltip and
- * never a legend somewhere else on the screen.
- *
- * The SEAT scale keeps none: an 18px pill has no room for a word, and the
- * strip above it has already taught the owner what a green line and a red one
- * mean. One place to learn it, everywhere to use it.
+ * The SEAT scale keeps no word, tap or not: an 18px pill has no room for one,
+ * and the strip above it has already taught the owner what each colour means.
+ * One place to learn it, everywhere to use it.
  */
 export function BodyBars({
   fatigue = null, heat = null, compact = false, className, labels = !compact,
 }) {
-  const stamina = staminaOf(fatigue);
-  const hot = Number.isFinite(Number(heat)) && heat !== null ? clamp01(Number(heat) / 100) : null;
+  const stamina = fatigue !== null ? staminaLevel({ stage: fatigue }) : null;
+  const hot = heat !== null && Number.isFinite(Number(heat)) ? heatLevel(heat) : null;
   if (stamina === null && hot === null) return null;
 
   return (
-    <span className={`felt-bars${compact ? ' felt-bars--seat' : ''}${labels ? ' felt-bars--labelled' : ''}${className ? ` ${className}` : ''}`}
-      aria-hidden>
+    <span className={`felt-bars${compact ? ' felt-bars--seat' : ''}${labels ? ' felt-bars--labelled' : ''}${className ? ` ${className}` : ''}`}>
       {stamina !== null && (
         <span className="felt-bars__row" data-bar="stamina">
-          <span className="felt-bars__track">
-            <span className="felt-bars__fill"
-              style={{ width: `${stamina * 100}%`, background: staminaColor(stamina) }} />
-          </span>
-          {labels && <span className="felt-bars__label">STAMINA</span>}
+          <BodyDots kind="stamina" reading={stamina} compact={compact} labelled={labels} />
         </span>
       )}
       {hot !== null && (
         <span className="felt-bars__row" data-bar="heat">
-          <span className="felt-bars__track">
-            <span className="felt-bars__fill"
-              style={{ width: `${hot * 100}%`, background: heatColor(heat) }} />
-          </span>
-          {labels && <span className="felt-bars__label">HEAT</span>}
+          <BodyDots kind="heat" reading={hot} compact={compact} labelled={labels} />
         </span>
       )}
     </span>

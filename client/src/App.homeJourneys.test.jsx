@@ -152,17 +152,24 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     expect(document.querySelector('.profile-overview')).toBeNull();
   });
 
-  it('a Chat opened from a direct away-agent Profile still returns to that Profile', async () => {
+  // BUG-207: rewritten, not loosened. This used to assert the reverse
+  // direction — "Open him" on an away frame landed on the numbers Profile,
+  // and Chat opened from it returned there. Jens's playtest instruction was
+  // explicit that this was the bug, not the design: "Open him" now opens the
+  // agent view directly, and PROFILE is one tap deeper from there. What this
+  // test still protects — that hopping to Profile and back preserves the
+  // thread — is exercised in the other direction below.
+  it('an away-agent Open lands on his agent view, and Profile from it returns to that view', async () => {
     const away = { ...restingAgent, location: { where: 'casino', room: 'floor' } };
     fetchMock.route('/api/agents?', { agents: [away] });
     fetchMock.route(`/api/agents/${away.id}?`, away);
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole('button', { name: /Loose Cannon at the casino.*Open him/ }));
+    await screen.findByPlaceholderText('Whisper to him…');
+    await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
     await user.click(await screen.findByRole('button', { name: 'Back to chat' }));
     await screen.findByPlaceholderText('Whisper to him…');
-    await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
-    expect(await screen.findByRole('button', { name: 'Back to chat' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
     expect(await screen.findByTestId('home-screen')).toBeVisible();
   });

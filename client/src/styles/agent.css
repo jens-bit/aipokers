@@ -133,7 +133,6 @@
 .dsk-roster-face{position:relative;width:38px;height:38px;flex-shrink:0}
 .dsk-roster-face i{position:absolute;top:-1px;right:-3px;width:9px;height:9px;border-radius:50%;background:var(--gold-reward);border:1.5px solid #0E1413;box-shadow:0 0 6px var(--gold-reward)}
 .dsk-roster-bars.felt-bars{position:static;display:flex;flex-direction:column;width:120px;max-width:100%;gap:2.5px;margin-top:5px;transform:none}
-.dsk-roster-bars .felt-bars__track{height:2.5px}
 .agent-view__proposal-details{margin-top:6px;font-size:10px;line-height:1.6}
 .home-carry-help{position:absolute;z-index:12;left:12px;right:12px;top:50px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid color-mix(in srgb, var(--gold-reward) 26.7%, transparent);border-radius:10px;background:color-mix(in srgb, var(--bg-secondary) 94.1%, transparent);color:var(--gold-reward);font:11px Inter,sans-serif}
 .home-carry-help span{flex:1}.home-carry-help button{min-height:44px;border:0;background:none;color:var(--text-secondary);font:11px Inter,sans-serif}

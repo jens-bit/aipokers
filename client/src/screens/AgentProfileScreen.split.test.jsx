@@ -5,7 +5,7 @@
 // a home. Four are skills, one is body, and the sixth — COMPOSURE — is the
 // stat whose live reading is heat, so it rides on the heat bar.
 
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -90,11 +90,17 @@ describe('PROFILE-2 — body and skills', () => {
     expect(within(skills()).queryByText('COMPOSURE')).toBeNull();
   });
 
-  it('reads the heat off the mood the band above it is showing', () => {
+  // LIFE-1-B: heat is three dots now, reading src/shared/levels.js's
+  // three-state cut (the same one the felt and the room pill read) rather
+  // than this card's own four-word band built on different thresholds.
+  it('reads the heat off the mood, three dots and the word on tap', () => {
     renderProfile();
     const head = within(body());
-    expect(head.getByText('82')).toBeInTheDocument();
-    expect(head.getByText('boiling')).toBeInTheDocument();
+    const button = head.getByRole('button', { name: 'Heat: Steaming' });
+    const lit = [...button.querySelectorAll('.body-dots__dot')].filter((d) => d.dataset.lit === 'true');
+    expect(lit).toHaveLength(3);
+    fireEvent.click(button);
+    expect(head.getByText('Steaming')).toBeInTheDocument();
   });
 
   it('opens a skill in place, the way it always did', async () => {
