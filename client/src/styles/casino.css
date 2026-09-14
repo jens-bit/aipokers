@@ -550,6 +550,26 @@
   background: var(--bg-secondary);
 }
 
+/* JOB 5: the tiny room indicator, one dot per room, the current one filled —
+   the same shape a carousel's page dots always take. */
+.csn-floor__rooms {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.csn-floor__rooms i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+.csn-floor__rooms i.is-current {
+  background: var(--accent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
 .csn-floor__back {
   flex-shrink: 0;
   font-family: "Oswald", "Helvetica Neue", sans-serif;

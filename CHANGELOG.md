@@ -8,6 +8,7 @@
 - **Opening the roster inside a casino room no longer overlaps the room (BUG-202).** The room's own deploy card and conversation band now stand down while the roster's glass sheet is up, instead of showing dense text straight through it.
 - **Stamina and heat draw as three dots (LIFE-1-B, client half).** Merged `feat/agent-life`'s three-state reading and ported the client off its old continuous bars — the felt, every seat, the room pill and the profile card all draw the same dots now, word on tap where nothing else already answers that tap.
 - **The roster says who's actually out (BUG-203).** Every row already named where an agent is; it now also wears a coloured HOME/CASINO/VISITING badge and dims an away man's face, so "he's not here" registers at a glance instead of on a careful read. Home reads "at home" now, parallel with the room's other three sentences.
+- **Swipe the floors (BUG-204).** The floor/upstairs/back-room toggle board is a horizontal swipe on phone now, with a small dot indicator showing which room is open. The old door list stays as a fallback; deep links and the session's remembered room are unchanged.
 
 ## Agent life, memory and conversation — local candidate (2026-09-14, LIFE-1)
 
