@@ -820,6 +820,19 @@ describe('BUGS-A job 7 · the taps that did nothing', () => {
     await userEvent.click(await screen.findByTestId('home-frame-a3'));
     expect(onWatch).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
   });
+
+  it('BUG-201: an away frame with no table yet opens his agent view, not the numbers screen', async () => {
+    const onOpenThread = vi.fn();
+    const onProfile = vi.fn();
+    const away = mkAgent('a3', 'Big Slick', {
+      location: loc('casino', { room: 'upstairs' }),
+      // Walking in — no liveGame yet, so the frame is not a "go watch" tap.
+    });
+    await boot([mkAgent('a1', 'The Clock'), away], null, { onOpenThread, onProfile });
+    await userEvent.click(await screen.findByTestId('home-frame-a3'));
+    expect(onOpenThread).toHaveBeenCalledWith(expect.objectContaining({ id: 'a3' }));
+    expect(onProfile).not.toHaveBeenCalled();
+  });
 });
 
 // ── BUGS-C job 3 · tap the table, not the player ────────────────────────────

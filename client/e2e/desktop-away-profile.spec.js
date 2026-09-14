@@ -47,19 +47,26 @@ async function household(page,roster=agents,roomRoster=roster){
   return requests;
 }
 
-test('BUG-192: desktop opens an owned visiting companion but not a same-name guest projection',async({page})=>{
+// BUG-201: these three tests used to open on the numbers Profile, with the
+// room (AgentView) one tap deeper via "Back to chat". Jens's playtest
+// instruction was explicit that this was the bug, not the design — "Open
+// him" opens the agent view directly and Profile is one tap further in, from
+// its own PROFILE button. Rewritten in that order rather than loosened; every
+// identity, request-shape, draft-retention and guest-privacy assertion below
+// still holds.
+test('BUG-201: desktop opens an owned visiting companion but not a same-name guest projection',async({page})=>{
   const own={...agents[0],location:{where:'visiting'},visiting:{hostName:'Fidde'}},
     foreign={...own,id:'foreign-slick',guest:true,chatHistory:undefined};
   await page.setViewportSize({width:1440,height:900});
   const requests=await household(page,[own,agents[3]],[own,agents[3],foreign]);
   await page.getByTestId('home-frame-foreign-slick').click();
-  await expect(page.locator('.profile-overview')).toHaveCount(0);
+  await expect(page.locator('.agent-view')).toHaveCount(0);
   await page.getByTestId('home-frame-slick').click();
-  const profile=page.getByRole('region',{name:"Big Slick's profile",exact:true});
-  await expect(profile).toBeVisible();
-  await profile.getByRole('textbox',{name:'Whisper to him',exact:true}).fill('I can see you at Fidde’s.');
-  await profile.getByRole('button',{name:'Send whisper',exact:true}).click();
-  await expect(profile.getByText('I will wait for that hand.',{exact:true})).toBeVisible();
+  const room=page.getByRole('region',{name:"Big Slick's room",exact:true});
+  await expect(room).toBeVisible();
+  await room.getByPlaceholder('Whisper to him…').fill('I can see you at Fidde’s.');
+  await room.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(room.locator('.agent-view__thread').getByText('I will wait for that hand.',{exact:true})).toBeVisible();
   expect(requests.filter(r=>r.path.includes('/foreign-slick/'))).toEqual([]);
   expect(requests.filter(r=>r.path==='/api/agents/chat'&&r.method==='POST').map(r=>r.body)).toEqual([
     expect.objectContaining({existingAgentId:'slick',userId:'4242',content:'I can see you at Fidde’s.'})]);
@@ -67,39 +74,42 @@ test('BUG-192: desktop opens an owned visiting companion but not a same-name gue
 });
 
 for(const size of [{width:1440,height:900},{width:390,height:844},{width:390,height:590}]) {
-test(`BUG-192: Open him preserves profile/chat identity at ${size.width}x${size.height}`,async({page},testInfo)=>{
+test(`BUG-201: Open him lands on his agent view, and Profile preserves identity at ${size.width}x${size.height}`,async({page},testInfo)=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setViewportSize(size);const requests=await household(page);
   const desktop=size.width>1000;
   const before=desktop?await page.locator('.home-flat').boundingBox():null;
   await page.getByRole('button',{name:'Big Slick at the casino. Open him.',exact:true}).click();
+  const room=page.getByRole('region',{name:"Big Slick's room",exact:true});
+  await expect(room).toBeVisible();
+  await expect(room.locator('.agent-view__name')).toHaveText('Big Slick');
+  if(desktop)expect(await page.locator('.home-flat').boundingBox()).toEqual(before);
+  await page.screenshot({path:testInfo.outputPath(`room-${size.width}x${size.height}.png`)});
+  await room.getByPlaceholder('Whisper to him…').fill('Wait for my next hand.');
+  await room.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(room.locator('.agent-view__thread').getByText('I will wait for that hand.',{exact:true})).toBeVisible();
+  for(const text of ['Keep that earlier read.','The earlier read is saved.','Wait for my next hand.','I will wait for that hand.'])
+    await expect(room.locator('.agent-view__thread').getByText(text,{exact:true})).toHaveCount(1);
+  const sends=requests.filter(r=>r.path==='/api/agents/chat'&&r.method==='POST');
+  expect(sends).toEqual([expect.objectContaining({body:expect.objectContaining({existingAgentId:'slick',userId:'4242',content:'Wait for my next hand.'}),headers:expect.objectContaining({'x-telegram-init-data':expect.stringContaining('4242')})})]);
+  await room.getByRole('button',{name:'Profile',exact:true}).click();
   const profile=page.getByRole('region',{name:"Big Slick's profile",exact:true});
   await expect(profile).toBeVisible();
   await expect(profile.locator('.agent-view__name')).toHaveText('Big Slick');
   await expect(profile.getByText('Condition',{exact:true})).toBeVisible();
   if(desktop)expect(await page.locator('.home-flat').boundingBox()).toEqual(before);
   await page.screenshot({path:testInfo.outputPath(`profile-${size.width}x${size.height}.png`)});
-  await profile.getByRole('textbox',{name:'Whisper to him',exact:true}).fill('Wait for my next hand.');
-  await profile.getByRole('button',{name:'Send whisper',exact:true}).click();
-  await expect(profile.getByText('I will wait for that hand.',{exact:true})).toBeVisible();
   await profile.getByRole('button',{name:'Back to chat',exact:true}).click();
-  const room=page.getByRole('region',{name:"Big Slick's room",exact:true});
   await expect(room).toBeVisible();
-  for(const text of ['Keep that earlier read.','The earlier read is saved.','Wait for my next hand.','I will wait for that hand.'])
-    await expect(room.locator('.agent-view__thread').getByText(text,{exact:true})).toHaveCount(1);
-  const sends=requests.filter(r=>r.path==='/api/agents/chat'&&r.method==='POST');
-  expect(sends).toEqual([expect.objectContaining({body:expect.objectContaining({existingAgentId:'slick',userId:'4242',content:'Wait for my next hand.'}),headers:expect.objectContaining({'x-telegram-init-data':expect.stringContaining('4242')})})]);
   if(desktop){
-    const composer=room.getByRole('textbox');await composer.fill('Keep my draft');
-    await page.getByTestId('home-frame-slick').click();await expect(profile).toBeVisible();
-    await profile.getByRole('button',{name:'Back',exact:true}).click();
+    const composer=room.getByPlaceholder('Whisper to him…');await composer.fill('Keep my draft');
+    await page.getByTestId('home-frame-slick').click();await expect(room).toBeVisible();
     await expect(composer).toHaveValue('Keep my draft');
     await room.getByRole('button',{name:'Close panel',exact:true}).click();
     await expect(page.getByTestId('room-thread')).toBeVisible();
     expect(await page.locator('.home-flat').boundingBox()).toEqual(before);
   } else {
-    await room.getByRole('button',{name:'Back',exact:true}).click();await expect(profile).toBeVisible();
-    await profile.getByRole('button',{name:'Back',exact:true}).click();
+    await room.getByRole('button',{name:'Back',exact:true}).click();
   }
   await expect(page.getByTestId('home-frame-slick')).toBeVisible();
   expect(await page.evaluate(()=>window.__awayMessages.filter(m=>m.type==='watch'))).toEqual([]);

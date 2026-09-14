@@ -68,10 +68,13 @@ for(const size of [{width:390,height:844},{width:390,height:590},{width:1440,hei
 });
 }
 
-for(const height of [844,590])test(`BUG-190: a compact phone plate opens the full profile at 390x${height}`,async({page})=>{
+// BUG-201: "Open him" opens his agent view, not the numbers profile — see
+// desktop-away-profile.spec.js's header note. The compact-plate identity this
+// case protects is unaffected by which screen the tap lands on.
+for(const height of [844,590])test(`BUG-190: a compact phone plate opens his full agent view at 390x${height}`,async({page})=>{
   await page.setViewportSize({width:390,height});await household(page);
   await page.getByRole('button',{name:'Big Slick at the casino. Open him.',exact:true}).click();
-  await expect(page.getByRole('region',{name:"Big Slick's profile",exact:true})).toBeVisible();
+  await expect(page.getByRole('region',{name:"Big Slick's room",exact:true})).toBeVisible();
   await expect(page.locator('.agent-view__name')).toHaveText('Big Slick');
 });
 
