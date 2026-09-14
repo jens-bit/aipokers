@@ -106,6 +106,26 @@ function fingerprint(table) {
     hands: table.game?.handNumber, street: table.game?.street, spectators: table.spectators.length, connections: table.connections.filter(Boolean).length });
 }
 
+// JOB B / BUG-205: real players opened the app and saw a still kitchen table
+// because homeGame.sync()'s own solo-agent and cooldown gates only ever lift
+// for a manual sync (a deliberate Carry/SIT) -- FLOOR_SUB, the message the
+// client sends the moment Home actually opens, used to call sync() without
+// it. HOST's default fixture is exactly the common failing shape: one
+// eligible agent, nobody else home, no prior deliberate placement.
+test('BUG-205: opening Home starts the kitchen table even with one eligible agent and no prior placement', async () => {
+  const ws = new WebSocket(base.replace('http:', 'ws:'));
+  const socket = { ws, messages: [] }; sockets.push(socket);
+  ws.on('message', raw => socket.messages.push(JSON.parse(raw)));
+  await once(ws, 'open');
+  ws.send(JSON.stringify({ type: 'floor_sub', ...identity(HOST) }));
+  const home_state = await waitFor(() => socket.messages.find(m => m.type === 'home_state'));
+  assert.equal(home_state.game?.state, 'running', 'the very first HOME_STATE already has a hand running');
+  assert.equal(home_state.game?.tableId, home.homeTableId(HOST));
+  const table = registry.getTable(home.homeTableId(HOST));
+  assert.ok(table?.home, 'a real kitchen table exists, not a placeholder');
+  assert.ok(table.agentIds.includes(hostAgent), 'the actual lone agent is seated');
+});
+
 test('BUG-155: unrelated JOIN cannot seat, add an AI, speak, act or close the private kitchen', async () => {
   const table = await kitchen(); const before = fingerprint(table);
   for (const wantAI of [false, true]) {

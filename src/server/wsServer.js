@@ -401,8 +401,19 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             // Syncing HERE and not at boot is what keeps the cost bounded to
             // people who are actually looking: a fan-out over every owner in
             // the database would stand up a table for each of them.
+            //
+            // JOB B: `manual: true` is what a deliberate SIT/CARRY already
+            // uses to permit the solo House game and to skip the between-
+            // hands cooldown — opening Home IS that deliberate look, the same
+            // way WatchScreen stays eager for a table. Without it, an owner
+            // with exactly one eligible agent home (a very common state) or
+            // one caught mid-cooldown saw a permanently still kitchen table
+            // on every open; sync() with no game running and >=1 eligible
+            // agent now always seats one, House opponent included. Fatigue
+            // is unaffected — a worn or studying agent is still excluded by
+            // eligible() and still gets the rest LIFE-1-A gave him.
             try {
-              homeGame.sync(userId);
+              homeGame.sync(userId, { manual: true });
               homeNight.noteHousehold(userId, presentedRoster(userId, { owner: true }));
             } catch (err) {
               console.error('[home] sub sync failed:', err.message);
