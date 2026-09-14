@@ -141,7 +141,13 @@
 }
 
 .watch-hero__holding { min-width: 0; }
+/* JOB C: a flex item's own min-width defaults to auto, which is its content's
+   natural width — without this, a long name ("aces full of kings") could not
+   actually shrink to make room for the position pill beside it, so it either
+   overflowed or crowded `.watch-felt__hero-pos` out instead of truncating. */
 .watch-hero__hand-name {
+  min-width: 0;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

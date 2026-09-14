@@ -30,6 +30,7 @@ import { BodyBars, Bottle, isDrinking } from '../system/FeltBodyBars.jsx';
 import { Streets } from '../../lib/protocol.js';
 import { heroEquityOf, paceMeta, paceOf } from '../../lib/pace.js';
 import { money, group } from '../../lib/wallet.js';
+import { currentHandName } from '../share/handName.js';
 
 const LIVE_STREETS = [Streets.PREFLOP, Streets.FLOP, Streets.TURN, Streets.RIVER, Streets.SHOWDOWN];
 
@@ -154,6 +155,14 @@ export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, o
     ? Math.max(0, game.currentBet - (hero?.committed ?? 0))
     : 0;
 
+  // JOB C: the desk strip's "Street" slot only ever printed the street name —
+  // nowhere on this stage did it say what your own agent is actually holding,
+  // the same reading WatchHero already gives the phone. Same rule as there:
+  // only once both hole cards are dealt and he is still in the hand.
+  const heroCurrentHand = !between && hero?.holeCards?.length === 2 && !hero?.folded
+    ? currentHandName(hero.holeCards, game?.community || [])
+    : null;
+
   return (
     <div className="dtb" data-pace={pace}>
       <div className="dtb__arc" aria-hidden />
@@ -250,9 +259,12 @@ export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, o
           </div>
           <div className="dtb__strip-rule" aria-hidden />
           <div>
-            <span className="dsk-label" style={{ fontSize: 8.5 }}>{toCall > 0 ? 'To call' : 'Street'}</span>
-            <div className={`dtb__hero-num${toCall > 0 ? ' is-gold' : ' is-dim'}`}>
-              {toCall > 0 ? money(toCall) : ((game?.street ?? '').toUpperCase() || '—')}
+            <span className="dsk-label" style={{ fontSize: 8.5 }}>
+              {toCall > 0 ? 'To call' : (heroCurrentHand ? `${(game?.street ?? '').toUpperCase()} · Hand now` : 'Street')}
+            </span>
+            <div className={`dtb__hero-num${toCall > 0 ? ' is-gold' : ' is-dim'}${heroCurrentHand ? ' dtb__hero-hand-name' : ''}`}
+              title={heroCurrentHand ?? undefined}>
+              {toCall > 0 ? money(toCall) : (heroCurrentHand || (game?.street ?? '').toUpperCase() || '—')}
             </div>
           </div>
           <div className="dtb__strip-rule" aria-hidden />

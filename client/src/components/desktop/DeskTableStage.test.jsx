@@ -230,6 +230,32 @@ describe('DP-1 — his one line', () => {
 });
 
 
+// JOB C / BUG-206 — the desk strip's Street slot said nothing about what your
+// own agent is actually holding; WatchHero already gives the phone this
+// reading (`currentHand`), the desk stage never picked it up at all.
+describe('BUG-206 — the desk strip names the hand, not just the street', () => {
+  it('reads a mid-hand holding once both hole cards and a flop are up', () => {
+    const { container } = render(<DeskTableStage game={midHandGame} agentName={HERO} />);
+    // midHandGame: hero holds 6h/6s, flop is 5c 4h 8c — pair of sixes.
+    const num = container.querySelector('.dtb__hero-hand-name');
+    expect(num).toBeTruthy();
+    expect(num).toHaveTextContent('pair of sixes');
+    expect(screen.getByText(/FLOP · Hand now/)).toBeInTheDocument();
+  });
+
+  it('says nothing between hands rather than holding a stale reading', () => {
+    const { container } = render(<DeskTableStage game={betweenHandsGame} agentName={HERO} />);
+    expect(container.querySelector('.dtb__hero-hand-name')).toBeNull();
+  });
+
+  it('yields to "To call" when it is his turn to act', () => {
+    const facingBet = { ...midHandGame, toAct: 0, currentBet: 100 };
+    render(<DeskTableStage game={facingBet} agentName={HERO} />);
+    expect(screen.getByText('To call')).toBeInTheDocument();
+    expect(screen.queryByText(/Hand now/)).not.toBeInTheDocument();
+  });
+});
+
 it('BUG-105: a server-assigned camera wins over duplicate display names',()=>{
   const game={...midHandGame,seats:midHandGame.seats.map((s,i)=>({...s,displayName:'Same name',stack:1000+i*100,holeCards:i===2?['Ah','Kh']:[]}))};
   const {container}=render(<DeskTableStage game={game} mySeat={2} agentName="Same name"/>);

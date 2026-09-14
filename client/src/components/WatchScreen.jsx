@@ -1181,6 +1181,10 @@ export function WatchFelt({
           deadRope={!hasEquity}
           turn={!!(!queued && game && live && game.toAct === heroSeat)}
           street={street}
+          // JOB C: the same reading WatchHero already shows a spectated
+          // agent, over his own two cards now rather than an agent's.
+          currentHand={!between && !heroMuck && !heroData?.folded && heroLanded === 2
+            ? currentHandName(heroData?.holeCards, community.slice(0, landed)) : null}
           pos={posLabel(heroSeat, game)}
           toCall={toCall}
           // SIT-1 · HIS OWN ACTION, NOT THE TABLE'S LAST ONE. `actionLabel`

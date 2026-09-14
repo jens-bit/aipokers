@@ -10,6 +10,7 @@
 - **The roster says who's actually out (BUG-203).** Every row already named where an agent is; it now also wears a coloured HOME/CASINO/VISITING badge and dims an away man's face, so "he's not here" registers at a glance instead of on a careful read. Home reads "at home" now, parallel with the room's other three sentences.
 - **Swipe the floors (BUG-204).** The floor/upstairs/back-room toggle board is a horizontal swipe on phone now, with a small dot indicator showing which room is open. The old door list stays as a fallback; deep links and the session's remembered room are unchanged.
 - **Home always has a hand running (BUG-205).** Opening Home now always seats a hand — the solo House game included — for any household with at least one eligible agent, instead of only when two or more were home and no cooldown was in effect. A still kitchen table on open was the single biggest playtest complaint this queue addressed.
+- **The hero's own hand is legible now, not just his street (BUG-206).** The owner's seat (phone and desktop) and the desktop "watch your own agent" stage both printed only the street name under his cards; they now read "pair of sixes", "ace-high", etc., the same reading `WatchHero` already gave a spectated agent, at the same label size/weight as STREET, with a long name shrinking to an ellipsis rather than crowding its neighbour.
 
 ## Agent life, memory and conversation — local candidate (2026-09-14, LIFE-1)
 
