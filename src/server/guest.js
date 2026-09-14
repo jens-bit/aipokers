@@ -68,7 +68,7 @@
 
 import crypto from 'node:crypto';
 import { setGuestResolver } from './auth.js';
-import { rateLimiter } from './rateLimit.js';
+import { rateLimiter, clientIp } from './rateLimit.js';
 import {
   insertGuest,
   loadGuestByToken,
@@ -228,12 +228,15 @@ const isSecureRequest = (req) => req?.secure === true || String(req?.headers?.['
  * Express's own `trust proxy` would do the same job, but it would also change
  * what rateLimit.js counts for every other route in the product, and a wider
  * blast radius is not something this tree is entitled to take.
+ *
+ * MONEY-1 job 4: the blast radius turned out to be the point. Every other
+ * limiter wanted exactly this and none of them had it, which is why the safe
+ * read came back 429 — see rateLimit.js, which now owns the function and makes
+ * it the default key. Re-exported here so nothing that imports it from guest.js
+ * has to move, and so the guest routes keep saying out loud which key they
+ * count on.
  */
-export function clientIp(req) {
-  const forwarded = String(req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
-  if (forwarded) return forwarded;
-  return req?.ip || req?.socket?.remoteAddress || null;
-}
+export { clientIp };
 
 /** The token this request carries, or ''. */
 export function tokenFrom(req) {

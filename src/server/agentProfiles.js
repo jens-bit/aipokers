@@ -4853,7 +4853,16 @@ export function installAgentProfileRoutes(app) {
     const userId = String(req.query.userId || 'anon');
     if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your wallet' });
     const profile = getOrCreate(userId);
-    sweepRecalled(userId, profile);
+    // MONEY-1 job 4: a READ must not be able to fail because of a WRITE.
+    // sweepRecalled persists — it brings home the pocket of an agent who was
+    // called in and has since left the table — and a write inside a GET on a
+    // WAL database can throw (SQLITE_BUSY) with a concurrent writer. Unwrapped,
+    // that came out of the handler as a 500 and the owner was told his safe
+    // could not be read, when in fact the balance was right there. The sweep is
+    // idempotent and the next read does it again; the balance is what he asked
+    // for.
+    try { sweepRecalled(userId, profile); }
+    catch (err) { console.error('[wallet] recall sweep failed, serving the balance anyway:', err.message); }
     for (const a of profile.agents) mirrorBankroll(a);
     const sessionNet = profile.agents.reduce((n, a) => {
       const last = Array.isArray(a.sessionLog) && a.sessionLog.length ? a.sessionLog[a.sessionLog.length - 1] : null;

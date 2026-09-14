@@ -655,3 +655,105 @@ It does not recover the chips the old leak minted. Jens's inflated prod
 balances stay inflated, exactly as BUG-136's did, and for the same reason: the
 alternative is taking chips off people for a bug that was not theirs. What it
 does is stop the number growing.
+
+---
+
+## 13. Job 4 — the safe stops lying
+
+### The cause, measured rather than guessed
+
+§8 listed two candidates. The probe (scratch cwd, the real middleware stack, one
+wallet read a second for 90s with the app's own polling alongside) settled it:
+
+```
+wallet reads: 90, other /api calls: 54    (RATE_LIMIT_MAX=60)
+  200: 64
+  429: 26   body: {"error":"Too many requests"}
+
+route threw: nothing
+```
+
+**It is a 429, every time, and the route never threw once.** The second
+candidate — a SQLITE_BUSY out of the write inside the GET — did not fire in
+90 seconds of traffic, but it is guarded anyway (below), because the cost of
+being wrong about it is the same message.
+
+Why it is *intermittent*, and why it is worse on prod than in that probe: the
+limiter's key. `trust proxy` is deliberately not set on this app — `guest.js`
+says so in as many words, and grew its own `clientIp()` to work around it — so
+`req.ip` behind nginx is **the proxy's address for every user**.
+`src/index.js:55`'s 60-a-minute `/api` cap was therefore 60 a minute **for the
+whole site**, shared by everybody, across every route. A client that polls the
+roster and the floor every 10 seconds and the home and the header every 30
+spends 16 of those before the owner touches anything. Whether the safe read is
+the one that gets refused depends on who else is using the app, which is exactly
+the shape of "it errors often".
+
+### The fix
+
+1. **`clientIp` moved into `rateLimit.js` and became the default key.** Every
+   limiter now counts per client rather than per site. `guest.js` re-exports it
+   and keeps passing it explicitly. Note what this does to the CHAT limiter
+   (10/min, the guard on model spend): it becomes ten a minute **per owner**
+   instead of ten a minute across the site — which is the reading its own
+   comment always described, and the site-wide bound on spend is
+   `MAX_CONCURRENT_TABLES` and the meter, not this.
+2. **The default budget is 180/min, up from 60.** Three a second sustained:
+   still a real abuse guard, and far above anything the client does. `60` left
+   under 4× headroom for a client whose idle traffic is already a quarter of it.
+   `RATE_LIMIT_MAX` still overrides. The model-spend limiter is untouched.
+3. **The wallet GET can no longer 500.** `sweepRecalled` is a *write* inside a
+   *read*, and a write on a WAL database with a concurrent writer can throw. It
+   is wrapped: the sweep is idempotent and the next read does it again, and the
+   balance is what the owner asked for.
+
+Re-probed with the fix: **90 reads, 90 × 200, zero failures.**
+`src/server/rateLimit.test.js` (the module never had a test — which is how it
+spent months counting the wrong thing) pins the behaviour, including that two
+clients behind one proxy no longer share a budget.
+
+### Every money change, on the record
+
+§8's second half: the safe renders `walletProjection().ledger`, which was the
+**wallet's** ledger and only that — `fund`, `refill`, `collect`, `seed`, `item`.
+`buyin` and `cashout` are written to the **pocket's** ledger and to no other, so
+the two events that move the most money in this product appeared on no screen.
+That is Jens's "nothing visibly leaves the safe when an agent buys in", and it is
+the same omission behind "the way you earn money looks wrong".
+
+`walletProjection` now **merges** them, newest first, each line tagged with the
+agent it belongs to so the sheet can print his name. It is a view and nothing
+else:
+
+- nothing is written anywhere;
+- the stored wallet ledger still contains exactly the entries that explain the
+  safe balance, which is the invariant `scripts/audit-chips.js` reconciles;
+- only `buyin` and `cashout` are taken from the pockets — every other pocket
+  entry is one half of a transfer whose other half is already on the wallet
+  ledger, and drawing both would show one top-up as two events that cancel;
+- the cap rose from 20 lines to 40, because a busy night of buy-ins would
+  otherwise push every top-up off the end of the record within an hour.
+
+`src/server/safeLedger.test.js` covers all of it, including that two reads leave
+both ledgers byte-identical and that the wallet ledger still sums to the balance.
+
+### One thing this could not finish: two lines of client vocabulary
+
+`client/src/lib/safeLines.js` `ledgerLine()` has a case per entry type and a
+`default: 'Adjustment'`. It knows the wallet's five and not the two the server
+now sends, so a buy-in currently renders with **the right time and the right
+amount under the label "Adjustment"** — better than invisible, and not finished.
+
+This queue is server-only ("no client work in this tab"), so it is filed rather
+than done. The whole change is two cases in that switch, beside the five already
+there:
+
+```js
+case 'buyin':
+  return who ? `${who} bought in` : 'Bought in at a table';
+case 'cashout':
+  return who ? `${who} cashed out` : 'Cashed out';
+```
+
+`tonightOf()` needs nothing: its three lines are about the safe (brought home /
+fridge / given out), and a buy-in does not touch the safe. Filed in BUGS.md.
