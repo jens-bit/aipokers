@@ -82,7 +82,14 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
 });
 
-beforeEach(() => { process.env.GUEST_ENABLED = '1'; });
+beforeEach(() => {
+  process.env.GUEST_ENABLED = '1';
+  // GUEST-3: the per-address cap is read from the environment at call time and
+  // defaults to twenty. Pinned to five here so the cap tests below stay one
+  // short loop rather than twenty, and so that they are ALSO proof that the
+  // environment is what the route reads.
+  process.env.GUEST_PER_IP_PER_DAY = '5';
+});
 
 after(async () => {
   delete process.env.GUEST_ENABLED;
@@ -277,15 +284,18 @@ test('GUEST-1: /api/guest/me answers who the cookie is, and 404s when it is nobo
 
 const CAP_IP = '198.51.100.7';
 
-test('GUEST-1: five a day from one address, then 429 guestCap', async () => {
-  for (let i = 0; i < guest.GUEST_PER_IP_PER_DAY; i++) {
+test('GUEST-1/GUEST-3: the configured number a day from one address, then 429 guestCap', async () => {
+  for (let i = 0; i < guest.guestPerIpPerDay(); i++) {
     const ok = await post('/api/guest', null, { 'x-forwarded-for': CAP_IP });
-    assert.equal(ok.status, 200, `guest ${i + 1} of five`);
+    assert.equal(ok.status, 200, `guest ${i + 1} of ${guest.guestPerIpPerDay()}`);
   }
   const refused = await post('/api/guest', null, { 'x-forwarded-for': CAP_IP });
   assert.equal(refused.status, 429);
   assert.equal(refused.body.error, 'guestCap');
-  assert.equal(refused.body.perDay, 5);
+  assert.equal(refused.body.perDay, 5, 'the refusal states the cap it applied');
+  // GUEST-3: the client renders this verbatim, so it is asserted verbatim.
+  assert.equal(refused.body.message,
+    'That is enough new players from here today. Log in with Telegram, or come back tomorrow.');
   assert.equal(refused.setCookie, null, 'a refused guest gets no cookie');
 
   // And it is that ADDRESS that is spent, not the route.
@@ -297,7 +307,7 @@ test('GUEST-1: the forwarded address is what is counted, not the socket', () => 
   // Claim 3's other half. Every request in this file arrives on 127.0.0.1; if
   // the socket were what counted, the five above would have been spent by the
   // tests before them and CAP_IP would hold nothing.
-  assert.equal(store.countGuestsFromIp(CAP_IP, Date.now() - guest.DAY_MS), guest.GUEST_PER_IP_PER_DAY);
+  assert.equal(store.countGuestsFromIp(CAP_IP, Date.now() - guest.DAY_MS), guest.guestPerIpPerDay());
   assert.equal(store.countGuestsFromIp('127.0.0.1', Date.now() - guest.DAY_MS), 0);
   assert.equal(guest.clientIp({ headers: { 'x-forwarded-for': '9.9.9.9, 10.0.0.1' } }), '9.9.9.9');
   assert.equal(guest.clientIp({ headers: {}, ip: '127.0.0.1' }), '127.0.0.1');
@@ -308,7 +318,7 @@ test('GUEST-1: the cap is rows, not memory — it survives a restart', () => {
   // handle is as close to a restart as an in-process test gets, and it is
   // exactly the thing an in-memory Map would not survive.
   const before = store.countGuestsFromIp(CAP_IP, Date.now() - guest.DAY_MS);
-  assert.equal(before, guest.GUEST_PER_IP_PER_DAY);
+  assert.equal(before, guest.guestPerIpPerDay());
   store._closeForTests();
   assert.equal(store.countGuestsFromIp(CAP_IP, Date.now() - guest.DAY_MS), before);
 });
@@ -361,4 +371,31 @@ test('GUEST-1: tokenFromStartParam only answers for our own prefix', () => {
   assert.equal(guest.tokenFromStartParam('agent_abc'), '');
   assert.equal(guest.tokenFromStartParam(''), '');
   assert.equal(guest.tokenFromStartParam(null), '');
+});
+
+// ── GUEST-3 · the cap is configuration, not a constant ──────────────────────
+
+test('GUEST-3: the cap defaults to twenty, because an address is not a person', () => {
+  const had = process.env.GUEST_PER_IP_PER_DAY;
+  delete process.env.GUEST_PER_IP_PER_DAY;
+  // A flat, an office and a conference all share one address. Five was built
+  // for a crawler and caught the third friend in the same room.
+  assert.equal(guest.guestPerIpPerDay(), 20);
+  assert.equal(guest.GUEST_PER_IP_PER_DAY_DEFAULT, 20);
+  process.env.GUEST_PER_IP_PER_DAY = had;
+});
+
+test('GUEST-3: the environment moves it, and nonsense does not', () => {
+  const had = process.env.GUEST_PER_IP_PER_DAY;
+  process.env.GUEST_PER_IP_PER_DAY = '60';
+  assert.equal(guest.guestPerIpPerDay(), 60);
+  // Read at CALL time, so the VPS can move it without a deploy — the same
+  // reason guestsEnabled() is a function rather than a constant.
+  process.env.GUEST_PER_IP_PER_DAY = '7';
+  assert.equal(guest.guestPerIpPerDay(), 7);
+  for (const bad of ['', 'lots', '0', '-3']) {
+    process.env.GUEST_PER_IP_PER_DAY = bad;
+    assert.equal(guest.guestPerIpPerDay(), 20, `"${bad}" must fall back to the default`);
+  }
+  process.env.GUEST_PER_IP_PER_DAY = had;
 });

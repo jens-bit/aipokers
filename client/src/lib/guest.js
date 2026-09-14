@@ -96,7 +96,19 @@ export async function resolveGuest() {
   return { enabled: true, ownerId: null };
 }
 
-/** Mint a new guest. Returns his owner id, or null when the server refused. */
+/**
+ * Mint a new guest.
+ *
+ * GUEST-3: returns `{ ownerId, refusal }`, never a bare null.
+ *
+ * It used to return null for everything — a 429, a 404, a dead network — and
+ * boot fell through to the Telegram-only door with an empty seat ring and no
+ * explanation. Somebody who had just been told "free, no account needed" met a
+ * login wall that said nothing. A refusal the caller cannot tell from a network
+ * blip is a refusal the screen cannot explain, so the two are separated here:
+ * `refusal` is the server's own body when the server answered, and null when
+ * nothing did.
+ */
 /**
  * `visitInvitationToken` — BUG-150: the owner's invitation he arrived with,
  * carried without trusting a public agent id (a real Mini App
@@ -110,12 +122,18 @@ export async function startGuest(visitInvitationToken = null, { onCreated } = {}
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(visitInvitationToken ? { visitInvitationToken } : {}),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // The server's own words travel; the screen does not invent its own.
+      let body = null;
+      try { body = await res.json(); } catch { /* an empty or non-JSON refusal */ }
+      return { ownerId: null, refusal: body?.error ? { ...body, status: res.status } : null };
+    }
     const made = await res.json();
     onCreated?.(made);
-    return made?.ownerId ? remember(made.ownerId) : null;
+    return { ownerId: made?.ownerId ? remember(made.ownerId) : null, refusal: null };
   } catch {
-    return null;
+    // Nothing answered. Not a refusal — there is nothing to tell anybody.
+    return { ownerId: null, refusal: null };
   }
 }
 

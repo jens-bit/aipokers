@@ -99,8 +99,27 @@ export const GUEST_AGENT_CAP = 1;
 /** One stay at a casino table per day. */
 export const GUEST_SESSIONS_PER_DAY = 1;
 
-/** Guest creations allowed from one address per day. */
-export const GUEST_PER_IP_PER_DAY = 5;
+/**
+ * Guest creations allowed from one address per day.
+ *
+ * GUEST-3: twenty, and read from the environment at CALL time rather than at
+ * import time.
+ *
+ * Twenty because an address is not a person. A flat, an office, a school and a
+ * conference share one, and five meant the third friend Jens showed the game to
+ * in the same room hit a wall built for a crawler. The cap is still there and
+ * still does its job — a bot mints far more than twenty — it is simply no longer
+ * calibrated for a household of one.
+ *
+ * Read at call time so the VPS can move it in .bashrc and a test can move it in
+ * a line, which is the same reason `guestsEnabled()` is a function.
+ */
+export const GUEST_PER_IP_PER_DAY_DEFAULT = 20;
+
+export function guestPerIpPerDay() {
+  const raw = Number(process.env.GUEST_PER_IP_PER_DAY);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : GUEST_PER_IP_PER_DAY_DEFAULT;
+}
 
 export const GUEST_COOKIE = 'ap_guest';
 
@@ -381,11 +400,15 @@ export function installGuestRoutes(app, { now = () => Date.now() } = {}) {
     let made = 0;
     try { made = countGuestsFromIp(ip, at - DAY_MS); }
     catch (err) { console.error('[guest] ip count failed:', err.message); }
-    if (made >= GUEST_PER_IP_PER_DAY) {
+    const perDay = guestPerIpPerDay();
+    if (made >= perDay) {
+      // GUEST-3: the message is the SERVER's, and the client renders exactly
+      // this rather than a sentence of its own. One wall, one wording — a
+      // refusal the client paraphrases is a refusal that drifts from the rule.
       return res.status(429).json({
         error: 'guestCap',
-        message: 'That is enough new players from here today.',
-        perDay: GUEST_PER_IP_PER_DAY,
+        message: 'That is enough new players from here today. Log in with Telegram, or come back tomorrow.',
+        perDay,
       });
     }
 

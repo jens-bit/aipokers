@@ -170,7 +170,7 @@ async function boot() {
     // signal: a guest is the one thing here that cannot be taken back, and a
     // late credential must be allowed to make it unnecessary.
     if (sdkLoading) { await sdkLoading; if (adoptLateMiniApp()) return undefined; }
-    const made = await startGuest(visitor ? visitInvitationToken : null, { onCreated: (body) => {
+    const { ownerId: made, refusal } = await startGuest(visitor ? visitInvitationToken : null, { onCreated: (body) => {
       if (visitor && body.visitInvitationAccepted !== true) {
         visitor = null;
         initialVisitNotice = { error:true, text:'This invitation is no longer available. Ask your friend for a new invitation.' };
@@ -185,6 +185,20 @@ async function boot() {
       return render(
         <Suspense fallback={<BrandLoading/>}>
           <GuestLanding showDetails visitorName={visitor?.agentName ?? null} initialVisitHandled={!!visitInvitationToken} initialVisitNotice={initialVisitNotice} />
+        </Suspense>,
+      );
+    }
+
+    // GUEST-3: the address has spent its guests for today. This used to fall
+    // through to the login door in silence, which is the worst of both — the
+    // page had just promised "free, no account needed" and then showed a
+    // Telegram wall and an empty seat with no reason next to it. The door is
+    // still the right destination; it simply has to say why it is the only one.
+    if (refusal?.error === 'guestCap') {
+      initTelegram();
+      return render(
+        <Suspense fallback={<BrandLoading/>}>
+          <LoginGate seatClosed notice={refusal.message}><App /></LoginGate>
         </Suspense>,
       );
     }

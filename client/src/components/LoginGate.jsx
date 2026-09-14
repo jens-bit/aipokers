@@ -17,7 +17,16 @@ import { getWebLogin, setWebLogin, clearWebLogin, getTelegramInitData } from '..
 const WIDGET_SRC = 'https://telegram.org/js/telegram-widget.js?22';
 const AUTH_CALLBACK = '__agenticTelegramAuth';
 
-export default function LoginGate({ children }) {
+/**
+ * @param seatClosed  GUEST-3: the guest door is shut for this visitor today, so
+ *                    the seat is not open and must not be drawn as though it
+ *                    were. The ring dims; the room stays lit behind it.
+ * @param notice      the SERVER's own sentence about why. Rendered verbatim
+ *                    under the ring — this component never writes its own
+ *                    reason, because a reason the client invents is a reason
+ *                    that drifts from the rule that produced it.
+ */
+export default function LoginGate({ children, seatClosed = false, notice = null }) {
   // 'checking' → asking the server | 'in' → authenticated | 'out' → show widget
   const [phase, setPhase] = useState('checking');
   const [botUsername, setBotUsername] = useState(null);   // null = not loaded yet
@@ -81,10 +90,28 @@ export default function LoginGate({ children }) {
 
   return (
     <div className="ftu-login">
-      <div className="ftu-login__room"><LandingDemo /></div>
+      {/* MERGE-7: SHOW-1 replaced the static seat ring with a hand that plays,
+          and that is the room now. GUEST-3's rule survives the change but not
+          its old wording: there is no longer a "ONE OPEN SEAT" label to turn
+          off, because the screen no longer makes its promise there. It makes it
+          in the headline below, which is what goes quiet instead. The demo
+          keeps playing either way — it is a demonstration, not an offer, and a
+          capped visitor is exactly who still needs to see what the thing is. */}
+      <div className={`ftu-login__room${seatClosed ? ' ftu-login__room--closed' : ''}`}><LandingDemo /></div>
+
+      {/* Directly under the room, where the eye already is, rather than down
+          beside the button. The demo says what the game is; this says why the
+          visitor cannot join it tonight, and the headline above has already
+          stopped offering. */}
+      {notice && <p className="ftu-login__notice" role="status" data-testid="guest-notice">{notice}</p>}
 
       <div className="ftu-login__pitch">
-        <h1 className="ftu-login__head">There is a room,<br />and an open seat<br />in it.</h1>
+        {/* GUEST-3: the promise of a seat lives here now, so this is what must
+            not be made when the seat cannot be given. The room survives the
+            refusal; the offer of a chair in it does not. */}
+        {seatClosed
+          ? <h1 className="ftu-login__head">There is a room.<br />Tonight it is<br />full.</h1>
+          : <h1 className="ftu-login__head">There is a room,<br />and an open seat<br />in it.</h1>}
         <p className="ftu-login__body">
           You will not be playing. You hire someone, tell him how to play, and he sits
           down without you — tonight, and every night after, whether you are watching

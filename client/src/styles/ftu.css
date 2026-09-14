@@ -176,6 +176,27 @@
   letter-spacing: 0.06em;
 }
 
+/* GUEST-3, re-aimed at MERGE-7: the seat is spoken for tonight.
+   SHOW-1 replaced the static ring this rule was written against with a hand
+   that plays, so there is no stool left to grey out. The demo is the right
+   thing to keep playing — a capped visitor is exactly who still needs to see
+   what the game is — but it should read as something being shown rather than
+   something being offered. So: a half step back, not a curtain. The headline
+   does the actual telling. */
+.ftu-login__room--closed {
+  opacity: 0.72;
+  filter: saturate(0.82);
+}
+
+.ftu-login__notice {
+  max-width: 30ch;
+  margin: 16px auto 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--sys-dim, #9E9EA2);
+}
+
 @keyframes ftu-drift {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-5px); }

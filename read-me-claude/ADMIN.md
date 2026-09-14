@@ -129,6 +129,19 @@ The **24h / 7d toggle** in the header switches every tile that has both.
   this stops moving means calls are *failing*, not that nobody is here.
 - **The env switches are booleans and only booleans.** Three of the four carry a
   secret; the value never leaves the process.
+- **`GUEST_PER_IP_PER_DAY`** (GUEST-3) — how many guests one address may mint in
+  a day. **Default 20**, unset on the VPS unless somebody wants a different
+  number; read at call time, so moving it in `.bashrc` and restarting with
+  `--update-env` is the whole change, with no deploy. It is not a boolean and it
+  is not a secret, which is why it is written here rather than counted among the
+  four above.
+
+  It exists because an address is not a person: a flat, an office, a school and
+  a conference each share one. The old five was calibrated for a crawler and
+  caught the third friend in the same room. Raise it if a real group hits it;
+  lower it if a crawler does. Over the cap the mint answers `429
+  {error:"guestCap", perDay}` and the client shows that message under a closed
+  seat ring rather than a silent Telegram wall.
 - **owners table `first agent`** is the name of his *oldest agent*, not his own.
   The database holds no human name for an owner anywhere — Telegram's is
   verified and thrown away, a guest never had one.

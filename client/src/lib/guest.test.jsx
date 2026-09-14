@@ -67,7 +67,9 @@ describe('GUEST-1 · resolving the session', () => {
 describe('GUEST-1 · minting one', () => {
   it('remembers the owner id and nothing else', async () => {
     fetchMock.route('/api/guest', { ownerId: 'g_new', kind: 'guest' }, { method: 'POST' });
-    expect(await startGuest()).toBe('g_new');
+    // GUEST-3: `{ ownerId, refusal }` rather than a bare id, so a caller can
+    // tell a refusal from a dead network. The claim below is unchanged.
+    expect(await startGuest()).toEqual({ ownerId: 'g_new', refusal: null });
     expect(isGuest()).toBe(true);
     // The whole of what the page holds. No token, anywhere.
     expect(localStorage.getItem('agentic_guest_owner')).toBe('g_new');
@@ -76,8 +78,12 @@ describe('GUEST-1 · minting one', () => {
 
   it('a refused mint leaves the browser a non-guest', async () => {
     fetchMock.route('/api/guest', { status: 429, body: { error: 'guestCap' } }, { method: 'POST' });
-    expect(await startGuest()).toBe(null);
+    const { ownerId, refusal } = await startGuest();
+    expect(ownerId).toBe(null);
     expect(isGuest()).toBe(false);
+    // GUEST-3: and the refusal comes back rather than being swallowed, which is
+    // what lets the door say why instead of showing an empty seat.
+    expect(refusal).toMatchObject({ error: 'guestCap', status: 429 });
   });
 
   // VISIT-1 job 6
