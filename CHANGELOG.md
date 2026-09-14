@@ -1,5 +1,67 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 0.15.0 — the money, the life, and the rest of the room (2026-09-14)
+
+Release candidate. Merged as MERGE-7; not deployed. Five branches, thirty-one
+commits, `69a554c..60444a2`.
+
+**Numbered 0.15.0, not 0.14.0.** The queue was planned as 0.14.0 on the belief
+that main still stood at the 0.13.0 candidate; it did not — main had moved 39
+commits and `0.14.0 — THE SHOW` below was already written against them. Reusing
+the number would have buried a shipped release.
+
+- **Chips are conserved, end to end (MONEY-1, `34cb830`).** The house has a
+  bankroll; a buy-in moves chips out of a pocket into the cage and a cash-out
+  moves them back, so a table stack is a claim rather than a fourth pile of
+  chips. `safes + pockets + bank` is now the same number before and after every
+  event. The buy-in is taken before the seat instead of ten steps after it, an
+  unfinished night is voided rather than forgotten, the safe's 429 is gone, the
+  ledger shows where the money went, and one agent sits at one table because
+  the felt is the authority. `node scripts/audit-chips.js` prints the
+  reconciliation and cannot write to what it reads.
+
+- **The agents have a life that costs something (LIFE-1, `eecd69c`).** A
+  persisted stamina reserve drains per hand and refills out of a chair; low
+  reserve puts him to sleep and he stays asleep until rested. He remembers
+  standing instructions verbatim, can quote an opponent's real figures once he
+  has earned the right to read them, talks about the hand you just played
+  against him, and answers you instead of dodging. The fridge works at all
+  again — both items had been refused to any agent who was not already upset,
+  which for the commonest mood in the product meant always.
+
+- **The UI queue from the playtest (UI-1, `ffc3b29`).** One tap opens a roster
+  row and one closes it; "Open him" lands on his agent view rather than the
+  numbers screen; the roster stands the casino room's own panels down instead
+  of showing text through them; every row wears a coloured badge for where he
+  is; and stamina and heat draw as three dots, because a bar 63% full claimed
+  precision the server never had.
+
+- **Twenty guests from an address, and a refusal that says so (GUEST-3,
+  `b330354`).** The per-address cap moves from five to twenty and is read from
+  `GUEST_PER_IP_PER_DAY` at call time, so the VPS can change it without a
+  deploy. Five was built for a crawler and caught the third friend in the same
+  room. A refused guest now gets the server's own sentence under a closed door
+  instead of a silent Telegram wall on a page that had just promised "free, no
+  account needed".
+
+- **Ground-truth screenshots for design (SHOTS-1, `60444a2`).** `npm run shots`
+  and twenty-one PNGs of the shipped product at 390 and 1440, so a design wave
+  starts from what the thing actually looks like.
+
+Two reds found and fixed on main during the merge rather than left for CI:
+the HOME-3 journeys' 5s deadline (`64a6155`) and the desk's condition readings
+riding up over the stack and equity once the dots replaced the bars
+(`150ba4f`, BUG-100/BUG-86).
+
+Verified after the last merge: 360 simulated hands across six households with
+the snack, the fridge and the house bankroll all live in one process for the
+first time — 743 conservation checks, **drift 0**, chips in existence
+50,210,000 in and 50,210,000 out.
+
+The sections below, down to `0.14.0 — THE SHOW`, are the per-queue detail for
+this release.
+
+
 ## Chips you can believe — local candidate (2026-09-14)
 
 Jens playtested prod and reported that the money is not credible: tables advertised at a 2,000 or 5,000 buy-in with agents sitting behind ~30,000, nothing visibly leaving the safe when an agent buys in, a safe that often refuses to be read, and one agent apparently at two tables. All four turned out to be one family of defect, traced in `read-me-claude/MONEY_AUDIT.md` before anything was changed.
