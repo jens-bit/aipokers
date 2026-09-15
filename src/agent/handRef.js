@@ -162,6 +162,26 @@ export function isAboutAHand(said) {
   return ABOUT_A_HAND.test(String(said ?? ''));
 }
 
+// ── LIFE-3 job 4: is this a follow-up? ──────────────────────────────────────
+//
+// "Why???" after his own answer is a follow-up to THAT answer. It is not a new
+// question and it is certainly not an unanswerable one — it is the shortest
+// sentence in the language and it means "keep going about the thing you just
+// said". The transcript's third beat is exactly this, and he treated it as a
+// conversation starting from nothing.
+//
+// A closed list of the bare continuations, anchored at both ends so only a
+// message that is ENTIRELY one of them counts. "Why did you fold there" is a
+// question with its own subject and does not need the previous turn; "why" on
+// its own has no subject at all and is nothing without it.
+const FOLLOW_UP = /^(?:and\s+|but\s+|so\s+|ok(?:ay)?,?\s+|yeah,?\s+)?(?:why(?:\s+(?:not|that|then|though|is\s+that))?|how(?:\s+(?:come|so))?|what(?:\s+for)?|really|seriously|explain(?:\s+that)?|elaborate|go\s+on|meaning|and|so)\b[\s?!.,]*$/i;
+
+/** A message that is nothing but a continuation of the last one. */
+export function isFollowUp(said) {
+  const t = String(said ?? '').trim();
+  return !!t && FOLLOW_UP.test(t);
+}
+
 // ── The most recent notable hand ────────────────────────────────────────────
 
 /** Did he get his stack in? Read from the stored why first, the decisions second. */
@@ -248,8 +268,16 @@ export function resolveHand(hands, said, { focus = null } = {}) {
     return out(null, 'unknown');
   }
 
-  // LIFE-3 job 4 fills this in: the hand already under discussion.
-  if (focus) {
+  // LIFE-3 job 4: the hand already under discussion. It beats the notable hand
+  // below, which is the whole point — once the two of them are talking about
+  // the jack-ten, "why" is about the jack-ten and not about whichever hand the
+  // night turned on.
+  //
+  // GATED, and the gate is what stops the thread becoming sticky: a message
+  // that is neither a follow-up nor about a hand has CHANGED THE SUBJECT, and
+  // answering "are you hungry?" with hand 811 would be worse than the dead end
+  // this tree exists to remove.
+  if (focus && (isFollowUp(text) || isAboutAHand(text))) {
     const held = list.find((h) => Number(h.handNumber) === Number(focus));
     if (held) return out(held, 'focus');
   }

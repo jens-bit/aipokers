@@ -12,7 +12,10 @@ import { recordOwnerInstruction, ownerInstructionsContext } from '../agent/owner
 import { opponentRecallContext } from './opponentRecall.js';
 // LIFE-1 job 5 (TALK-2): the facts he can cite, the four laws, and the
 // deterministic gate that grades the reply afterwards. No model call.
-import { selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes } from '../agent/talk.js';
+import {
+  selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes,
+  answerFor, noteFocus, focusOf,
+} from '../agent/talk.js';
 import { handWhy } from '../agent/handWhy.js';
 // LIFE-2 job 1: his own voice for the one thing he is asking for, and the one
 // thing the owner can do about it.
@@ -3808,7 +3811,11 @@ export function buildAgentChatSystem(agent, { pepTalk = null, recentChat = [], t
   const factsBlock = selfFacts(agent, { state: scene.description });
   // And the four laws, each written against the reply that failed. `said` is
   // in scope so a direct question can be named as one.
-  const lawsBlock = talkLaws(agent, { said, lastShapes: ensureShapes(agent) });
+  // LIFE-3 job 4: the hand the two of you are already on, so a bare "why" is a
+  // follow-up to the last answer rather than a new question about nothing. It
+  // is read off the record inside talkLaws (answerFor defaults to it), and is
+  // named here only so the block is not silently dependent on that default.
+  const lawsBlock = talkLaws(agent, { said, lastShapes: ensureShapes(agent), focus: focusOf(agent) });
   // LIFE-1 job 6: and the hands the two of you have actually played. Placed
   // beside his own recent hands rather than inside them, because these are
   // the only hands in the product where the owner is a PLAYER rather than a
@@ -4459,7 +4466,7 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     });
   } else if (said.kind === 'care') {
     recordOwnerEvent(existingAgent, pepResult.soothed ? 'pep_talk' : 'care', {
-      aboutHand: /hand|why|what (did|were) you/i.test(content),
+      aboutHand: /\bhand\b|\bwhy\b|\bwhat (did|were) you\b/i.test(content),
       holeCards: existingAgent.recentHands?.[0]?.holeCards ?? [],
     });
   }
@@ -4531,6 +4538,16 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   const msg = graded || fallback.message;
   // What form he just used, so the next reply cannot reuse it.
   noteShape(existingAgent, msg);
+  // LIFE-3 job 4: and which hand the two of you are on now, so the next "why"
+  // is a follow-up to this answer rather than a question about nothing. Written
+  // AFTER the reply and from the same resolver the reply was built with, so the
+  // thread and the answer can never point at different hands. A message that
+  // changes the subject drops it; see noteFocus.
+  try {
+    noteFocus(existingAgent, { said: content, answer: answerFor(existingAgent, content) });
+  } catch (err) {
+    console.error('[talk] could not hold the thread:', err.message);
+  }
   existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
   if (existingAgent.chatHistory.length > 12) existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
   saveStore(userId);

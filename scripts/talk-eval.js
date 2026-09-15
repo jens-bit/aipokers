@@ -34,7 +34,10 @@
 // Exit code is 0 when every case behaves as expected and 1 otherwise, so it
 // can be run in anger even though nothing runs it automatically.
 
-import { faultsIn, shapeOf, selfFacts, talkLaws, isQuestion, answersQuestion, repairReply } from '../src/agent/talk.js';
+import {
+  faultsIn, shapeOf, selfFacts, talkLaws, isQuestion, answersQuestion, repairReply,
+  answerFor, noteFocus, focusOf,
+} from '../src/agent/talk.js';
 import { buildAgentChatSystem, REST_ACKNOWLEDGEMENTS } from '../src/server/agentProfiles.js';
 // LIFE-2 job 4 - every nature-keyed table of sentences in the product, imported
 // rather than copied. A copy is a second place to update and therefore a place
@@ -459,6 +462,52 @@ for (const [name, who, said, ok] of REPAIRS) {
     + `${back.length ? `REJECTED BY ITS OWN GATE: ${back.join(',')} ` : ''}"${String(line).slice(0, 60)}"`);
 }
 
+// -- LIFE-3 job 4: does the thread hold? -------------------------------------
+//
+// The rows above each grade ONE message. This walks a conversation, because
+// the failure it is written against only exists across turns: Jens asked a
+// question, was answered, said "why???" - and got a man who had never heard of
+// the hand. A follow-up is a follow-up to the last answer, and nothing in this
+// eval could see a last answer until now.
+//
+// Each thread is a list of messages; each row says which hand he should be
+// talking about by the end of that message, `null` meaning the subject has
+// genuinely been dropped. Driven through answerFor + noteFocus, which is
+// exactly the pair agentProfiles calls per owner message and in that order.
+const THREADS = [
+  ['he names a hand, then only says why',
+    'busted',
+    [['tell me about hand 811', 811], ['why???', 811], ['why that', 811]]],
+  ['he names none, and the thread holds the hand it found',
+    'busted',
+    [['why did you go all in on that hand?', 812], ['why???', 812], ['and?', 812]]],
+  ['he moves to another hand, and the follow-up moves with him',
+    'busted',
+    [['why did you go all in on that hand?', 812], ['what about the jack-ten?', 811], ['why', 811]]],
+  ['he changes the subject, and the hand is let go',
+    'busted',
+    [['tell me about hand 811', 811], ['are you hungry?', null], ['why', 812]]],
+  ['he asks about a hand that is not his, and the old one does not come back',
+    'busted',
+    [['tell me about hand 811', 811], ['what about hand 700?', null], ['why', 812]]],
+];
+
+console.log('\nTHREAD - one hand, carried across turns until he changes the subject:\n');
+for (const [name, who, turns] of THREADS) {
+  const subject = SUBJECTS[who]();
+  const trail = [];
+  let bad = null;
+  for (const [said, want] of turns) {
+    const answer = answerFor(subject, said);
+    noteFocus(subject, { said, answer });
+    const got = answer.hand ? Number(answer.hand.handNumber) : focusOf(subject);
+    trail.push(`${said} -> ${got ?? '-'}`);
+    if (got !== want && bad === null) bad = `"${said}" wanted ${want ?? 'none'}, got ${got ?? 'none'}`;
+  }
+  if (bad) failures++;
+  console.log(`${bad ? '!' : ' '}${pad(name, 74)}${bad || trail.join('  |  ')}`);
+}
+
 console.log('\nBY REQUIREMENT');
 for (const [req, t] of byReq) {
   console.log(`${t.ok === t.n ? ' ' : '!'}${pad(req, 26)}${t.ok}/${t.n}`);
@@ -575,8 +624,10 @@ for (const [name, table, keys] of POOLED) {
 const supplyChecks = MOODS.length * SUPPLY.length + EMPTY_SUPPLY.length;
 const varietyChecks = VOICE_COLUMNS.length + POOLED.length + 1;
 const repairChecks = REPAIRS.length * 2;   // what it says, and that it survives its own gate
-const total = CASES.length + supplyChecks + varietyChecks + repairChecks;
+const threadChecks = THREADS.length;      // one per conversation, each of three turns
+const total = CASES.length + supplyChecks + varietyChecks + repairChecks + threadChecks;
 console.log(`\n${CASES.length} lines + ${supplyChecks} supply checks + ${varietyChecks} variety checks `
-  + `+ ${repairChecks} repair checks = ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
+  + `+ ${repairChecks} repair checks + ${threadChecks} threads
+  = ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
 
 process.exit(failures ? 1 : 0);

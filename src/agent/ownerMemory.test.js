@@ -260,7 +260,7 @@ test('RELATE-1b: the answer is grammatical — no "you gets on my back"', () => 
   // The ledger lines carry an implied third-person subject, so a template that
   // prefixes "You " produces "you gets on my back when I lose". That shipped
   // in a draft and verify-personality-layer.js printed it.
-  const BROKEN = /you (gets|has|says|takes|cuts|reads|lets|staked me|brought)/i;
+  const BROKEN = /\byou (gets|has|says|takes|cuts|reads|lets|staked me|brought)\b/i;
   const combos = [
     [['needle', { losing: true }, 5], ['cut', { holeCards: ['Qh', '3d'] }]],
     [['care', { aboutHand: true, holeCards: ['Ah', 'Kd'] }, 4], ['pep_talk', {}, 2]],

@@ -53,7 +53,7 @@ import { whyFact, statePhrase, actionPhrase } from './handWhy.js';
 // second place to update. handNumbersIn is re-exported below, unchanged.
 import {
   RANK_WORDS, WORD_TO_RANK, rankKey, handNumbersIn, resolveHand,
-  candidateQuestion, handNickname, nicknameForKey,
+  candidateQuestion, handNickname, nicknameForKey, isFollowUp, isAboutAHand,
 } from './handRef.js';
 
 export { handNumbersIn };
@@ -262,7 +262,7 @@ export function confusionsBefore(agent) {
  * passed, `invention` is the fault, and it is the only one in the list that
  * says the reply is WRONG rather than badly shaped.
  */
-export function faultsIn({ said = '', reply = '', lastShapes = [], agent = null } = {}) {
+export function faultsIn({ said = '', reply = '', lastShapes = [], agent = null, focus = undefined } = {}) {
   const faults = [];
   const r = clean(reply);
   if (!r) return ['empty'];
@@ -292,7 +292,7 @@ export function faultsIn({ said = '', reply = '', lastShapes = [], agent = null 
   // do, the second is a character with one string in it. The transcript had
   // three, word for word.
   if (isConfused(r)) {
-    if (agent && answerFor(agent, said).line) faults.push('confusion');
+    if (agent && answerFor(agent, said, { focus }).line) faults.push('confusion');
     if (confusionsBefore(agent) > 0) faults.push('repeatConfusion');
   }
   return faults;
@@ -562,7 +562,7 @@ const SHAPE_ADVICE = Object.freeze({
  * one that does, and because law 5's failure mode — a hand he did not play,
  * described convincingly — is the one an owner cannot detect by reading.
  */
-export function talkLaws(agent, { said = '', lastShapes = [], focus = null } = {}) {
+export function talkLaws(agent, { said = '', lastShapes = [], focus = undefined } = {}) {
   const shapes = lastShapes.length
     ? `\nYour last ${lastShapes.length === 1 ? 'reply was' : 'two replies were'} `
       + `${lastShapes.map((s) => SHAPE_ADVICE[s] ?? s).join(', then ')}. `
@@ -691,9 +691,14 @@ owner that you answer by declining to answer.`;
  *
  * @returns {{ line: string|null, how: string, hand: object|null }}
  */
-export function answerFor(agent, said = '', { focus = null } = {}) {
+export function answerFor(agent, said = '', { focus = undefined, now = Date.now() } = {}) {
   const hands = (Array.isArray(agent?.recentHands) ? agent.recentHands : []).slice(0, SELF_FACT_HANDS);
-  const res = resolveHand(hands, said, { focus });
+  // LIFE-3 job 4: the hand they are already on, unless the caller names one.
+  // Reading it off the record by default is what makes the thread hold without
+  // every call site having to remember to pass it; `focus: null` is still an
+  // explicit "start fresh" for a caller that wants one.
+  const held = focus === undefined ? focusOf(agent, { now }) : focus;
+  const res = resolveHand(hands, said, { focus: held });
   const log = Array.isArray(agent?.sessionLog) ? agent.sessionLog : [];
   const last = log[log.length - 1];
 
@@ -746,7 +751,7 @@ export function answerFor(agent, said = '', { focus = null } = {}) {
  */
 const ABOUT_A_HAND = /\bhand\b|\bplay(ed)?\b|\bwhy\b|\bwhat happened\b/i;
 
-export function repairReply(agent, { said = '', faults = [], focus = null } = {}) {
+export function repairReply(agent, { said = '', faults = [], focus = undefined } = {}) {
   if (!faults.length) return null;
   const answer = answerFor(agent, said, { focus });
 
@@ -852,7 +857,11 @@ export function ownSentence(hand) {
   const parts = [`Hand ${hand.handNumber}${nick ? `, the ${nick}` : ''}.`];
 
   const act = actionPhrase(why);
-  const where = why.street ? ` on the ${why.street}` : '';
+  // "preflop" is an adverb and the other three are places: "I raised to 60
+  // preflop", but "I called 400 on the turn". One line, and without it every
+  // opening raise he explains reads as "on the preflop".
+  const where = !why.street ? ''
+    : (why.street === 'preflop' ? ' preflop' : ` on the ${why.street}`);
   const reason = trimEnd(why.reasoning);
   if (act) parts.push(reason ? `I ${act}${where} — ${reason}.` : `I ${act}${where}.`);
   else if (reason) parts.push(`${reason}.`);
@@ -869,4 +878,62 @@ export function ownSentence(hand) {
     parts.push(hand.won ? 'It came in.' : 'It missed, and that was my call to make.');
   }
   return parts.join(' ');
+}
+
+// ── LIFE-3 job 4: the hand under discussion ─────────────────────────────────
+//
+// "Why???" is a follow-up to HIS OWN LAST ANSWER, not a new question, and the
+// transcript's third beat is what it costs when nothing carries the subject
+// across a turn: he was asked why, and started the conversation over.
+//
+// ONE FIELD, two numbers, and no growth: the hand number the two of them are
+// on, and when it was set. It rides on the agent record beside `lastReplyShapes`
+// (LIFE-1) and `chatHistory` (which the repeat rule already reads), and it is
+// overwritten rather than appended to.
+//
+// IT EXPIRES, and that is the difference between a thread and a rut. Half an
+// hour after the last hand was named, "why?" is not a follow-up to anything —
+// it is a new question from a man who has been away, and answering it with
+// this morning's hand would be the same failure as answering it with nothing.
+// The slice ages it out on its own eventually (a hand falls off the three
+// selfFacts shows him), but a clock is the honest bound and it is testable
+// because `now` is an argument everywhere below.
+export const FOCUS_TTL_MS = 30 * 60 * 1000;
+
+/** The hand they are on, or null. Never throws on an old or absent record. */
+export function focusOf(agent, { now = Date.now() } = {}) {
+  const f = agent?.talkFocus;
+  if (!f || !Number.isFinite(Number(f.handNumber))) return null;
+  if (!Number.isFinite(Number(f.at)) || now - Number(f.at) > FOCUS_TTL_MS) return null;
+  return Number(f.handNumber);
+}
+
+/**
+ * Move the subject, hold it, or let it go — decided after the reply, from what
+ * was asked and what he answered with.
+ *
+ *   A HAND ANSWERED     that is the hand they are on now, whether he arrived
+ *                       at it by number, by cards, by the notable ladder or by
+ *                       the focus itself. Re-stamped each turn, so a
+ *                       conversation that stays on one hand stays alive.
+ *   STILL ON IT         a follow-up, or another question about a hand, that
+ *                       resolved to nothing keeps whatever was there. He has
+ *                       not moved on; he has asked something we could not
+ *                       place.
+ *   HE CHANGED SUBJECT  anything else drops it. So does `unknown` — he has
+ *                       moved to a hand that is not ours, and a later "why"
+ *                       belongs to that, not to the one before it.
+ */
+export function noteFocus(agent, { said = '', answer = null, now = Date.now() } = {}) {
+  if (!agent) return null;
+  if (answer?.hand && Number.isFinite(Number(answer.hand.handNumber))) {
+    agent.talkFocus = { handNumber: Number(answer.hand.handNumber), at: now };
+    return agent.talkFocus.handNumber;
+  }
+  if (answer?.how === 'unknown') { agent.talkFocus = null; return null; }
+  if (isFollowUp(said) || isAboutAHand(said) || answer?.how === 'ambiguous') {
+    return focusOf(agent, { now });
+  }
+  agent.talkFocus = null;
+  return null;
 }

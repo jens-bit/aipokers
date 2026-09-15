@@ -12,7 +12,9 @@ import {
   isQuestion, answersQuestion, faultsIn, selfFacts, talkLaws, handFact, repairReply,
   SELF_FACT_HANDS, handIndex, claimedHoldings, handNumbersIn, inventedCitations,
   isConfused, confusionsBefore, answerFor, ownSentence, REFUSAL,
+  noteFocus, focusOf, FOCUS_TTL_MS,
 } from './talk.js';
+import { isFollowUp } from './handRef.js';
 
 const hand = (extra = {}) => ({
   handNumber: 812, won: false, potSize: 1450, holeCards: ['Ah', 'Kd'],
@@ -534,4 +536,87 @@ test('LIFE-3: a hand with no why on file still answers, exactly as it did before
   assert.match(line, /Hand 812 with Qh 6d/);
   assert.match(line, /Board Qs 7d 2s Kc 3h/);
   assert.equal(ownSentence(null), null);
+});
+
+// ── LIFE-3 job 4: the follow-up holds ───────────────────────────────────────
+
+/** Walk a conversation the way agentProfiles does: resolve, then note. */
+function thread(a, says, { now = Date.now() } = {}) {
+  return says.map((said) => {
+    const answer = answerFor(a, said, { now });
+    noteFocus(a, { said, answer, now });
+    return { said, how: answer.how, line: answer.line, focus: focusOf(a, { now }) };
+  });
+}
+
+test('LIFE-3: a bare "why" is a follow-up to the last answer, not a new question', () => {
+  const a = busted();
+  const [named, why, whyThat] = thread(a, ['tell me about hand 811', 'why???', 'why that']);
+  assert.equal(named.focus, 811);
+  assert.equal(why.how, 'focus');
+  assert.match(why.line, /Hand 811/, 'not 812, which is the notable hand');
+  assert.equal(whyThat.how, 'focus');
+  assert.match(whyThat.line, /Hand 811/, 'and it holds for the second follow-up too');
+  assert.equal(whyThat.focus, 811);
+});
+
+test('LIFE-3: the thread that opens with no hand named still holds the hand it found', () => {
+  const a = busted();
+  const walk = thread(a, ['why did you go all in on that hand?', 'why???', 'and?']);
+  assert.equal(walk[0].how, 'notable');
+  for (const turn of walk) assert.match(turn.line, /Hand 812/, turn.said);
+  assert.equal(walk.at(-1).focus, 812);
+});
+
+test('LIFE-3: naming a different hand moves the thread to it', () => {
+  const a = busted();
+  const walk = thread(a, ['why did you go all in on that hand?', 'what about the jack-ten?', 'why']);
+  assert.equal(walk[0].focus, 812);
+  assert.equal(walk[1].how, 'cards');
+  assert.equal(walk[2].how, 'focus');
+  assert.match(walk[2].line, /Hand 811/, 'the follow-up follows the hand he just moved to');
+});
+
+test('LIFE-3: changing the subject lets the hand go', () => {
+  const a = busted();
+  const walk = thread(a, ['tell me about hand 811', 'are you hungry?', 'why']);
+  assert.equal(walk[0].focus, 811);
+  assert.equal(walk[1].focus, null, 'a message about nothing to do with a hand drops it');
+  assert.equal(walk[2].how, 'notable', 'and the next "why" starts from the notable hand again');
+  assert.match(walk[2].line, /Hand 812/);
+});
+
+test('LIFE-3: a hand he does not have drops the thread rather than reviving the old one', () => {
+  const a = busted();
+  const walk = thread(a, ['tell me about hand 811', 'what about hand 700?', 'why']);
+  assert.equal(walk[1].how, 'unknown');
+  assert.equal(walk[1].focus, null);
+  assert.doesNotMatch(walk[2].line, /Hand 811/, 'he moved to a hand we cannot discuss; 811 is not the answer');
+});
+
+test('LIFE-3: the thread expires — "why" half an hour later is a new question', () => {
+  const a = busted();
+  const t0 = 1_700_000_000_000;
+  thread(a, ['tell me about hand 811'], { now: t0 });
+  assert.equal(focusOf(a, { now: t0 + FOCUS_TTL_MS - 1 }), 811);
+  assert.equal(focusOf(a, { now: t0 + FOCUS_TTL_MS + 1 }), null);
+  const late = answerFor(a, 'why', { now: t0 + FOCUS_TTL_MS + 1 });
+  assert.equal(late.how, 'notable', 'a man who has been away is not mid-sentence');
+});
+
+test('LIFE-3: what counts as a follow-up, and what is its own question', () => {
+  for (const said of ['why', 'why???', 'why not', 'why that', 'and?', 'so?', 'how come', 'go on', 'really?']) {
+    assert.ok(isFollowUp(said), said);
+  }
+  for (const said of ['why did you fold there', 'what happened in hand 811', 'are you hungry?', '']) {
+    assert.equal(isFollowUp(said), false, said);
+  }
+});
+
+test('LIFE-3: a record with no thread on it, or an old one, never throws', () => {
+  assert.equal(focusOf(null), null);
+  assert.equal(focusOf({}), null);
+  assert.equal(focusOf({ talkFocus: { handNumber: 'x', at: Date.now() } }), null);
+  assert.equal(focusOf({ talkFocus: { handNumber: 811 } }), null, 'no timestamp is an expired one');
+  assert.equal(noteFocus(null, { said: 'why' }), null);
 });
