@@ -13,6 +13,9 @@ import { opponentRecallContext } from './opponentRecall.js';
 // LIFE-1 job 5 (TALK-2): the facts he can cite, the four laws, and the
 // deterministic gate that grades the reply afterwards. No model call.
 import { selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes } from '../agent/talk.js';
+// LIFE-2 job 1: his own voice for the one thing he is asking for, and the one
+// thing the owner can do about it.
+import { natureWantLine, wantAction, wantActionLabel } from '../agent/wantVoice.js';
 // LIFE-1 job 6: the hands he has played against the person holding the phone.
 import { recordOwnerHand, ownerHandsContext } from '../agent/ownerHands.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
@@ -3223,14 +3226,48 @@ export function wantView(agent, { now = Date.now(), wallet = null } = {}) {
   // stocks the shelf. Nothing is written, so there is nothing to undo.
   const item = want.item ?? null;
   const out = !!wallet && !!item && isFridgeItem(item) && fridgeCountOf(wallet, item) < 1;
+  // LIFE-2 job 1: and the same seam re-derives the line in HIS OWN VOICE.
+  //
+  // Placed here rather than in buildAsk on purpose, and the reason is the one
+  // written three lines above for the empty fridge: the STORED ask keeps the
+  // sentence he raised it with, and what goes on the wire is what he is SAYING
+  // right now. Two things follow from that, both wanted:
+  //
+  //   * A want raised before this tree landed — or by an agent whose nature was
+  //     read out of the draft after the want was stored — speaks in his voice
+  //     from the next projection onward, with no migration and nothing written.
+  //   * An agent with no nature yet is not handed a borrowed personality; he
+  //     keeps the plain sentence he raised the ask with. THE STORED TEXT is the
+  //     fallback here rather than a fresh call into wants.askLine, and that is
+  //     load-bearing: askLine picks one of three alternates off a seed, so
+  //     re-picking it on every projection would make an unvoiced want rewrite
+  //     itself between two reads of the same unchanged state.
+  //
+  // `nemesisName` is the one fact a line cannot be rebuilt without, which is
+  // why buildAsk stamps it. Without it the nemesis line falls back to the
+  // stored text rather than losing the man's name.
+  const kind = want.kind ?? 'beer';
+  const voiced = natureWantLine(agent?.nature, kind, {
+    nemesisName: want.nemesisName ?? null,
+    roomPhrase: want.room ? roomPhrase(want.room) : null,
+  }) ?? want.text;
   return {
     // A want stored by RELATE-1d predates every field below it. It was a beer
     // and it projects as one, so the client never has to branch on the absence
     // of a field rather than on a kind.
-    kind: want.kind ?? 'beer',
-    text: out ? outOfStockLine(item) : want.text,
+    kind,
+    text: out ? outOfStockLine(item) : voiced,
     // Yes to a want he cannot be given opens the fridge instead of failing.
     needs: out ? 'stock' : (want.needs ?? null),
+    // LIFE-2 job 1: the ONE thing the owner can do about this tonight, and the
+    // copy for the control that does it. Deliberately NOT the same field as
+    // `needs` above: `needs` is a routing instruction for the client ("after
+    // yes, open the deploy sheet"), and `action` is the answer to "what am I
+    // supposed to do", which is the question the playtest could not answer.
+    // Five verbs — rest, feed, chips, deploy, listen — and every kind maps onto
+    // exactly one. See ACTION_BY_KIND in src/agent/wantVoice.js.
+    action: wantAction(kind),
+    actionLabel: wantActionLabel(kind),
     outOfStock: out || undefined,
     dangerous: !!want.dangerous,
     item: want.item ?? null,
