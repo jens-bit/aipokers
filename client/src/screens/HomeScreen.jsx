@@ -524,17 +524,42 @@ export function HomeScreen({
     return {
       id: String(agent.id), x: at.x, y: at.y, size: homeBodySize(agent, at, geometry, itemMotion.active?.id === String(agent.id)),
       name: agent.name, nickname: agent.nickname ?? null, guest: !!agent.guest,
+      // UI-3 job F: a body actually SEATED at the table needs the same
+      // carve-out the TV already gives its own watcher — see roomBubbles.js.
+      dealt: seated,
     };
   }).filter(Boolean), [home, positions, geometry, itemMotion.active]);
 
-  // ONE line per man, ranked. He can easily have three at once — an unanswered
-  // want, a session he has not been told about, and a subject he is studying —
-  // and the room used to draw two of them at the same time, over the same head.
+  // UI-3 job F: THE ROOM ANSWERS. `/api/home/say` already fans a typed line
+  // out to everybody standing in the flat, through the same talk turn the
+  // one-to-one thread uses (ownerChatTurn) — SERVER-4/THREAD-2 built both
+  // ends of it. What was missing was drawing it: a reply only ever landed in
+  // the (collapsed) thread sheet, never over the body that said it. `ownerLines`
+  // already carries every reply pushed live (OWNER_LINE); this picks out the
+  // ones he said TO THE ROOM (`kind: 'him'`, `source: 'home'`) and keys the
+  // latest one by speaker, so it can join the same ranked `speakers` list
+  // below and go through the room's own one-bubble queue (roomBubbles.js) —
+  // no second bubble system, no new endpoint.
+  const roomReplyByAgent = useMemo(() => {
+    const map = new Map();
+    for (const line of ownerLines) {
+      if (line?.kind !== 'him' || line?.source !== 'home') continue;
+      if (typeof line.from !== 'string' || !line.from) continue;
+      map.set(line.from, line); // later entries overwrite — the latest reply wins.
+    }
+    return map;
+  }, [ownerLines]);
+
+  // ONE line per man, ranked. He can easily have several at once — an
+  // unanswered want, a reply he just gave in the room, a session he has not
+  // been told about, and a subject he is studying — and the room used to draw
+  // two of them at the same time, over the same head.
   //
   //   0  a want          he is asking, and it is waiting on an answer
   //   1  the money line  he has just this second walked back in with it
-  //   2  the recap       the session you have not seen yet
-  //   3  the study tag   what he is watching a hand back for
+  //   2  a room reply     he just answered something typed to the room
+  //   3  the recap       the session you have not seen yet
+  //   4  the study tag   what he is watching a hand back for
   //
   // The order is by how soon it stops being true. A want waits for you; a study
   // tag will still be there in a minute.
@@ -545,11 +570,13 @@ export function HomeScreen({
       if (!agent) continue;
       const landed = arrival && arrival.agentId === body.id;
       const isStudying = studying && studying.id === agent.id;
+      const roomReply = roomReplyByAgent.get(body.id);
       // BUG-56: requests live once in the answer strip. Duplicating the
       // sentence over his head obscured the home game (Jens's playtest).
       // While asking, do not replace that duplicate with an old recap.
       const line = agent.want ? null
         : landed ? null // The compact return result is independent of speech placement.
+        : roomReply ? { text: roomReply.text, eventId: roomReply.id, gold: false }
         : agent.unseenRecap ? { text: agent.sessionRecap?.text, eventId: agent.sessionRecap?.at, gold: true }
         : (isStudying && tag) ? { text: tag, gold: false }
         : null;
@@ -557,7 +584,7 @@ export function HomeScreen({
       out.push({ ...body, ...line });
     }
     return out;
-  }, [bodies, home, arrival, studying, tag]);
+  }, [bodies, home, arrival, studying, tag, roomReplyByAgent]);
 
   // At most two on screen, one per man, nothing drawn over anything. The rest
   // wait their turn — see roomBubbles.js.

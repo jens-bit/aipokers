@@ -93,12 +93,23 @@ const fixtureRect = (f) => ({ left: f.x, right: f.x + f.w, top: f.y, bottom: f.y
 // only ever relaxes for the speaker it would otherwise silence.
 // BUG-55: the felt is also a control. A recap must not replace the removed
 // request bubble with another sentence over the community cards.
+//
+// UI-3 job F: A SEATED MAN GETS THE SAME CARVE-OUT. The table blocker exists
+// so somebody ELSE's bubble never lands on the board — but BUG-211 keeps a
+// household's one eligible agent dealt in against the House most of the
+// night, and his own seat sits inside that same blocker box. Left unfixed, a
+// reply from the one man actually in the room could never clear it and would
+// simply never be drawn — found only by watching a real browser send "hi" to
+// a one-agent household and getting no bubble back, ever, no matter how long
+// the room was watched. Exactly the TV's own reasoning: his own seat is not
+// what the rule protects the board from.
 const fixtureBlockersFor = (speaker, geometry) => {
   const { flat, sign, header, tvSpot, tvScreen } = geometry;
-  const blocked = [sign, flat.safe, flat.fridge, header, {
+  const blocked = [sign, flat.safe, flat.fridge, header].map(fixtureRect);
+  if (!speaker.dealt) blocked.push(fixtureRect({
     x: flat.table.cx - flat.table.rx, y: flat.table.cy - flat.table.ry,
     w: flat.table.rx * 2, h: flat.table.ry * 2,
-  }].map(fixtureRect);
+  }));
   const atTv = b => b?.x === tvSpot.x && b?.y === tvSpot.y;
   return atTv(speaker) ? blocked : [...blocked, fixtureRect(tvScreen)];
 };
