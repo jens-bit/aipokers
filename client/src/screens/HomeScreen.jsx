@@ -76,6 +76,17 @@ import { ContextHint } from '../components/onboarding/ContextHint.jsx';
 import { useFirstRunGuide } from '../components/onboarding/FirstRunGuide.jsx';
 
 // Later mood-home2 WALKS: departure 2.2s, homecoming 1.9s; an ordinary room crossing stays 1.6s.
+// BUG-134/BUG-214 · THE ONE STANDING LINE FOR A GRAB THAT IS WAITING.
+//
+// He was reached for mid-hand. He is not refused and he is not lifted — he is
+// about to be, and so is whatever the owner carried him towards. Unlike every
+// other line the room shows, this one does NOT fade: it stands until the thing
+// it is explaining happens, because it is the only thing between the owner and
+// a tap that looks like it did nothing. One sentence for both the plain lift
+// and the queued deploy, deliberately — the owner is being told the same fact
+// either way, which is that the hand comes first.
+const PENDING_LINE = 'I am in a hand. I will come when it is done.';
+
 export const WALK_MS = HOME_WALK_MS;
 export const CROSSING_MS = { room: WALK_MS, out: 2200, home: 1900 };
 
@@ -407,6 +418,11 @@ export function HomeScreen({
   const [saidOnDrop, setSaidOnDrop] = useState(null);
   // BUG-134: an agent the owner reached for during a hand, waiting for it to
   // end. One at a time — a second grab replaces the first.
+  //
+  // BUG-214 gave it a DESTINATION: `{ id, to }`, where `to` is the fixture the
+  // owner carried him to before letting go (or tapped while holding him). A
+  // grab with nowhere to go still just lifts him when the hand ends; a grab
+  // carried to the door is a DEPLOY, queued now and performed then.
   const [pendingLift, setPendingLift] = useState(null);
   const rail = panel ?? railLocal;
   const setRail = onPanel ?? setRailLocal;
@@ -596,8 +612,15 @@ export function HomeScreen({
     // moment that hand finishes; until then he says so, which is the part
     // that stops the tap from reading as nothing having happened.
     onRefuse: id => {
-      setPendingLift(String(id));
-      setSaidOnDrop({ id: String(id), text: 'I am in a hand. I will come when it is done.', gold: true, refused: true });
+      setPendingLift({ id: String(id), to: null });
+      setSaidOnDrop({ id: String(id), text: PENDING_LINE, gold: true, refused: true });
+    },
+    // BUG-214: he was carried somewhere and put down, but he is mid-hand so he
+    // never left the chair. The destination is kept with the grab — the owner
+    // has made his decision and must not have to make it twice.
+    onRefusedDrop: (id, fixture) => {
+      setPendingLift({ id: String(id), to: fixture });
+      setSaidOnDrop({ id: String(id), text: PENDING_LINE, gold: true, refused: true });
     },
     enabled: true,
   });
@@ -619,13 +642,22 @@ export function HomeScreen({
   // no grab to honour.
   useEffect(() => {
     if (!pendingLift || !flatEl) return;
-    if (!home.some(agent => String(agent.id) === pendingLift)) { setPendingLift(null); return; }
-    if (!canLiftNow(pendingLift)) return;
-    const at = positions.get(pendingLift);
-    pick(pendingLift, at ? { x: at.x, y: at.y } : undefined);
+    const { id, to } = pendingLift;
+    const agent = home.find(one => String(one.id) === id);
+    if (!agent) { setPendingLift(null); return; }
+    if (!canLiftNow(id)) return;
     setPendingLift(null);
-    setSaidOnDrop(said => (said?.id === pendingLift ? null : said));
-  }, [pendingLift, flatEl, home, canLiftNow, positions, pick]);
+    setSaidOnDrop(said => (said?.id === id ? null : said));
+    // BUG-214: the destination the owner already chose. The door is the only
+    // fixture whose answer is not a placement — it hands him to the casino, so
+    // the deploy the owner asked for happens here, now that the hand he was in
+    // is over. Every other fixture is the ordinary drop, and no destination at
+    // all is the plain lift he was promised.
+    if (to === 'door') { onDeploy?.(agent, { room: null }); return; }
+    if (to) { onDrop(id, to); return; }
+    const at = positions.get(id);
+    pick(id, at ? { x: at.x, y: at.y } : undefined);
+  }, [pendingLift, flatEl, home, canLiftNow, positions, pick, onDrop, onDeploy]);
 
   // The line clears itself; it lands once, the way the money line does — but
   // a man who has been promised a lift keeps saying so until he gets it,
@@ -633,7 +665,7 @@ export function HomeScreen({
   // tap that looks like it did nothing.
   useEffect(() => {
     if (!saidOnDrop) return undefined;
-    if (saidOnDrop.refused && pendingLift === saidOnDrop.id) return undefined;
+    if (saidOnDrop.refused && pendingLift?.id === saidOnDrop.id) return undefined;
     const t = setTimeout(() => setSaidOnDrop(null), ARRIVAL_MS);
     return () => clearTimeout(t);
   }, [saidOnDrop, pendingLift]);
@@ -691,6 +723,16 @@ export function HomeScreen({
     else setTableOpen(true);
   };
   const enterCasino = () => {
+    // BUG-214: the owner is holding somebody — or has been promised him the
+    // moment his hand ends — and has just tapped the door. That is "send him
+    // to the casino", not "take me to the casino without him", and doing the
+    // second silently is the failure this fixes: on the desk the Carry button
+    // then a door tap looked like nothing had happened at all.
+    if (pendingLift) {
+      setPendingLift(lift => (lift ? { ...lift, to: 'door' } : lift));
+      setSaidOnDrop({ id: pendingLift.id, text: PENDING_LINE, gold: true, refused: true });
+      return;
+    }
     if (guide.stage) guide.advance('live');
     onCasino?.();
   };
@@ -884,7 +926,7 @@ export function HomeScreen({
             carried={held}
             roomWidth={F_W}
             refusing={!held && !!dropped?.refused}
-            awaitingLift={!held && pendingLift === id}
+            awaitingLift={!held && pendingLift?.id === id}
             carryHandlers={desktop ? undefined : bindCarry(id, { size })}
             // The queue's answer, or nothing — and the pill still says he has
             // news while his turn is coming.

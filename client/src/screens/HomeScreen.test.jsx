@@ -1444,3 +1444,76 @@ describe('BUG-134: lifting a seated agent', () => {
     expect(screen.queryByText(/I will come when it is done/)).toBeNull();
   });
 });
+
+// ── BUG-214 · carrying a mid-hand agent to the door queues the deploy ────────
+//
+// BUG-211 seats him in a live hand the moment Home opens, and BUG-134 holds a
+// lift until that hand ends. Together they made the desk's CARRY button
+// followed by a door tap do NOTHING AT ALL: he was never picked up, so the
+// door carried nobody, and the owner got no chooser, no queue and no sentence.
+// The rule Jens settled: carrying a mid-hand agent to the door QUEUES the
+// deploy and says so. It must never silently do nothing.
+
+describe('BUG-214: the door, while his hand is still running', () => {
+  const SEATED = (id) => ({
+    tableId: 'home-4242', state: 'running',
+    seats: [{ seat: 0, agentId: id, name: 'Granite', house: false },
+      { seat: 1, agentId: null, name: 'Doyle_v3', house: true }],
+  });
+
+  async function midHand(sock, id) {
+    const table = await waitFor(() => {
+      const found = socketMock.instances.filter(i => i !== sock).pop();
+      expect(found).toBeTruthy();
+      return found;
+    });
+    await act(async () => { table.open(); });
+    await act(async () => {
+      table.emit({ type: 'state', state: { tableId: 'home-4242', street: 'flop', community: [], seats: [], handNumber: 4 } });
+    });
+    return table;
+  }
+
+  it('BUG-214: the door queues the deploy and tells him so, instead of doing nothing', async () => {
+    const onDeploy = vi.fn();
+    const onCasino = vi.fn();
+    const one = mkAgent('doorman', 'Granite');
+    const { sock } = await boot([one], SEATED('doorman'), { onDeploy, onCasino });
+    const body = await screen.findByRole('button', { name: /Granite —/ });
+    const table = await midHand(sock, 'doorman');
+
+    // Reach for him mid-hand. The desk's CARRY button and this long press are
+    // the same grab; both land in `pendingLift`, and the press is the one that
+    // needs no owner-side plumbing to drive from here.
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(body, { pointerId: 9, clientX: 200, clientY: 250, button: 0 });
+      act(() => vi.advanceTimersByTime(LONG_PRESS_MS));
+      expect(body).toHaveAttribute('data-awaiting-lift', 'true');
+    } finally { vi.useRealTimers(); }
+
+    await userEvent.click(screen.getByTestId('home-door'));
+    // NOT the casino without him — that is the silent nothing being fixed.
+    expect(onCasino).not.toHaveBeenCalled();
+    expect(onDeploy).not.toHaveBeenCalled();
+    expect(screen.getByText(/I am in a hand\. I will come when it is done\./)).toBeInTheDocument();
+
+    // The hand ends, and the deploy the owner already asked for happens.
+    await act(async () => {
+      table.emit({ type: 'state', state: { tableId: 'home-4242', street: 'complete', community: [], seats: [], handNumber: 4 } });
+    });
+    await waitFor(() => expect(onDeploy).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'doorman' }), { room: null },
+    ));
+    expect(onCasino).not.toHaveBeenCalled();
+    expect(body).not.toHaveAttribute('data-awaiting-lift');
+  });
+
+  it('BUG-214: with nobody waiting, the door is still just the door', async () => {
+    const onCasino = vi.fn();
+    await boot([mkAgent('idle', 'Granite')], null, { onCasino });
+    await screen.findByRole('button', { name: /Granite —/ });
+    await userEvent.click(screen.getByTestId('home-door'));
+    expect(onCasino).toHaveBeenCalled();
+  });
+});

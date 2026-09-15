@@ -816,6 +816,18 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await dealHimIn(user);
 
     await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    // DEFLAKE-2: 20s, and the reason is that this case is TWO complete round
+    // trips — home, thread, profile, deploy, casino, deal in, watch, leave,
+    // thread, and then all of it again — driven through the whole <App /> with
+    // real userEvent clicks. Instrumented step by step it costs about 3.9s of
+    // genuine work (deploy 1.6s, each leave ~0.44s, each profile ~0.5s, the
+    // second deal 0.53s); a click on this tree is 250-530ms because userEvent
+    // checks pointer-events up the whole DOM with real CSS loaded. Nothing
+    // here waits on a clock — every wait below is a findBy/waitFor on a
+    // specific condition — so there is no artificial delay to remove. It was
+    // simply the most expensive test in the suite sitting at 78% of vitest's
+    // 5000ms default, which two workers contending for the machine turned into
+    // an occasional red. The budget is the fix; the assertions are untouched.
     expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
-  });
+  }, 20_000);
 });
