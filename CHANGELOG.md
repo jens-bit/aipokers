@@ -1,5 +1,21 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Unreleased — MONEY-2
+
+- **The third faucet is closed (MONEY-2 job 1).** MONEY-1 made deploy and WATCH
+  pay for a seat; it left two doors that did not. `POST /api/agents/:id/queue`
+  — the route the casino screen's "Deal him in" actually uses — writes
+  `activeTableId` as a reservation and spends nothing, and the buy-in rail was
+  reading that field as proof of payment, so the WATCH that followed seated a
+  full stack no pocket was debited for. An open stay in the pocket ledger is
+  now the only receipt. JOIN with `wantAI` (the vs-You flow) took a stack out
+  of the air the same way and now pays like the other two doors. And the
+  admission gate — cut off? refill; still broke? refuse, with the reason and
+  the number — has been lifted out of deploy into `admitToFelt` and is asked
+  at both doors, so an agent whose owner has an empty safe runs out in the open
+  instead of being silently funded. `src/server/money2Faucets.test.js` holds
+  every path to the `safes + pockets + bank` law.
+
 ## 0.15.0 — the money, the life, and the rest of the room (2026-09-15)
 
 Seven branches, forty-one commits, `69a554c..a10083b`. Merged as MERGE-7,

@@ -904,3 +904,102 @@ zero, and no household carries more than one starting grant.
 - **BUG-200**, a pre-existing client test that asserts a US-formatted number and
   fails under any other system locale. Red on `origin/main` before this branch
   and untouched by it.
+
+---
+
+# MONEY-2 — 2026-09-15, `fix/money-2`
+
+## 16. Job 1 — every path that can fund a seated agent
+
+Jens, after MONEY-1 shipped: *his agent ran out of chips, was topped back up,
+and the safe did not move at all.*
+
+Every way an agent's **pocket** or his **stack** can go up, audited one at a
+time, against the one law MONEY-1 wrote down:
+
+> `Σ safes + Σ pockets + houseBank` is the same number before and after
+> anything that happens to a chip.
+
+| # | Path | Where | Debits the safe? | Atomic? | Verdict |
+|---|------|-------|------------------|---------|---------|
+| 1 | auto-refill | `wallet.js autoRefill`, called from the admission gate | **Yes.** `wallet.balance -= moved` in the same call, bounded by `Math.min(need, wallet.balance)`, both ledgers written | Yes — one function, one object graph, one `saveProfile` transaction after it | Sound |
+| 2 | allowance / "give him chips" | `POST /api/agents/:id/fund` → `wallet.js fund` | **Yes.** Refuses with `wallet does not cover that` and moves nothing | Yes | Sound |
+| 3 | legacy reload | `POST /api/agents/:id/reload` → `wallet.js fund` | **Yes.** 409 `There are not enough chips in your safe` | Yes — `saveStore` writes profile and wallet in one transaction | Sound |
+| 4 | home-game buy-in | `homeGame.js` `HOME_BUYIN` | **No — and correctly so.** 200 chips from nowhere, back to nowhere; `_retireSeat` and `closeTable` skip the ceremony when `this.home`, so a home stack never reaches a pocket | n/a | Isolated, intended |
+| 5 | casino deploy | `deployAgent` → `chargeSeatBuyIn` | pocket → bank | Yes, before the seat (MONEY-1) | Sound |
+| 6 | WATCH | `table.js addSpectator` → `chargeSeatBuyIn` | pocket → bank | Yes | **Broken via #8** |
+| 7 | **JOIN with `wantAI`** | `table.js maybeAutoSeatAI`, from `wsServer.js` JOIN | **No. Nothing at all.** `seatAI` with no `buyIn` → `bigBlind * 100` out of the air, on a seat carrying an `agentId` | n/a | **FAUCET — BUG-215** |
+| 8 | **queue, then WATCH** | `POST /api/agents/:id/queue`, then #6 | **No.** Queue writes `activeTableId` for free; `chargeSeatBuyIn` read that as proof of payment and short-circuited | n/a | **FAUCET — BUG-214** |
+| 9 | session cash-out | `finishAgentSession` | bank → pocket, gated on an open stay | Yes | Sound |
+| 10 | refund | `refundSeatBuyIn` | bank → pocket, gated on an open stay | Yes | Sound |
+| 11 | visit stake | `visit.js:226` / `:333` | pocket ↔ pocket, pot built from the two debits | Yes (`persist(...)`, checks `.ok`) | Conserves; bypasses the bank by design |
+| 12 | starting grant | `commitAgent` | Mint, bounded by `startingGrantClaimed` | Yes | Intended, closed since BUG-136 |
+| 13 | admin adjust | `admin/ops.js adjustOwnerChips` | Mint, with a reason and an audit line | Yes | Intended |
+
+### 16.1 The faucet Jens hit
+
+"Deal him in" on the casino screen is **not** `/deploy`. `CasinoScreen.jsx:405`
+(and `AgentsTab.jsx`, `HomeTab.jsx`) posts to `POST /api/agents/:id/queue`, which
+is a matchmaking *reservation*: it deliberately spends no buy-in and returns a
+`tableId`, having written `agent.activeTableId = tableId` and `status: 'playing'`.
+The client then WATCHes that table, and `addSpectator` — which MONEY-1 correctly
+made pay — calls `chargeSeatBuyIn`.
+
+`chargeSeatBuyIn` accepted two proofs that he had already paid:
+
+```js
+const open = openStayFor(pocket, tableId);
+if (open > 0 || (tableId && agent.activeTableId === tableId)) { … already … }
+```
+
+The second one is the field queue had just written, for nothing. So the charge
+short-circuited, `seatAI` was handed a phantom buy-in as a stack, and the owner
+economy never moved.
+
+**And the other half was invisible.** At session end `finishAgentSession`'s
+open-stay gate found nothing owed, logged `no open buy-in … settling nothing`,
+and paid him **nothing for a session he had just played**. Chips were conserved
+in both directions, which is exactly why `chipConservation.test.js` stayed green
+through all of it — the law held and the product was still wrong.
+
+### 16.2 The fix
+
+- **`chargeSeatBuyIn`**: the open stay is the only proof of payment. The
+  `activeTableId` clause is gone. It was redundant for the case it was written
+  for (a deploy writes the `buyin` ledger line as well as the field), and for
+  queue it was the whole bug. **The record is a cache of where he is; only the
+  ledger is a receipt.**
+- **`maybeAutoSeatAI`**: the vs-You door pays like a door — `chargeSeatBuyIn`,
+  seat what was charged, throw on a refusal the way `addSpectator` does. Home is
+  excluded on the same line every other money rule draws. `wsServer.js` catches
+  the refusal, tells the client, and calls `scheduleHouseFallback()` so the human
+  still gets a game.
+- **`admitToFelt(userId, agent)`**, new and exported: the admission gate deploy
+  always had — cut off? refill; still broke? refuse — lifted out of `deployAgent`
+  and asked by **both** doors. Queue used to refuse only a room the pocket could
+  not cover, and only when the owner had named one; it never looked at the refill
+  toggle or at `mode: 'cut'`. The refusal keeps deploy's shape (`required`, the
+  pocket projection, and the man's own line), because MONEY-2's rule is that he
+  runs out **in the open**.
+
+Queue still spends nothing. The buy-in is taken by the seat, at the table, which
+is the only place that knows what a seat costs.
+
+### 16.3 What the tests assert
+
+`src/server/money2Faucets.test.js`, twelve tests, each reading
+`Σ safes + Σ pockets + bank` out of SQLite. Red first, green after:
+
+- queue then WATCH takes one buy-in (was: pocket `6000 !== 4000`);
+- a queued agent who wins is **paid** (was: `6000 !== 8000` — he was paid nothing);
+- JOIN with `wantAI` pays for its seat (was: `6000 !== 4000`);
+- broke at a named room, broke at no room, and cut off are all refused, with the
+  reason, the number and his own line, and none of them marks him `playing`;
+- WATCH refuses an empty pocket and names the figure;
+- auto-refill, give-chips and the legacy reload are each bounded by the safe and
+  each move it by exactly what they moved;
+- the kitchen table neither charges a pocket nor pays one.
+
+`table.casinoStart.test.js`'s `resident()` fixture built a queued agent with an
+empty pocket and relied on the free seat — it was asserting the faucet was open.
+It now holds one top-rung buy-in; every FIRST-HOUSE-1 assertion is unchanged.

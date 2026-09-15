@@ -884,6 +884,71 @@ function openStayFor(pocket, tableId) {
 }
 
 /**
+ * MONEY-2 job 1 — THE ADMISSION GATE, in one place.
+ *
+ * "Can this man go to work at all" is one question and it was answered in one
+ * place: inside deployAgent. `POST /api/agents/:id/queue` is the OTHER door the
+ * casino screen uses ("Deal him in", CasinoScreen.jsx), and it asked a narrower
+ * question — it refused a room the pocket could not cover, but only when the
+ * owner had named a room, and it never looked at the refill toggle or at
+ * whether the owner had cut him off at all. So an agent with 300 chips and an
+ * empty safe could be marked `playing` and pointed at a felt, and the seat that
+ * followed was funded by nobody.
+ *
+ * Returns { status, body } to refuse with, or null when he may sit down. The
+ * refusal is the same shape deploy has always sent, because it is the same
+ * refusal: the client already knows how to draw it.
+ *
+ * It is allowed to MOVE money — an `auto` pocket collects from the safe here,
+ * which is the one top-up that is supposed to happen without the owner being
+ * asked. It is bounded by the safe (wallet.js autoRefill) and writes both
+ * halves, so it is a transfer and never a grant.
+ */
+export function admitToFelt(userId, agent) {
+  const owner = String(userId ?? 'anon');
+  const wallet = walletFor(owner);
+  const pocket = ensurePocket(agent);
+  pocket.agentId = agent.id;
+
+  // Cut off is cut off — he finishes nothing and starts nothing. Not a
+  // punishment, and nothing he has learned is lost.
+  if (pocket.mode === 'cut') {
+    return { status: 402, body: {
+      error: 'He is cut off. Fund him to put him back in a seat.',
+      broke: true, cut: true,
+      pocket: pocketProjection(pocket),
+    } };
+  }
+
+  // Auto-refill happens here, before the gate: he comes to the wallet and
+  // collects when he is short. allowance and topup deliberately do not.
+  if (isBroke(pocket.balance)) autoRefill(wallet, pocket);
+
+  if (isBroke(pocket.balance)) {
+    // Broke: he rests at the bar. One moment, one notification a day. The
+    // moment and the notification are how the owner SEES why — MONEY-2's rule
+    // is that he runs out in the open, not that he quietly stops appearing.
+    recordBrokeMoment(agent);
+    agent.status = 'idle';
+    agent.activeTableId = null;
+    mirrorBankroll(agent);
+    saveStore(owner);
+    saveWalletFor(owner);
+    emitAgentChange(owner);
+    notifyBrokeOnce(owner, agent);
+    return { status: 402, body: {
+      error: "His pocket is empty. He's at the bar — your call.",
+      broke: true,
+      pocket: pocketProjection(pocket),
+      required: ENTRY_BUYIN,
+      moment: agent.lastMoment,
+    } };
+  }
+
+  return null;
+}
+
+/**
  * Take a buy-in. POCKET -> BANK, in one step, persisted in one transaction.
  *
  * Refuses rather than granting: a pocket that does not cover the buy-in gets
@@ -912,23 +977,37 @@ export function chargeSeatBuyIn(agentId, userId, { amount, tableId } = {}) {
   const want = Math.max(0, Math.floor(Number(amount) || 0));
   if (want === 0) return { ok: false, moved: 0, reason: 'a buy-in of nothing is not a buy-in' };
 
-  // ALREADY ADMITTED. Two ways of knowing, and either is enough:
+  // ALREADY ADMITTED — and there is exactly ONE way of knowing.
   //
   //   an open stay      his pocket ledger holds a buyin for this table with no
-  //                     cashout after it — he is bought in right now;
-  //   the record        `activeTableId` names this table, which is what a
-  //                     deploy writes and what WATCH is required to match
-  //                     (wsServer.js: "Deploy your agent before watching a new
-  //                     table"). A watcher attaching to the seat his own deploy
-  //                     paid for must not be charged a second time for it.
+  //                     cashout after it. He is bought in right now, and the
+  //                     ledger is the receipt that says so.
+  //
+  // MONEY-2 job 1 — THE THIRD FAUCET WAS THE SECOND WAY OF KNOWING.
+  //
+  // This check also used to accept `agent.activeTableId === tableId` as proof
+  // of payment, on the reading that a deploy writes that field and a watcher
+  // attaching to his own deployed seat must not pay twice. It is true that a
+  // deploy writes it — but a deploy ALSO writes the buyin ledger line, so the
+  // open stay already covers that case and the second clause was redundant for
+  // it. What it was not redundant for is `POST /api/agents/:id/queue`, which is
+  // the door the casino screen's "Deal him in" actually uses: queue sets
+  // `activeTableId` as a matchmaking reservation and deliberately spends no
+  // buy-in, and then WATCH's chargeSeatBuyIn looked at the field queue had just
+  // written, concluded he had already paid, and put a full 100bb stack in front
+  // of him that no pocket was ever debited for. The safe did not move, because
+  // nothing asked it to.
+  //
+  // So: the record is a cache of where he is, never a receipt for what he paid.
+  // Only the ledger is the receipt.
   //
   // Reported as a refusal rather than a no-op debit so the caller can tell the
   // difference between "he is in" and "he just paid".
   const open = openStayFor(pocket, tableId);
-  if (open > 0 || (tableId && agent.activeTableId === tableId)) {
+  if (open > 0) {
     return {
       ok: false, moved: 0, already: true,
-      buyIn: open > 0 ? open : want,
+      buyIn: open,
       reason: 'already bought in at this table',
     };
   }
@@ -4688,38 +4767,8 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   };
 
   if (liveTables) {
-    // Cut off is cut off — he finishes nothing and starts nothing. Not a
-    // punishment, and nothing he has learned is lost.
-    if (pocket.mode === 'cut') {
-      return { status: 402, body: {
-        error: 'He is cut off. Fund him to put him back in a seat.',
-        broke: true, cut: true,
-        pocket: pocketProjection(pocket),
-      } };
-    }
-
-    // Auto-refill happens here, before the gate: he comes to the wallet and
-    // collects when he is short. allowance and topup deliberately do not.
-    if (isBroke(pocket.balance)) autoRefill(wallet, pocket);
-
-    if (isBroke(pocket.balance)) {
-      // Broke: he rests at the bar. One moment, one notification a day.
-      recordBrokeMoment(agent);
-      agent.status = 'idle';
-      agent.activeTableId = null;
-      mirrorBankroll(agent);
-      saveStore(userId);
-      saveWalletFor(userId);
-      emitAgentChange(userId);
-      notifyBrokeOnce(userId, agent);
-      return { status: 402, body: {
-        error: "His pocket is empty. He's at the bar — your call.",
-        broke: true,
-        pocket: pocketProjection(pocket),
-        required: ENTRY_BUYIN,
-        moment: agent.lastMoment,
-      } };
-    }
+    const refused = admitToFelt(userId, agent);
+    if (refused) return refused;
 
     // SERVER-4: the room the owner asked for, or the highest one his pocket
     // reaches when he asked for none. Refused, never quietly downgraded.
@@ -5725,6 +5774,17 @@ export function installAgentProfileRoutes(app) {
     for (const [rung, slot] of matchmakingSlots) {
       if (Date.now() > slot.expiresAt) matchmakingSlots.delete(rung);
     }
+
+    // MONEY-2 job 1: the SAME admission gate deploy runs, and for the same
+    // reason. This route hands the client a tableId and marks the agent
+    // `playing`; the WATCH that follows turns that into a seat with chips in
+    // front of it. A door that leads to a felt has to ask whether he can afford
+    // to be there, and it has to ask the whole question — cut off, refill, and
+    // then broke — rather than only "does his pocket cover the room he named".
+    // It deliberately does NOT spend the buy-in: the buy-in is taken by the
+    // seat, at the table, by chargeSeatBuyIn. Queue is a reservation.
+    const refused = admitToFelt(userId, agent);
+    if (refused) return res.status(refused.status).json(refused.body);
 
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;

@@ -2325,14 +2325,45 @@ export class Table {
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
+  //
+  // MONEY-2 job 1 — THE vs-YOU DOOR IS A DOOR INTO A SEAT, SO IT PAYS LIKE ONE.
+  //
+  // JOIN with `wantAI: true` and an `agentId` (wsServer.js) is the third way an
+  // OWNED agent gets chips in front of him, beside deploy and WATCH. MONEY-1
+  // made WATCH pay (addSpectator) and left this one taking `bigBlind * 100` out
+  // of the air (MONEY_AUDIT.md §6.2, row 4) — his owner's safe did not move,
+  // because nothing asked it to. Same rail as the other two doors:
+  // chargeSeatBuyIn debits the pocket, moves the chips into the bank and writes
+  // both ledgers in one transaction, and REFUSES rather than granting.
+  //
+  // A refusal throws, exactly as addSpectator's does, so the owner is told why
+  // instead of watching an agent he cannot afford quietly fail to appear. The
+  // kitchen table is excluded on the same line every other money rule draws:
+  // nothing at home costs a chip.
+  //
+  // Returns the seat index, or null when there was nothing to do.
   maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null, stableId = null, accentColor = null, talkLines = null } = {}) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     console.log(`[maybeAutoSeatAI] humanSeated=${humanSeated}, hasFree=${hasFree}, spectators=${this.spectators.length}, agentDisplayName=${agentDisplayName}, agentStrategy=${String(agentStrategy).slice(0, 40)}`);
-    if (!hasFree) return;
-    if (!humanSeated && this.spectators.length === 0) return;
+    if (!hasFree) return null;
+    if (!humanSeated && this.spectators.length === 0) return null;
+
+    let paidBuyIn;
+    if (agentId && userId != null && !this.home) {
+      const paid = chargeSeatBuyIn(agentId, userId, {
+        amount: this.defaultBuyIn(), tableId: this.tableId,
+      });
+      if (paid.ok) paidBuyIn = paid.moved;
+      // `already`: he is bought in here and this is the same stay.
+      // `unknown`: no agent record, so nothing can ever be credited for the
+      // seat either — see chargeSeatBuyIn. Everything else is a real refusal.
+      else if (paid.already) paidBuyIn = paid.buyIn;
+      else if (!paid.unknown) throw new Error(paid.reason || 'his pocket does not cover this table');
+    }
+
     if (agentStrategy) this.agentStrategy = agentStrategy;
-    this.seatAI({
+    return this.seatAI({
       displayName: agentDisplayName || undefined,
       strategy: agentStrategy || '',
       agentId,
@@ -2342,6 +2373,7 @@ export class Table {
       stableId,
       accentColor,
       talkLines,
+      buyIn: paidBuyIn,
     });
   }
 

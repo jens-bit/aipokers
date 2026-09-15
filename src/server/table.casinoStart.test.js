@@ -31,11 +31,19 @@ test.after(() => {
   fs.rmSync(scratch, { recursive: true, force: true });
 });
 
+// A queued agent: the record says he is on his way to this table, and the WATCH
+// that follows is what actually puts him in the chair.
+//
+// MONEY-2 job 1: his pocket has to hold a buy-in for the top rung this file
+// plays, because WATCH now takes one. It used to be zero and the seat was free
+// — chargeSeatBuyIn read `activeTableId`, which the queue route writes without
+// spending anything, and concluded he had already paid. That was the third
+// faucet, and a fixture that stays at zero would be asserting it is still open.
 function resident(tableId, suffix = 'hero') {
   const owner = `${tableId}-${suffix}-owner`;
   const agent = { id: `${tableId}-${suffix}`, name: suffix, status: 'playing', activeTableId: tableId,
     strategy: 'Play patiently.', profile: { tightness: 75, aggression: 55, bluffFreq: 15, discipline: 80 },
-    pocket: { balance: 0, mode: 'allowance', cap: null, realised: 0, ledger: [] },
+    pocket: { balance: 10_000, mode: 'allowance', cap: null, realised: 0, ledger: [] },
     mood: { state: 'neutral', heat: 30, losingRun: 0 }, stats: { handsPlayed: 0, handsWon: 0 } };
   store.saveProfile(owner, { userId: owner, chat: [], agents: [agent] });
   store.saveWallet(owner, { ownerId: owner, balance: 0, ledger: [] });
