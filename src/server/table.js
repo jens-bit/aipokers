@@ -654,11 +654,48 @@ export class Table {
   // into a seat (deploy's joinAgentSession, WATCH's addSpectator) so neither
   // can let a stable share a felt. Deliberately reads the live seat arrays
   // rather than a cached set — a seat that stood up is not here any more.
-  seatsAgentOfOwner(userId) {
-    if (userId == null || userId === '') return false;
+  // ── AGENT-4 job D · WHICH OF HIS IS ALREADY HERE ────────────────────────────
+  //
+  // MATCH-1's rule is "not two of ONE OWNER'S agents at ONE casino table", and
+  // the question it has to ask is therefore about the owner's OTHER agents. As
+  // written this counted EVERY agent of the owner at the table, including the
+  // one being seated — so the predicate said "one of yours is here" when the
+  // answer needed was "one of your OTHERS is here". Both call sites happened to
+  // return early when the man himself was already seated, so it was correct by
+  // accident rather than by construction, and a third caller would have been
+  // told that an agent was blocked by himself.
+  //
+  // It also could not tell anybody WHICH agent, which is why the refusal built
+  // on it was a sentence with nobody in it.
+  //
+  // Returns the SEAT INDEX of the stablemate, or -1. `except` is the agent this
+  // question is being asked on behalf of; he is never his own obstacle.
+  seatOfStablemate(userId, { except = null } = {}) {
+    if (userId == null || userId === '') return -1;
     const owner = String(userId);
-    return this.agentUserIds.some((uid, seat) =>
-      uid != null && String(uid) === owner && this.agentIds[seat] != null);
+    const self = except == null ? null : String(except);
+    return this.agentUserIds.findIndex((uid, seat) => {
+      if (uid == null || String(uid) !== owner) return false;
+      const id = this.agentIds[seat];
+      if (id == null) return false;
+      return self === null || String(id) !== self;
+    });
+  }
+
+  seatsAgentOfOwner(userId, { except = null } = {}) {
+    return this.seatOfStablemate(userId, { except }) !== -1;
+  }
+
+  // The sentence an owner is shown when MATCH-1 refuses him. It NAMES THE
+  // STABLEMATE, for the same reason seatedElsewhereMessage names the felt: an
+  // owner who is refused has to be told the fact that explains the refusal and
+  // the one he can act on. "another of your agents is already at this table"
+  // named neither man, started mid-sentence, and read as a fault in the product
+  // rather than as a rule of the game — which is exactly how Jens read it.
+  stablemateMessage(seat, displayName) {
+    const mate = this.pending?.[seat]?.displayName || 'One of your agents';
+    const who = displayName || 'He';
+    return `${mate} is already at this table, and two of your agents never play each other here. ${who} needs a table of his own.`;
   }
   defaultBuyIn() { return this.bigBlind * 100; }
 
@@ -1046,7 +1083,7 @@ export class Table {
     //
     // The home game is the exception, and it is the whole point of the home
     // game — see homeGame.js, which seats a household this way on purpose.
-    if (!this.home && this.seatsAgentOfOwner(userId)) return null;
+    if (!this.home && this.seatsAgentOfOwner(userId, { except: agentId })) return null;
 
     const seat = this.seatAI({
       displayName: displayName || 'Agent',
@@ -2113,8 +2150,11 @@ export class Table {
       const other = seatedElsewhere(this, agentId);
       if (other) throw new Error(seatedElsewhereMessage(displayName, other));
     }
-    if (!this.home && this.seatsAgentOfOwner(userId)) {
-      throw new Error('another of your agents is already at this table');
+    // AGENT-4 job D: the same rule, and a sentence that says what it is. The
+    // stablemate is named, because "another of your agents" names nobody.
+    {
+      const mate = this.seatOfStablemate(userId, { except: agentId });
+      if (!this.home && mate !== -1) throw new Error(this.stablemateMessage(mate, displayName));
     }
 
     // MONEY-1 job 3 — WATCH IS A DOOR INTO A SEAT, SO IT PAYS LIKE ONE.
