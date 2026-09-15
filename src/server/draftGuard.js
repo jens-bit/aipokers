@@ -161,6 +161,33 @@ const VAGUE_BRIEFS = [
     strategy: 'You are a chaotic, unpredictable player. You enter almost every pot, bet and raise relentlessly, and bluff far more often than anyone expects. You deliberately vary your sizing so nobody can put you on a hand, and you would rather be wrong loudly than right quietly.',
   },
   {
+    // AGENT-4 job E: the shover, who had no entry here either.
+    //
+    // `natureHintFor` can now READ an all-in brief, which is what stopped the
+    // draft dropping it before the model call. This is the other half: on a
+    // deployment with no key, `buildFromDraft` writes the whole character from
+    // this table, and a brief that matches nothing here falls through to
+    // `inferFallback`'s "calculated, adaptive player" - the default
+    // personality Jens saw. An instruction this explicit has to name a man.
+    //
+    // Deliberately its own entry rather than folded into 'chaotic'. Shoving
+    // every hand is not chaos: it is one decision, taken every time, and the
+    // most predictable strategy in poker. The dials say so - bluffFreq is high
+    // because most shoves are, but discipline is not the floor, because he is
+    // doing exactly what he said he would.
+    key: 'allin',
+    re: /\b(all[-\s]?ins?|shove|shoves|shoving|jam|jams|jamming|ship it|open[-\s]?shove)\b/i,
+    profile: { tightness: 10, aggression: 98, bluffFreq: 70, discipline: 35 },
+    line: 'All in, every time - he moves his whole stack in and lets the other man decide.',
+    name: 'All In',
+    strategy: 'You move all in. That is the whole strategy and you do not deviate from it: '
+      + 'whenever it is your turn and you have chips, you put every one of them in the middle, '
+      + 'preflop or otherwise, with any two cards. You never call and you never make a small '
+      + 'raise. If the only legal move is to check, you check, and then you shove on the next '
+      + 'street. You are not bluffing and you are not value betting - you are making every pot '
+      + 'a decision for your opponent and nothing else.',
+  },
+  {
     key: 'scary',
     re: /\b(scary|terrif|brutal|ruthless|savage|monster|beast|nightmare|bully)\w*/i,
     profile: { tightness: 35, aggression: 92, bluffFreq: 45, discipline: 55 },
