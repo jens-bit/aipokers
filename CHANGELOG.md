@@ -76,6 +76,69 @@ null for a visitor, who is not yours to feed.
   no key, under a second. The variety section fails when two natures in the
   same state emit the same sentence.
 
+## He knows why he did it — local candidate (2026-09-15, LIFE-3)
+
+On `feat/agent-talk-why`, branched off `feat/agent-life-2`, four jobs, not yet
+merged. Server only: `git diff --stat feat/agent-life-2 -- client/` is empty.
+No new dependencies, no model call added on any path, and the cost router is
+untouched — owner chat is still one call per owner message.
+
+Jens played the live build on 15 September and the transcript is the
+specification. He asked "why did you go all in on that hand?" and got "Don't
+remember that one, man — which hand you talking about?" He named it: "queen
+six? the one you just busted on." The agent produced a different hand. He
+asked "why???" and got "Man, I don't know what you're asking about — what
+happened?" — three times in one conversation, word for word. LIFE-2 fixed
+which hand he cites. This fixes whether he can say anything about it.
+
+- **He knows why he did it (job 1).** Every decision has carried a `reasoning`
+  string since the first model call, and the compiled policy builds one too. It
+  reached the record and stopped there: nothing picked the DECISIVE decision
+  out of the three to five in a hand, `handFact()` rebuilt his line as actions
+  with the reasons stripped out, and his heat was never written down at all —
+  `moodState` is five words, and a hand played at 78 and one played at 61 are
+  both "tilted". Each hand in his bounded memory now carries a `why`: the
+  decisive action, the reason behind it, and his heat and stamina at the time.
+  The decisive one is a ladder — the all-in (stamped by the engine, not parsed
+  back out of an amount), then the biggest single commitment, then the last
+  aggression, then the last thing he did. One object per hand inside the
+  existing twenty-hand cap, one reason capped at 120 characters, no new
+  dependency and no model call.
+
+- **The dead end is gone (job 2).** There is always an answer. He named a hand,
+  by number or by cards — "queen six" is how a person cites a hand and Qh 6d is
+  how a database does, and both land on the same hand. He named none, and it is
+  the hand his night turned on: the all-in, the bust, the biggest pot. Two of
+  his hands fit what he said, and he says both back — "The queen-six, or the
+  jack-ten?" — which moves the conversation forward instead of handing it back.
+  He named a hand that is not his, and he says WHICH hand he does not have,
+  rather than falling through to a different one. And the confusion line, in
+  whatever form survives, may never appear twice in one conversation; the eval
+  fails on a repeat.
+
+- **He owns a bad call (job 3).** Asked why a decision lost, he answers from
+  what he actually decided: he put the man on a bluff, the price was right, he
+  was steaming, and it missed. He is allowed to say he was steaming, because it
+  is true and it is the character — but the sentence ends on him, not on the
+  cards. "Cost me 820, and that one is on me."
+
+- **The follow-up holds (job 4).** "Why???" is a follow-up to his own last
+  answer, not a new question about nothing. The hand under discussion is
+  carried across turns until the owner changes the subject, expires after
+  half an hour of silence, and moves the moment he names a different hand.
+
+- **Fixed on the way:** a regex in the owner-chat path whose four `\b` word
+  boundaries were literal backspace bytes, so `aboutHand` had been false for
+  every message in the product's history and the relationship ledger always
+  took the other branch. The same corruption had made an assertion in
+  `ownerMemory.test.js` vacuous since the day it was written. Both restored.
+
+`npm run talk:eval` grew from 158 assertions to 230: fifteen new lines drawn
+from the transcript word for word, a REPAIR section that grades the sentence
+the product itself writes (and checks it survives the gate that produced it),
+and a THREAD section that walks whole conversations rather than single
+messages — the failure it is written against only exists across turns.
+
 ## The money, part two — local candidate (2026-09-15, MONEY-2)
 
 - **The house takes a rake, and the economy has a drain (MONEY-2 job 3).** A

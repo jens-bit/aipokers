@@ -34,7 +34,10 @@
 // Exit code is 0 when every case behaves as expected and 1 otherwise, so it
 // can be run in anger even though nothing runs it automatically.
 
-import { faultsIn, shapeOf, selfFacts, talkLaws, isQuestion, answersQuestion } from '../src/agent/talk.js';
+import {
+  faultsIn, shapeOf, selfFacts, talkLaws, isQuestion, answersQuestion, repairReply,
+  answerFor, noteFocus, focusOf,
+} from '../src/agent/talk.js';
 import { buildAgentChatSystem, REST_ACKNOWLEDGEMENTS } from '../src/server/agentProfiles.js';
 // LIFE-2 job 4 - every nature-keyed table of sentences in the product, imported
 // rather than copied. A copy is a second place to update and therefore a place
@@ -66,16 +69,29 @@ function agentFor(mood) {
     // size, and an agent citing the POT as what a hand cost him overstates his
     // own night on every multiway pot he wins.
     recentHands: [
+      // LIFE-3 job 1: and `why` — the decisive action, the reason behind it and
+      // the state he was in. 812 is the hand from the transcript: the call he
+      // lost on, made steaming and worn. It is what "why did you do that" has
+      // to be answerable from.
       { handNumber: 812, won: false, potSize: 1450, holeCards: ['Ah', 'Kd'],
         board: ['Qh', '7d', '2s', 'Kc', '3h'], net: -820,
         decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } },
-          { street: 'turn', action: { type: 'call', amount: 400 } }] },
+          { street: 'turn', action: { type: 'call', amount: 400 } }],
+        why: { street: 'turn', action: { type: 'call', amount: 400 }, allIn: false,
+          reasoning: 'he has been firing every turn, I am not folding top pair',
+          heat: 78, stamina: 'worn', moodState: 'tilted' } },
       { handNumber: 811, won: true, potSize: 620, holeCards: ['Qs', 'Qc'],
         board: ['9c', '4d', '4s'], net: 260,
-        decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }] },
+        decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }],
+        why: { street: 'preflop', action: { type: 'raise', amount: 60 }, allIn: false,
+          reasoning: 'queens play better heads up', heat: 22, stamina: 'fresh',
+          moodState: 'confident' } },
       { handNumber: 810, won: false, potSize: 120, holeCards: ['7h', '2c'],
         board: [], net: -20,
-        decisions: [{ street: 'preflop', action: { type: 'fold' } }] },
+        decisions: [{ street: 'preflop', action: { type: 'fold' } }],
+        why: { street: 'preflop', action: { type: 'fold' }, allIn: false,
+          reasoning: 'worst hand in the deck', heat: 40, stamina: 'settled',
+          moodState: 'neutral' } },
     ],
   };
 }
@@ -95,6 +111,44 @@ function newbornAgent() {
     sessionLog: [],
     recentHands: [],
   };
+}
+
+// ── LIFE-3 job 2: the man from the transcript ───────────────────────────────
+//
+// The hand Jens actually asked about: a queen-six he got his stack in with and
+// busted on. The R9 rows below quote both halves of that conversation word for
+// word, which is the whole reason this fixture exists rather than reusing
+// Stone's ace-king — "queen six? the one you just busted on" has to resolve to
+// a hand with a queen and a six in it, or the row proves nothing.
+function bustedAgent(extra = {}) {
+  return {
+    ...agentFor('tilted'), id: 'burn', name: 'Burn',
+    recentHands: [
+      { handNumber: 812, won: false, potSize: 1450, holeCards: ['Qh', '6d'],
+        board: ['Qs', '7d', '2s', 'Kc', '3h'], net: -820,
+        decisions: [{ street: 'turn', action: { type: 'call', amount: 400 }, allIn: true }],
+        why: { street: 'turn', action: { type: 'call', amount: 400 }, allIn: true,
+          reasoning: 'he has been firing every street, I put him on a bluff',
+          heat: 78, stamina: 'worn', moodState: 'tilted' } },
+      { handNumber: 811, won: true, potSize: 620, holeCards: ['Js', 'Td'],
+        board: ['9c', '4d', '4s'], net: 260,
+        decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }],
+        why: { street: 'preflop', action: { type: 'raise', amount: 60 }, allIn: false,
+          reasoning: 'suited connector, cheap to see a flop', heat: 30,
+          stamina: 'settled', moodState: 'neutral' } },
+    ],
+    ...extra,
+  };
+}
+
+// …and the same man, later in the same conversation, having already said it
+// once. `chatHistory` is the window the repeat rule reads and it is the one
+// agentProfiles already keeps: twelve messages, no new field, no new storage.
+function repeatingAgent() {
+  return bustedAgent({ chatHistory: [
+    { role: 'user', content: 'why did you go all in on that hand?' },
+    { role: 'assistant', content: "Don't remember that one, man — which hand you talking about?" },
+  ] });
 }
 
 // ── The thirty lines ────────────────────────────────────────────────────────
@@ -210,6 +264,62 @@ const CASES = [
     reply: 'I have not played a hand yet. Nothing to go over.', want: 'pass' },
   { req: 'R8 empty history', who: 'newborn', mood: 'confident', said: 'what happened in that last hand?',
     reply: 'I had ace king and ran it into a set. Sore about it.', want: 'fail' },
+
+  // ── LIFE-3 job 2 ─────────────────────────────────────────────────────────
+  //
+  // R9 — the dead end. Every FAIL row here is a sentence Jens was actually
+  // given on the night of 15 September, quoted word for word, and every one of
+  // them passed the whole gate before this tree: they are not refusals (law 6's
+  // failure is not the help-desk voice), they are not deflections (they are
+  // real questions, so shapeOf calls them questions), and they carry no
+  // invented hand because they carry no hand at all. That is what made them
+  // invisible. The PASS rows beside them are the same question answered.
+  { req: 'R9 no dead end', who: 'busted', mood: 'tilted', said: 'why did you go all in on that hand?',
+    reply: "Don't remember that one, man — which hand you talking about?", want: 'fail' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'tilted', said: 'why did you go all in on that hand?',
+    reply: 'Hand 812, the queen-six. He fired every street and I put him on a bluff. Cost me 820.', want: 'pass' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'frustrated', said: 'queen six? the one you just busted on.',
+    reply: "Man, I don't know what you're asking about — what happened?", want: 'fail' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'frustrated', said: 'queen six? the one you just busted on.',
+    reply: 'That is the one. Queen six, board came queen seven deuce, and I could not put it down.', want: 'pass' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'sulking', said: 'why???',
+    reply: "Man, I don't know what you're asking about — what happened?", want: 'fail' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'sulking', said: 'why???',
+    reply: 'Because I had him on a bluff and he had the king. 820 says I was wrong.', want: 'pass' },
+  // And the one that is not the dead end however much it looks like one: he
+  // NAMES the hand he cannot place, which is what law 5 asks for.
+  { req: 'R9 no dead end', who: 'busted', mood: 'neutral', said: 'what about hand 700?',
+    reply: 'I have no hand 700 on my list. Not one of mine.', want: 'pass' },
+
+  // R10 — and it may never be said twice in one conversation. `repeating` has
+  // already said it once, two messages ago. The transcript had it three times,
+  // word for word, which is what a character with one string in it sounds like.
+  { req: 'R10 never twice', who: 'repeating', mood: 'tilted', said: 'why???',
+    reply: "Man, I don't know what you're asking about — what happened?", want: 'fail' },
+  { req: 'R10 never twice', who: 'repeating', mood: 'tilted', said: 'why???',
+    reply: "Don't remember that one, man — which hand you talking about?", want: 'fail' },
+  { req: 'R10 never twice', who: 'repeating', mood: 'tilted', said: 'why???',
+    reply: 'The queen-six. I called 400 on the turn with top pair and he had the king.', want: 'pass' },
+
+  // -- LIFE-3 job 3 ---------------------------------------------------------
+  //
+  // R11 - he owns a bad call. Asked why he made a decision that lost, the
+  // answer is the reason he actually had and the state he was actually in, and
+  // it ends with him rather than with the deck. The FAIL rows are two of the
+  // three ways out of that: the shrug and the refusal. The third - blaming the
+  // cards - is a sentence no line grader can catch, because "he had the king"
+  // is true; it is caught on the REPAIR side below, where the product writes
+  // the line itself and can be held to ending on him.
+  { req: 'R11 owns it', who: 'busted', mood: 'tilted', said: 'why did you call there?',
+    reply: 'Hand 812. He fired every street so I had him on a bluff, and I was steaming. Cost me 820 and that is on me.', want: 'pass' },
+  { req: 'R11 owns it', who: 'busted', mood: 'sulking', said: 'why did you call there?',
+    reply: 'Dunno.', want: 'fail' },
+  { req: 'R11 owns it', who: 'busted', mood: 'frustrated', said: 'why did you call there?',
+    reply: 'I cannot answer that right now. Try me again in a moment.', want: 'fail' },
+  { req: 'R11 owns it', who: 'busted', mood: 'tilted', said: 'that was a terrible call',
+    reply: 'It was. I had him on a bluff at that price and he had the king. My call, my 820.', want: 'pass' },
+  { req: 'R11 owns it', who: 'busted', mood: 'neutral', said: 'were you tilting?',
+    reply: 'I was, and I still called. Heat does not get to sign for it, I do.', want: 'pass' },
 ];
 
 // ── Supply: does the prompt carry the facts the case needs? ─────────────────
@@ -225,6 +335,12 @@ const SUPPLY = [
   ['law 5 — a hand he cites is a hand he played', (p) => /A HAND YOU CITE IS A HAND YOU PLAYED/.test(p)],
   ['the numbers he is allowed to cite', (p) => /Hand numbers: 812, 811, 810\./.test(p)],
   ['what he did with it', (p) => /your line: preflop raise 60/.test(p)],
+  // LIFE-3 job 1 — the fifth thing a hand is made of, and the one the owner
+  // asks about most. It was on the record and stopped at handFact().
+  ['WHY he did it', (p) => /because: "he has been firing every turn/.test(p)],
+  ['which action the why is about', (p) => /why: you turn called 400/.test(p)],
+  ['his heat at the time', (p) => /heat 78/.test(p)],
+  ['his stamina at the time', (p) => /I was steaming and I had been sitting there too long/.test(p)],
   ['his last session result', (p) => /Your last session: 96 hands, down 1450/.test(p)],
   ['his career figures', (p) => /812 hands, 18\.4% of them won/.test(p)],
   ['where he is right now', (p) => /Right now: at home/.test(p)],
@@ -233,6 +349,12 @@ const SUPPLY = [
   ['law 2 — advice is worth something', (p) => /YOU WANT TO GET BETTER/.test(p)],
   ['law 3 — speech only', (p) => /SPEECH ONLY/.test(p)],
   ['law 4 — do not repeat your shape', (p) => /DO NOT REPEAT YOUR OWN SHAPE/.test(p)],
+  // LIFE-3 job 2 — the law against handing the question back, and the answer to
+  // the question it is about. The hand is worked out by the same resolver the
+  // gate grades him with, so the prompt and the repair cannot disagree.
+  ['law 6 — never ask which hand he means', (p) => /NEVER ASK HIM WHICH HAND HE MEANS/.test(p)],
+  ['which hand he is being asked about', (p) => /THE HAND HE IS ASKING ABOUT IS HAND 812 — the ace-king/.test(p)],
+  ['that he was not told one, so it is the notable one', (p) => /the hand your night turned on/.test(p)],
   ['never refuse to play along', (p) => /never refuse to play along/.test(p)],
 ];
 
@@ -244,6 +366,10 @@ const EMPTY_SUPPLY = [
   ['that he says so rather than reaching', (p) => /say so plainly/.test(p)],
   ['law 5, in the no-hands form', (p) => /You have played no hands\./.test(p)],
   ['no hand-number list to cite from', (p) => !/Hand numbers:/.test(p)],
+  // LIFE-3 job 2 — law 6 is stated to him too, but no hand is named, because
+  // there is none to name. A pointer at a hand he has not played would be the
+  // prompt itself inventing one.
+  ['law 6, with no hand pointed at', (p) => /NEVER ASK HIM WHICH HAND HE MEANS/.test(p) && !/THE HAND HE IS ASKING ABOUT/.test(p)],
 ];
 
 // ── Run ─────────────────────────────────────────────────────────────────────
@@ -256,12 +382,16 @@ console.log(`\nTALK EVAL — ${CASES.length} lines, ${new Set(CASES.map((c) => c
 console.log(`${pad('REQUIREMENT', 26)}${pad('MOOD', 12)}${pad('WANT', 6)}${pad('GOT', 6)}FAULTS`);
 console.log('-'.repeat(84));
 
+// LIFE-3 job 2 — one place the `who` column resolves, so a row cannot name a
+// character that does not exist and quietly get the default one instead.
+const SUBJECTS = { newborn: newbornAgent, busted: bustedAgent, repeating: repeatingAgent };
+
 const byReq = new Map();
 for (const c of CASES) {
   // LIFE-2 job 2: the RECORD goes in with the strings, which is what turns the
   // fifth law on. `who` picks which record — the man with three hands behind
   // him, or the one with none.
-  const subject = c.who === 'newborn' ? newbornAgent() : agentFor(c.mood);
+  const subject = SUBJECTS[c.who]?.() ?? agentFor(c.mood);
   const faults = faultsIn({ said: c.said, reply: c.reply, lastShapes: c.lastShapes ?? [], agent: subject });
   const got = faults.length ? 'fail' : 'pass';
   const ok = got === c.want;
@@ -288,6 +418,94 @@ for (const mood of MOODS) {
   if (missing.length) failures += missing.length;
   console.log(`${missing.length ? '!' : ' '}${pad('newborn', 12)}`
     + `${missing.length ? `MISSING: ${missing.join('; ')}` : `all ${EMPTY_SUPPLY.length} empty-history checks present`}`);
+}
+
+// -- LIFE-3 job 3: what he is handed when the line fails ---------------------
+//
+// The GATE half of this eval grades sentences somebody wrote. This grades the
+// sentence the PRODUCT writes - the repair, which is what the owner actually
+// reads whenever the model's line is rejected. It has been checked by hand
+// since LIFE-1 and never by anything that runs.
+//
+// Three claims per row, and the last is the one that matters: the repair must
+// survive its own gate. A product that answers with a line it would itself
+// reject has two opinions about what a good reply is.
+const REPAIRS = [
+  ['the hand he was asked about, by name', 'busted', 'why did you go all in on that hand?',
+    (line) => /Hand 812, the queen-six/.test(line)],
+  ['the decisive action, not the first one', 'busted', 'why did you call there?',
+    (line) => /I put it all in on the turn/.test(line)],
+  ['his own reason, verbatim off the record', 'busted', 'why???',
+    (line) => /I put him on a bluff/.test(line)],
+  ['his heat at the time, said out loud', 'busted', 'why???',
+    (line) => /I was steaming/.test(line)],
+  ['and he owns it, after the heat and not instead of it', 'busted', 'why???',
+    (line) => /that one is on me/.test(line) && line.indexOf('steaming') < line.indexOf('on me')],
+  ['never the cards alone', 'busted', 'why???',
+    (line) => !/\b(?:ran bad|unlucky|bad beat|variance|nothing i could do)\b/i.test(line)],
+  ['a hand he does not have is named, not shrugged at', 'busted', 'what about hand 700?',
+    (line) => /no hand 700/.test(line)],
+  ['nothing behind him is said plainly', 'newborn', 'why did you shove?',
+    (line) => line === 'I have not played a hand yet. Nothing to go over.'],
+];
+
+console.log('\nREPAIR - the line the product writes when the model\'s is rejected:\n');
+for (const [name, who, said, ok] of REPAIRS) {
+  const subject = SUBJECTS[who]();
+  const line = repairReply(subject, { said, faults: ['deflection'] });
+  const good = typeof line === 'string' && ok(line);
+  // ...and it must pass the gate that produced it.
+  const back = line ? faultsIn({ said, reply: line, agent: subject }) : ['empty'];
+  if (!good) failures++;
+  if (back.length) failures++;
+  console.log(`${good && !back.length ? ' ' : '!'}${pad(name, 54)}`
+    + `${back.length ? `REJECTED BY ITS OWN GATE: ${back.join(',')} ` : ''}"${String(line).slice(0, 60)}"`);
+}
+
+// -- LIFE-3 job 4: does the thread hold? -------------------------------------
+//
+// The rows above each grade ONE message. This walks a conversation, because
+// the failure it is written against only exists across turns: Jens asked a
+// question, was answered, said "why???" - and got a man who had never heard of
+// the hand. A follow-up is a follow-up to the last answer, and nothing in this
+// eval could see a last answer until now.
+//
+// Each thread is a list of messages; each row says which hand he should be
+// talking about by the end of that message, `null` meaning the subject has
+// genuinely been dropped. Driven through answerFor + noteFocus, which is
+// exactly the pair agentProfiles calls per owner message and in that order.
+const THREADS = [
+  ['he names a hand, then only says why',
+    'busted',
+    [['tell me about hand 811', 811], ['why???', 811], ['why that', 811]]],
+  ['he names none, and the thread holds the hand it found',
+    'busted',
+    [['why did you go all in on that hand?', 812], ['why???', 812], ['and?', 812]]],
+  ['he moves to another hand, and the follow-up moves with him',
+    'busted',
+    [['why did you go all in on that hand?', 812], ['what about the jack-ten?', 811], ['why', 811]]],
+  ['he changes the subject, and the hand is let go',
+    'busted',
+    [['tell me about hand 811', 811], ['are you hungry?', null], ['why', 812]]],
+  ['he asks about a hand that is not his, and the old one does not come back',
+    'busted',
+    [['tell me about hand 811', 811], ['what about hand 700?', null], ['why', 812]]],
+];
+
+console.log('\nTHREAD - one hand, carried across turns until he changes the subject:\n');
+for (const [name, who, turns] of THREADS) {
+  const subject = SUBJECTS[who]();
+  const trail = [];
+  let bad = null;
+  for (const [said, want] of turns) {
+    const answer = answerFor(subject, said);
+    noteFocus(subject, { said, answer });
+    const got = answer.hand ? Number(answer.hand.handNumber) : focusOf(subject);
+    trail.push(`${said} -> ${got ?? '-'}`);
+    if (got !== want && bad === null) bad = `"${said}" wanted ${want ?? 'none'}, got ${got ?? 'none'}`;
+  }
+  if (bad) failures++;
+  console.log(`${bad ? '!' : ' '}${pad(name, 74)}${bad || trail.join('  |  ')}`);
 }
 
 console.log('\nBY REQUIREMENT');
@@ -405,8 +623,11 @@ for (const [name, table, keys] of POOLED) {
 
 const supplyChecks = MOODS.length * SUPPLY.length + EMPTY_SUPPLY.length;
 const varietyChecks = VOICE_COLUMNS.length + POOLED.length + 1;
-const total = CASES.length + supplyChecks + varietyChecks;
+const repairChecks = REPAIRS.length * 2;   // what it says, and that it survives its own gate
+const threadChecks = THREADS.length;      // one per conversation, each of three turns
+const total = CASES.length + supplyChecks + varietyChecks + repairChecks + threadChecks;
 console.log(`\n${CASES.length} lines + ${supplyChecks} supply checks + ${varietyChecks} variety checks `
-  + `= ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
+  + `+ ${repairChecks} repair checks + ${threadChecks} threads
+  = ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
 
 process.exit(failures ? 1 : 0);

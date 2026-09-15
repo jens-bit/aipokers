@@ -11,7 +11,10 @@ import {
   SHAPES, SHAPE_MEMORY, shapeOf, noteShape, ensureShapes,
   isQuestion, answersQuestion, faultsIn, selfFacts, talkLaws, handFact, repairReply,
   SELF_FACT_HANDS, handIndex, claimedHoldings, handNumbersIn, inventedCitations,
+  isConfused, confusionsBefore, answerFor, ownSentence, REFUSAL,
+  noteFocus, focusOf, FOCUS_TTL_MS,
 } from './talk.js';
+import { isFollowUp } from './handRef.js';
 
 const hand = (extra = {}) => ({
   handNumber: 812, won: false, potSize: 1450, holeCards: ['Ah', 'Kd'],
@@ -358,4 +361,262 @@ test('LIFE-2: with nothing behind him, the repair is the plain admission', () =>
   // And the admission has to survive its own gate, or the repair would be a
   // reply the product then rejects.
   assert.deepEqual(faultsIn({ said: 'what happened?', reply: line, agent: none }), []);
+});
+
+// ── LIFE-3 job 2: the dead end ──────────────────────────────────────────────
+
+const bustHand = (extra = {}) => ({
+  handNumber: 812, won: false, potSize: 1450, net: -820, holeCards: ['Qh', '6d'],
+  board: ['Qs', '7d', '2s', 'Kc', '3h'],
+  decisions: [{ street: 'turn', action: { type: 'call', amount: 400 }, allIn: true }],
+  why: { street: 'turn', action: { type: 'call', amount: 400 }, allIn: true,
+    reasoning: 'he has been firing every street', heat: 78, stamina: 'worn', moodState: 'tilted' },
+  ...extra,
+});
+
+const busted = (extra = {}) => agent({
+  recentHands: [bustHand(), { handNumber: 811, won: true, potSize: 620, net: 260,
+    holeCards: ['Js', 'Td'], board: [] }],
+  ...extra,
+});
+
+// The two sentences from the transcript, word for word.
+const DEAD_END = "Man, I don't know what you're asking about — what happened?";
+const WHICH_HAND = "Don't remember that one, man — which hand you talking about?";
+
+test('LIFE-3: the dead end is a fault, and it was not one before', () => {
+  const a = busted();
+  for (const said of ['why did you go all in on that hand?', 'queen six? the one you just busted on.', 'why???']) {
+    assert.ok(faultsIn({ said, reply: DEAD_END, agent: a }).includes('confusion'), said);
+    assert.ok(faultsIn({ said, reply: WHICH_HAND, agent: a }).includes('confusion'), said);
+  }
+});
+
+test('LIFE-3: a man with nothing behind him has an answer too, and owes it', () => {
+  // He cannot place a hand, but the dead end is still not what he owes that
+  // question — "I have not played a hand yet" is. The fault fires and the
+  // repair is the plain admission, which is the sentence LIFE-2 wrote for
+  // exactly this man.
+  const none = { recentHands: [], sessionLog: [], stats: {} };
+  const faults = faultsIn({ said: 'why did you shove?', reply: DEAD_END, agent: none });
+  assert.ok(faults.includes('confusion'), JSON.stringify(faults));
+  assert.equal(repairReply(none, { said: 'why did you shove?', faults }),
+    'I have not played a hand yet. Nothing to go over.');
+  // And with no record passed at all, it cannot be judged — the other faults
+  // still run, which is the LIFE-2 rule, unchanged.
+  assert.ok(!faultsIn({ said: 'why did you shove?', reply: DEAD_END }).includes('confusion'));
+});
+
+test('LIFE-3: the honest "I cannot place that hand" is not the dead end', () => {
+  assert.equal(isConfused('I do not remember hand 700. It is not one of the three I have.'), false);
+  assert.equal(isConfused('I have no hand 700 on my list. Not one of mine.'), false);
+  assert.equal(isConfused('Hand 812, the queen-six. I called the 400 on the turn.'), false);
+});
+
+test('LIFE-3: it may never appear twice in one conversation', () => {
+  const a = busted({ chatHistory: [
+    { role: 'user', content: 'why did you go all in on that hand?' },
+    { role: 'assistant', content: WHICH_HAND },
+  ] });
+  assert.equal(confusionsBefore(a), 1);
+  const faults = faultsIn({ said: 'why???', reply: DEAD_END, agent: a });
+  assert.ok(faults.includes('repeatConfusion'), JSON.stringify(faults));
+  // And the repeat is graded even where the first one would not have been —
+  // a character with one string in it is the failure whatever the record says.
+  const nothing = { recentHands: [], sessionLog: [], chatHistory: a.chatHistory };
+  assert.ok(faultsIn({ said: 'why???', reply: DEAD_END, agent: nothing }).includes('repeatConfusion'));
+  // The first one, on a clean thread, is not a repeat.
+  assert.ok(!faultsIn({ said: 'why???', reply: DEAD_END, agent: busted() }).includes('repeatConfusion'));
+});
+
+test('LIFE-3: a question with no hand named is answered with the hand his night turned on', () => {
+  const a = busted();
+  for (const said of ['why did you go all in on that hand?', 'why???']) {
+    const fixed = repairReply(a, { said, faults: faultsIn({ said, reply: DEAD_END, agent: a }) });
+    assert.match(fixed, /Hand 812/, said);
+    // LIFE-3 job 3 turned this line from the identity of a hand into an answer
+    // to "why", so the cards arrive as the name he calls it by.
+    assert.match(fixed, /the queen-six/, said);
+  }
+});
+
+test('LIFE-3: the hand he NAMED is the hand he gets, not whichever is newest', () => {
+  const a = busted();
+  const named = repairReply(a, { said: 'tell me about hand 811', faults: ['deflection'] });
+  assert.match(named, /Hand 811/);
+  assert.doesNotMatch(named, /Hand 812/);
+  // This is the transcript's middle beat: he was asked about the queen-six and
+  // produced a different hand. Cards resolve exactly as a number does.
+  const byCards = repairReply(a, { said: 'queen six? the one you just busted on.', faults: ['deflection'] });
+  assert.match(byCards, /Hand 812/);
+});
+
+test('LIFE-3: two hands that fit get both names back, not a blank question', () => {
+  const twins = agent({ recentHands: [
+    bustHand(),
+    bustHand({ handNumber: 809, holeCards: ['Qc', '6s'], net: -100 }),
+  ] });
+  const line = repairReply(twins, { said: 'the queen six', faults: ['deflection'] });
+  assert.equal(line, 'The queen-six, or the queen-six?');
+  // It is a question, and it is not the dead end — it hands back two answers
+  // rather than the question itself.
+  assert.equal(isConfused(line), false);
+});
+
+test('LIFE-3: a hand he does not have is named, not shrugged at', () => {
+  const a = busted();
+  assert.match(repairReply(a, { said: 'what about hand 700?', faults: ['deflection'] }), /no hand 700/);
+  assert.match(repairReply(a, { said: 'what about the ace-king?', faults: ['deflection'] }), /did not play ace-king/);
+  // …and it never falls through to another hand, which would be the LIFE-2
+  // invention made by us instead of by him.
+  assert.doesNotMatch(repairReply(a, { said: 'what about hand 700?', faults: ['deflection'] }), /812/);
+});
+
+test('LIFE-3: law 6 is stated, and the prompt names the hand he is being asked about', () => {
+  const laws = talkLaws(busted(), { said: 'why did you go all in on that hand?' });
+  assert.match(laws, /NEVER ASK HIM WHICH HAND HE MEANS/);
+  assert.match(laws, /THE HAND HE IS ASKING ABOUT IS HAND 812 — the queen-six/);
+  assert.match(laws, /six laws/);
+  const ambiguous = talkLaws(agent({ recentHands: [bustHand(), bustHand({ handNumber: 809, holeCards: ['Qc', '6s'] })] }),
+    { said: 'the queen six' });
+  assert.match(ambiguous, /TWO OF YOUR HANDS FIT WHAT HE SAID/);
+  const unknown = talkLaws(busted(), { said: 'what about hand 700?' });
+  assert.match(unknown, /HE HAS NAMED A HAND THAT IS NOT ON YOUR LIST/);
+});
+
+// ── LIFE-3 job 3: he owns a bad call ────────────────────────────────────────
+
+test('LIFE-3: asked why a losing call, he gives the reason he actually had', () => {
+  const a = busted();
+  const said = 'why did you call there?';
+  const line = repairReply(a, { said, faults: ['deflection'] });
+  assert.match(line, /Hand 812, the queen-six/);
+  assert.match(line, /I put it all in on the turn/, 'the DECISIVE action, not the preflop one');
+  assert.match(line, /he has been firing every street/, 'his own reasoning, verbatim off the record');
+  assert.match(line, /Cost me 820/);
+});
+
+test('LIFE-3: he says he was steaming, because it is true and it is not the excuse', () => {
+  const line = ownSentence(bustHand());
+  assert.match(line, /I was steaming/);
+  assert.match(line, /I had been sitting there too long/);
+  // …and the ownership clause comes AFTER it, never instead of it.
+  assert.ok(line.indexOf('I was steaming') < line.indexOf('on me'), line);
+  assert.match(line, /that one is on me/);
+});
+
+test('LIFE-3: a clear head is said too, and the middle says nothing', () => {
+  const cool = bustHand({ why: { ...bustHand().why, heat: 15, stamina: 'fresh' } });
+  assert.match(ownSentence(cool), /I was clear-headed/);
+  const middling = bustHand({ why: { ...bustHand().why, heat: 45, stamina: 'settled' } });
+  assert.doesNotMatch(ownSentence(middling), /steaming|clear-headed|sitting there/);
+  assert.match(ownSentence(middling), /that one is on me/, 'he still owns it');
+});
+
+test('LIFE-3: it is never a shrug, a refusal or a blame on the cards', () => {
+  const a = busted();
+  const line = ownSentence(bustHand());
+  assert.equal(shapeOf(line) === 'deflection', false);
+  assert.equal(REFUSAL.test(line), false);
+  assert.equal(isConfused(line), false);
+  assert.doesNotMatch(line, /\b(?:ran bad|unlucky|bad beat|nothing i could do|variance)\b/i);
+  // And the repair has to survive the gate it came from, or the product would
+  // be rejecting its own answer.
+  assert.deepEqual(faultsIn({ said: 'why did you call there?', reply: line, agent: a }), []);
+});
+
+test('LIFE-3: a hand he won is owned too, and does not apologise for winning', () => {
+  const won = bustHand({ won: true, net: 620 });
+  assert.match(ownSentence(won), /Made me 620, and I would make that call again/);
+});
+
+test('LIFE-3: a hand with no why on file still answers, exactly as it did before', () => {
+  const old = bustHand({ why: null });
+  const line = ownSentence(old);
+  assert.match(line, /Hand 812 with Qh 6d/);
+  assert.match(line, /Board Qs 7d 2s Kc 3h/);
+  assert.equal(ownSentence(null), null);
+});
+
+// ── LIFE-3 job 4: the follow-up holds ───────────────────────────────────────
+
+/** Walk a conversation the way agentProfiles does: resolve, then note. */
+function thread(a, says, { now = Date.now() } = {}) {
+  return says.map((said) => {
+    const answer = answerFor(a, said, { now });
+    noteFocus(a, { said, answer, now });
+    return { said, how: answer.how, line: answer.line, focus: focusOf(a, { now }) };
+  });
+}
+
+test('LIFE-3: a bare "why" is a follow-up to the last answer, not a new question', () => {
+  const a = busted();
+  const [named, why, whyThat] = thread(a, ['tell me about hand 811', 'why???', 'why that']);
+  assert.equal(named.focus, 811);
+  assert.equal(why.how, 'focus');
+  assert.match(why.line, /Hand 811/, 'not 812, which is the notable hand');
+  assert.equal(whyThat.how, 'focus');
+  assert.match(whyThat.line, /Hand 811/, 'and it holds for the second follow-up too');
+  assert.equal(whyThat.focus, 811);
+});
+
+test('LIFE-3: the thread that opens with no hand named still holds the hand it found', () => {
+  const a = busted();
+  const walk = thread(a, ['why did you go all in on that hand?', 'why???', 'and?']);
+  assert.equal(walk[0].how, 'notable');
+  for (const turn of walk) assert.match(turn.line, /Hand 812/, turn.said);
+  assert.equal(walk.at(-1).focus, 812);
+});
+
+test('LIFE-3: naming a different hand moves the thread to it', () => {
+  const a = busted();
+  const walk = thread(a, ['why did you go all in on that hand?', 'what about the jack-ten?', 'why']);
+  assert.equal(walk[0].focus, 812);
+  assert.equal(walk[1].how, 'cards');
+  assert.equal(walk[2].how, 'focus');
+  assert.match(walk[2].line, /Hand 811/, 'the follow-up follows the hand he just moved to');
+});
+
+test('LIFE-3: changing the subject lets the hand go', () => {
+  const a = busted();
+  const walk = thread(a, ['tell me about hand 811', 'are you hungry?', 'why']);
+  assert.equal(walk[0].focus, 811);
+  assert.equal(walk[1].focus, null, 'a message about nothing to do with a hand drops it');
+  assert.equal(walk[2].how, 'notable', 'and the next "why" starts from the notable hand again');
+  assert.match(walk[2].line, /Hand 812/);
+});
+
+test('LIFE-3: a hand he does not have drops the thread rather than reviving the old one', () => {
+  const a = busted();
+  const walk = thread(a, ['tell me about hand 811', 'what about hand 700?', 'why']);
+  assert.equal(walk[1].how, 'unknown');
+  assert.equal(walk[1].focus, null);
+  assert.doesNotMatch(walk[2].line, /Hand 811/, 'he moved to a hand we cannot discuss; 811 is not the answer');
+});
+
+test('LIFE-3: the thread expires — "why" half an hour later is a new question', () => {
+  const a = busted();
+  const t0 = 1_700_000_000_000;
+  thread(a, ['tell me about hand 811'], { now: t0 });
+  assert.equal(focusOf(a, { now: t0 + FOCUS_TTL_MS - 1 }), 811);
+  assert.equal(focusOf(a, { now: t0 + FOCUS_TTL_MS + 1 }), null);
+  const late = answerFor(a, 'why', { now: t0 + FOCUS_TTL_MS + 1 });
+  assert.equal(late.how, 'notable', 'a man who has been away is not mid-sentence');
+});
+
+test('LIFE-3: what counts as a follow-up, and what is its own question', () => {
+  for (const said of ['why', 'why???', 'why not', 'why that', 'and?', 'so?', 'how come', 'go on', 'really?']) {
+    assert.ok(isFollowUp(said), said);
+  }
+  for (const said of ['why did you fold there', 'what happened in hand 811', 'are you hungry?', '']) {
+    assert.equal(isFollowUp(said), false, said);
+  }
+});
+
+test('LIFE-3: a record with no thread on it, or an old one, never throws', () => {
+  assert.equal(focusOf(null), null);
+  assert.equal(focusOf({}), null);
+  assert.equal(focusOf({ talkFocus: { handNumber: 'x', at: Date.now() } }), null);
+  assert.equal(focusOf({ talkFocus: { handNumber: 811 } }), null, 'no timestamp is an expired one');
+  assert.equal(noteFocus(null, { said: 'why' }), null);
 });

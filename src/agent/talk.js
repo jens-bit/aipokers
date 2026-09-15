@@ -46,6 +46,18 @@
 // admission that he does not know. A fallback that guessed would be a worse
 // failure than the flat reply it replaced.
 
+import { whyFact, statePhrase, actionPhrase } from './handWhy.js';
+// LIFE-3 job 2 - which hand he is being asked about, and the four words a hand
+// is named with. RANK_WORDS, WORD_TO_RANK, rankKey and handNumbersIn were this
+// file's; they moved to handRef.js because both files need them and a copy is a
+// second place to update. handNumbersIn is re-exported below, unchanged.
+import {
+  RANK_WORDS, WORD_TO_RANK, rankKey, handNumbersIn, resolveHand,
+  candidateQuestion, handNickname, nicknameForKey, isFollowUp, isAboutAHand,
+} from './handRef.js';
+
+export { handNumbersIn };
+
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
 // Words too common to count as answering anything.
@@ -184,6 +196,58 @@ export const STAGE_DIRECTION = /[*_]{1,2}[^*_\n]+[*_]{1,2}|\[[^\]\n]+\]/;
 // owner that his own agent answers by declining to answer.
 export const REFUSAL = /\b(?:i cannot answer that|i can'?t answer that|i'?m not able to|i am not able to|i can'?t help with (?:that|this)|i'?m unable to|as an ai|i don'?t feel comfortable|i'?d rather not (?:answer|discuss))\b/i;
 
+// ── LIFE-3 job 2: the dead end ──────────────────────────────────────────────
+//
+// "Man, I don't know what you're asking about — what happened?"
+//
+// Three times in one conversation, on a question that was perfectly clear in
+// context. It is not a refusal (REFUSAL above is the help-desk voice) and it is
+// not a deflection (it is a real question, so shapeOf calls it one) — which is
+// exactly why nothing in the gate ever caught it. It is its own failure: he has
+// handed the question back instead of answering it.
+//
+// A CLOSED LIST OF THE ACTUAL FORMS, like DEFLECTION above, rather than a
+// sentiment guess. Every clause here was either said in the transcript or is
+// the same sentence with a different noun in it.
+export const CONFUSED = new RegExp([
+  "(?:i )?don'?t know what (?:you'?re|you are|your) (?:asking|talking|on)",
+  "(?:i )?(?:have )?no idea what (?:you'?re|you are|you) (?:asking|talking|mean)",
+  "what (?:are you|you) (?:asking|talking|on) about",
+  "which hand (?:are you |you )?(?:talking|asking|mean|on)",
+  "which (?:one|hand) (?:do you mean|are you on about)",
+  "don'?t remember that one",
+  "what hand\?",
+  "what happened\?\s*$",
+].join('|'), 'i');
+
+/**
+ * Is this the dead end?
+ *
+ * NOT the same question as "does he say he cannot place a hand". "I do not
+ * remember hand 700, it is not one of the three I have" is the honest answer
+ * law 5 asks for and is not here, because it NAMES the hand it cannot place.
+ * The dead end is the reply that names nothing and asks the owner to start
+ * again.
+ */
+export function isConfused(text) {
+  return CONFUSED.test(clean(text));
+}
+
+/**
+ * How many times he has already said it in this conversation.
+ *
+ * `chatHistory` is the window, and it is the right one for free: agentProfiles
+ * already keeps the last twelve messages and no more, which is what "one
+ * conversation" means here. Counting it needs no new field, no new persistence
+ * and cannot grow - and the count is taken BEFORE the current exchange is
+ * pushed, so the reply being graded is never counted against itself.
+ */
+export function confusionsBefore(agent) {
+  const history = Array.isArray(agent?.chatHistory) ? agent.chatHistory : [];
+  return history.filter((m) => m?.role === 'assistant' && isConfused(m.content)).length;
+}
+
+
 /**
  * Grade one reply. Returns the list of laws it breaks, in the order they are
  * stated in the prompt — empty means it is fine.
@@ -198,7 +262,7 @@ export const REFUSAL = /\b(?:i cannot answer that|i can'?t answer that|i'?m not 
  * passed, `invention` is the fault, and it is the only one in the list that
  * says the reply is WRONG rather than badly shaped.
  */
-export function faultsIn({ said = '', reply = '', lastShapes = [], agent = null } = {}) {
+export function faultsIn({ said = '', reply = '', lastShapes = [], agent = null, focus = undefined } = {}) {
   const faults = [];
   const r = clean(reply);
   if (!r) return ['empty'];
@@ -210,6 +274,26 @@ export function faultsIn({ said = '', reply = '', lastShapes = [], agent = null 
   if (agent) {
     const made = inventedCitations(agent, { reply: r });
     if (made.numbers.length || made.holdings.length) faults.push('invention');
+  }
+  // LIFE-3 job 2 - the dead end, and the two different things wrong with it.
+  //
+  // `confusion` is the one that depends on the record: he handed the question
+  // back although there WAS an answer to give. With no record in hand it
+  // cannot be judged, and a caller that passes no agent gets the other faults
+  // exactly as it has since LIFE-2.
+  //
+  // A man who has played NO hands is still at fault here, and that is
+  // deliberate: he has an answer too, and it is "I have not played a hand yet,
+  // nothing to go over." The dead end is never the best he can do — it is only
+  // ever the thing he says instead of the answer he has.
+  //
+  // `repeatConfusion` does not depend on the record and is graded whether or
+  // not one is passed. Twice is the line: the first one may be the best he can
+  // do, the second is a character with one string in it. The transcript had
+  // three, word for word.
+  if (isConfused(r)) {
+    if (agent && answerFor(agent, said, { focus }).line) faults.push('confusion');
+    if (confusionsBefore(agent) > 0) faults.push('repeatConfusion');
   }
   return faults;
 }
@@ -286,6 +370,13 @@ export function handFact(hand) {
     came,
     line ? `your line: ${line}` : null,
     net,
+    // LIFE-3 job 1: and WHY. The fifth thing a hand is made of, and the one an
+    // owner asks about most. It was on the record — every decision has carried
+    // a `reasoning` string since the first model call — and it stopped here,
+    // where the line was rebuilt as actions with the reasons stripped out. A
+    // hand recorded before this tree has no `why` and prints exactly what it
+    // printed before.
+    whyFact(hand.why) || null,
   ].filter(Boolean).join(' — ');
 }
 
@@ -338,9 +429,6 @@ export function handFact(hand) {
 // sentence. NOT_MINE below is the same admission vocabulary answersQuestion
 // already accepts, and it stands the whole check down.
 
-const RANK_WORDS = 'ace|king|queen|jack|ten|nine|eight|seven|six|five|four|three|deuce|two';
-const HAND_NUMBER = /(?:\bhands?\s*(?:number\s*)?#?\s*|#)(\d{1,6})\b/gi;
-
 // The four ways he says a holding is his, as one alternation: a card-code pair
 // ("Ah Kd"), a two-rank word pair ("ace king"), or a plural rank ("aces",
 // "sixes" — the `e?s` is for that one). `pocket`/`a pair of` are optional
@@ -358,13 +446,6 @@ const MY_HOLDING = new RegExp(
 // when a hand is not on his list.
 const NOT_MINE = /\b(?:i don'?t know|do not know|no idea|not sure|can'?t remember|cannot remember|don'?t remember|do not remember|never played|not (?:one of )?mine|not on (?:my|the) list|no such hand|have not played)\b/i;
 
-const WORD_TO_RANK = {
-  ace: 'A', king: 'K', queen: 'Q', jack: 'J', ten: 'T', nine: '9', eight: '8',
-  seven: '7', six: '6', five: '5', four: '4', three: '3', deuce: '2', two: '2',
-};
-
-const rankKey = (a, b) => [String(a).toUpperCase(), String(b).toUpperCase()].sort().join('');
-
 /** Every holding the SPEAKER claims as his own, as unordered rank keys. */
 export function claimedHoldings(text) {
   const out = new Set();
@@ -381,13 +462,6 @@ export function claimedHoldings(text) {
       if (r) out.add(rankKey(r, r));
     }
   }
-  return out;
-}
-
-/** Every hand NUMBER named in a string. */
-export function handNumbersIn(text) {
-  const out = new Set();
-  for (const m of String(text ?? '').matchAll(HAND_NUMBER)) out.add(Number(m[1]));
   return out;
 }
 
@@ -488,7 +562,7 @@ const SHAPE_ADVICE = Object.freeze({
  * one that does, and because law 5's failure mode — a hand he did not play,
  * described convincingly — is the one an owner cannot detect by reading.
  */
-export function talkLaws(agent, { said = '', lastShapes = [] } = {}) {
+export function talkLaws(agent, { said = '', lastShapes = [], focus = undefined } = {}) {
   const shapes = lastShapes.length
     ? `\nYour last ${lastShapes.length === 1 ? 'reply was' : 'two replies were'} `
       + `${lastShapes.map((s) => SHAPE_ADVICE[s] ?? s).join(', then ')}. `
@@ -512,9 +586,33 @@ export function talkLaws(agent, { said = '', lastShapes = [] } = {}) {
     : '\nYou have played no hands. You have nothing to describe, and if he asks '
       + 'about one you say so plainly rather than reaching for a hand.';
 
+  // LIFE-3 job 2: WHICH hand he is being asked about, worked out before the
+  // call rather than left to him. The resolver is the same one the gate grades
+  // him with (handRef.js), so the prompt and the repair can never disagree
+  // about which hand is meant — and disagreeing is exactly what produced the
+  // transcript's middle beat: asked about the queen-six, he described a
+  // different hand, and both halves of the product thought they were right.
+  const answer = answerFor(agent, said, { focus });
+  const nick = answer.hand ? handNickname(answer.hand) : null;
+  let which = '';
+  if (answer.hand) {
+    which = `\nTHE HAND HE IS ASKING ABOUT IS HAND ${answer.hand.handNumber}`
+      + `${nick ? ` — the ${nick}` : ''}. `
+      + `${answer.how === 'notable'
+        ? 'He did not name one, and that is the hand your night turned on, so it is the one he means.'
+        : 'He named it.'}`
+      + ' Answer about THAT hand and no other, and say which hand you mean as you answer.';
+  } else if (answer.how === 'ambiguous') {
+    which = '\nTWO OF YOUR HANDS FIT WHAT HE SAID. Name them both back to him and let '
+      + 'him pick — "the queen-six, or the jack-ten?" — rather than asking him a blank question.';
+  } else if (answer.how === 'unknown') {
+    which = '\nHE HAS NAMED A HAND THAT IS NOT ON YOUR LIST. Say which one you do not '
+      + 'have, plainly and by name. That is an answer; asking him what he means is not.';
+  }
+
   return `
 
-HOW YOU TALK — five laws, and each one exists because of a reply that failed.
+HOW YOU TALK — six laws, and each one exists because of a reply that failed.
 
 1. ANSWER WHAT HE ACTUALLY SAID. Not the topic, the question. "Yeah,
    whatever, I'm filming" is the failure: it answers nothing, knows nothing
@@ -540,6 +638,18 @@ HOW YOU TALK — five laws, and each one exists because of a reply that failed.
    it is a better story and it is not yours, and your owner has the hand history
    in front of him.${citable}
 
+6. NEVER ASK HIM WHICH HAND HE MEANS. "I don't know what you're asking about
+   — what happened?" is the failure, and it is the worst line in this file:
+   it hands the question straight back to the man who asked it, and he has
+   already told you everything he is going to. There is ALWAYS an answer. If
+   he named a hand, that is the hand. If he named none, it is the hand your
+   night turned on — the all-in, the bust, the biggest pot — and you name it
+   as you answer so he knows which one you mean. If two of your hands
+   genuinely fit what he said, say both back to him and let him pick. If he
+   is asking about a hand you do not have, say WHICH hand you do not have.
+   And if he only says "why", he is still asking about the hand the two of
+   you were just talking about — do not start the conversation over.${which}
+
 If he insults you or types nonsense, answer it IN CHARACTER — needle him back,
 be unimpressed, be amused, be whatever your nature is. You are never a
 help desk and you never refuse to play along. There is no message from your
@@ -547,6 +657,86 @@ owner that you answer by declining to answer.`;
 }
 
 // ── The repair ──────────────────────────────────────────────────────────────
+
+/**
+ * WHAT HE OWES THIS QUESTION — one place, one answer, every time.
+ *
+ * LIFE-3 job 2. Before this, the question "which hand is he being asked about"
+ * was answered nowhere: the prompt showed him three hands and left him to pick,
+ * and the repair reached for `recentHands[0]` because that is the only hand a
+ * one-line fallback can name without thinking. So an owner who NAMED a hand got
+ * whichever one happened to be newest, and an owner who named none got a
+ * question back.
+ *
+ * Now it resolves (handRef.js) and there is always an answer:
+ *
+ *   he named a hand that is his        the hand
+ *   he named a hand that is not        that he has no such hand — by its
+ *                                      number or its cards, because "I have no
+ *                                      hand 700" is an answer and "I cannot
+ *                                      place it" is a shrug with better manners
+ *   two of his fit what he said        both of them, as a question that moves
+ *                                      forward: "The queen-six, or the
+ *                                      jack-ten?"
+ *   he named none, and asked           the most recent notable hand: the
+ *                                      all-in, the bust, the biggest pot
+ *   he asked about the night           the last session
+ *   he has never played                so, plainly
+ *
+ * `line` is null only when there is genuinely nothing honest to say, and that
+ * null is load-bearing twice over: repairReply leaves his own sentence standing
+ * rather than replacing it with a template, and faultsIn uses it to decide
+ * whether the dead end was a fault at all. He is not at fault for not knowing
+ * what he was never told.
+ *
+ * @returns {{ line: string|null, how: string, hand: object|null }}
+ */
+export function answerFor(agent, said = '', { focus = undefined, now = Date.now() } = {}) {
+  const hands = (Array.isArray(agent?.recentHands) ? agent.recentHands : []).slice(0, SELF_FACT_HANDS);
+  // LIFE-3 job 4: the hand they are already on, unless the caller names one.
+  // Reading it off the record by default is what makes the thread hold without
+  // every call site having to remember to pass it; `focus: null` is still an
+  // explicit "start fresh" for a caller that wants one.
+  const held = focus === undefined ? focusOf(agent, { now }) : focus;
+  const res = resolveHand(hands, said, { focus: held });
+  const log = Array.isArray(agent?.sessionLog) ? agent.sessionLog : [];
+  const last = log[log.length - 1];
+
+  if (res.how === 'ambiguous') {
+    const q = candidateQuestion(res.candidates);
+    if (q) return { line: q, how: res.how, hand: null };
+  }
+  // LIFE-3 job 3: ownSentence rather than handSentence. The question that
+  // reaches this line is nearly always "why", and the identity of a hand is not
+  // an answer to it. It degrades to handSentence for a hand with no why on file.
+  if (res.hand) return { line: ownSentence(res.hand), how: res.how, hand: res.hand };
+
+  if (res.how === 'unknown') {
+    // He named something and it is not on the list. Say WHAT is not on it.
+    const n = res.asked.numbers[0];
+    if (Number.isFinite(n)) return { line: `I have no hand ${n} on my list. Not one of mine.`, how: res.how, hand: null };
+    const nick = nicknameForKey(res.asked.holdings[0]);
+    return {
+      line: nick ? `I did not play ${nick}. Not one of mine.` : 'That is not one of mine. I do not have it.',
+      how: res.how, hand: null,
+    };
+  }
+
+  // Nothing about a hand resolved. Two honest things are left.
+  if (!hands.length && ABOUT_A_HAND.test(said)) {
+    return { line: 'I have not played a hand yet. Nothing to go over.', how: 'empty', hand: null };
+  }
+  if (last && /\bsession\b|\bnight\b|\bhow did (?:it|you)\b|\bgo\b/i.test(said)) {
+    const net = Math.round(Number(last.net) || 0);
+    return {
+      line: net >= 0
+        ? `Last one I came out ${net} up over ${last.hands} hands. I will take it.`
+        : `Last one cost me ${Math.abs(net)} over ${last.hands} hands. Not my best work.`,
+      how: 'session', hand: null,
+    };
+  }
+  return { line: null, how: res.how, hand: null };
+}
 
 /**
  * A reply built from the facts, for when the graded one cannot be used.
@@ -561,44 +751,37 @@ owner that you answer by declining to answer.`;
  */
 const ABOUT_A_HAND = /\bhand\b|\bplay(ed)?\b|\bwhy\b|\bwhat happened\b/i;
 
-export function repairReply(agent, { said = '', faults = [] } = {}) {
+export function repairReply(agent, { said = '', faults = [], focus = undefined } = {}) {
   if (!faults.length) return null;
-  const hand = (Array.isArray(agent?.recentHands) ? agent.recentHands : [])[0];
-  const log = Array.isArray(agent?.sessionLog) ? agent.sessionLog : [];
-  const last = log[log.length - 1];
+  const answer = answerFor(agent, said, { focus });
 
   // LIFE-2 job 2 — he made one up, and this is the branch that decides what he
   // gets instead. It is FIRST because it is the only fault where the reply was
   // not weak but false, and a false sentence has to go whatever else is right
   // about it. He is handed the real hand in the same breath, so being caught
   // out costs him the story and not the conversation.
+  //
+  // LIFE-3 job 2: the hand he is handed is now the one he was ASKED about
+  // rather than simply the newest, which is the difference between a
+  // correction and a second wrong answer.
   if (faults.includes('invention')) {
-    if (hand) return `${handSentence(hand)} That is the one, whatever I just said.`;
+    // The hand he was ASKED about where one resolved, and otherwise the newest
+    // one he has — because a man caught inventing a hand is owed a REAL hand,
+    // and a session summary is not one. A message that named no hand at all
+    // ("how did the session go?" answered with a hand he never played) still
+    // has to be corrected with something off the record.
+    const real = answer.hand ?? (Array.isArray(agent?.recentHands) ? agent.recentHands : [])[0];
+    if (real) return `${handSentence(real)} That is the one, whatever I just said.`;
     // …and with nothing behind him, the plain thing. Never a hand, never a
     // hedge that sounds like one — see NO_HANDS_LINE, which is the same claim
     // made to the model.
     return 'I have not played a hand yet. There is nothing for me to tell you about.';
   }
 
-  // He was asked something and dodged it. Answer it with the nearest real fact.
-  if (ABOUT_A_HAND.test(said) && hand) return handSentence(hand);
-
-  // LIFE-2 job 2: and asked about a hand with nothing behind him, he says so
-  // rather than saying nothing. This used to fall through to `return null` and
-  // leave his own evasion standing, which is the one case where the evasion was
-  // not laziness — he genuinely had nothing — and still the wrong answer.
-  if (ABOUT_A_HAND.test(said) && !hand) {
-    return 'I have not played a hand yet. Nothing to go over.';
-  }
-
-  if (/\bsession\b|\bnight\b|\bhow did (?:it|you)\b|\bgo\b/i.test(said) && last) {
-    const net = Math.round(Number(last.net) || 0);
-    return net >= 0
-      ? `Last one I came out ${net} up over ${last.hands} hands. I will take it.`
-      : `Last one cost me ${Math.abs(net)} over ${last.hands} hands. Not my best work.`;
-  }
-
-  return null;
+  // Everything else the gate catches — the dodge, the shrug, the dead end — is
+  // the same repair, because they are the same failure: a question with an
+  // answer available got something other than the answer.
+  return answer.line;
 }
 
 /**
@@ -624,4 +807,133 @@ function handSentence(hand) {
   return hand.won
     ? `Hand ${hand.handNumber}${held} — I took ${hand.potSize} off him.${came} That one I got right.`
     : `Hand ${hand.handNumber}${held} — pot was ${hand.potSize}.${came} I have been over it.`;
+}
+
+// ── LIFE-3 job 3: he owns it ────────────────────────────────────────────────
+
+const trimEnd = (s) => String(s ?? '').replace(/[\s.!,;:—-]+$/, '');
+
+/**
+ * One real hand WITH THE REASON HE PLAYED IT THAT WAY.
+ *
+ * handSentence above is the identity of a hand — the cards, the board, the
+ * number. It is what you say when the question is "which hand"; it is not what
+ * you say when the question is "why". Asked why he made a call that lost, a man
+ * who answers "Hand 812 with Qh 6d — cost me 820" has recited the hand history
+ * back, which is a different failure from the shrug but is not an answer either.
+ *
+ * WHAT THIS SAYS, in the order he would say it:
+ *
+ *   WHICH HAND     by number and by name, so the owner knows they are talking
+ *                  about the same one — law 6's other half.
+ *   WHAT HE DID    the decisive action, off the stored why (handWhy.js): the
+ *                  call for 400 on the turn, not the raise to 60 preflop.
+ *   WHY HE DID IT  his own reasoning, VERBATIM off the record, from the model
+ *                  call or the compiled policy that actually made the decision.
+ *                  It is his sentence and it is not rewritten here.
+ *   HOW HE WAS     the heat and the tiredness, but only at the edges, and only
+ *                  when they are on file (statePhrase). "I was steaming" is
+ *                  true, it is the character, and it is not an excuse — it is
+ *                  the thing before the last clause rather than instead of it.
+ *   AND IT IS HIS  what it cost, and that he owns it.
+ *
+ * THE LAST CLAUSE IS THE WHOLE POINT. A loss ends with "that one is on me" —
+ * never a shrug, never the cards. "I ran bad" is the sentence this function
+ * exists to make impossible: the record holds what he DECIDED, so the decision
+ * is what he answers with, and the cards are context rather than a defendant.
+ * He is allowed to say he was steaming because that is a fact about him; he is
+ * not allowed to stop there, which is why the ownership clause comes after it
+ * and not in place of it.
+ *
+ * Falls back to handSentence for a hand recorded before LIFE-3, which has no
+ * why to speak from — the same additive rule every field in this tree follows.
+ */
+export function ownSentence(hand) {
+  if (!hand) return null;
+  const why = hand.why;
+  if (!why) return handSentence(hand);
+
+  const nick = handNickname(hand);
+  const parts = [`Hand ${hand.handNumber}${nick ? `, the ${nick}` : ''}.`];
+
+  const act = actionPhrase(why);
+  // "preflop" is an adverb and the other three are places: "I raised to 60
+  // preflop", but "I called 400 on the turn". One line, and without it every
+  // opening raise he explains reads as "on the preflop".
+  const where = !why.street ? ''
+    : (why.street === 'preflop' ? ' preflop' : ` on the ${why.street}`);
+  const reason = trimEnd(why.reasoning);
+  if (act) parts.push(reason ? `I ${act}${where} — ${reason}.` : `I ${act}${where}.`);
+  else if (reason) parts.push(`${reason}.`);
+
+  const state = statePhrase(why);
+  if (state) parts.push(`${state}.`);
+
+  if (Number.isFinite(hand.net)) {
+    const n = Math.abs(Math.round(hand.net));
+    parts.push(hand.net >= 0
+      ? `Made me ${n}, and I would make that call again.`
+      : `Cost me ${n}, and that one is on me.`);
+  } else {
+    parts.push(hand.won ? 'It came in.' : 'It missed, and that was my call to make.');
+  }
+  return parts.join(' ');
+}
+
+// ── LIFE-3 job 4: the hand under discussion ─────────────────────────────────
+//
+// "Why???" is a follow-up to HIS OWN LAST ANSWER, not a new question, and the
+// transcript's third beat is what it costs when nothing carries the subject
+// across a turn: he was asked why, and started the conversation over.
+//
+// ONE FIELD, two numbers, and no growth: the hand number the two of them are
+// on, and when it was set. It rides on the agent record beside `lastReplyShapes`
+// (LIFE-1) and `chatHistory` (which the repeat rule already reads), and it is
+// overwritten rather than appended to.
+//
+// IT EXPIRES, and that is the difference between a thread and a rut. Half an
+// hour after the last hand was named, "why?" is not a follow-up to anything —
+// it is a new question from a man who has been away, and answering it with
+// this morning's hand would be the same failure as answering it with nothing.
+// The slice ages it out on its own eventually (a hand falls off the three
+// selfFacts shows him), but a clock is the honest bound and it is testable
+// because `now` is an argument everywhere below.
+export const FOCUS_TTL_MS = 30 * 60 * 1000;
+
+/** The hand they are on, or null. Never throws on an old or absent record. */
+export function focusOf(agent, { now = Date.now() } = {}) {
+  const f = agent?.talkFocus;
+  if (!f || !Number.isFinite(Number(f.handNumber))) return null;
+  if (!Number.isFinite(Number(f.at)) || now - Number(f.at) > FOCUS_TTL_MS) return null;
+  return Number(f.handNumber);
+}
+
+/**
+ * Move the subject, hold it, or let it go — decided after the reply, from what
+ * was asked and what he answered with.
+ *
+ *   A HAND ANSWERED     that is the hand they are on now, whether he arrived
+ *                       at it by number, by cards, by the notable ladder or by
+ *                       the focus itself. Re-stamped each turn, so a
+ *                       conversation that stays on one hand stays alive.
+ *   STILL ON IT         a follow-up, or another question about a hand, that
+ *                       resolved to nothing keeps whatever was there. He has
+ *                       not moved on; he has asked something we could not
+ *                       place.
+ *   HE CHANGED SUBJECT  anything else drops it. So does `unknown` — he has
+ *                       moved to a hand that is not ours, and a later "why"
+ *                       belongs to that, not to the one before it.
+ */
+export function noteFocus(agent, { said = '', answer = null, now = Date.now() } = {}) {
+  if (!agent) return null;
+  if (answer?.hand && Number.isFinite(Number(answer.hand.handNumber))) {
+    agent.talkFocus = { handNumber: Number(answer.hand.handNumber), at: now };
+    return agent.talkFocus.handNumber;
+  }
+  if (answer?.how === 'unknown') { agent.talkFocus = null; return null; }
+  if (isFollowUp(said) || isAboutAHand(said) || answer?.how === 'ambiguous') {
+    return focusOf(agent, { now });
+  }
+  agent.talkFocus = null;
+  return null;
 }
