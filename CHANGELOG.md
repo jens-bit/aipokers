@@ -1,8 +1,44 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
-## 0.16.0 candidate — he asks for what he wants, and he cites a real hand (2026-09-15)
+## 0.16.0 candidate, two — the money has a drain, and he knows why he did it (2026-09-15)
 
-One branch, five commits, `1e26f62..HEAD`. Merged as MERGE-10 and gated.
+Three branches, sixteen commits, `1e26f62..HEAD`. Merged as MERGE-10 and
+MERGE-11, gated after each merge.
+
+**The money stops leaking and starts draining (MONEY-2, `9673e58`).** Three
+free-seat faucets are closed, including the one Jens hit himself: a `POST
+/queue` reservation wrote `activeTableId`, and the buy-in rail read that as a
+receipt, so he sat down on chips nobody had paid for. The admission gate —
+cut off? refill him; still broke? refuse, and say why — lived inside
+`deployAgent` and nowhere else; it is `admitToFelt()` now and both doors call
+it. And the house takes a rake at last: 1% of each pot capped at 3 big blinds,
+off the winner's stack as it is awarded, at casino tables only and never at
+the kitchen table. `RAKE_PERCENT=0` switches it off without a deploy. The
+wallet cache was the other suspect and was cleared by measurement rather than
+by argument. The sinks are decided and the open questions named in
+MONEY_AUDIT.md §19.
+
+**He knows why he did it (LIFE-3, `e654367`).** The reason travels with the
+decision instead of being reconstructed afterwards, so "why did you call
+there?" is answered from what he actually held. He works out WHICH hand you
+mean — "that one against the Shark", "the big pot", "just now" — rather than
+handing the question back. He owns a bad call. A follow-up stays on the same
+hand. And "I can't help with that" is a test failure now, not something to
+notice in a playtest: `talk-eval.js` walks whole threads, because the failure
+it is written against only exists across turns.
+
+**Chip conservation with rake and the faucet fixes running together for the
+first time: delta 0.** 350 hands across ten households on a fresh scratch DB
+with no key, and the total never moved across 1,569 samples — 50,400,000 in
+and 50,400,000 out. The rake is visibly working inside that total rather than
+against it: against the same run at MERGE-10, pockets finish at 196,825
+instead of 201,290 and the house bank at 50,003,175 instead of 49,998,710.
+Chips moved to the house; no chips were made or lost. (`diff` reads 400,000
+because the seeded opening balances were never written to a ledger, which is
+what `audit-chips.js`'s own header says to expect.)
+
+The two sections below are the per-queue detail for those; LIFE-2's is the
+body of this section, from MERGE-10.
 
 LIFE-2 itself is server only — `git diff --stat main -- client/` on the branch
 is empty. No new dependencies, no model call added on any path, and the cost
