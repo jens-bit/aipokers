@@ -1,5 +1,5 @@
 # Bug Report — Railbird
-Last updated: 2026-09-15 (MONEY-2 on `fix/money-2` filed BUG-214/215/216 — the third faucet and the two doors that had no admission gate — plus BUG-217 and the rake's own rule change; release 0.15.0 — CI-FIX gated the candidate and closed BUG-55 a second time; MERGE-8 merged ADMIN-2 and fix/ui-nav-2, whose three bugs are renumbered BUG-210/211/212 and one of which, BUG-211, is deliberately held back); statuses and evidence below.
+Last updated: 2026-09-15 (MONEY-2 on `fix/money-2` filed BUG-215/215/216 — the third faucet and the two doors that had no admission gate — plus BUG-218 and the rake's own rule change; release 0.15.0 — CI-FIX gated the candidate and closed BUG-55 a second time; MERGE-8 merged ADMIN-2 and fix/ui-nav-2, whose three bugs are renumbered BUG-210/211/212 and one of which, BUG-211, is deliberately held back); statuses and evidence below.
 Named BUG headings: 212 (208 distinct numbers), including the two historically reused BUG-121 headings and the two BUG-55 follow-up headings. Recounted from this file at MERGE-7 — both branch sides carried a stale figure (197 on fix/money-integrity, 191 on feat/agent-life) and main already stood at 198. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
 
 ### BUG-55 (second regression) — the kitchen table stopped opening again, by a different route — FIXED at CI-FIX
@@ -120,7 +120,7 @@ Not a bug: a deliberate product change, recorded here because Testing law #5 req
 
 **One thing the rake got right the second time, and it is worth knowing about.** The first version raked `result.pot`, which on a hand that ends to a fold still contains the winner's own uncalled bet: raise 300 into a 20 blind, everybody folds, `pot` is 320 and what he actually won is 20. At the default setting that took twelve chips out of a twenty-chip win — out of his own stack. No cardroom rakes an uncalled bet and none of them calls that an exception: the uncalled portion is pushed back before the pot is counted. `table.js _rakeablePot` is that, and `rake.test.js`'s "a winner is never raked on his own uncalled bet" is the regression.
 
-### BUG-217 — the felt does not draw the rake, only the history sheet says it — OPEN (client)
+### BUG-218 — the felt does not draw the rake, only the history sheet says it — OPEN (client)
 MONEY-2 job 3 puts the cut on the wire (`result.rake = { total, bySeat, percent, capBb, bigBlind }` on every `HAND_RESULT`) and names it on the thread's result line ("GRANITE won 1000 at showdown — 50 to the house"). The WATCH screen's own result moment does not read it, so an owner watching a hand live sees the pot pushed and the stack land 50 light with nothing on screen saying why; he has to open the history to find out. The server half is done and the queue was server-only. The client change is to read `result.rake?.total` where the pot is announced and print the same phrase `rakeLine()` already produces, so the felt and the history cannot describe one cut two ways.
 
 ### MONEY-2 — one unidentified red in six full `npm test` runs, and 978 stressed spawns that found nothing — NOTED
@@ -130,7 +130,9 @@ On `fix/money-2`, after job 4: one full `npm test` came back `pass 165 / fail 1`
 
 That leaves BUG-34's family — a whole-run native abort under concurrency — as the only candidate, and 978 clean spawns say it is quiet today. Filed so the next person who sees a nameless `fail 1` on this branch starts from a measurement rather than a mystery. Not chased further: the evidence is one occurrence, and `scripts/stress-suites.js` is the tool that would have caught it if it were mine.
 
-### BUG-214 — the third faucet: `POST /queue` writes `activeTableId`, and the buy-in rail read it as a receipt — FIXED on `fix/money-2` (MONEY-2 job 1)
+*(Numbered 215-218 rather than 214-217: `main` moved while this branch was being built and had already used BUG-214 for an unrelated defect — the same race MERGE-7 and MERGE-8 resolved the same way. The tests keep the ids they were filed under.)*
+
+### BUG-215 — the third faucet: `POST /queue` writes `activeTableId`, and the buy-in rail read it as a receipt — FIXED on `fix/money-2` (MONEY-2 job 1)
 Jens, playtesting after MONEY-1 shipped: "his agent ran out of chips, was topped back up, and the safe did not move at all."
 
 **Measured, not inferred.** `src/server/money2Faucets.test.js` "MONEY-2: queue then WATCH takes one buy-in, not none" drives the exact door the casino screen uses and was red before the fix: pocket `6000 !== 4000`, i.e. a 2,000 stack appeared on the felt and no pocket paid for it.
@@ -141,13 +143,13 @@ It cut the other way too, and that half was invisible: `finishAgentSession`'s op
 
 **Fix**, `agentProfiles.js` `chargeSeatBuyIn`: the open stay is the only proof of payment. The `activeTableId` clause is deleted. It was redundant for the case it was written for — a deploy writes the `buyin` ledger line as well as the field, so the open stay already covers a watcher attaching to his own deployed seat — and for queue it was the whole bug. The record is a cache of where he is; only the ledger is a receipt.
 
-### BUG-215 — JOIN with `wantAI` seats an owner's agent for nothing — FIXED on `fix/money-2` (MONEY-2 job 1)
+### BUG-216 — JOIN with `wantAI` seats an owner's agent for nothing — FIXED on `fix/money-2` (MONEY-2 job 1)
 MONEY_AUDIT.md §6.2 row 4, left open by MONEY-1, which closed row 3 (WATCH) and not this one. `wsServer.js`'s JOIN handler, when the client sends `wantAI: true` with an `agentId` (the vs-You flow), calls `table.maybeAutoSeatAI`, which called `seatAI` with no `buyIn` at all — `bigBlind * 100` out of the air, in front of a seat that carries an `agentId` and will therefore be settled by `finishAgentSession`. Red first as `money2Faucets.test.js` "MONEY-2: JOIN with wantAI pays for the seat it takes" (pocket `6000 !== 4000`).
 
 **Fix**, `table.js` `maybeAutoSeatAI`: the same rail as the other two doors — `chargeSeatBuyIn`, seat the amount that was actually charged, and throw on a refusal exactly as `addSpectator` does. The kitchen table is excluded on the same line every other money rule draws. `wsServer.js` catches the refusal, reports it to the client and calls `scheduleHouseFallback()`, so an owner who cannot afford to send his own man still gets a game and is told why it is not his man he is playing.
 
-### BUG-216 — `/queue` marked a broke or cut-off agent `playing` and pointed him at a felt — FIXED on `fix/money-2` (MONEY-2 job 1)
-The admission gate — cut off? refill him; still broke? refuse, with the reason — lived inside `deployAgent` and nowhere else. `/queue` asked a narrower question: it refused a room the pocket could not cover, but **only when the owner had named a room**, and it never looked at the refill toggle or at whether the owner had cut him off. An agent with 300 chips and an empty safe could be marked `playing`, pointed at a table, and (with BUG-214) seated on chips nobody owned.
+### BUG-217 — `/queue` marked a broke or cut-off agent `playing` and pointed him at a felt — FIXED on `fix/money-2` (MONEY-2 job 1)
+The admission gate — cut off? refill him; still broke? refuse, with the reason — lived inside `deployAgent` and nowhere else. `/queue` asked a narrower question: it refused a room the pocket could not cover, but **only when the owner had named a room**, and it never looked at the refill toggle or at whether the owner had cut him off. An agent with 300 chips and an empty safe could be marked `playing`, pointed at a table, and (with BUG-215) seated on chips nobody owned.
 
 **Fix**: the gate is lifted into `agentProfiles.js` `admitToFelt(userId, agent)`, exported and called by both doors. Same refusal shape deploy has always sent, so the client already knows how to draw it — and it carries `required`, the pocket, and the man's own line about being out, which is MONEY-2's rule that the owner must be able to SEE why. Three red-first cases in `money2Faucets.test.js`: a named room, no room at all, and a cut-off pocket.
 
