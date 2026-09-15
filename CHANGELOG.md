@@ -62,6 +62,14 @@ The sections below, down to `0.14.0 — THE SHOW`, are the per-queue detail for
 this release.
 
 
+## Admin write panel — local candidate (2026-09-14)
+
+- **A second, write-capable panel beside the read-only dashboard.** Adjust or reset an owner's chips (mandatory reason, balanced ledger entry), page his full ledger, rename an agent, hide or unhide him from the roster reversibly, unseat him from a table, and force his fatigue or mood — all behind the same `x-admin-key` header ADMIN-1 already required, all 404 with the key unset.
+- **Its own guard for writes.** A separate, tighter rate window than the read dashboard's, keyed to the real calling client rather than to the shared key everyone types, and a 401 (not the read panel's 403) on a wrong key.
+- **Every write leaves a line.** An append-only audit log — when, a one-way hash of which key, what happened, on whom, why, and the before/after — readable in the panel and never carrying the key itself.
+- **Confirm is mandatory on anything destructive.** A reset, a retire, an unseat, or a debit — none of them execute without an explicit confirm field.
+- **Two things recorded as gaps instead of built.** A reversible retire could not reuse the product's real one-way retirement (which also collects the agent's pocket into the wallet and is documented as not undoable); this one toggles the same roster-hiding flag without touching money instead, which is what makes the undo honest. Forcing an agent's "routine" directly has no lever — nothing stores one — so only fatigue and mood are force-able for real.
+
 ## Chips you can believe — local candidate (2026-09-14)
 
 Jens playtested prod and reported that the money is not credible: tables advertised at a 2,000 or 5,000 buy-in with agents sitting behind ~30,000, nothing visibly leaving the safe when an agent buys in, a safe that often refuses to be read, and one agent apparently at two tables. All four turned out to be one family of defect, traced in `read-me-claude/MONEY_AUDIT.md` before anything was changed.

@@ -30,6 +30,7 @@ import { adminStats } from './stats.js';
 import {
   ownerRows, recentBirths, OWNER_SORTS, OWNER_ROWS_DEFINITION, RECENT_BIRTHS_DEFINITION,
 } from './owners.js';
+import { installAdminWriteRoutes } from './opsRoutes.js';
 
 export function installAdminRoutes(app, { now = () => Date.now() } = {}) {
   // Mounted before the routes below it, so that everything an owner's client
@@ -68,6 +69,10 @@ export function installAdminRoutes(app, { now = () => Date.now() } = {}) {
       rows: recentBirths({ limit: req.query.limit }),
     });
   });
+
+  // ADMIN-2: the write panel, alongside this read one. Same key, its own
+  // tighter/separate rate window — see opsRoutes.js and writeGuard.js.
+  installAdminWriteRoutes(app);
 
   // GET /admin — the page.
   //

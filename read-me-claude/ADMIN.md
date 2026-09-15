@@ -249,3 +249,28 @@ only ever cost a counter, never a hand.
 
 The page is deliberately one static file with no build step: it has to work the
 day the client build is broken, which is exactly the day somebody opens it.
+
+---
+
+## The write panel (ADMIN-2)
+
+A second panel on the same page, same `x-admin-key` header, same "unset means
+404" rule — but it can change a chip, an agent's name, whether he is on the
+roster, and whether he is seated. **This is why the read-only key must be
+rotated before the write panel is trusted with anything**: the key that has
+been guarding `/api/admin/stats` has, by ADMIN-1's own design, been pasted
+into chat windows and terminals as a read-only convenience. A key that has
+been in a chat window is burned (see `HOW_WE_WORK.md`'s own rule for every
+other secret in this project) — and a burned key sitting in front of a panel
+that can now move money and hide agents is a materially bigger blast radius
+than the same key sitting in front of a read-only dashboard. Generate a new
+`ADMIN_KEY`, put it in `.bashrc` in place of the old one, and treat the old
+value as compromised the moment this panel ships — not because anything
+leaked, but because the old key's threat model (read-only convenience) is not
+the one it is being asked to hold now.
+
+Everything else about the write panel — its own tighter/separate rate limit,
+its 401 on a wrong key, the audit log, the confirm requirement on destructive
+actions, and the two recorded gaps (a reversible retire that never collects
+money, and no direct setter for an agent's "routine") — is in
+`src/server/admin/ops.js`'s own header and in `BUGS.md`'s ADMIN-2 entry.
