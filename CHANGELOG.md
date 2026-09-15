@@ -1,5 +1,64 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Unreleased — he asks for what he wants, and he cites a real hand (LIFE-2)
+
+On `feat/agent-life-2`, four jobs, not yet merged. Server only: `git diff
+--stat main -- client/` is empty. No new dependencies, no model call added on
+any path, and the cost router is untouched — one talk call per hand when
+watched, none when unwatched.
+
+- **He asks for what he wants, in his own voice (job 1).** Real players could
+  not tell what they were supposed to do. Nothing here adds a want: the ladder
+  has ranked his one most pressing ask since WANTS-1 and every projection has
+  refreshed it. What was missing sat between the ask and the owner. The ask now
+  names an ACTION the owner can take tonight — rest, feed, chips, deploy, or
+  listen, five verbs and every ask maps onto exactly one — and he asks in HIS
+  OWN WORDS: eight natures by eight asks, sixty-four sentences, no two natures
+  alike in the same state. A Rock says "I'm knackered. Let me sleep."; a
+  Showman says "Curtain down. I need a lie-in." The voicing happens on the way
+  to the wire, not when the ask is stored, so a want raised before this speaks
+  in his voice on the next read with nothing migrated. `want.action` and
+  `want.actionLabel` on the agent view; `want { kind, text, action }` on every
+  body in HOME_STATE, for the speech bubble at home. The client tap is another
+  tab's job.
+
+- **He cites a real hand, or says plainly that he cannot (job 2).** Asked what
+  happened, an agent deflected. Two halves, both fixed. A hand in the prompt now
+  carries WHAT CAME (the board) and WHAT IT WON OR COST — the engine's own
+  per-seat net, not the pot, which is not his and flatters him on every multiway
+  pot he wins. And the answer is checked back: every hand he claims as his is
+  matched against exactly the hands he was shown, and one he did not play is a
+  fault like any other — repaired from a hand he did, or, with nothing behind
+  him, replaced by the plain admission. The check is deliberately narrow: only
+  a holding he claims in the first person is graded, because "he had the set" is
+  the other man's cards and "board came queen seven" is not a holding at all. A
+  gate that never once faults a true sentence is worth more than one that
+  catches every lie and one honest man with it.
+
+- **Two agents of different natures are not the same man (job 4).** Every
+  nature-keyed table of sentences in the product was audited — birth card,
+  openers, rest lines, table talk, name suggestions, the new want lines — and
+  all of them were already distinct. The one that was not keyed on nature at
+  all was the line under his ghost on the felt, and since COST-1 the compiled
+  policy produces most of them: a Rock and a Showman at one table, both
+  folding, both said "Not with this one." all session. Forty new clauses,
+  disjoint from the public table-talk pool so one decision never prints the
+  same sentence twice on two surfaces. A House regular keeps the old five.
+
+- **The ledger id mismatch: no migration (job 3).** Reported as historical rows
+  carrying bare ids. The dates settle it — the `agent_` prefix landed six days
+  before the ledger existed, and `Table.seatAI` is the only place an agent seat
+  is ever named. Measured: zero affected rows belonging to a real owner in the
+  fullest local database. `read-me-claude/LEDGER_IDS.md` has the evidence, what
+  a bare row would actually cost, why a correct migration needs a resolver and a
+  merge rule for an empty set, and the one read-only command that confirms the
+  count on the VPS. Production data was not touched.
+
+- **`npm run talk:eval` is the report for all of it.** 40 graded lines, 98
+  supply checks and 24 variety checks — 158 assertions, byte-identical output,
+  no key, under a second. The variety section fails when two natures in the
+  same state emit the same sentence.
+
 ## 0.15.0 — the money, the life, and the rest of the room (2026-09-15)
 
 Seven branches, forty-one commits, `69a554c..a10083b`. Merged as MERGE-7,
