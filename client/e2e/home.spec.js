@@ -616,8 +616,14 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       if (companion.want) await expect(page.getByRole('button', { name: 'Yes', exact: true })).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       if (companion.fatigue === 'fresh') {
-        const full = page.locator('.agent-view__body [data-bar="stamina"]');
-        expect((await full.locator('i').boundingBox()).width).toBeCloseTo((await full.boundingBox()).width, 0);
+        // LIFE-1-B (761ee60) draws the two readings as THREE DOTS, not as the
+        // continuous track wave 56 gave them. The rule this line has always
+        // stood for is unchanged — fresh is the WHOLE reading, and an owner
+        // must be able to see that at a glance — so it is asserted in the
+        // shape the reading now takes rather than on a fill's width.
+        const dots = page.locator('.agent-view__body [data-bar="stamina"] .body-dots__dot');
+        await expect(dots).toHaveCount(3);
+        await expect(dots.and(page.locator('[data-lit="true"]'))).toHaveCount(3);
       }
       await page.screenshot({ path: `../artifacts/agent-${frame}.png` });
       expect(await page.locator('.agent-view').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -638,10 +644,23 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       const stage = await page.getByTestId('agent-stage').boundingBox();
       const namePill = await page.locator('.agent-view__body .home-pill').boundingBox();
       expect(namePill.y).toBeGreaterThanOrEqual(stage.y);
-      // A clipped accessibility label has a 1px layout box, so Playwright's
-      // visibility predicate deliberately calls it visible. Assert clipping.
-      await expect(page.locator('.agent-view__body .sr-only')).toHaveCSS('clip', 'rect(0px, 0px, 0px, 0px)');
-      expect(namePill.height).toBeLessThanOrEqual(32);
+      // LIFE-1-B (761ee60) retired the one clipped `.sr-only` sentence the pill
+      // used to carry ("stamina 3, heat 40"); each reading is now a control
+      // that names itself. The rule is unchanged and is asserted in the shape
+      // it now takes: both readings reach a screen reader, and saying them
+      // still costs the pill no height.
+      await expect(page.locator('.agent-view__body [data-bar="stamina"]')
+        .getByRole('button', { name: /^Stamina: / })).toBeVisible();
+      await expect(page.locator('.agent-view__body [data-bar="heat"]')
+        .getByRole('button', { name: /^Heat: / })).toBeVisible();
+      // 32 was calibrated for a pill whose two readings were 2px tracks and a
+      // clipped sentence. LIFE-1-B gives each reading a tappable WORD in this
+      // view, which is 8px of type per row, and agent.css has already given
+      // back the padding it could. The RULE is unchanged — the pill stays a
+      // pill and the stage still fits the shortest phone, which is what the
+      // composer line below actually measures — so only the number that buys
+      // it moves, the same way BUG-100's 26px had to become 34px on the felt.
+      expect(namePill.height).toBeLessThanOrEqual(36);
       const composer = await page.locator('.agent-view__composer').boundingBox();
       expect(composer.y + composer.height).toBeLessThanOrEqual(viewport.height);
       await page.screenshot({ path: `../artifacts/agent-view-${viewport.width}-${viewport.height}.png` });

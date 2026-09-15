@@ -663,8 +663,14 @@ button.home-flat__table:active { filter: brightness(1.12); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 3px 7px 4px;
+  gap: 1px;
+  /* BUG-55: 3px/4px and a 2px gap were calibrated for two 2px tracks. The dots
+     that replaced them (LIFE-1-B) are 6px of reading each, and this pill is
+     worn by a body anchored at his FEET — so every pixel it gains is a pixel
+     it takes off the top, out of the kitchen table he is standing at. The pill
+     gives back what it can of the difference from its own slack, which is the
+     same trade BUG-100 made on the felt in the other direction. */
+  padding: 2px 7px 2px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
@@ -691,7 +697,15 @@ button.home-flat__table:active { filter: brightness(1.12); }
   flex-direction: column;
   gap: 2px;
 }
-.home-pill__bar { display: block; }
+/* BUG-55 · a row is the DOTS' height, never a line of text's.
+   `display: block` here left each row an inline formatting context, so the
+   dots (an inline-flex span) sat on a baseline and the row took the pill
+   font's whole 16px line box instead of the 6px the dots occupy. Two of those
+   made the pill 28px taller; `.home-one` is anchored by its feet
+   (transform: translate(-50%, -100%)) so it grew UPWARDS, and the body sitting
+   at the near edge of the kitchen table covered the felt's centre — the exact
+   hit-target failure BUG-55 is named for, back again by a different route. */
+.home-pill__bar { display: flex; align-items: center; line-height: 0; }
 
 /* ── The bubble that flips rather than clips ─────────────────────────────── */
 

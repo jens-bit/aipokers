@@ -12,7 +12,12 @@
 .agent-view__glow{position:absolute;left:calc(36.4% - 116px);bottom:24px;width:232px;height:250px;pointer-events:none}
 .agent-view__shadow{position:absolute;left:calc(36.4% - 64px);bottom:18px;width:128px;height:13px;border-radius:50%;background:radial-gradient(ellipse,#0008,transparent 72%)}
 .agent-view__body{position:absolute;left:36.4%;bottom:24px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:7px}
-.agent-view__body .home-pill{min-width:68px;border-color:color-mix(in srgb, var(--text-primary) 12.2%, transparent);padding:3px 8px 5px;border-radius:8px}
+/* BUG-55: 3px/5px was calibrated for a pill whose two readings were 2px
+   tracks. LIFE-1-B gives each reading a tappable WORD here (atoms.jsx: the
+   agent view "keeps the tap-for-word default"), and a word is 8px of type —
+   so the pill gives back what slack it has rather than growing on both counts
+   at once. Same trade as BUG-100 made on the felt, in the other direction. */
+.agent-view__body .home-pill{min-width:68px;border-color:color-mix(in srgb, var(--text-primary) 12.2%, transparent);padding:2px 8px 2px;border-radius:8px}
 .agent-view__body .home-pill__name{font:9.5px Inter,sans-serif;letter-spacing:normal}
 .agent-view__body .home-pill__bars{width:52px}
 .agent-view__breath{position:relative;width:178px;height:178px;animation:agentBreathe 4.2s ease-in-out infinite}
