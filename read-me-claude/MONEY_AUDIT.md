@@ -1003,3 +1003,66 @@ is the only place that knows what a seat costs.
 `table.casinoStart.test.js`'s `resident()` fixture built a queued agent with an
 empty pocket and relied on the free seat — it was asserting the faucet was open.
 It now holds one top-rung buy-in; every FIRST-HOUSE-1 assertion is unchanged.
+
+## 17. Job 2 — the stale wallet cache: checked, and it was not the cause
+
+ADMIN-2 found that `agentProfiles.js` caches owner wallets in a module-level
+`Map` (`wallets`, L205) and that a write made **through `store.js`, around that
+cache**, looks silently reverted until `reloadOwners()` drops the entry. If that
+cache also sat in the read path the safe uses, Jens's "the safe did not move at
+all" could have been a stale read of a balance that *had* been debited — and the
+fix would belong at the cache, not near the money.
+
+**It does sit in the read path.** `GET /api/wallet` (`agentProfiles.js`) ends in
+`walletProjection(walletFor(userId), …)`, and `walletFor` returns the cached
+object.
+
+**And that is exactly why it is not the cause.** The cache is not a copy of the
+write path, it *is* the write path. `fund`, `collect`, `autoRefill`, `callIn`,
+the fridge and `recordEarned` all mutate the same object `walletFor` hands the
+read, so there is no window in which the two can disagree. There is one writer
+that genuinely goes round it — the ADMIN-2 panel's `adjustOwnerChips` and
+`resetOwnerWallet`, which write straight through `store.saveWallet` — and both
+already call `reloadOwners` (`admin/ops.js saveWalletAndInvalidate`).
+
+Measured rather than read off the code, in `src/server/walletCache.test.js`:
+
+| what was done | what the very next `GET /api/wallet` said |
+|---|---|
+| "give him chips", 1,500 out of a 5,000 safe | 3,500, SQLite agrees, `fund` line on the list |
+| an auto-refill on the way to a seat | 3,000, SQLite agrees, refill and buy-in both on the list |
+| an admin adjustment of −2,000 | 3,000 — not stale |
+| an admin adjustment, then an ordinary save | the adjustment stood; the gift came out of it |
+| `store.saveWallet` with **no** `reloadOwners` | **5,000 — stale.** `reloadOwners` then fixes it |
+
+The last row is the trap, written down on purpose. Nothing in the product takes
+that path; the case exists so that anything which starts to fails this file
+instead of a playtest.
+
+### The one thing job 2 did find
+
+Not staleness — **durability**. `admitToFelt`'s auto-refill is a real transfer,
+and the gate can be passed and the request still refused afterwards for a reason
+that has nothing to do with money (queue's `cantAfford` for a named room). That
+path returned without saving, so the transfer sat in memory only. It could never
+half-commit — `saveProfile` writes the safe and the pocket in one transaction —
+so this was a durability gap and not a conservation one, and one write on a rare
+path is the whole cost of closing it. Red first as
+"MONEY-2: a refill survives a request that is refused after it" (the safe on
+disk still read 5,000), green after, three runs each way.
+
+### Which cause was real
+
+**The first.** The third faucet (§16) is the whole of what Jens saw; the stale
+cache is contained and was never in the way of an ordinary debit. Both were
+checked, only one was minting.
+
+### One flaky assertion of my own, removed rather than re-run
+
+The first version of the refill test asserted the safe's ledger read
+`['buyin', 'refill']`, newest first. Both entries are stamped with `Date.now()`,
+they land in the same millisecond often enough (1 flip in 3 runs), and
+`ledgerView`'s sort is stable — so on a tie the wallet's row is drawn above the
+pocket's and the order flips. The assertion is now on the set, because the merge
+is what is under test and the order of two simultaneous entries is not a rule
+this product has made.

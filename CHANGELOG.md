@@ -2,6 +2,17 @@
 
 ## Unreleased — MONEY-2
 
+- **The safe's own cache was checked, and cleared (MONEY-2 job 2).** The second
+  candidate for "the safe did not move" was ADMIN-2's stale in-memory wallet
+  cache. It does sit in the read path — and that is why it is not the cause: it
+  is also the write path, so an ordinary debit is on the next read with no
+  window between them, and the one writer that genuinely goes round it (the
+  admin panel) already invalidates. Measured in `walletCache.test.js`, including
+  the trap itself, so anything that starts writing a wallet round the cache
+  fails there instead of in a playtest. It did find one real thing: an
+  auto-refill on a request that is refused *after* the gate was left in memory
+  only. It is persisted now.
+
 - **The third faucet is closed (MONEY-2 job 1).** MONEY-1 made deploy and WATCH
   pay for a seat; it left two doors that did not. `POST /api/agents/:id/queue`
   — the route the casino screen's "Deal him in" actually uses — writes

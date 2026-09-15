@@ -922,7 +922,19 @@ export function admitToFelt(userId, agent) {
 
   // Auto-refill happens here, before the gate: he comes to the wallet and
   // collects when he is short. allowance and topup deliberately do not.
-  if (isBroke(pocket.balance)) autoRefill(wallet, pocket);
+  //
+  // MONEY-2 job 2: and it is PERSISTED here, rather than left for whatever the
+  // caller does next. The gate can be passed and the request still refused
+  // afterwards for a reason that has nothing to do with money (queue's
+  // `cantAfford` for a named room, say), and that path returns without saving —
+  // which used to leave a real transfer sitting in memory only. It could not
+  // half-commit, because saveProfile writes the safe and the pocket in one
+  // transaction, so this is a durability gap rather than a conservation one;
+  // one write on a rare path is the whole cost of closing it.
+  if (isBroke(pocket.balance) && autoRefill(wallet, pocket).ok) {
+    mirrorBankroll(agent);
+    saveStore(owner);
+  }
 
   if (isBroke(pocket.balance)) {
     // Broke: he rests at the bar. One moment, one notification a day. The
