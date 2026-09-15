@@ -30,6 +30,18 @@ export const ANSWERS = [
   { id: 'no', label: 'No' },
 ];
 
+// UI-3 job E: LIFE-2 job 1 gave every want an owner-facing verb —
+// `want.actionLabel` ("Sit him out", "Give him chips", "Put him in"…) — so
+// the fix for "players did not know what to do" is naming the FIRST pill
+// after it instead of leaving it a generic "Yes". Answering 'yes' is still
+// exactly what the button does; `needs`/`onNeeds` routes it exactly as
+// before. A want with no actionLabel (an old unvoiced ask, or none of the
+// five real verbs) keeps the plain "Yes".
+export function answersFor(want) {
+  if (!want?.actionLabel) return ANSWERS;
+  return ANSWERS.map((a) => (a.id === 'yes' ? { ...a, label: want.actionLabel } : a));
+}
+
 /** POST the answer. Returns the server's body, or null when it refused. */
 export async function answerWant(agentId, answer) {
   const userId = getUserId();
@@ -87,7 +99,7 @@ export function WantToast({ agent, identity, onAnswered, onNeeds }) {
             <span className="home-want__text">{want.text}</span>
           </div>
           <span className="home-want__chips">
-            {ANSWERS.map((a) => (
+            {answersFor(want).map((a) => (
               <button
                 key={a.id}
                 type="button"

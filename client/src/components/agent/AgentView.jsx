@@ -7,7 +7,7 @@ import { ghostHands, SEAT_GRIP } from '../system/GhostHands.jsx';
 import { NamePill } from '../home/atoms.jsx';
 import { MoodChip } from '../floor/atoms.jsx';
 import { identityOf } from '../../lib/identity.js';
-import { ANSWERS, answerWant } from '../home/WantToast.jsx';
+import { answersFor, answerWant } from '../home/WantToast.jsx';
 import { FundSheet } from '../wallet/FundSheet.jsx';
 import { fetchWallet, fundAgent, money, pnlTone, pocketOf, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { ReplayCard } from '../replay/ReplayCard.jsx';
@@ -104,7 +104,7 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
       {agent.drinking === true && <div className="agent-view__bottle" aria-label="Drinking"><i/><b/><span/></div>}
       {(want || lastLine) && <div className="agent-view__speech">
         <div className={`agent-view__bubble${want ? ' is-want' : ''}`}>{want?.text || lastLine}</div>
-        {want && <div className="agent-view__answers">{ANSWERS.map(a => <button key={a.id} type="button" disabled={!!busy} onClick={() => answer(a.id)}>{a.label}</button>)}</div>}
+        {want && <div className="agent-view__answers">{answersFor(want).map(a => <button key={a.id} type="button" disabled={!!busy} onClick={() => answer(a.id)}>{a.label}</button>)}</div>}
       </div>}
     </div>
     <div className="agent-view__actions">

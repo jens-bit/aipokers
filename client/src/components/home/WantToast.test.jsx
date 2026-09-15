@@ -22,3 +22,17 @@ it('BUG-61: an empty shelf opens stock while leaving the want pending', async ()
   expect(onAnswered).not.toHaveBeenCalled();
   expect(onNeeds).toHaveBeenCalledWith('stock', expect.objectContaining({ agent: expect.objectContaining({ id: 'a1' }) }));
 });
+it('UI-3 job E: the first pill is his action, not a generic Yes', async () => {
+  const want = { kind: 'fund', text: 'I need a stake.', action: 'chips', actionLabel: 'Give him chips' };
+  fetchMock.route('/api/agents/a1/want', { answered: null, needs: 'fund', want });
+  const onNeeds = vi.fn();
+  render(<WantToast agent={{ id: 'a1', name: 'Bal', want }} onNeeds={onNeeds}/>);
+  expect(screen.queryByRole('button', { name: 'Yes' })).not.toBeInTheDocument();
+  const action = screen.getByRole('button', { name: 'Give him chips' });
+  await userEvent.click(action);
+  expect(onNeeds).toHaveBeenCalledWith('fund', expect.objectContaining({ agent: expect.objectContaining({ id: 'a1' }) }));
+});
+it('UI-3 job E: a want with no actionLabel keeps the plain Yes', () => {
+  render(<WantToast agent={{ id: 'a1', name: 'Bal', want: { text: 'Put me in.' } }}/>);
+  expect(screen.getByRole('button', { name: 'Yes' })).toBeInTheDocument();
+});

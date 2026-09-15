@@ -103,6 +103,16 @@ it('AGENT-1: accepting a deploy want uses the server answer and opens the casino
   await waitFor(() => expect(onDeploy).toHaveBeenCalledTimes(1));
   expect(screen.queryByText('Let me back in.')).not.toBeInTheDocument();
 });
+it('UI-3 job E: his line ends in his own action, not a generic Yes', async () => {
+  fetchMock.route('/api/agents/a1/want', { ok: true, needs: 'deploy' });
+  const onDeploy = vi.fn();
+  const want = { kind: 'back_in', text: 'Let me back in.', action: 'deploy', actionLabel: 'Put him in' };
+  show({ agent: { ...agent, want }, onDeploy });
+  expect(await screen.findAllByText('Let me back in.')).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: 'Yes' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Put him in' }));
+  await waitFor(() => expect(onDeploy).toHaveBeenCalledTimes(1));
+});
 it('BUG-61: an unfulfilled request opens the fridge and is still there when it closes', async () => {
   const want = { text: 'A beer?' };
   fetchMock.route('/api/agents/a1/want', { answered: null, needs: 'stock', want });
