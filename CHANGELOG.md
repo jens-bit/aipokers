@@ -93,12 +93,16 @@ Chip conservation, re-measured at CI-FIX on a fresh scratch DB with no key:
 350 hands across ten households, **delta 0**, and the total never moved
 across 1,841 samples.
 
-**One thing is held back on purpose.** BUG-211 — "opening Home always seats a
-hand" — is not on main. The one-line server change works, and it makes Carry
-unreachable for the solo household it is for: the only body is then
-permanently in a live hand, and a man in a hand cannot be picked up
-(BUG-134). Two rules Jens asked for; choosing between them is a design call.
-BUGS.md has the measurement and three ways out.
+**One rule had to give, and Jens picked which.** BUG-211 — "opening Home always
+seats a hand" — was held back for a day, because with the table always live a
+solo household's only body is permanently in a hand, and a man in a hand could
+not be picked up (BUG-134). Carry would have been unreachable for exactly the
+household BUG-211 is for. His call: the solo agent DOES play at home, against a
+House opponent, because a new player has one agent for his first week and is
+the person who most needs to see his own guy playing — so BUG-134 gives. Carry
+works around a live hand now instead of being blocked by one: the grab is
+remembered, he says he will come when the hand is done, and he does. Both are
+merged.
 
 The sections below, down to `0.14.0 — THE SHOW`, are the per-queue detail for
 this release.
@@ -135,7 +139,8 @@ Not recovered: balances the old leak already inflated stay inflated, exactly as 
 - **Stamina and heat draw as three dots (LIFE-1-B, client half).** Merged `feat/agent-life`'s three-state reading and ported the client off its old continuous bars — the felt, every seat, the room pill and the profile card all draw the same dots now, word on tap where nothing else already answers that tap.
 - **The roster says who's actually out (BUG-209).** Every row already named where an agent is; it now also wears a coloured HOME/CASINO/VISITING badge and dims an away man's face, so "he's not here" registers at a glance instead of on a careful read. Home reads "at home" now, parallel with the room's other three sentences.
 - **Swipe the floors (BUG-210).** The floor/upstairs/back-room toggle board is a horizontal swipe on phone now, with a small dot indicator showing which room is open. The old door list stays as a fallback; deep links and the session's remembered room are unchanged.
-- **Home always has a hand running (BUG-211) — HELD BACK.** The one-line server change that seats a hand on every Home open is not on main. It works, and it makes Carry unreachable for the solo household it is for: the only body is then permanently in a live hand, and a man in a hand cannot be picked up (BUG-134). `test:home2` goes 20/20 → 17/20 on exactly the three carry cases. Two rules Jens asked for, and choosing between them is a design call — see BUG-211 in BUGS.md for the three ways out. The branch's regression is kept as a todo.
+- **Home always has a hand running (BUG-211).** Opening Home now always seats a hand — the solo House game included — for any household with at least one eligible agent, instead of only when two or more were home and no cooldown was in effect. A still kitchen table on open was the single biggest playtest complaint this queue addressed, and it lands hardest on a new player: he has one agent for his first week, and he is exactly who needs to see his own guy playing. A lone agent is dealt against a House opponent, the same mechanic the casino uses for its regulars.
+- **And you can still pick him up (BUG-134).** An always-live table would otherwise have made Carry impossible for that same household, because a man in a hand cannot be lifted — his chips are in the pot. So the grab waits instead of failing: lifting works in the gap between hands, and a grab during a hand is honoured the moment that hand ends. He tells you he is in a hand and that he will come when it is done, and that line stays up until he does. If your finger is still on him he comes up into it and the same movement puts him down; if you let go, he waits to be picked up the way the roster's CARRY button has always worked.
 - **The hero's own hand is legible now, not just his street (BUG-212).** The owner's seat (phone and desktop) and the desktop "watch your own agent" stage both printed only the street name under his cards; they now read "pair of sixes", "ace-high", etc., the same reading `WatchHero` already gave a spectated agent, at the same label size/weight as STREET, with a long name shrinking to an ellipsis rather than crowding its neighbour.
 
 Numbering note: this queue filed BUG-200/201/202/203 independently of fix/money-integrity, which used the same four for unrelated defects and reached main first. They are BUG-206/207/208/209 here and in BUGS.md. The locale fix this queue filed as BUG-207 is the same defect the money audit had already filed as BUG-200 and left open; it keeps that number.

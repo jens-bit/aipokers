@@ -402,25 +402,26 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             // people who are actually looking: a fan-out over every owner in
             // the database would stand up a table for each of them.
             //
-            // BUG-211 (fix/ui-nav-2's JOB B) wanted `{ manual: true }` here,
-            // so that opening Home always seats a hand — the solo House game
-            // included — instead of leaving an owner with one eligible agent
-            // looking at a still kitchen table. It is HELD BACK at MERGE-8,
-            // and this comment is the record of why rather than a plan:
+            // BUG-211: `manual: true` is what a deliberate SIT/CARRY already
+            // uses to permit the solo House game and to skip the between-
+            // hands cooldown — opening Home IS that deliberate look, the same
+            // way WatchScreen stays eager for a table. Without it, an owner
+            // with exactly one eligible agent home saw a permanently still
+            // kitchen table on every open, and that owner is a NEW PLAYER:
+            // one agent for his first week, and the one person who most needs
+            // to see his own guy playing. A solo agent plays a House opponent
+            // here, the same mechanic the casino uses for its regulars.
             //
-            // `manual: true` makes a SOLO household's only body permanently
-            // seated in a live hand, and HomeScreen's `canLift` refuses to
-            // lift a man whose street is preflop..river (BUG-134). So HOME-2
-            // job 5 — pick him up and put him down — becomes unreachable for
-            // exactly the household the change is for. Measured, not argued:
-            // with it in, `npm run test:home2` is 17/20 with the three carry
-            // cases red; with it out, 20/20. Two rules Jens asked for, and
-            // which of them gives is a design call, not an integration one.
-            //
-            // The wanted rule is kept as a todo test rather than deleted —
-            // homeMembership.test.js's BUG-211 case, and BUGS.md's BUG-211.
+            // This was held back for one day at MERGE-8 because it collides
+            // with BUG-134 — a man in a hand could not be picked up, and with
+            // the table always live that meant never. Jens's call was that
+            // BUG-211 is right and BUG-134 is the side that gives: Carry now
+            // works AROUND a live hand instead of being blocked by one (the
+            // deferred grab in useCarry.js/HomeScreen.jsx). Fatigue is still
+            // untouched — a worn or studying agent is excluded by eligible()
+            // and still gets the rest LIFE-1-A gave him.
             try {
-              homeGame.sync(userId);
+              homeGame.sync(userId, { manual: true });
               homeNight.noteHousehold(userId, presentedRoster(userId, { owner: true }));
             } catch (err) {
               console.error('[home] sub sync failed:', err.message);

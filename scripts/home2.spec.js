@@ -308,6 +308,27 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
     return { x: flat.x + x * scale, y: flat.y + y * scale };
   }
 
+  // BUG-134/BUG-211 · HOW LONG A LIFT IS ALLOWED TO TAKE.
+  //
+  // Since BUG-211 the kitchen table is always live, and a man cannot be taken
+  // out of the MIDDLE of a hand — his chips are in the pot. So a long press
+  // here is not refused, it is DEFERRED: he says "I am in a hand, I will come
+  // when it is done" and comes up the moment that hand ends. The rule the
+  // cases below assert is unchanged — a long press lifts him — but the moment
+  // it comes true is now "at the latest, the end of the hand he was in", so
+  // the wait has to cover one whole home hand.
+  //
+  // 25s is measured, not guessed. Instrumented across three full runs of this
+  // file against a real server at HAND_PAUSE_MS/HOME_PAUSE_MS=600, the wait
+  // from pointer-down to `.is-carried` was 0.2s, 3.9s, 6.0s, 6.9s, 8.0s, 9.0s,
+  // 9.5s, 13.6s and 14.6s — a four-street hand with its pauses is most of
+  // fifteen seconds. Playwright's 5s default is BELOW that spread, which is
+  // exactly why this file was 17-19/20 depending on where the deal happened to
+  // be. 25s is a hand and a half; it is a budget, not an expectation, and a
+  // lift that actually takes it is a bug in the deferral rather than a slow
+  // machine.
+  const LIFT_MS = 25_000;
+
   /** Long-press him, drag him to a room point, and let go. */
   async function carry(page, body, to) {
     const from = await body.boundingBox();
@@ -315,7 +336,7 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
     await page.mouse.down();
     // The hold. Under this it is a tap and opens his thread instead.
     await page.waitForTimeout(600);
-    await expect(page.locator('.home-one.is-carried')).toHaveCount(1);
+    await expect(page.locator('.home-one.is-carried')).toHaveCount(1, { timeout: LIFT_MS });
     // In steps, because a single jump is a teleport and would not exercise the
     // move handler the room reads the fixture under the finger from.
     await page.mouse.move(to.x, to.y, { steps: 12 });
@@ -334,7 +355,8 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
     await page.waitForTimeout(600);
 
     const lifted = page.locator('.home-one.is-carried');
-    await expect(lifted).toHaveCount(1);
+    // He may be mid-hand; if he is, he says so and comes up when it ends.
+    await expect(lifted).toHaveCount(1, { timeout: LIFT_MS });
     // Board 29 C1 supersedes the old scale(1.1): 62px hood, a tilted
     // pill/body group, and a separate blurred floor shadow.
     const ghost = lifted.locator('.home-one__body');
@@ -403,7 +425,9 @@ test.describe('HOME-2 job 5 · pick him up and put him down', () => {
     const over = await roomPoint(page, 56, 388);
     await page.mouse.move(over.x, over.y, { steps: 12 });
 
-    await expect(page.locator('.home-one.is-carried')).toHaveAttribute('data-over', 'couch');
+    // The finger is already over the couch. Whether he came up at once or
+    // waited out a hand first, the couch lights the moment he is in the air.
+    await expect(page.locator('.home-one.is-carried')).toHaveAttribute('data-over', 'couch', { timeout: LIFT_MS });
     await shot(page, 'job5-over-couch');
     await page.mouse.up();
   });

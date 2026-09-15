@@ -84,6 +84,14 @@ export function useCarry({ roomEl, onDrop, canLift, onRefuse, enabled = true, ge
     if (!at) return;
 
     if (!press.lifted) {
+      // BUG-134: a REFUSED press is a held request, not an undecided one. The
+      // owner already held still for the whole LONG_PRESS_MS and got an
+      // answer ("I am in a hand"), so from here the finger is allowed to
+      // travel — it is carrying him to somewhere, and he will come up under
+      // wherever it has got to when the hand ends. Only a press that has not
+      // been answered yet is cancelled by travel, which is still what stops a
+      // scroll from lifting somebody.
+      if (press.refused) { press.clientX = clientX; press.clientY = clientY; return; }
       // Still deciding. A finger that has travelled is doing something else.
       const dx = clientX - press.clientX;
       const dy = clientY - press.clientY;
@@ -143,14 +151,45 @@ export function useCarry({ roomEl, onDrop, canLift, onRefuse, enabled = true, ge
 
   // Board 42's Carry action hands the room an already lifted man. Wait for a
   // fresh gesture so the pointerup that opened Home cannot place him itself.
+  //
+  // BUG-134, since BUG-211 made the kitchen table always live: this is also
+  // how a DEFERRED grab lands. A long press that was refused mid-hand leaves
+  // its press object in place (see bind()'s timer — it marks the press
+  // refused and returns WITHOUT clearing), so when the hand ends and
+  // HomeScreen calls pick() again, this can tell the two cases apart:
+  //
+  //   the finger never left   he comes up INTO it, at the point it is holding,
+  //                           and the same gesture puts him down — which is
+  //                           what "honoured as soon as the hand finishes"
+  //                           has to mean for somebody still pressing.
+  //   the finger has gone     he waits for a fresh press, exactly as the
+  //                           roster's CARRY button has always done.
+  //
+  // A finger that SLIDES off him past PRESS_SLOP clears the press in move()
+  // below, so sliding away is how you take the request back.
   const pick = useCallback((agentId, at = { x: 195, y: 280 }) => {
     if (!enabled || !roomEl) return false;
-    clear();
     const id = String(agentId);
+    const holding = pressRef.current?.id === id && pressRef.current.refused && !pressRef.current.lifted
+      ? pressRef.current
+      : null;
+    const size = holding?.size ?? Math.max(62, geometry.bodySize * 1.1);
+    const rect = holding ? roomEl?.getBoundingClientRect?.() : null;
+    const under = rect ? toRoom(rect, holding.clientX, holding.clientY, geometry) : null;
+    clear();
     if (!allowLift(id)) return false;
-    pressRef.current = { id, size: Math.max(62, geometry.bodySize * 1.1), lifted: true, picked: true, awaitPress: true };
-    const held = heldInRoom(at.x, at.y, pressRef.current.size, geometry);
-    setCarry({ id, ...held, over: null });
+    pressRef.current = {
+      id, size, lifted: true, picked: true,
+      awaitPress: !holding,
+      clientX: holding?.clientX, clientY: holding?.clientY,
+    };
+    const from = under ?? at;
+    const held = heldInRoom(from.x, from.y, size, geometry);
+    // A man who comes up under a finger that is already over the couch lights
+    // the couch. `null` here is only right for a pick with no finger behind
+    // it — the roster's CARRY button, which starts him in mid-room over
+    // nothing at all.
+    setCarry({ id, ...held, over: under ? fixtureAt(held.x, held.y, geometry) : null });
     return true;
   }, [enabled, roomEl, clear, geometry, allowLift]);
 
@@ -169,6 +208,12 @@ export function useCarry({ roomEl, onDrop, canLift, onRefuse, enabled = true, ge
           if (pressRef.current !== press) return;
           if (!allowLift(id)) {
             liftedRef.current = true; // Swallow the click after a refused long press.
+            // BUG-134: the press is NOT cleared. The refusal is a deferral now
+            // — onRefuse has told HomeScreen to remember the grab — and
+            // leaving the press here is what lets pick() know, when the hand
+            // ends, that the owner is still holding him. It dies on pointerup,
+            // on pointercancel, or the moment the finger slides off him.
+            press.refused = true;
             return;
           }
           press.lifted = true;

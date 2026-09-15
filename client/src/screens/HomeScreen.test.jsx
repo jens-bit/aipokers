@@ -1363,3 +1363,84 @@ it('HOME-2: a real lift cancels the open fridge and never brings an item into th
     expect(screen.queryByTestId('home-item-beer')).toBeNull();
   } finally { vi.useRealTimers(); }
 });
+
+// ── BUG-134 / BUG-211 · Carry works AROUND a live hand ──────────────────────
+//
+// BUG-211 made the kitchen table always live: a solo household's one agent
+// plays a House opponent the moment Home opens, because a new player has one
+// agent for his first week and is exactly who needs to see his own guy
+// playing. That turned BUG-134's mid-hand refusal from a rare, informative
+// "no" into a permanent wall — Carry would have been unreachable for that
+// same household. So the rule gives: lifting is allowed in the gap between
+// hands, and a grab during a hand is honoured as soon as that hand finishes.
+
+describe('BUG-134: lifting a seated agent', () => {
+  const SEATED = (id) => ({
+    tableId: 'home-4242', state: 'running',
+    seats: [{ seat: 0, agentId: id, name: 'Granite', house: false },
+      { seat: 1, agentId: null, name: 'Doyle_v3', house: true }],
+  });
+
+  // The kitchen table's own spectator socket (useHomeTable) is the only thing
+  // that knows a hand is IN THE AIR rather than merely that a game exists, so
+  // it is what these cases drive. Without it the table is between hands, which
+  // is itself one of the two states under test.
+  async function tableSocket(sock, state) {
+    const table = await waitFor(() => {
+      const found = socketMock.instances.filter(i => i !== sock).pop();
+      expect(found).toBeTruthy();
+      return found;
+    });
+    await act(async () => { table.open(); });
+    await act(async () => { table.emit({ type: 'state', state }); });
+    return table;
+  }
+
+  it('BUG-134: a seated agent comes up on a long press in the gap between hands', async () => {
+    const one = mkAgent('gap', 'Granite');
+    const { sock } = await boot([one], SEATED('gap'));
+    const body = await screen.findByRole('button', { name: /Granite —/ });
+    // The hand has just been won. His chips are his own again.
+    await tableSocket(sock, {
+      tableId: 'home-4242', street: 'complete', community: [], seats: [], handNumber: 4,
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(body, { pointerId: 3, clientX: 200, clientY: 250, button: 0 });
+      act(() => vi.advanceTimersByTime(LONG_PRESS_MS));
+      expect(body).toHaveAttribute('data-carried', 'true');
+      expect(body).not.toHaveAttribute('data-awaiting-lift');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('BUG-134: a grab during a hand says so, and he comes up when the hand ends', async () => {
+    const one = mkAgent('mid', 'Granite');
+    const { sock } = await boot([one], SEATED('mid'));
+    const body = await screen.findByRole('button', { name: /Granite —/ });
+    // A hand is in the air, and he is in it.
+    const table = await tableSocket(sock, {
+      tableId: 'home-4242', street: 'flop', community: [], seats: [], handNumber: 4,
+    });
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerDown(body, { pointerId: 3, clientX: 200, clientY: 250, button: 0 });
+      act(() => vi.advanceTimersByTime(LONG_PRESS_MS));
+      // Not lifted — but emphatically not nothing, either. The whole point of
+      // the change is that the tap does not read as having been swallowed.
+      expect(body).not.toHaveAttribute('data-carried', 'true');
+      expect(body).toHaveAttribute('data-awaiting-lift', 'true');
+      expect(screen.getByText(/I am in a hand\. I will come when it is done\./)).toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
+
+    // The hand finishes. He is lifted, without the owner asking twice.
+    await act(async () => {
+      table.emit({ type: 'state', state: { tableId: 'home-4242', street: 'complete', community: [], seats: [], handNumber: 4 } });
+    });
+    await waitFor(() => expect(body).toHaveAttribute('data-carried', 'true'));
+    expect(body).not.toHaveAttribute('data-awaiting-lift');
+    // And the sentence goes with the wait it was explaining.
+    expect(screen.queryByText(/I will come when it is done/)).toBeNull();
+  });
+});

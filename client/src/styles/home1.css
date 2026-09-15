@@ -651,6 +651,25 @@ button.home-flat__table:active { filter: brightness(1.12); }
   display: flex; gap: 2px; z-index: 4;
 }
 
+/* BUG-134 · HE HAS BEEN ASKED FOR, AND THE HAND IS NOT OVER.
+   The owner long-pressed a man who was mid-hand. Refusing outright is what
+   BUG-211 made impossible to live with — for a solo household the table is
+   always live, so "no" would have been the end of Carry — so the grab is
+   remembered and honoured the moment the hand finishes. This is the only
+   thing standing between the owner and a tap that looks like nothing
+   happened, so it is a slow, unmistakable beat rather than a flourish, and
+   it stops dead for anyone who has asked motion not to move. */
+.home-one.is-awaiting-lift .home-one__figure {
+  animation: home-awaiting-lift 1.5s ease-in-out infinite;
+}
+@keyframes home-awaiting-lift {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-one.is-awaiting-lift .home-one__figure { animation: none; opacity: .82; }
+}
+
 /* routine idles */
 .home-one--paces { animation: home-pace 3.4s ease-in-out var(--home-idle-phase, 0ms) infinite; }
 .home-one--shuffles .home-prop--cards { animation: home-shuffle 1.6s ease-in-out var(--home-idle-phase, 0ms) infinite; }

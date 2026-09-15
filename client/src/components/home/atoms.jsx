@@ -175,6 +175,11 @@ export function HomeOne({
   walking = false,
   crossing = null,
   away = false,
+  // BUG-134: the owner reached for him during a hand and the grab is waiting
+  // on it. He is not refused and he is not lifted — he is about to be, and
+  // this is what says so on the body itself rather than only in the bubble
+  // (which fades on every other line the room shows).
+  awaitingLift = false,
   returnLine = null,
   // HOME-2 job 5 · he is off the floor, in the owner's hand. `carried` is
   // { x, y, over } in room coordinates; the body follows the finger instead of
@@ -204,12 +209,13 @@ export function HomeOne({
   return (
     <button
       type="button"
-      className={`home-one${refusing ? ' is-refusing' : ''}${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
+      className={`home-one${awaitingLift ? ' is-awaiting-lift' : ''}${refusing ? ' is-refusing' : ''}${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
       data-agent={agent?.id}
       data-routine={r.key}
       data-home-item-phase={fetching ? homeItem.phase : undefined}
       data-spot={at?.spot}
       data-walking={walking ? 'true' : 'false'}
+      data-awaiting-lift={awaitingLift ? 'true' : undefined}
       data-crossing={crossing}
       aria-hidden={away ? 'true' : undefined}
       disabled={away}

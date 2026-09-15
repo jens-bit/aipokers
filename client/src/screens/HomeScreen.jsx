@@ -405,6 +405,9 @@ export function HomeScreen({
   // What he said when he was put down: { id, text }. One at a time, and it
   // clears itself — a refusal is a moment, not a state.
   const [saidOnDrop, setSaidOnDrop] = useState(null);
+  // BUG-134: an agent the owner reached for during a hand, waiting for it to
+  // end. One at a time — a second grab replaces the first.
+  const [pendingLift, setPendingLift] = useState(null);
   const rail = panel ?? railLocal;
   const setRail = onPanel ?? setRailLocal;
   // BIRTH-5 — the phone's own answer to the same fixture: a sheet over the room
@@ -572,15 +575,30 @@ export function HomeScreen({
     if (res.ok) refresh();
   }, [home, positions, game, onDeploy, refresh]);
 
+  // BUG-134 — you cannot lift a man out of the MIDDLE of a hand, because his
+  // chips are in the pot. Named here rather than written inline because the
+  // deferral below has to ask the same question a second time, when the hand
+  // ends, and two copies of this would be two rules.
+  const canLiftNow = useCallback((id) => !(game?.state === 'running'
+    && homeTable.config?.tableId === game.tableId
+    && ['preflop', 'flop', 'turn', 'river'].includes(homeTable.game?.street)
+    && gameAgentIds.some(agentId => String(agentId) === String(id))),
+  [game, homeTable.config?.tableId, homeTable.game?.street, gameAgentIds]);
+
   const { carry, bind: bindCarry, pick, cancel: cancelCarry } = useCarry({
     roomEl: flatEl,
     geometry,
     onDrop,
-    canLift: id => !(game?.state === 'running'
-      && homeTable.config?.tableId === game.tableId
-      && ['preflop', 'flop', 'turn', 'river'].includes(homeTable.game?.street)
-      && gameAgentIds.some(agentId => String(agentId) === String(id))),
-    onRefuse: id => setSaidOnDrop({ id: String(id), text: 'I am in a hand.', gold: true, refused: true }),
+    canLift: canLiftNow,
+    // BUG-211 made the kitchen table always live, so "no" can no longer be
+    // the end of the gesture — for a solo household it would be the end of
+    // Carry altogether. A grab during a hand is REMEMBERED and honoured the
+    // moment that hand finishes; until then he says so, which is the part
+    // that stops the tap from reading as nothing having happened.
+    onRefuse: id => {
+      setPendingLift(String(id));
+      setSaidOnDrop({ id: String(id), text: 'I am in a hand. I will come when it is done.', gold: true, refused: true });
+    },
     enabled: true,
   });
   // Carry needs the room's drop callback; mirror its identity before paint so
@@ -593,12 +611,32 @@ export function HomeScreen({
     onCarryStarted?.(); // A refusal consumes the request too; never retry it on a roster poll.
   }, [carryAgentId, flatEl, home, pick, onCarryStarted]);
 
-  // The line clears itself; it lands once, the way the money line does.
+  // BUG-134 · THE DEFERRED GRAB. The hand the owner reached into has ended,
+  // so the grab he was promised happens now. `pick` is the same door the
+  // roster's CARRY button uses, and it works out for itself whether the
+  // finger is still on him (he comes up into it) or has gone (he waits for a
+  // fresh press) — see useCarry.js. A man who left home in the meantime has
+  // no grab to honour.
+  useEffect(() => {
+    if (!pendingLift || !flatEl) return;
+    if (!home.some(agent => String(agent.id) === pendingLift)) { setPendingLift(null); return; }
+    if (!canLiftNow(pendingLift)) return;
+    const at = positions.get(pendingLift);
+    pick(pendingLift, at ? { x: at.x, y: at.y } : undefined);
+    setPendingLift(null);
+    setSaidOnDrop(said => (said?.id === pendingLift ? null : said));
+  }, [pendingLift, flatEl, home, canLiftNow, positions, pick]);
+
+  // The line clears itself; it lands once, the way the money line does — but
+  // a man who has been promised a lift keeps saying so until he gets it,
+  // because that sentence is the only thing standing between the owner and a
+  // tap that looks like it did nothing.
   useEffect(() => {
     if (!saidOnDrop) return undefined;
+    if (saidOnDrop.refused && pendingLift === saidOnDrop.id) return undefined;
     const t = setTimeout(() => setSaidOnDrop(null), ARRIVAL_MS);
     return () => clearTimeout(t);
-  }, [saidOnDrop]);
+  }, [saidOnDrop, pendingLift]);
 
   // Who the thread band is pointed at. An agent with something to say outranks
   // whoever happens to be first: an unread recap is the reason he is standing by
@@ -846,6 +884,7 @@ export function HomeScreen({
             carried={held}
             roomWidth={F_W}
             refusing={!held && !!dropped?.refused}
+            awaitingLift={!held && pendingLift === id}
             carryHandlers={desktop ? undefined : bindCarry(id, { size })}
             // The queue's answer, or nothing — and the pill still says he has
             // news while his turn is coming.

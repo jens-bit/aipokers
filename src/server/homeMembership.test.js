@@ -114,16 +114,13 @@ function fingerprint(table) {
 // exactly the common failing shape: one eligible agent, nobody else home, no
 // prior deliberate placement.
 //
-// TODO at MERGE-8, under Testing law #6. The rule is one we want and this
-// test is kept verbatim, but the product cannot hold it and BUG-134 at the
-// same time: `manual: true` in FLOOR_SUB makes a solo household's only body
-// permanently seated in a live hand, and `canLift` refuses to lift a man
-// whose street is preflop..river — so HOME-2 job 5 becomes unreachable for
-// exactly the household this rule is for. Measured: with the one-liner in,
-// test:home2 is 17/20 with the three carry cases red; with it out, 20/20.
-// The one-line wsServer change is held back on main until that design call
-// is made — see BUG-211 in BUGS.md. Un-todo this with the fix.
-test('BUG-211: opening Home starts the kitchen table even with one eligible agent and no prior placement', { todo: 'held back at MERGE-8: collides with BUG-134 / HOME-2 job 5 — see BUGS.md BUG-211' }, async () => {
+// Held back for one day at MERGE-8 because it made Carry unreachable (a man
+// in a hand cannot be lifted, BUG-134, and the table was then always live).
+// Jens's call: BUG-211 is right and BUG-134 gives — a solo agent DOES play at
+// home, against a House opponent, because a new player has one agent for his
+// first week and is exactly who needs to see his own guy playing. Carry works
+// around a live hand now (the deferred grab). Un-todo'd here.
+test('BUG-211: opening Home starts the kitchen table even with one eligible agent and no prior placement', async () => {
   const ws = new WebSocket(base.replace('http:', 'ws:'));
   const socket = { ws, messages: [] }; sockets.push(socket);
   ws.on('message', raw => socket.messages.push(JSON.parse(raw)));
@@ -135,6 +132,44 @@ test('BUG-211: opening Home starts the kitchen table even with one eligible agen
   const table = registry.getTable(home.homeTableId(HOST));
   assert.ok(table?.home, 'a real kitchen table exists, not a placeholder');
   assert.ok(table.agentIds.includes(hostAgent), 'the actual lone agent is seated');
+});
+
+// BUG-211, the half the original case did not say out loud: WHO he is playing.
+// "A solo household's only agent does play at home — he plays a house
+// opponent, the same mechanic the casino uses for its regulars." A table with
+// one man at it and nobody opposite is not a game, and a HOME_STATE that
+// claims `running` for one would be the room lying about the thing the new
+// player opened the app to see.
+test('BUG-211: the lone agent is dealt against a House opponent, not seated alone', async () => {
+  const ws = new WebSocket(base.replace('http:', 'ws:'));
+  const socket = { ws, messages: [] }; sockets.push(socket);
+  ws.on('message', raw => socket.messages.push(JSON.parse(raw)));
+  await once(ws, 'open');
+  ws.send(JSON.stringify({ type: 'floor_sub', ...identity(HOST) }));
+  await waitFor(() => socket.messages.find(m => m.type === 'home_state'));
+
+  const table = registry.getTable(home.homeTableId(HOST));
+  const occupied = table.agentIds.filter(Boolean);
+  assert.equal(occupied.length, 1, "exactly one of the seats is the household's own man");
+  assert.equal(occupied[0], hostAgent);
+
+  // The opponent is a seat the owner does not own: an AI seat with no agentId
+  // of the household behind it. That is what the House is on this table.
+  const houseSeats = table.aiSeats
+    .map((ai, seat) => (ai && !table.agentIds[seat] ? seat : null))
+    .filter(seat => seat !== null);
+  assert.equal(houseSeats.length, 1, 'and exactly one House opponent opposite him');
+  assert.ok(table.seatStack(houseSeats[0]) > 0, 'who has chips in front of him to play for');
+
+  // And the hand is real, not a staged tableau. Waited for rather than read
+  // on the spot: HOME_STATE is sent as the table is stood up, so the deal can
+  // be a tick behind the message that announces it, and between hands the
+  // table is legitimately idle for HOME_PAUSE_MS. What is asserted is that a
+  // hand happens at all, which is the claim `state: 'running'` makes.
+  await waitFor(() => table.handInProgress() || (table.game?.handNumber ?? 0) >= 1);
+  assert.ok((table.game?.handNumber ?? 0) >= 1, 'at least one hand has been dealt');
+  assert.equal(table.game.seats.filter(seat => seat && seat.stack > 0).length, 2,
+    'and it is two-handed — his man and the House, both with chips');
 });
 
 test('BUG-155: unrelated JOIN cannot seat, add an AI, speak, act or close the private kitchen', async () => {
