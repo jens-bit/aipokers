@@ -34,6 +34,21 @@
   new `--cool` token; nothing in the palette was blue before), discipline
   down in red — and the one-sentence explanation now appears only once the
   owner taps the item, for that item alone.
+- **His want is tappable (JOB E).** `.want.action`/`.want.actionLabel`
+  landed on main partway through this job (MERGE-10, LIFE-2 job 1 below),
+  so this is the client tap that job deliberately left to "another tab".
+  The first pill in his speech bubble at home and in his own line on the
+  agent view now reads as his real action — "Sit him out", "Give him
+  chips", "Put him in", "Open the fridge", "Hear him out" — instead of a
+  generic Yes. Answering still goes through the same wiring as before; a
+  want with no actionLabel keeps the plain Yes.
+- **The room answers (JOB F).** Typing "hi" to the room already fanned a
+  reply out to everybody standing in it, through the existing talk turn
+  (SERVER-4/THREAD-2) — this draws it, as a speech bubble over the body
+  that said it, through the room's existing one-bubble queue. Fixes
+  BUG-218 (found only in a real browser: the one agent a small household
+  keeps dealt in against the House could never clear his own table seat's
+  bubble-blocker box, so his reply never drew at all).
 
 ## 0.16.0 candidate — he asks for what he wants, and he cites a real hand (2026-09-15)
 
