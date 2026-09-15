@@ -138,7 +138,7 @@ describe('UI-3 job A · one floor, at rest', () => {
   // The bug this kills: entering used to auto-target one specific room, so a
   // table live in a different one read as "nothing running". There is no
   // room left to mis-target — the floor always shows every table there is.
-  it('BUG-214: a table live anywhere on the ladder shows up, with no room to mis-target', async () => {
+  it('BUG-217: a table live anywhere on the ladder shows up, with no room to mis-target', async () => {
     routeFloor({ felts: [felt({ tableId: 'tbl-upstairs', room: 'upstairs', pot: 900 })] });
     renderCasino();
 

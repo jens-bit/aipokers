@@ -42,7 +42,7 @@ function heldInRoom(x, y, size, geometry) {
  * @param onDrop   (agentId, fixture | null) — called once per completed carry
  * @param enabled  off on the desk, and off while a sheet is up
  */
-export function useCarry({ roomEl, onDrop, canLift, onRefuse, enabled = true, geometry = PHONE_ROOM }) {
+export function useCarry({ roomEl, onDrop, canLift, onRefuse, onRefusedDrop, enabled = true, geometry = PHONE_ROOM }) {
   // { id, x, y, over } — where he is in room coordinates and what is under him.
   const [carry, setCarry] = useState(null);
   const pressRef = useRef(null);
@@ -53,7 +53,7 @@ export function useCarry({ roomEl, onDrop, canLift, onRefuse, enabled = true, ge
   carryRef.current = carry;
   // A hand can start during the 420ms press. Check the latest snapshot.
   const liftPolicy = useRef({});
-  liftPolicy.current = { canLift, onRefuse };
+  liftPolicy.current = { canLift, onRefuse, onRefusedDrop };
   const allowLift = useCallback((id) => {
     if (liftPolicy.current.canLift?.(id) !== false) return true;
     liftPolicy.current.onRefuse?.(id);
@@ -110,12 +110,26 @@ export function useCarry({ roomEl, onDrop, canLift, onRefuse, enabled = true, ge
     if (press?.timer) clearTimeout(press.timer);
     pressRef.current = null;
     setCarry(null);
-    if (!press?.lifted) return;
+    if (!press?.lifted) {
+      // BUG-214: a REFUSED press that ends over a fixture still said something.
+      // He was never in the air — he is mid-hand — but the owner carried him
+      // somewhere and let go, and that is a destination, not a slip. Reported
+      // so the screen can hold the intent until the hand ends; where he was
+      // dropped is worked out the same way a real drop works it out.
+      if (press?.refused && roomEl) {
+        const rect = roomEl.getBoundingClientRect?.();
+        const at = toRoom(rect, press.clientX, press.clientY, geometry);
+        const held = at ? heldInRoom(at.x, at.y, press.size, geometry) : null;
+        const over = held ? fixtureAt(held.x, held.y, geometry) : null;
+        if (over) liftPolicy.current.onRefusedDrop?.(press.id, over);
+      }
+      return;
+    }
     if (press.picked) swallowClickRef.current = true;
     // A drop on the floor is a real answer — he goes back where he was — so
     // onDrop is called either way and null is the fixture that means "nowhere".
     onDrop?.(press.id, held?.over ?? null);
-  }, [onDrop]);
+  }, [onDrop, roomEl, geometry]);
 
   useEffect(() => {
     if (!enabled) return undefined;

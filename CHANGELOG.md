@@ -1,6 +1,6 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
-## UI-3 — one room, and real monitors — local candidate (2026-09-15)
+## UI-3 — one room, real monitors, readable money, want he can act on — local candidate (2026-09-15)
 
 - **The casino is a single room (JOB A).** The three doorways (the floor,
   upstairs, the back room), the Floor|Board toggle and the swipe between
@@ -11,8 +11,9 @@
   tapped. Placing a man is now a stake picked from a row of chips instead of
   a room walked into — the same law 4 (a stake he cannot afford is shut and
   says the price) and the same one-tap deal FIX-6 job 2 gave the doorway it
-  replaces. Fixes BUG-214 (entering the casino auto-targeted an empty room
-  and said nothing was running while games were live elsewhere).
+  replaces. Fixes BUG-217 (entering the casino auto-targeted an empty room
+  and said nothing was running while games were live elsewhere) — renumbered
+  from a local 214, since main's own BUG-214 (below, MERGE-10) landed first.
 - **The desk's other monitors show the real game (JOB B).** Every live
   agent's tile in the Standup panel now draws from his own real table state
   (AGE-37's `liveGame`, the same projection the home television already
@@ -33,6 +34,82 @@
   new `--cool` token; nothing in the palette was blue before), discipline
   down in red — and the one-sentence explanation now appears only once the
   owner taps the item, for that item alone.
+
+## 0.16.0 candidate — he asks for what he wants, and he cites a real hand (2026-09-15)
+
+One branch, five commits, `1e26f62..HEAD`. Merged as MERGE-10 and gated.
+
+LIFE-2 itself is server only — `git diff --stat main -- client/` on the branch
+is empty. No new dependencies, no model call added on any path, and the cost
+router is untouched: one talk call per hand when watched, none when unwatched.
+
+**The merge broke the desk's Carry, and that is fixed here too (BUG-214).**
+Carrying a mid-hand agent to the casino door did nothing at all — no chooser,
+no queue, no sentence. BUG-211 seats him in a live kitchen hand the moment
+Home opens and BUG-134 holds the lift until that hand ends, so the door
+carried nobody. It queues the deploy now and tells him so: he says "I am in a
+hand. I will come when it is done.", the line stands rather than fading, and
+the deploy fires the moment the hand is over. A door tap with nobody waiting
+is still just the door.
+
+**Three fields for the client tab**, confirmed live against a real server
+rather than read off the diff: `GET /api/agents/:id` carries `.want.action`
+(`rest` | `feed` | `chips` | `deploy` | `listen`) and `.want.actionLabel`
+("Sit him out", "Open the fridge", "Give him chips", "Put him in"), and
+`HOME_STATE.agents[].want` is `{ kind, text, action }` — three fields, and
+null for a visitor, who is not yours to feed.
+
+- **He asks for what he wants, in his own voice (job 1).** Real players could
+  not tell what they were supposed to do. Nothing here adds a want: the ladder
+  has ranked his one most pressing ask since WANTS-1 and every projection has
+  refreshed it. What was missing sat between the ask and the owner. The ask now
+  names an ACTION the owner can take tonight — rest, feed, chips, deploy, or
+  listen, five verbs and every ask maps onto exactly one — and he asks in HIS
+  OWN WORDS: eight natures by eight asks, sixty-four sentences, no two natures
+  alike in the same state. A Rock says "I'm knackered. Let me sleep."; a
+  Showman says "Curtain down. I need a lie-in." The voicing happens on the way
+  to the wire, not when the ask is stored, so a want raised before this speaks
+  in his voice on the next read with nothing migrated. `want.action` and
+  `want.actionLabel` on the agent view; `want { kind, text, action }` on every
+  body in HOME_STATE, for the speech bubble at home. The client tap is another
+  tab's job.
+
+- **He cites a real hand, or says plainly that he cannot (job 2).** Asked what
+  happened, an agent deflected. Two halves, both fixed. A hand in the prompt now
+  carries WHAT CAME (the board) and WHAT IT WON OR COST — the engine's own
+  per-seat net, not the pot, which is not his and flatters him on every multiway
+  pot he wins. And the answer is checked back: every hand he claims as his is
+  matched against exactly the hands he was shown, and one he did not play is a
+  fault like any other — repaired from a hand he did, or, with nothing behind
+  him, replaced by the plain admission. The check is deliberately narrow: only
+  a holding he claims in the first person is graded, because "he had the set" is
+  the other man's cards and "board came queen seven" is not a holding at all. A
+  gate that never once faults a true sentence is worth more than one that
+  catches every lie and one honest man with it.
+
+- **Two agents of different natures are not the same man (job 4).** Every
+  nature-keyed table of sentences in the product was audited — birth card,
+  openers, rest lines, table talk, name suggestions, the new want lines — and
+  all of them were already distinct. The one that was not keyed on nature at
+  all was the line under his ghost on the felt, and since COST-1 the compiled
+  policy produces most of them: a Rock and a Showman at one table, both
+  folding, both said "Not with this one." all session. Forty new clauses,
+  disjoint from the public table-talk pool so one decision never prints the
+  same sentence twice on two surfaces. A House regular keeps the old five.
+
+- **The ledger id mismatch: no migration (job 3).** Reported as historical rows
+  carrying bare ids. The dates settle it — the `agent_` prefix landed six days
+  before the ledger existed, and `Table.seatAI` is the only place an agent seat
+  is ever named. Measured: zero affected rows belonging to a real owner in the
+  fullest local database. `read-me-claude/LEDGER_IDS.md` has the evidence, what
+  a bare row would actually cost, why a correct migration needs a resolver and a
+  merge rule for an empty set, and the one read-only command that confirms the
+  count on the VPS. Production data was not touched.
+
+- **`npm run talk:eval` is the report for all of it.** 40 graded lines, 98
+  supply checks and 24 variety checks — 158 assertions, byte-identical output,
+  no key, under a second. The variety section fails when two natures in the
+  same state emit the same sentence.
 
 ## 0.15.0 — the money, the life, and the rest of the room (2026-09-15)
 
