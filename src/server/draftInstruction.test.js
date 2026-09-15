@@ -183,6 +183,26 @@ test('BUG-223: the two instructions do not produce the same agent', async () => 
   assert.notEqual(wild.strategy, rock.strategy);
 });
 
+test('BUG-223: widening the vocabulary never INVERTS an instruction', async () => {
+  // A first cut of the fix put "every hand" on the `loose` axis. It reads
+  // correctly in "he plays every hand" and backwards in "he should fold every
+  // hand", which is the tightest instruction there is — and the second one
+  // came out as tightness 25, discipline 30, a maniac. The token was removed
+  // rather than special-cased: a signal that means opposite things in two
+  // ordinary sentences is not a signal.
+  const { natureHintFor } = await import('../agent/attributes.js');
+  const folding = natureHintFor('he should fold every hand unless it is aces');
+  assert.ok(
+    !folding || folding.profile.tightness >= 55,
+    `a man told to fold everything came out at tightness ${folding?.profile?.tightness}`,
+  );
+
+  // And the all-in brief still reads, which is what the widening was for.
+  const shoving = natureHintFor('all I want him to play is all in, all the time');
+  assert.ok(shoving, 'the all-in brief still scores');
+  assert.ok(shoving.profile.tightness <= 30);
+});
+
 // ── 3 · nonsense, which must fail LOUDLY ────────────────────────────────────
 
 test('BUG-223: nonsense builds nobody, and says so rather than defaulting', async () => {

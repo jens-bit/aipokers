@@ -401,7 +401,7 @@ const DRAFT_SIGNALS = [
   { axis: 'bluff',      re: /bluff|deceiv|unreadab|mix it up|unpredictab|trick/i,        profile: { bluffFreq: 55, aggression: 65 } },
   { axis: 'tight',      re: /tight|patien|conservat|careful|selectiv|nitty|\bwait/i,     profile: { tightness: 82, aggression: 45 } },
   { axis: 'discipline', re: /disciplin|stick to|by the book|rules|system|methodic|fold/i, profile: { discipline: 85 } },
-  { axis: 'loose',      re: new RegExp(String.raw`loose|gambl|wild|reckless|swing|degen|yolo|any two|every hand|` + SHOVE, 'i'), profile: { discipline: 30, tightness: 25, bluffFreq: 45 } },
+  { axis: 'loose',      re: new RegExp(String.raw`loose|gambl|wild|reckless|swing|degen|yolo|any two|` + SHOVE, 'i'), profile: { discipline: 30, tightness: 25, bluffFreq: 45 } },
   { axis: 'grind',      re: /grind|all night|long session|marathon|endur|steady/i,       profile: { discipline: 68, tightness: 55 } },
   { axis: 'maths',      re: /math|equity|pot odds|calculat|precis|solver|\bgto\b/i,      profile: { discipline: 75, tightness: 65 } },
 ];
