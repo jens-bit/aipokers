@@ -144,9 +144,15 @@ header('Test 3: stacks persist per seat across the rebuild');
     assert.strictEqual(table.currentHandStartStacks[seat], banked[seat],
       `seat ${seat} carried its stack through the rebuild`);
   }
+  // MONEY-2 job 3: the rebuild still neither creates nor destroys a chip — what
+  // the felt has lost since the deal is exactly what the HOUSE took, and
+  // nothing else. Read off the table's own per-seat record rather than
+  // recomputed, so a rake that went somewhere other than the seats it was
+  // charged to would fail here.
+  const raked = table.seatRake.reduce((sum, n) => sum + (n ?? 0), 0);
   const inPlay = table.game.seats.reduce((sum, s) => sum + s.stack, 0) + table.game.pot;
-  assert.strictEqual(inPlay, 4000, 'no chips created or destroyed by the rebuild');
-  assert.strictEqual(chipsAtTable(table), 4000, 'the ledger agrees with the felt');
+  assert.strictEqual(inPlay, 4000 - raked, 'no chips created or destroyed by the rebuild — only raked');
+  assert.strictEqual(chipsAtTable(table), 4000 - raked, 'the ledger agrees with the felt');
   ok('stacks survive the roster change');
 }
 

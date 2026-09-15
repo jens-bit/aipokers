@@ -343,6 +343,34 @@ export function creditCashOut(pocket, amount, tableId = null) {
   return { ok: true, moved: back };
 }
 
+// MONEY-2 job 3 — the house's cut, at the rail.
+//
+// The rake was already taken on the felt: the table shrinks the winner's stack
+// the moment the pot is awarded (table.js `_takeRake`), so the stack he stands
+// up with is net and the arithmetic would balance with nothing written here at
+// all. This exists because "nothing written" is exactly what Jens could not
+// see. `finishAgentSession` pays out the GROSS and calls this for the cut, so
+// the pocket ledger carries both movements and the safe can print them:
+//
+//     cashed out   +4,200
+//     rake           −200
+//
+// Net identical, books double-entry, and `scripts/audit-chips.js` still
+// reconciles — the pocket balance moved by exactly the sum of the two lines,
+// which a single net cash-out plus an informational rake line would not have.
+//
+// It is P&L, not a transfer: the rake is a cost of playing, so it comes off
+// `realised` the same way a losing night does, and a collect after a raked
+// session offers the winnings that are actually there.
+export function takeRake(pocket, amount, tableId = null) {
+  const cut = Math.min(chips(amount), chips(pocket.balance));
+  if (cut <= 0) return { ok: false, moved: 0, reason: 'nothing to rake' };
+  pocket.balance -= cut;
+  pocket.realised = (pocket.realised ?? 0) - cut;
+  pocket.ledger = appendEntry(pocket.ledger, { type: 'rake', amount: -cut, tableId });
+  return { ok: true, moved: cut };
+}
+
 // Buy-in out, cash-out in — the net of the two is the realised P&L. Transfers
 // (fund, refill, collect, seed) are the owner moving his own money and are
 // deliberately excluded.
@@ -350,7 +378,10 @@ function realisedFromLedger(ledger) {
   if (!Array.isArray(ledger)) return 0;
   let n = 0;
   for (const e of ledger) {
-    if (e?.type === 'buyin' || e?.type === 'cashout') n += Number(e.amount) || 0;
+    // MONEY-2 job 3: the rake is one of the three, for the same reason. It is a
+    // cost of playing and it is already negative on the ledger, so a rebuilt
+    // `realised` matches the running counter takeRake() keeps.
+    if (e?.type === 'buyin' || e?.type === 'cashout' || e?.type === 'rake') n += Number(e.amount) || 0;
   }
   return n;
 }
@@ -464,7 +495,12 @@ function ledgerView(wallet, agents) {
     const entries = agent?.pocket?.ledger;
     if (!Array.isArray(entries)) continue;
     for (const e of entries) {
-      if (e?.type !== 'buyin' && e?.type !== 'cashout') continue;
+      // MONEY-2 job 3 adds `rake` to the two table movements the safe shows.
+      // It belongs for the same reason the other two do: it is a real chip
+      // movement with no other half anywhere on the wallet ledger, and it is
+      // the one line that explains why a winning night came home smaller than
+      // the felt said.
+      if (e?.type !== 'buyin' && e?.type !== 'cashout' && e?.type !== 'rake') continue;
       // The stored entry has no agentId on it — a pocket ledger has no need of
       // one, because it is all one man. The view does: the safe prints a name.
       rows.push({ ...e, agentId: e.agentId ?? agent.id ?? null });

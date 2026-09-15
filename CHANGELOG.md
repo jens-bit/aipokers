@@ -2,6 +2,25 @@
 
 ## Unreleased — MONEY-2
 
+- **The house takes a rake, and the economy has a drain (MONEY-2 job 3).** A
+  percentage of each pot, capped in big blinds, off the winner's stack the
+  moment it is awarded — at casino tables only, never at the kitchen table. It
+  is visible: named on the result line beside who won, and its own line in the
+  safe, because the rail now pays out the gross and takes the cut back rather
+  than quietly handing over a smaller number. Both dials are env-configurable
+  and read per call (`RAKE_PERCENT`, `RAKE_CAP_BB`; `0` turns it off without a
+  deploy). `scripts/simulate-economy.js --sweep` plays thousands of real hands
+  with House regulars dealt in and is what chose the setting.
+
+  **The measurement said something the queue did not expect, and it is the
+  headline: there is no climb left to cancel.** With the rake off, ten runs of
+  ~1,500 hands put a twelve-agent population at -0.3% — flat. MONEY-1's house
+  bank had already ended the minting that caused the 30,000-chip stacks. So the
+  shipped setting is **1% capped at 3 big blinds**, the smallest one that is
+  still a real drain and the only one where the cost to players is the rake
+  itself rather than twice it. The number is now guaranteed not to run away;
+  it is not being ground down.
+
 - **The safe's own cache was checked, and cleared (MONEY-2 job 2).** The second
   candidate for "the safe did not move" was ADMIN-2's stale in-memory wallet
   cache. It does sit in the read path — and that is why it is not the cause: it

@@ -127,7 +127,7 @@ import {
   emptyWallet, emptyPocket, ensurePocket,
   stakesFor, isBroke, canAffordTable, buyInFor,
   fund as walletFund, collect as walletCollect, autoRefill,
-  debitBuyIn, creditCashOut,
+  debitBuyIn, creditCashOut, takeRake,
   modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
   collectMoment, callInMoment, brokeMoment, appendEntry,
@@ -1693,7 +1693,7 @@ export function withTapeClause(agent, opener) {
 // `recap` (AGE-35) is the line the agent leaves the session on — "long
 // session, sitting out", "sat out by owner", etc. It becomes both the stored
 // sessionRecap and the lastMoment the floor renders in the ghost's bubble.
-export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null, seatedPlayerIds = [], sessionEnd = null } = {}) {
+export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null, seatedPlayerIds = [], sessionEnd = null, rakePaid = 0 } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -1794,18 +1794,36 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     ensureBankroll(agent);
     const creditAmount = typeof finalStack === 'number' ? finalStack
       : typeof buyInAmount === 'number' ? buyInAmount + sessionPnl : sessionPnl;
+    // MONEY-2 job 3 — THE RAKE IS PAID AT THE RAIL, IN THE OPEN.
+    //
+    // The house already has it: the table shrank his stack on every pot he won
+    // (table.js `_takeRake`), so `creditAmount` is net and the books would
+    // balance with nothing written about it at all. That is precisely the
+    // problem Jens reported in the other direction — money moving with no line
+    // to explain it. So the cage pays out the GROSS and takes the cut back in
+    // the same breath. The net movement is identical; what changes is that the
+    // safe has two lines instead of one silent smaller one, and the pocket
+    // ledger still sums to the pocket balance, which is the invariant
+    // `scripts/audit-chips.js` reconciles against.
+    const cut = Math.max(0, Math.floor(Number(rakePaid) || 0));
+    const gross = creditAmount + cut;
     // WALLET-1: the chips he walked away with come back to the POCKET — the
     // buy-in left it on deploy, so this restores net movement exactly. Money
     // stays in the pocket until the owner collects (§7.1).
-    houseBank.pay(creditAmount, `cashout ${agent.id} @ ${tableId ?? '?'}`);
-    creditCashOut(ensurePocket(agent), creditAmount, tableId ?? null);
+    houseBank.pay(gross, `cashout ${agent.id} @ ${tableId ?? '?'}`);
+    creditCashOut(ensurePocket(agent), gross, tableId ?? null);
+    if (cut > 0) {
+      houseBank.take(cut, `rake ${agent.id} @ ${tableId ?? '?'}`);
+      takeRake(ensurePocket(agent), cut, tableId ?? null);
+    }
     mirrorBankroll(agent);
     appendLedger(agent, {
       ts: Date.now(),
       type: 'cashout',
-      amount: creditAmount,
+      amount: gross,
       tableId: tableId ?? null,
     });
+    if (cut > 0) appendLedger(agent, { ts: Date.now(), type: 'rake', amount: -cut, tableId: tableId ?? null });
   }
 
   // SLOTS-1: a winning session is what buys the next agent slot. The counter

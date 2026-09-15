@@ -124,7 +124,7 @@ function captureBus(fn) {
 
 // ── 1. deltas ───────────────────────────────────────────────────────────────
 
-test('SERVER-3: result.deltas rides HAND_RESULT, net and summing to zero', () => {
+test('SERVER-3: result.deltas rides HAND_RESULT, net, and accounting for the house cut', () => {
   const { table, sockets } = seatedTable();
   table.maybeStartHand({ clientDriven: true });
   playDown(table);
@@ -134,7 +134,19 @@ test('SERVER-3: result.deltas rides HAND_RESULT, net and summing to zero', () =>
   const d = msg.result.deltas;
   assert.ok(d, 'and the result carries per-seat deltas');
   assert.equal(Object.keys(d).length, 2);
-  assert.equal(Number(d[0]) + Number(d[1]), 0, 'a hand moves chips, it never makes them');
+  // MONEY-2 job 3 changed this rule on purpose, and it is worth stating the new
+  // one in full rather than relaxing the old one. A hand still never MAKES
+  // chips — the engine's own law, asserted on every shape in game.test.js — but
+  // a raked hand REMOVES some from the felt, so the per-seat nets sum to minus
+  // the house's cut. Read off the result rather than hard-coded: the cut is
+  // configuration (RAKE_PERCENT / RAKE_CAP_BB) and rake.test.js is what pins
+  // its arithmetic; what this line pins is that the deltas account for it.
+  const cut = msg.result.rake?.total ?? 0;
+  // Written as "they add back to zero" rather than "they sum to minus the cut"
+  // because an unraked hand makes the second one read `0 === -0`, which
+  // node:assert/strict is right to refuse and which says nothing about poker.
+  assert.equal(Number(d[0]) + Number(d[1]) + cut, 0,
+    'a hand moves chips and never makes them; the house takes its cut off the felt');
   // The contract, stated against the thing the client used to compute it from:
   // the delta IS the stack movement, so nothing has to be differenced. Written
   // this way rather than "the winner is up" because a checked-down heads-up
@@ -156,8 +168,15 @@ test('SERVER-3: the winner nets what he was paid, not the whole pot', () => {
   // A pot won by a fold still contains the winner's own uncalled raise, which
   // is exactly why `pot` was never the number the ceremony wanted.
   assert.equal(msg.result.pot, 80, 'the pot he takes down');
-  assert.equal(msg.result.deltas[0], 20, 'but he is only up the blind he was paid');
-  assert.equal(msg.result.deltas[1], -20);
+  // MONEY-2 job 3: and then the house takes its cut, so what he is up is the
+  // blind he was paid LESS the rake. Note how small that cut is against a pot
+  // of 80: the 60 he raised was never called, so it is not part of the pot a
+  // cardroom counts (table.js `_rakeablePot`) and the house takes its
+  // percentage of the 40 that was actually contested.
+  const cut = msg.result.rake?.total ?? 0;
+  assert.ok(cut < 5, `a cut of a called 40, not of the 80 on the table — got ${cut}`);
+  assert.equal(msg.result.deltas[0], 20 - cut, 'he is up the blind he was paid, less the cut');
+  assert.equal(msg.result.deltas[1], -20, 'and the loser pays the blind and nothing else');
 });
 
 // ── 2. SESSION_END ──────────────────────────────────────────────────────────
@@ -245,7 +264,12 @@ test('SERVER-3: SESSION_END carries the numbers the ceremony prints', () => {
 
   const wire = sockets[0].of('session_end').find((m) => m.agentId === 'hero');
   assert.equal(wire.hands, 1, 'hands HE was dealt into');
-  assert.equal(wire.net, 20, 'signed chips: final stack minus his buy-in');
+  // MONEY-2 job 3: still the final stack minus his buy-in — and the final stack
+  // is what the house left him. `biggestPot` below is deliberately the GROSS
+  // 320, because the pot he had money in was 320; the cut came off the award,
+  // not off the pot, and a night is remembered by the pots it played.
+  assert.equal(wire.net, 20 - table.seatRakePaid(0),
+    'signed chips: final stack minus his buy-in, and the house has had its cut');
   assert.equal(wire.biggestPot, 320, 'the biggest pot he had money in');
   assert.ok(wire.duration >= 60_000, 'how long he sat there');
 });

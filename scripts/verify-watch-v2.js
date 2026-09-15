@@ -530,9 +530,13 @@ console.log('\n[verify] 6) SERVER-3 — deltas, the hero timer, SESSION_END and 
   check('every HAND_RESULT carries per-seat deltas',
         results.every((r) => r.deltas && Object.keys(r.deltas).length >= 2),
         JSON.stringify(results.map((r) => r.deltas)));
-  check('and every one of them sums to zero — chips move, they are never made',
-        results.every((r) => Object.values(r.deltas).reduce((a, b) => a + b, 0) === 0),
-        JSON.stringify(results.map((r) => Object.values(r.deltas))));
+  // MONEY-2 job 3: they sum to MINUS THE RAKE. Chips are still never made — the
+  // engine's own law, asserted on every shape in game.test.js — but a raked
+  // hand takes some off the felt, and a per-seat net that ignored the cut would
+  // tell an owner he won more than he is holding.
+  check('and every one of them sums to minus the house cut — chips move, they are never made',
+        results.every((r) => Object.values(r.deltas).reduce((a, b) => a + b, 0) === -(r.rake?.total ?? 0)),
+        JSON.stringify(results.map((r) => ({ deltas: Object.values(r.deltas), rake: r.rake?.total ?? 0 }))));
   check('the deltas are NET, not the pot: nobody is up the whole pot they built',
         results.every((r) => Object.values(r.deltas).every((d) => d <= r.pot)),
         JSON.stringify(results.map((r) => ({ pot: r.pot, deltas: r.deltas }))));

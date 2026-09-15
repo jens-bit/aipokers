@@ -183,7 +183,10 @@ test('EVENT-1 bust: a seat that hits zero is announced', () => {
 
   const g = playScriptedCooler(table);
   assert.equal(g.seats[1].stack, 0, 'the loser has nothing left');
-  assert.equal(g.seats[0].stack, 2000, 'and the winner has all of it');
+  // MONEY-2 job 3: all of it except the house's cut, which left the felt the
+  // moment the pot was pushed.
+  assert.equal(g.seats[0].stack, 2000 - table.seatRakePaid(0),
+    'and the winner has all of it but the rake');
 
   const [ev, ...rest] = ofType(EventType.BUST);
   assert.ok(ev, 'a seat at zero is a bust');

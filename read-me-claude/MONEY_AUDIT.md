@@ -1066,3 +1066,167 @@ they land in the same millisecond often enough (1 flip in 3 runs), and
 pocket's and the order flips. The assertion is now on the set, because the merge
 is what is under test and the order of two simultaneous entries is not a rule
 this product has made.
+## 18. Job 3 — the rake
+
+### The model
+
+A casino table takes **a percentage of the pot, capped in big blinds**, off the
+winner's stack the moment the pot is awarded. `src/server/rake.js` is the whole
+of the arithmetic; `RAKE_PERCENT` and `RAKE_CAP_BB` are the two dials, read at
+call time rather than at import, and `RAKE_PERCENT=0` switches it off entirely
+without a deploy — the same shape COST-1's `DECISION_ROUTER=off` has.
+
+**The engine is untouched.** It awards the whole pot and its own conservation
+law (deltas sum to zero, asserted on every shape in `game.test.js`) still holds
+on the result it produces. The table skims the felt afterwards, in
+`_handCompleted`, before anything downstream reads the result or the stacks.
+
+**Where the chips go, and why no bank write happens at the moment of the rake.**
+A stack is a CLAIM against the bank and the chips behind it are already inside
+`houseBank` (section 12). Shrinking the claim by the rake means the bank owes
+that much less, so the bank keeps it at settlement with nothing written on the
+felt. Calling `houseBank.take()` as well would count the same chips twice and
+mint them — `money2Rake.test.js` fails on exactly that.
+
+**A rake on a pot a House regular wins is a no-op in the books**, and correctly
+so: a House stack is notional and never settles, so there is nothing to keep.
+The drain is on chips owners take home, which is the number in question.
+
+**The bank is a number we watch, not a gate.** Unchanged from MONEY-1: seeded at
+`HOUSE_FLOAT`, never refuses to pay, may go negative and shouts when it does. No
+top-up was invented.
+
+### Visible, in two places
+
+- **The result line.** `result.rake = { total, bySeat, percent, capBb, bigBlind }`
+  rides every `HAND_RESULT`, and the thread's result line names it:
+  *"GRANITE won 1,000 at showdown — 10 to the house."* One phrase, `rakeLine()`,
+  so the felt and the history cannot describe one cut two ways. The WATCH
+  screen's own live result moment does not read it yet — filed as BUG-217, and
+  it is client work.
+- **The safe ledger.** `finishAgentSession` pays out the **gross** and takes the
+  cut back in the same breath, so the safe shows two lines where a silent
+  smaller cash-out would have shown one:
+
+      cashed out   +4,200
+      rake           -200
+
+  Net movement identical; books double-entry; and the pocket ledger still sums
+  to the pocket balance, which is the invariant `scripts/audit-chips.js`
+  reconciles against. A single net cash-out plus an informational rake line
+  would have broken that.
+
+### The one correction the rake needed
+
+The first version raked `result.pot`. On a hand that ends to a fold that pot
+still contains the winner's own uncalled bet: raise 300 into a 20 blind,
+everybody folds, `pot` reads 320, and what he actually won is 20. It was taking
+the house percentage out of the raiser's own stack — at the first-guess setting,
+twelve chips off a twenty-chip win.
+
+No cardroom rakes an uncalled bet and none of them calls that an exception: the
+uncalled portion is pushed back before the pot is counted. `table.js`
+`_rakeablePot` is that — the pot less the top contribution above the second,
+which is zero at every showdown (the engine refunds before it awards) and
+exactly the uncalled bet when a hand ends to a fold. It is not a rule beside "a
+percentage of each pot"; it is what "the pot" means.
+
+### The simulation
+
+`scripts/simulate-economy.js`. Real engine, real `Table` (so House regulars
+refill the felt when they bust, which is the compounding half of the original
+problem), real compiled policy through the table's own `_buildAiGameState`, real
+`_takeRake`. The RAIL is modelled in plain objects — buy-in, cash-out, rake back
+— because `chipConservation.test.js` and `money2Rake.test.js` already pin that
+the real rail matches, and doing it through SQLite would put a few thousand
+hands out of reach.
+
+Two honest limits, printed with the numbers rather than buried:
+
+1. **A run is not reproducible.** The seed controls the cards. It does not
+   control the policy: `compilePolicy` rolls its bluff die on `Math.random`
+   (`policy.js` `rollDice`). So the same seed at two settings plays two
+   different games. **Drift is a sample, not a measurement.** `raked` is the
+   number that holds still — within ~10% run to run at a fixed setting — which
+   is why the recommendation is built on it.
+2. **The equity estimate is cheaper than production's.** `estimateEquity` is
+   ~90% of the wall clock of anything that plays offline (measured with
+   `--cpu-prof`), so the script runs at `EQUITY_ITERATIONS=120` against the
+   product's 800. **Checked rather than assumed:** four seeds of 1,500 hands at
+   0% rake came back -2.2% at 120 and -3.7% at 800. Same answer, same sign; the
+   cheap estimate is not choosing the winner.
+
+### Every setting tried, and the curve
+
+12 owners, one agent each, 10,000 starting grant apiece (120,000 in owner
+hands), $10/$20, sessions capped at 100 hands, three seeds of ~1,500 hands per
+row, House regulars dealt in and refilled.
+
+| rake | cap | raked per 1,000 hands | drift, per seed | mean drift |
+|---|---|---|---|---|
+| **0%** | — | 0 | -2.6%, -0.2%, +1.9% | **-0.3%** |
+| 1% | 3bb | 1,170 | +0.1%, -2.7%, -3.0% | **-1.9%** |
+| 2% | 2bb | 2,574 | -1.9%, -9.4%, -11.6% | **-7.6%** |
+| 2% | 3bb | 2,620 | -8.7%, -8.8%, -1.9% | **-6.5%** |
+| 3% | 3bb | 4,001 | -8.2%, -18.8% *(2 seeds)* | **-13.5%** |
+
+An earlier pass at 4% and 5% ran against the pre-`_rakeablePot` code, so its
+raked figures are ~20% high and are not in the table; for the record it came
+back at +5.3/+2.7/-9.3% and -3.9/-17.3% mean drift, which is inside the same
+noise and well past the point of being a brake rather than a grinder.
+
+### THE FINDING, which is not the one the job expected
+
+**There is no climb left to cancel.** With the rake off, ten runs of ~1,500
+hands put the population at **-0.3%** — flat, inside its own noise, and if
+anything slightly down against the House. MONEY-1's own post-fix measurement
+(+727 on 30,000 over 207 hands, section 15) is a 207-hand sample and sits
+comfortably inside that noise band.
+
+That is MONEY-1 working. The climb Jens saw was **minting** — a fresh 100bb
+arriving on the felt every time the House busted, banked as if it were a
+balance — and the house bank ended it. What is left is a population playing a
+roughly break-even game against the House.
+
+So the rake is no longer a brake on a runaway number. It is the structural
+guarantee that the number **cannot** run away, and the only question left is how
+small it can be while still being real.
+
+**One more thing the curve shows.** From 2% upwards the drift runs at about
+twice the rake taken (2%: 2,620 raked against a -6.5% drift on a 120,000
+economy). That is compounding, not noise in one direction: a shaved stack busts
+sooner, a bust costs a whole buy-in, and the safe drains faster than the cut
+alone explains. At 1% it has not started — the drift and the rake are the same
+size.
+
+### The recommendation
+
+> **`RAKE_PERCENT=1`, `RAKE_CAP_BB=3`.** Shipped as the default; neither needs
+> to be set on the VPS.
+
+- It is the **smallest setting that is still a real drain**: ~1,170 chips per
+  thousand hands across twelve agents, about 98 chips each, a twentieth of a
+  buy-in. Against a 10,000 starting grant that is a very long runway.
+- It is **the only row where the drift and the rake are the same size.**
+  Everything above it costs the population roughly twice what the house
+  collects, which is a grinder rather than a brake.
+- It is **visible where it matters and invisible where it does not**: a 60-chip
+  pot rakes nothing, a 1,000-chip pot rakes 10, and a 6,000-chip pot hits the
+  60-chip cap at the floor.
+- The cap is **3bb rather than 2bb** because at the entry rung the two are
+  indistinguishable (2,620 against 2,574 per thousand hands, 1.1% apart — the
+  percentage binds, the cap almost never does). It earns its keep upstairs: 3bb
+  is 60 on the floor, 150 upstairs, 300 in the back room.
+- **Err small, on purpose.** Too little rake means the number creeps and
+  somebody raises the dial — no deploy, no code change. Too much means people
+  lose bankrolls, and no setting gives those back.
+
+**What the simulation cannot tell us**, said plainly rather than left for
+somebody to discover: the population here plays the **compiled policy**, because
+no automated suite in this repo may make a model call (TEST-2). A watched table
+in production sends its hard spots to the model, which plays better than the
+policy — so real owner agents may well beat the House by more than these twelve
+do, and the right setting in production may be higher than the right setting
+here. That is an argument for the dial, not against the number: measure prod
+with `scripts/audit-chips.js` over a few weeks, and if the total in owner hands
+is climbing, raise `RAKE_PERCENT` and watch it again.
