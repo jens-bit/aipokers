@@ -5901,6 +5901,37 @@ export function installAgentProfileRoutes(app) {
     const refused = admitToFelt(userId, agent);
     if (refused) return res.status(refused.status).json(refused.body);
 
+    // ── AGENT-4 job A · AND THE SAME SEAT GATE DEPLOY RUNS ───────────────────
+    //
+    // MONEY-2 gave this route deploy's MONEY gate and not deploy's SEAT gate,
+    // and the seat gate is the one that matters here, because of what the two
+    // lines below do: this route writes `activeTableId` and `status = 'playing'`
+    // for a table that does not exist yet. Run it on an agent who is already
+    // sitting at a casino table and the record stops describing where he is —
+    // it points at a reservation while he is dealt in somewhere else.
+    //
+    // That is not a second seat (addSpectator's own guard refuses the WATCH
+    // that follows), and it is worse than it looks for being quiet: the card
+    // says he is walking into a room he will never reach, the WATCH the client
+    // sends next fails with an error the owner did not cause, and the record
+    // stays wrong until the next deploy repairs it from the felt.
+    //
+    // THE FELT IS THE AUTHORITY, so this asks the felt — `tableOfAgent`, the
+    // same authority seating.js gives every other door — and refuses in
+    // deploy's own words, naming the table he is at, because "no" does not
+    // tell an owner anything he can act on.
+    {
+      const seatedAt = liveTables?.tableOfAgent?.(agent.id) ?? null;
+      if (seatedAt) {
+        return res.status(409).json({
+          error: 'alreadySeated',
+          message: seatedElsewhereMessage(agent.name, seatedAt),
+          tableId: seatedAt.tableId,
+          room: roomForBigBlind(seatedAt.bigBlind)?.id ?? null,
+        });
+      }
+    }
+
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;
     const asked = rungRequested(req.body);

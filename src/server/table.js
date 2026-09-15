@@ -1555,6 +1555,32 @@ export class Table {
     const free = this.pending.findIndex((p) => p === null);
     if (free === -1) throw new Error('table full — cannot seat AI');
 
+    // ── AGENT-4 job A · THE CHECK AND THE WRITE CANNOT BE SPLIT ──────────────
+    //
+    // MONEY-1 put the one-table rule on three doors — startAgentSession,
+    // joinAgentSession, addSpectator — and each of them asks it a few lines
+    // before calling this function. That is three checks guarding one write,
+    // and a rule enforced at every door except the one nobody remembered is
+    // not a rule: `maybeAutoSeatAI`, the vs-You door that JOIN uses, had no
+    // check at all, so an agent already grinding a casino table could be sat
+    // down a second time opposite his own owner — two seats, two buy-ins, one
+    // man (AGENT-4 job A, reproduced on main before this line existed).
+    //
+    // So the check moves to where the write is. This is the ONLY function in
+    // the codebase that puts an agent in a chair, which makes it the only
+    // place the invariant can be stated once and be true for every caller,
+    // including the next door somebody adds. The doors above keep their own
+    // checks — they refuse more gracefully, and a door that can say where he
+    // is before it takes his money is worth more than a backstop — but they
+    // are now an optimisation of this line rather than the whole of the rule.
+    //
+    // It throws, like the full table above it, because there is no seat index
+    // to return and every caller already handles this function throwing.
+    {
+      const other = seatedElsewhere(this, agentId);
+      if (other) throw new Error(seatedElsewhereMessage(displayName, other));
+    }
+
     // Match the human player's buy-in if not specified.
     const humanSeat = this.pending.findIndex((p, i) => p !== null && !this.aiSeats[i]);
     const aiBuyIn = buyIn ?? (humanSeat !== -1 ? this.pending[humanSeat].buyIn : this.bigBlind * 100);
@@ -2367,6 +2393,25 @@ export class Table {
     console.log(`[maybeAutoSeatAI] humanSeated=${humanSeated}, hasFree=${hasFree}, spectators=${this.spectators.length}, agentDisplayName=${agentDisplayName}, agentStrategy=${String(agentStrategy).slice(0, 40)}`);
     if (!hasFree) return null;
     if (!humanSeated && this.spectators.length === 0) return null;
+
+    // ── AGENT-4 job A · HE PLAYS ONE TABLE, AND THIS DOOR NEVER ASKED ────────
+    //
+    // This is the vs-You door: JOIN with `wantAI: true` and an `agentId`
+    // (wsServer.js). MONEY-2 made it PAY like a seat and left it the only one
+    // of the four that does not ask whether he is already IN one — so an agent
+    // deployed to a casino table could be seated again opposite his owner, and
+    // charged a second buy-in for the privilege. Two tables, one man, exactly
+    // the thing MONEY-1 job 5 was written to stop.
+    //
+    // ABOVE THE CHARGE, deliberately. seatAI's own guard would catch this a
+    // few lines later, but by then chargeSeatBuyIn has already moved chips out
+    // of his pocket and into the bank, and the throw would leave them there —
+    // a refusal that costs a buy-in is a worse bug than the one it refuses.
+    // The same ordering argument startAgentSession makes about the House.
+    {
+      const other = seatedElsewhere(this, agentId);
+      if (other) throw new Error(seatedElsewhereMessage(agentDisplayName, other));
+    }
 
     let paidBuyIn;
     if (agentId && userId != null && !this.home) {
