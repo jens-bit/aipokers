@@ -99,6 +99,19 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
     MAX_CONCURRENT_TABLES: 4,
     findJoinableTable: () => null,
     getDefaultBlinds: () => ({ smallBlind: 10, bigBlind: 20 }),
+    // AGENT-4 job B: yes to "put me in" now DEPLOYS him, so the stub has to be
+    // able to hand back a table. It was written when this route could only
+    // answer `needs: 'deploy'` and the deploy never happened, so the missing
+    // method threw and the 503 rollback swallowed it. A bare object rather than
+    // a real Table: this file must not start hand timers.
+    getOrCreateTable: (tableId, opts = {}) => ({
+      tableId,
+      bigBlind: opts.bigBlind ?? 20,
+      closed: false,
+      startAgentSession: () => 0,
+      abortSessionStart: () => true,
+      seatedCount: () => 1,
+    }),
   });
 
   try {
@@ -349,16 +362,26 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
         assert.equal(doneBody.fridge.beer, 1);
       });
 
-      await t.test('yes on "put me in" hands the client a room to open', async () => {
+      // AGENT-4 job B: THE RULE THIS CASE ENCODED HAS CHANGED, deliberately.
+      // It used to assert "the server cannot seat him; the casino screen can",
+      // which was true of the route and was the bug: yes to "put me in" marked
+      // the want granted and seated nobody. The server seats him now, through
+      // deployAgent — the same door the casino screen uses, so the same pocket
+      // gate, admission gate and cost bound. `needs: 'deploy'` still rides the
+      // answer, because the client still has to open the room to WATCH him;
+      // what it no longer does is stand in for the act. Every other assertion
+      // here is unchanged.
+      await t.test('yes on "put me in" seats him, and names the room to open', async () => {
         const res = await postJson(`${base}/api/agents/bored/want?userId=u1`, { userId: 'u1', answer: 'yes' });
         const body = await res.json();
         assert.equal(res.status, 200, JSON.stringify(body));
-        assert.equal(body.needs, 'deploy', 'the server cannot seat him; the casino screen can');
+        assert.equal(body.needs, 'deploy', 'the client still opens the room to watch him');
         assert.equal(body.kind, 'deploy');
         assert.ok('room' in body, 'room rides every deploy answer, null when he named none');
 
         const view = await getJson(`${base}/api/agents/bored?userId=u1`);
         assert.equal(view.want, null);
+        assert.equal(view.status, 'playing', 'and he is actually in a seat');
         const line = (view.ownerMemory ?? []).find((e) => e.type === 'want_granted');
         assert.ok(line);
         assert.equal(line.tone, 1);
@@ -373,17 +396,31 @@ test('WANTS-1: the seven asks, and answering them', async (t) => {
         assert.equal(body.room, 'backroom', 'the client opens the room the man is actually in');
       });
 
-      await t.test('yes on "front me?" points at the wallet and moves no money on its own', async () => {
+      // AGENT-4 job B: THE RULE THIS CASE ENCODED HAS CHANGED, deliberately.
+      // It used to assert "staking him is a decision with an amount on it —
+      // this route does not guess one", and so yes to "front me?" moved nothing
+      // and the man stayed broke. Jens's brief names the opposite rule: the
+      // chips verb stakes him, and the only correct refusal is an empty safe.
+      // The amount is not a guess — it is ONE MINIMUM BUY-IN, the same figure
+      // POST /reload uses, which is the smallest sum that answers what he asked
+      // for ("I need chips to keep going") and no more. Choosing a bigger
+      // number IS a decision with an amount on it, and that is what the wallet
+      // screen is still for.
+      await t.test('yes on "front me?" stakes him one buy-in out of the safe', async () => {
         const { _agentRecordForTests } = await import('./agentProfiles.js');
         _agentRecordForTests('busted', 'u1').want.snoozedUntil = Date.now() - 1;
 
-        const before = (await import('./store.js')).loadWallet('u1').balance;
+        const store = await import('./store.js');
+        const before = store.loadWallet('u1').balance;
         const res = await postJson(`${base}/api/agents/busted/want?userId=u1`, { userId: 'u1', answer: 'yes' });
         const body = await res.json();
         assert.equal(res.status, 200, JSON.stringify(body));
-        assert.equal(body.needs, 'fund');
-        assert.equal((await import('./store.js')).loadWallet('u1').balance, before,
-          'staking him is a decision with an amount on it — this route does not guess one');
+        assert.equal(body.needs, 'fund', 'the wallet screen is still where a bigger stake is decided');
+
+        const pocket = _agentRecordForTests('busted', 'u1').pocket.balance;
+        assert.equal(pocket, 2_000, 'one minimum buy-in, not a number the route invented');
+        assert.equal(store.loadWallet('u1').balance, before - pocket,
+          'and the safe has exactly that much less — the stake MOVED, it was not minted');
       });
 
       await t.test('yes on a DANGEROUS want is recorded as exactly that', async () => {
