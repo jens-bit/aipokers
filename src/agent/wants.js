@@ -442,6 +442,12 @@ export function buildAsk(ask, {
     item: ask.item ?? null,
     room: ask.room ?? null,
     tableId: ask.tableId ?? null,
+    // LIFE-2 job 1: the man the ask is ABOUT, kept beside the sentence it was
+    // built into. The nemesis line is the only one that names somebody out in
+    // the world, so it is the only one a later reader cannot rebuild from the
+    // stored kind alone — and wantView rebuilds every line in his nature's
+    // voice on the way to the wire. Null for the other seven kinds.
+    nemesisName: nemesisName == null ? null : String(nemesisName),
     text,
     mood: moodState,
     at: now,

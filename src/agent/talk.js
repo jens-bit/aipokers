@@ -18,12 +18,21 @@
 //      and no line — so an agent asked what happened had literally nothing to
 //      say and said something evasive instead. selfFacts() puts the real hands
 //      in, with what he held and what he did.
-//   2. THE LAWS. Four clauses that name the failure they exist to stop, each
-//      with the shape of the bad reply written out. A law the model can match
+//   2. THE LAWS. Clauses that name the failure they exist to stop, each with
+//      the shape of the bad reply written out. A law the model can match
 //      against a concrete example is followed; "be more engaging" is not.
 //   3. THE GATE. Deterministic, after the call, no second call. It grades the
-//      reply against the same four laws and repairs it from the facts when it
-//      fails. A prompt is a request; this is the part that is not optional.
+//      reply against those laws and repairs it from the facts when it fails. A
+//      prompt is a request; this is the part that is not optional.
+//
+// LIFE-2 job 2 finished the job on part 1 and added the fifth law to parts 2
+// and 3. The supply was still missing two of the four things a hand is made of:
+// what CAME (the board) and what it WON OR COST (the engine's per-seat net, not
+// the pot). And nothing checked the answer back — an agent given three hands
+// could describe a fourth, in detail, convincingly, and the only person in a
+// position to notice was the owner reading his own hand history. `invention`
+// is the fault that catches it, and it is the only one in the list that says a
+// reply is WRONG rather than badly shaped.
 //
 // COST. Nothing here calls a model, on either side. The gate runs on strings
 // that have already been paid for, and the repair is a template. The cost
@@ -180,8 +189,16 @@ export const REFUSAL = /\b(?:i cannot answer that|i can'?t answer that|i'?m not 
  * stated in the prompt — empty means it is fine.
  *
  * `lastShapes` is what he said BEFORE this one.
+ *
+ * LIFE-2 job 2 added `agent`, and with it the fifth law and the one that is
+ * about TRUTH rather than about form: a hand he cited has to be a hand he
+ * played. It is optional because four of the five faults need nothing but the
+ * two strings, and a caller with no record in hand — the eval's line grader,
+ * a test — should still get the other four rather than nothing. When it is
+ * passed, `invention` is the fault, and it is the only one in the list that
+ * says the reply is WRONG rather than badly shaped.
  */
-export function faultsIn({ said = '', reply = '', lastShapes = [] } = {}) {
+export function faultsIn({ said = '', reply = '', lastShapes = [], agent = null } = {}) {
   const faults = [];
   const r = clean(reply);
   if (!r) return ['empty'];
@@ -190,10 +207,37 @@ export function faultsIn({ said = '', reply = '', lastShapes = [] } = {}) {
   if (STAGE_DIRECTION.test(reply)) faults.push('stageDirection');
   if (REFUSAL.test(r)) faults.push('refusal');
   if (lastShapes.length && shapeOf(r) === lastShapes[0]) faults.push('repeatedShape');
+  if (agent) {
+    const made = inventedCitations(agent, { reply: r });
+    if (made.numbers.length || made.holdings.length) faults.push('invention');
+  }
   return faults;
 }
 
 // ── The facts ───────────────────────────────────────────────────────────────
+
+/**
+ * How many of his own hands go into the prompt, and therefore how many he is
+ * allowed to cite.
+ *
+ * ONE number, exported, because it is the hinge between the two halves of this
+ * file. selfFacts() puts this many hands in front of him and inventedCitations()
+ * grades him against exactly the same slice. If they ever disagreed, the gate
+ * would fault him for citing a hand we chose not to show him — punishing him
+ * for our own trimming — or let an older hand through as if he had been given
+ * it. Three is a BOUND rather than a preference: the block rides on top of an
+ * already long system prompt (COST-2 trimmed 435 tokens down to 291 across the
+ * whole static side), and a man who reels off twenty hands is a log file.
+ */
+export const SELF_FACT_HANDS = 3;
+
+// What the list says when there is no list. "Empty history means he says so
+// plainly" — and the plain thing has to be IN the prompt, because an empty
+// section reads to a model as a section it is free to fill. The repair below
+// carries the same sentence in his voice, so the two halves of the gate agree
+// about what a man with no hands behind him is entitled to claim: nothing.
+const NO_HANDS_LINE = '- nothing yet; you have not played a hand. You have no hand to '
+  + 'describe and you do not pretend otherwise: say so plainly.';
 
 const RANKS = { A: 'ace', K: 'king', Q: 'queen', J: 'jack', T: 'ten' };
 const card = (c) => {
@@ -201,21 +245,184 @@ const card = (c) => {
   return s.length >= 2 ? s : '';
 };
 
-/** One hand, in the detail somebody who played it would remember it in. */
+/**
+ * One hand, in the detail somebody who played it would remember it in.
+ *
+ * LIFE-2 job 2 added the two halves that were missing, and the omission is why
+ * an agent asked what happened could only ever answer with an outcome:
+ *
+ *   WHAT CAME. The board. A hand with no board in it is a hand nobody can talk
+ *   about — "I had ace king and lost 1450" is a result; "ace king, the board
+ *   came Qh 7d 2s Kc" is a hand. An empty board prints as "no flop", which is
+ *   itself the answer to what came.
+ *
+ *   WHAT IT WON OR COST. `net`, the engine's per-seat delta: what he took out
+ *   of the pot minus everything he put in. NOT the pot, which is the figure he
+ *   used to be given and which flatters him on every multiway pot he wins.
+ *   Absent on records written before the field existed, and left out rather
+ *   than guessed at when it is — a hand that cost him nothing and a hand whose
+ *   cost was never written down are different facts, and only one of them is
+ *   safe to say out loud.
+ */
 export function handFact(hand) {
   if (!hand) return null;
   const cards = (Array.isArray(hand.holeCards) ? hand.holeCards : []).map(card).filter(Boolean);
   const held = cards.length >= 2 ? `holding ${cards.join(' ')}` : null;
+  const board = (Array.isArray(hand.board) ? hand.board : []).map(card).filter(Boolean);
+  const came = Array.isArray(hand.board)
+    ? (board.length ? `board ${board.join(' ')}` : 'no flop')
+    : null;
   const line = (Array.isArray(hand.decisions) ? hand.decisions : [])
     .map((d) => `${d?.street ?? '?'} ${d?.action?.type ?? '?'}${Number.isFinite(d?.action?.amount) ? ` ${d.action.amount}` : ''}`)
     .join(', ');
+  const net = Number.isFinite(hand.net)
+    ? `${hand.net >= 0 ? 'made you' : 'cost you'} ${Math.abs(Math.round(hand.net))}`
+    : null;
   return [
     `hand ${hand.handNumber ?? '?'}`,
     hand.won ? 'WON' : 'lost',
     Number.isFinite(hand.potSize) ? `pot ${hand.potSize}` : null,
     held,
+    came,
     line ? `your line: ${line}` : null,
+    net,
   ].filter(Boolean).join(' — ');
+}
+
+// ── Did he make it up? ──────────────────────────────────────────────────────
+//
+// LIFE-2 job 2. The prompt has told him not to invent a hand since TALK-2, and
+// a prompt is a request. This is the half that is not optional: it reads the
+// reply back, finds every hand he CLAIMED AS HIS, and checks each one against
+// the list he was actually given.
+//
+// Two kinds of citation are graded, and deliberately no others:
+//
+//   A HAND NUMBER — "hand 812", "#812", "hand number 812". A figure presented
+//   as a hand is a claim about the record and is checkable against it exactly.
+//
+//   A HOLDING HE SAYS WAS HIS — "I had ace king", "I held Ah Kd", "I was
+//   holding pocket nines". Checked on RANKS ONLY and unordered, because that is
+//   how a person cites a hand and the suits are how a database does; faulting
+//   him for saying "ace king" about a hand the record spells Ah Kd would be
+//   faulting him for speaking English.
+//
+// THE FIRST PERSON IS THE WHOLE RULE, and it is a rule about false positives
+// rather than about grammar. Cards appear in a reply for four reasons and only
+// one of them is a claim this file can settle:
+//
+//   "I had ace king"          — his. On the record. Gradeable.
+//   "he had the set"          — the opponent's. The record does not hold the
+//                               other man's cards, so calling it a lie would be
+//                               this file inventing a fact of its own.
+//   "board came queen seven"  — the board. Two ranks side by side that are not
+//                               a holding at all, and the reason a bare
+//                               two-word pattern had to go: it faulted a
+//                               truthful description of the flop as an invented
+//                               hand.
+//   "ace king is a call"      — a hypothetical, usually one his owner opened.
+//                               Engaging with it is law 2, not a claim.
+//
+// So a bare "Ace king, called the turn" goes ungraded. That is the intended
+// trade: this gate exists to catch a LIE, and a gate that never once faults a
+// true sentence is worth more than one that catches every lie and one honest
+// man with it. The prompt still asks for all four; only the first is enforced.
+//
+// WHAT IS NOT GRADED is every other figure in the sentence. A reply carries pot
+// sizes, session nets, career nets, stacks and blinds, and a grader that
+// treated a loose number as a claim about a hand would fault "I am still down
+// 1450" — a true sentence about his week — as an invented hand.
+//
+// AND SAYING HE DOES NOT REMEMBER IS NEVER AN INVENTION. "I have no hand 999 on
+// file" names a hand number that is not his, which is the point of the
+// sentence. NOT_MINE below is the same admission vocabulary answersQuestion
+// already accepts, and it stands the whole check down.
+
+const RANK_WORDS = 'ace|king|queen|jack|ten|nine|eight|seven|six|five|four|three|deuce|two';
+const HAND_NUMBER = /(?:\bhands?\s*(?:number\s*)?#?\s*|#)(\d{1,6})\b/gi;
+
+// The four ways he says a holding is his, as one alternation: a card-code pair
+// ("Ah Kd"), a two-rank word pair ("ace king"), or a plural rank ("aces",
+// "sixes" — the `e?s` is for that one). `pocket`/`a pair of` are optional
+// dressing in front of any of them.
+const CLAIM = '\\bi (?:had|held|have|was holding|had got)\\s+(?:a pair of\\s+|pocket\\s+)?';
+const MY_HOLDING = new RegExp(
+  `${CLAIM}(?:`
+  + '([2-9TJQKA])[shdc]\\s*([2-9TJQKA])[shdc]'                       // 1,2  Ah Kd
+  + `|(${RANK_WORDS})[\\s-]+(${RANK_WORDS})`                          // 3,4  ace king
+  + `|(${RANK_WORDS})e?s`                                             // 5    aces
+  + ')\\b',
+  'gi');
+
+// He is saying he cannot place it, which is exactly what the prompt asks for
+// when a hand is not on his list.
+const NOT_MINE = /\b(?:i don'?t know|do not know|no idea|not sure|can'?t remember|cannot remember|don'?t remember|do not remember|never played|not (?:one of )?mine|not on (?:my|the) list|no such hand|have not played)\b/i;
+
+const WORD_TO_RANK = {
+  ace: 'A', king: 'K', queen: 'Q', jack: 'J', ten: 'T', nine: '9', eight: '8',
+  seven: '7', six: '6', five: '5', four: '4', three: '3', deuce: '2', two: '2',
+};
+
+const rankKey = (a, b) => [String(a).toUpperCase(), String(b).toUpperCase()].sort().join('');
+
+/** Every holding the SPEAKER claims as his own, as unordered rank keys. */
+export function claimedHoldings(text) {
+  const out = new Set();
+  for (const m of String(text ?? '').matchAll(MY_HOLDING)) {
+    if (m[1] && m[2]) { out.add(rankKey(m[1], m[2])); continue; }
+    if (m[3] && m[4]) {
+      const a = WORD_TO_RANK[m[3].toLowerCase()];
+      const b = WORD_TO_RANK[m[4].toLowerCase()];
+      if (a && b) out.add(rankKey(a, b));
+      continue;
+    }
+    if (m[5]) {
+      const r = WORD_TO_RANK[m[5].toLowerCase()];
+      if (r) out.add(rankKey(r, r));
+    }
+  }
+  return out;
+}
+
+/** Every hand NUMBER named in a string. */
+export function handNumbersIn(text) {
+  const out = new Set();
+  for (const m of String(text ?? '').matchAll(HAND_NUMBER)) out.add(Number(m[1]));
+  return out;
+}
+
+/**
+ * The hands he was actually given, indexed the two ways a reply can cite one.
+ *
+ * `hands` must match the number selfFacts() put in the prompt. Grading him
+ * against hands he was never shown would be faulting him for our own trimming.
+ */
+export function handIndex(agent, { hands = SELF_FACT_HANDS } = {}) {
+  const recent = (Array.isArray(agent?.recentHands) ? agent.recentHands : []).slice(0, hands);
+  const numbers = new Set();
+  const holdings = new Set();
+  for (const h of recent) {
+    if (Number.isFinite(Number(h?.handNumber))) numbers.add(Number(h.handNumber));
+    const cards = (Array.isArray(h?.holeCards) ? h.holeCards : [])
+      .map((c) => String(c ?? '')).filter((c) => c.length >= 2);
+    if (cards.length >= 2) holdings.add(rankKey(cards[0][0], cards[1][0]));
+  }
+  return { numbers, holdings, count: recent.length };
+}
+
+/**
+ * What he claimed that is not on his list. Both arrays empty means every hand
+ * in the reply is one he actually played.
+ *
+ * @returns {{ numbers: number[], holdings: string[] }}
+ */
+export function inventedCitations(agent, { reply = '', hands = SELF_FACT_HANDS } = {}) {
+  const r = clean(reply);
+  if (NOT_MINE.test(r)) return { numbers: [], holdings: [] };
+  const index = handIndex(agent, { hands });
+  const numbers = [...handNumbersIn(r)].filter((n) => !index.numbers.has(n));
+  const holdings = [...claimedHoldings(r)].filter((h) => !index.holdings.has(h));
+  return { numbers, holdings };
 }
 
 /**
@@ -226,7 +433,7 @@ export function handFact(hand) {
  * happened in that hand" had nothing to work from and produced something
  * evasive, which is not a failure of voice, it is a failure of supply.
  */
-export function selfFacts(agent, { hands = 3, state = null } = {}) {
+export function selfFacts(agent, { hands = SELF_FACT_HANDS, state = null } = {}) {
   const recent = (Array.isArray(agent?.recentHands) ? agent.recentHands : []).slice(0, hands);
   const lines = recent.map((h) => `- ${handFact(h)}`).filter(Boolean);
 
@@ -245,11 +452,13 @@ export function selfFacts(agent, { hands = 3, state = null } = {}) {
 
   return `
 
-YOUR OWN RECENT HANDS — these are real and you remember them. Cite them by
-what you held and what you did, not as statistics. Never invent a hand, a
+YOUR OWN RECENT HANDS — these are real and you remember them. Each line is one
+hand: what you held, what came, what you did, and what it won or cost. Asked
+about your night, about a hand, or about a man you played, answer with one of
+THESE — by the cards and the board, not as a statistic. Never invent a hand, a
 card, an opponent or a figure that is not here; if you are asked about
 something that is not on this list, say you do not remember it.
-${lines.length ? lines.join('\n') : '- nothing yet; you have not played a hand.'}
+${lines.length ? lines.join('\n') : NO_HANDS_LINE}
 ${session} ${career}. ${here}`.trimEnd();
 }
 
@@ -265,13 +474,19 @@ const SHAPE_ADVICE = Object.freeze({
 });
 
 /**
- * The four laws, each naming the failure it exists to stop.
+ * The laws, each naming the failure it exists to stop.
  *
  * Every one of these is written against a real bad reply rather than as an
  * abstraction, because an abstraction ("be engaging", "have personality") is
  * the instruction that produced "Yeah, whatever, I'm filming" in the first
  * place. The model is given the shape of the wrong answer and told not to
  * produce it.
+ *
+ * LIFE-2 job 2 added the fifth, and it is the only one with a grader behind it
+ * that can REJECT rather than merely ask: `invention` in faultsIn. The law is
+ * stated anyway, because a reply that never has to be repaired is better than
+ * one that does, and because law 5's failure mode — a hand he did not play,
+ * described convincingly — is the one an owner cannot detect by reading.
  */
 export function talkLaws(agent, { said = '', lastShapes = [] } = {}) {
   const shapes = lastShapes.length
@@ -285,9 +500,21 @@ export function talkLaws(agent, { said = '', lastShapes = [] } = {}) {
       + 'first sentence, with a fact from the lists above. Anything else comes after.'
     : '';
 
+  // LIFE-2 job 2: named here rather than left implicit, because "cite a hand"
+  // and "cite one of THESE hands" are different instructions and only the
+  // second one is checkable. A man with nothing behind him is told the one
+  // thing he is allowed to say, which is that there is nothing.
+  const index = handIndex(agent);
+  const citable = index.count
+    ? `\nYou have ${index.count} hand${index.count === 1 ? '' : 's'} on that list and they are the `
+      + 'ONLY hands you may describe. Hand numbers: '
+      + `${[...index.numbers].join(', ')}.`
+    : '\nYou have played no hands. You have nothing to describe, and if he asks '
+      + 'about one you say so plainly rather than reaching for a hand.';
+
   return `
 
-HOW YOU TALK — four laws, and each one exists because of a reply that failed.
+HOW YOU TALK — five laws, and each one exists because of a reply that failed.
 
 1. ANSWER WHAT HE ACTUALLY SAID. Not the topic, the question. "Yeah,
    whatever, I'm filming" is the failure: it answers nothing, knows nothing
@@ -304,6 +531,14 @@ HOW YOU TALK — four laws, and each one exists because of a reply that failed.
    asterisks, brackets or parentheses. You are talking, not being described.
 
 4. DO NOT REPEAT YOUR OWN SHAPE.${shapes || ' Vary the form of your replies.'}
+
+5. A HAND YOU CITE IS A HAND YOU PLAYED. Asked about your night, about a man
+   you sat with, or about a specific hand, answer with one off YOUR OWN RECENT
+   HANDS above — the cards, the board, what you did, what it won or cost. Never
+   a hand that is not on that list, however well it would fit the sentence.
+   "I had aces and he rivered a flush" is the failure when you held ace king:
+   it is a better story and it is not yours, and your owner has the hand history
+   in front of him.${citable}
 
 If he insults you or types nonsense, answer it IN CHARACTER — needle him back,
 be unimpressed, be amused, be whatever your nature is. You are never a
@@ -324,19 +559,36 @@ owner that you answer by declining to answer.`;
  * Returns null when there is nothing honest to say, and the caller keeps what
  * it had; a template is not always better than a weak sentence.
  */
+const ABOUT_A_HAND = /\bhand\b|\bplay(ed)?\b|\bwhy\b|\bwhat happened\b/i;
+
 export function repairReply(agent, { said = '', faults = [] } = {}) {
   if (!faults.length) return null;
   const hand = (Array.isArray(agent?.recentHands) ? agent.recentHands : [])[0];
   const log = Array.isArray(agent?.sessionLog) ? agent.sessionLog : [];
   const last = log[log.length - 1];
 
+  // LIFE-2 job 2 — he made one up, and this is the branch that decides what he
+  // gets instead. It is FIRST because it is the only fault where the reply was
+  // not weak but false, and a false sentence has to go whatever else is right
+  // about it. He is handed the real hand in the same breath, so being caught
+  // out costs him the story and not the conversation.
+  if (faults.includes('invention')) {
+    if (hand) return `${handSentence(hand)} That is the one, whatever I just said.`;
+    // …and with nothing behind him, the plain thing. Never a hand, never a
+    // hedge that sounds like one — see NO_HANDS_LINE, which is the same claim
+    // made to the model.
+    return 'I have not played a hand yet. There is nothing for me to tell you about.';
+  }
+
   // He was asked something and dodged it. Answer it with the nearest real fact.
-  if (/\bhand\b|\bplay(ed)?\b|\bwhy\b|\bwhat happened\b/i.test(said) && hand) {
-    const cards = (Array.isArray(hand.holeCards) ? hand.holeCards : []).filter(Boolean);
-    const held = cards.length >= 2 ? ` with ${cards.join(' ')}` : '';
-    return hand.won
-      ? `Hand ${hand.handNumber}${held} — I took ${hand.potSize} off him. That one I got right.`
-      : `Hand ${hand.handNumber}${held} — it cost me ${hand.potSize}. I have been over it.`;
+  if (ABOUT_A_HAND.test(said) && hand) return handSentence(hand);
+
+  // LIFE-2 job 2: and asked about a hand with nothing behind him, he says so
+  // rather than saying nothing. This used to fall through to `return null` and
+  // leave his own evasion standing, which is the one case where the evasion was
+  // not laziness — he genuinely had nothing — and still the wrong answer.
+  if (ABOUT_A_HAND.test(said) && !hand) {
+    return 'I have not played a hand yet. Nothing to go over.';
   }
 
   if (/\bsession\b|\bnight\b|\bhow did (?:it|you)\b|\bgo\b/i.test(said) && last) {
@@ -347,4 +599,29 @@ export function repairReply(agent, { said = '', faults = [] } = {}) {
   }
 
   return null;
+}
+
+/**
+ * One real hand, as he would say it: the cards, the board, and what it did to
+ * him. Every value comes off the record — nothing here composes a fact.
+ *
+ * `net` is preferred over `potSize` for what it cost, for the reason handFact
+ * gives: the pot is not his. It falls back to the pot only when the record
+ * predates the field, and then it says "pot" rather than "cost me", because
+ * the two are different claims and only one of them is on file.
+ */
+function handSentence(hand) {
+  const cards = (Array.isArray(hand.holeCards) ? hand.holeCards : []).filter(Boolean);
+  const held = cards.length >= 2 ? ` with ${cards.join(' ')}` : '';
+  const board = (Array.isArray(hand.board) ? hand.board : []).filter(Boolean);
+  const came = board.length ? ` Board ${board.join(' ')}.` : '';
+  if (Number.isFinite(hand.net)) {
+    const n = Math.abs(Math.round(hand.net));
+    return hand.net >= 0
+      ? `Hand ${hand.handNumber}${held} — made me ${n}.${came} That one I got right.`
+      : `Hand ${hand.handNumber}${held} — cost me ${n}.${came} I have been over it.`;
+  }
+  return hand.won
+    ? `Hand ${hand.handNumber}${held} — I took ${hand.potSize} off him.${came} That one I got right.`
+    : `Hand ${hand.handNumber}${held} — pot was ${hand.potSize}.${came} I have been over it.`;
 }

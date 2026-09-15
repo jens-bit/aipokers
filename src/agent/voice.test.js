@@ -10,6 +10,8 @@ import {
   cardPhrase,
   fallbackLine,
   voiceLine,
+  actionClause,
+  VOICED_ACTION_NATURES,
 } from './voice.js';
 
 // The line the live build actually produced, verbatim. It is the reason this
@@ -187,5 +189,93 @@ describe('voiceLine', () => {
       assert.ok(out.line.split(/\s+/).length <= VOICE_MAX_WORDS, `too long: ${out.line}`);
       assert.equal(isSolverSpeak(out.line), false, `solver speak survived: ${out.line}`);
     }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIFE-2 job 4 — the felt line is his, not the house's
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The audit this job asked for walked every authored nature table in the
+// product — birth words, signatures, openers, rest lines, table talk, name
+// suggestions, the want lines — and found them all distinct. It found the
+// collision here, in the one table that was never keyed on nature: two agents
+// at one felt, both folding, both saying "Not with this one." for the whole
+// session. Since COST-1 that is not an edge case either — the compiled policy
+// answers a large share of decisions and builds `reasoning` from this file.
+
+describe('LIFE-2: the clause under his ghost is in his own register', () => {
+  it('two natures in the same spot do not say the same thing', () => {
+    const spot = { holeCards: ['Ah', 'Td'], action: { type: 'fold' } };
+    const rock = fallbackLine({ ...spot, nature: 'Rock' });
+    const showman = fallbackLine({ ...spot, nature: 'Showman' });
+    assert.notEqual(rock, showman);
+    // …and both still name the hand, which is the half PACE-1c is about.
+    for (const line of [rock, showman]) assert.match(line, /^Ace-ten\./);
+  });
+
+  it('every nature has a clause for every action, and no two share one', () => {
+    for (const type of ['fold', 'check', 'call', 'bet', 'raise']) {
+      const seen = new Map();
+      for (const nature of VOICED_ACTION_NATURES) {
+        const clause = actionClause(nature, type);
+        assert.ok(clause, `${nature} has nothing to say when it ${type}s`);
+        assert.equal(seen.has(clause), false,
+          `${seen.get(clause)} and ${nature} both say "${clause}" on ${type}`);
+        seen.set(clause, nature);
+      }
+    }
+  });
+
+  it('a seat with no nature keeps the house clause it always had', () => {
+    // A House regular, an anonymous filler, an agent born before natures
+    // existed. PACE-1c's own strings, unchanged.
+    assert.equal(fallbackLine({ holeCards: ['Ah', 'Td'], action: { type: 'fold' } }),
+      'Ace-ten. Not with this one.');
+    assert.equal(fallbackLine({ holeCards: ['9h', '9s'], action: { type: 'raise' } }),
+      "Pocket nines. Let's make this expensive.");
+    // …and no nature borrows it, so a Rock and a House regular are still two
+    // different men at the same table.
+    for (const nature of VOICED_ACTION_NATURES) {
+      for (const type of ['fold', 'check', 'call', 'bet', 'raise']) {
+        assert.notEqual(actionClause(nature, type), actionClause(null, type),
+          `${nature}/${type} is the house line`);
+      }
+    }
+  });
+
+  it('is deterministic, and takes the nature in either stored shape', () => {
+    const args = { holeCards: ['Kc', '4c'], action: { type: 'call' }, nature: 'Sphinx' };
+    assert.equal(fallbackLine(args), fallbackLine(args));
+    assert.equal(
+      fallbackLine({ ...args, nature: { name: 'Sphinx' } }),
+      fallbackLine(args),
+    );
+  });
+
+  it('never speaks solver, in any voice', () => {
+    for (const nature of [...VOICED_ACTION_NATURES, null, 'Wizard']) {
+      for (const type of ['fold', 'check', 'call', 'bet', 'raise']) {
+        const line = fallbackLine({ holeCards: ['Ah', 'Td'], action: { type }, nature });
+        assert.equal(isSolverSpeak(line), false, `${nature}/${type}: ${line}`);
+        assert.ok(line.split(/\s+/).length <= VOICE_MAX_WORDS, `${nature}/${type}: ${line}`);
+      }
+    }
+  });
+
+  it('a rejected model line is replaced in HIS voice, not the house one', () => {
+    const out = voiceLine('tight aggressive line—open 3bb standard', {
+      holeCards: ['Ah', 'Td'], action: { type: 'raise' }, nature: 'Gambler',
+    });
+    assert.equal(out.source, 'template');
+    assert.equal(out.reason, 'solver speak');
+    assert.equal(out.line, fallbackLine({ holeCards: ['Ah', 'Td'], action: { type: 'raise' }, nature: 'Gambler' }));
+    assert.notEqual(out.line, fallbackLine({ holeCards: ['Ah', 'Td'], action: { type: 'raise' } }));
+  });
+
+  it('an unknown nature falls back rather than throwing', () => {
+    assert.equal(actionClause('Wizard', 'fold'), actionClause(null, 'fold'));
+    assert.equal(actionClause('Rock', 'muck'), null);
+    assert.equal(fallbackLine({ action: { type: 'muck' }, nature: 'Rock' }), 'Your move.');
   });
 });

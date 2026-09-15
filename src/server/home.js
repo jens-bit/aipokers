@@ -551,6 +551,20 @@ function homeAgentProjection(agent, { now = Date.now() } = {}) {
     // second chance for the room and the card to disagree about one agent.
     body: agent.body ?? bodyLevels({ stage: agent.fatigue ?? 'fresh', heat: agent.mood?.heat ?? null }),
     unseenRecap: !!agent.unseenRecap,
+    // LIFE-2 job 1: what he is asking for, over his head in the room.
+    //
+    // FORWARDED, never recomputed — rule 3 of this file's header, and the same
+    // reason `body` two lines up is forwarded. agentProfiles.wantView is the one
+    // reading of his want; a second derivation here would be a second chance for
+    // the room and the agent card to put different words in the same mouth.
+    //
+    // Three fields and no more. The card needs the price, the stock, the
+    // snooze and whether the shelf is empty; a bubble over a body needs the
+    // sentence, the verb behind it, and the kind to draw the right icon with.
+    // A visitor's projection carries no want at all — he is not yours to feed.
+    want: agent.want && !agent.guest
+      ? { kind: agent.want.kind, text: agent.want.text, action: agent.want.action ?? null }
+      : null,
     study: agent.study ?? null,
     // BUG-168: a live TV picture can ride Home's existing pushes. This is
     // deliberately public even for owner/visitor input; no heroHole or reads.

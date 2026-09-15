@@ -13,6 +13,9 @@ import { opponentRecallContext } from './opponentRecall.js';
 // LIFE-1 job 5 (TALK-2): the facts he can cite, the four laws, and the
 // deterministic gate that grades the reply afterwards. No model call.
 import { selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes } from '../agent/talk.js';
+// LIFE-2 job 1: his own voice for the one thing he is asking for, and the one
+// thing the owner can do about it.
+import { natureWantLine, wantAction, wantActionLabel } from '../agent/wantVoice.js';
 // LIFE-1 job 6: the hands he has played against the person holding the phone.
 import { recordOwnerHand, ownerHandsContext } from '../agent/ownerHands.js';
 // LIFE-1: the reserve. What playing costs him across sessions, and what
@@ -1270,7 +1273,7 @@ export function getAgentMemoryContext(agent) {
 // ── Direct-call functions (used by table.js — no HTTP round-trip) ─────────────
 
 // Record a hand result for an agent in-process.
-export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20, holeCards = [] } = {}) {
+export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20, holeCards = [], board = [], net = null } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -1307,7 +1310,20 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
   s.biggestPot = Math.max(s.biggestPot ?? 0, Number.isFinite(potSize) ? potSize : 0);
 
   agent.recentHands = [
-    { handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0, timestamp: Date.now(), decisions, seats, holeCards: Array.isArray(holeCards) ? [...holeCards] : [] },
+    {
+      handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0,
+      timestamp: Date.now(), decisions, seats,
+      holeCards: Array.isArray(holeCards) ? [...holeCards] : [],
+      // LIFE-2 job 2: what came, and what the hand did to HIM.
+      //
+      // Both are additive and both are optional: a record written before this
+      // tree has neither, handFact prints what it has, and nothing downstream
+      // branches on their absence. `net` stays null rather than defaulting to 0
+      // — a hand that cost him nothing and a hand whose cost was never recorded
+      // are different facts, and only one of them is safe to say out loud.
+      board: Array.isArray(board) ? [...board] : [],
+      net: Number.isFinite(net) ? Math.round(net) : null,
+    },
     ...agent.recentHands,
   ].slice(0, 20);
 
@@ -3223,14 +3239,48 @@ export function wantView(agent, { now = Date.now(), wallet = null } = {}) {
   // stocks the shelf. Nothing is written, so there is nothing to undo.
   const item = want.item ?? null;
   const out = !!wallet && !!item && isFridgeItem(item) && fridgeCountOf(wallet, item) < 1;
+  // LIFE-2 job 1: and the same seam re-derives the line in HIS OWN VOICE.
+  //
+  // Placed here rather than in buildAsk on purpose, and the reason is the one
+  // written three lines above for the empty fridge: the STORED ask keeps the
+  // sentence he raised it with, and what goes on the wire is what he is SAYING
+  // right now. Two things follow from that, both wanted:
+  //
+  //   * A want raised before this tree landed — or by an agent whose nature was
+  //     read out of the draft after the want was stored — speaks in his voice
+  //     from the next projection onward, with no migration and nothing written.
+  //   * An agent with no nature yet is not handed a borrowed personality; he
+  //     keeps the plain sentence he raised the ask with. THE STORED TEXT is the
+  //     fallback here rather than a fresh call into wants.askLine, and that is
+  //     load-bearing: askLine picks one of three alternates off a seed, so
+  //     re-picking it on every projection would make an unvoiced want rewrite
+  //     itself between two reads of the same unchanged state.
+  //
+  // `nemesisName` is the one fact a line cannot be rebuilt without, which is
+  // why buildAsk stamps it. Without it the nemesis line falls back to the
+  // stored text rather than losing the man's name.
+  const kind = want.kind ?? 'beer';
+  const voiced = natureWantLine(agent?.nature, kind, {
+    nemesisName: want.nemesisName ?? null,
+    roomPhrase: want.room ? roomPhrase(want.room) : null,
+  }) ?? want.text;
   return {
     // A want stored by RELATE-1d predates every field below it. It was a beer
     // and it projects as one, so the client never has to branch on the absence
     // of a field rather than on a kind.
-    kind: want.kind ?? 'beer',
-    text: out ? outOfStockLine(item) : want.text,
+    kind,
+    text: out ? outOfStockLine(item) : voiced,
     // Yes to a want he cannot be given opens the fridge instead of failing.
     needs: out ? 'stock' : (want.needs ?? null),
+    // LIFE-2 job 1: the ONE thing the owner can do about this tonight, and the
+    // copy for the control that does it. Deliberately NOT the same field as
+    // `needs` above: `needs` is a routing instruction for the client ("after
+    // yes, open the deploy sheet"), and `action` is the answer to "what am I
+    // supposed to do", which is the question the playtest could not answer.
+    // Five verbs — rest, feed, chips, deploy, listen — and every kind maps onto
+    // exactly one. See ACTION_BY_KIND in src/agent/wantVoice.js.
+    action: wantAction(kind),
+    actionLabel: wantActionLabel(kind),
     outOfStock: out || undefined,
     dangerous: !!want.dangerous,
     item: want.item ?? null,
@@ -3542,7 +3592,10 @@ export function sessionDipsOf(agentId, userId) {
  */
 // BUG-142: the acknowledgement describes a rest, never an invented venue.
 // Cadence follows the existing nature voices; firstWords stay birth-only.
-const REST_ACKNOWLEDGEMENTS = Object.freeze({
+// LIFE-2 job 4: exported for the same reason NATURE_LINES is — the voice audit
+// in `npm run talk:eval` walks every nature-keyed table of sentences, and a
+// table it cannot reach is a table nothing is checking.
+export const REST_ACKNOWLEDGEMENTS = Object.freeze({
   Grinder: 'Pacing myself. There are more hands ahead.',
   Hothead: 'Fine. Give me a minute.',
   Professor: 'A short break. Then back to the numbers.',
@@ -4453,7 +4506,14 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   let graded = spoken;
   let talkFaults = [];
   if (spoken) {
-    talkFaults = faultsIn({ said: content, reply: spoken, lastShapes: ensureShapes(existingAgent) });
+    // LIFE-2 job 2: the record goes in with the strings, which is what turns on
+    // the fifth law. Every hand he cited is checked against the same three
+    // hands selfFacts() put in front of him, and a hand he did not play is a
+    // fault like any other — repaired from a hand he did, or, with nothing
+    // behind him, replaced by the plain admission.
+    talkFaults = faultsIn({
+      said: content, reply: spoken, lastShapes: ensureShapes(existingAgent), agent: existingAgent,
+    });
     if (talkFaults.length) {
       const repaired = repairReply(existingAgent, { said: content, faults: talkFaults });
       if (repaired) graded = repaired;

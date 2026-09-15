@@ -166,7 +166,9 @@ export function ensureName(agent, { fallback = DEFAULT_NAME } = {}) {
 // suggested name that fights the temperament chip beside it reads as a bug.
 // Every one of them is a name coinName would return unchanged — a suggestion
 // the coiner would then rewrite is not a suggestion.
-const SUGGESTIONS = Object.freeze({
+// LIFE-2 job 4: exported for the voice audit. A name is not a line, but a name
+// offered to two different natures is the same failure wearing a shorter coat.
+export const SUGGESTIONS = Object.freeze({
   Grinder:   ['The Grinder', 'Clockwork', 'The Machine', 'Night Shift'],
   Hothead:   ['Loose Cannon', 'The Fuse', 'Powder Keg', 'Short Fuse'],
   Professor: ['The Professor', 'Chalk', 'The Lecture', 'Margin Note'],

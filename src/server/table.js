@@ -3269,6 +3269,20 @@ export class Table {
             seats: seatSnapshots,
             bb: this.bigBlind,
             holeCards: [...(this.game.seats[seat]?.holeCards ?? [])],
+            // LIFE-2 job 2: what came, and what it did to him.
+            //
+            // Both were missing from the only record a conversation can read,
+            // and both are half of the answer to "what happened in that hand".
+            // `board` is the community as the hand ended — empty on a preflop
+            // fold, which is itself the answer to what came.
+            //
+            // `net` is result.deltas[seat]: what he took out of the pot minus
+            // everything he put in (engine, SERVER-3). It is NOT potSize. A
+            // 1450 pot he won three-handed after calling 400 cost him 400 and
+            // made him 1050, and an agent who cites the pot as his winnings is
+            // wrong about his own night in the owner's favour every time.
+            board: [...(this.game.community ?? [])],
+            net: Number.isFinite(result.deltas?.[seat]) ? result.deltas[seat] : null,
           });
         } catch (err) {
           console.error('[table] result report failed:', err.message);

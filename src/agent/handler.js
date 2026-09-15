@@ -319,7 +319,9 @@ function parseDecision(text, gs) {
     // rather than shown, and everything is capped at twelve words. The
     // structured fields (equity, potOdds) are untouched — this is only the
     // sentence a person reads.
-    const spoken = voiceLine(rawReasoning, { holeCards: gs.holeCards, action });
+    // LIFE-2 job 4: and the template that replaces a rejected line is his own,
+    // not the house one — same table policyPlay reads.
+    const spoken = voiceLine(rawReasoning, { holeCards: gs.holeCards, action, nature: gs.nature });
     if (spoken.reason === 'solver speak') {
       console.log(`[agent] solver speak rejected: "${rawReasoning.slice(0, 60)}"`);
     }
