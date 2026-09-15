@@ -1,11 +1,28 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
-## Unreleased — he asks for what he wants, and he cites a real hand (LIFE-2)
+## 0.16.0 candidate — he asks for what he wants, and he cites a real hand (2026-09-15)
 
-On `feat/agent-life-2`, four jobs, not yet merged. Server only: `git diff
---stat main -- client/` is empty. No new dependencies, no model call added on
-any path, and the cost router is untouched — one talk call per hand when
-watched, none when unwatched.
+One branch, five commits, `1e26f62..HEAD`. Merged as MERGE-10 and gated.
+
+LIFE-2 itself is server only — `git diff --stat main -- client/` on the branch
+is empty. No new dependencies, no model call added on any path, and the cost
+router is untouched: one talk call per hand when watched, none when unwatched.
+
+**The merge broke the desk's Carry, and that is fixed here too (BUG-214).**
+Carrying a mid-hand agent to the casino door did nothing at all — no chooser,
+no queue, no sentence. BUG-211 seats him in a live kitchen hand the moment
+Home opens and BUG-134 holds the lift until that hand ends, so the door
+carried nobody. It queues the deploy now and tells him so: he says "I am in a
+hand. I will come when it is done.", the line stands rather than fading, and
+the deploy fires the moment the hand is over. A door tap with nobody waiting
+is still just the door.
+
+**Three fields for the client tab**, confirmed live against a real server
+rather than read off the diff: `GET /api/agents/:id` carries `.want.action`
+(`rest` | `feed` | `chips` | `deploy` | `listen`) and `.want.actionLabel`
+("Sit him out", "Open the fridge", "Give him chips", "Put him in"), and
+`HOME_STATE.agents[].want` is `{ kind, text, action }` — three fields, and
+null for a visitor, who is not yours to feed.
 
 - **He asks for what he wants, in his own voice (job 1).** Real players could
   not tell what they were supposed to do. Nothing here adds a want: the ladder
