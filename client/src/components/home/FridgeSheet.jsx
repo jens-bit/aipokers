@@ -1,14 +1,56 @@
 // Board 29 F13, mood-home2.jsx: household stock, bought from the safe.
 // Agents fetch an item after a want answer or a carry-to-fridge placement.
+//
+// UI-3 JOB D — THE FRIDGE LOSES ITS ESSAY.
+//
+// The list used to carry a sentence per item ("cools heat" / "gentler
+// cooling") always on, plus a whole paragraph at the foot spelling out the
+// beer's discipline tradeoff — visible whether or not the owner cared, every
+// time the sheet opened. Jens's decision: no descriptive text in the list.
+// Each item shows what it does as ARROWS ONLY — stamina up in green, heat
+// down in blue, discipline down in red, the same three colours `--success`/
+// `--cool`/`--error` mean everywhere else in the product — and the one
+// sentence that used to sit at the foot for everyone now belongs to
+// whichever item the owner actually taps, and only that one.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { money } from '../../lib/wallet.js';
 
+// One arrow per real effect (src/server/fridge.js's ITEMS, and the beer's
+// second half at the casino seat — BUGS.md's LIFE-1-I). Never a made-up one:
+// a beer does not touch stamina and a snack does not touch discipline, so
+// neither carries an arrow for it.
 export const STOCK = [
-  { id: 'beer', label: 'BEER', note: 'cools heat' },
-  { id: 'snack', label: 'SNACK', note: 'gentler cooling' },
+  {
+    id: 'beer', label: 'BEER',
+    effects: [{ attr: 'heat', dir: 'down' }, { attr: 'discipline', dir: 'down' }],
+    sentence: 'Cools him off now, but the edge follows him to his next casino seat as a discipline hit and looser bluffs.',
+  },
+  {
+    id: 'snack', label: 'SNACK',
+    effects: [{ attr: 'stamina', dir: 'up' }, { attr: 'heat', dir: 'down' }],
+    sentence: 'A gentler cooldown that also tops up his stamina, with nothing carried into his next session.',
+  },
 ];
+
+const ARROW_COLOR = { stamina: 'var(--success)', heat: 'var(--cool)', discipline: 'var(--error)' };
+
+function EffectArrow({ attr, dir }) {
+  const up = dir === 'up';
+  return (
+    <span
+      className={`fridge-stock__arrow fridge-stock__arrow--${attr}`}
+      style={{ color: ARROW_COLOR[attr] }}
+      role="img"
+      aria-label={`${attr} ${dir}`}
+      title={`${attr} ${dir}`}
+    >
+      {up ? '↑' : '↓'}
+    </span>
+  );
+}
+
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getTelegramInitData() });
 
 export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
@@ -18,6 +60,10 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState('');
   const [said, setSaid] = useState('');
+  // UI-3 job D: which item's one-sentence explanation is open, or none. Only
+  // ever one at a time — a second tap answers "what does THIS one do", not
+  // "and this one too".
+  const [expanded, setExpanded] = useState(null);
   const alive = useRef(false);
   const drag = useSheetDrag(onClose);
 
@@ -62,16 +108,32 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
         {STOCK.map(s => {
           const shelf = items?.find(i => i.id === s.id);
           const empty = shelf?.count === 0;
+          const open = expanded === s.id;
           return <li className="fridge-stock__row" key={s.id} data-testid={`fridge-shelf-${s.id}`}>
-            <span className={`fridge-stock__icon fridge-stock__icon--${s.id}${empty ? ' is-empty' : ''}`} aria-hidden/>
-            <div className="fridge-stock__detail"><div><b>{s.label}</b><span className={`fridge-stock__count${empty ? ' is-empty' : ''}`}>{shelf ? (empty ? 'out' : `× ${shelf.count}`) : '—'}</span></div><small>{s.note} · <span>{shelf ? `${money(shelf.price)} each` : 'price unavailable'}</span></small></div>
+            <button
+              type="button"
+              className="fridge-stock__item"
+              aria-expanded={open}
+              aria-label={`${s.label}: ${s.effects.map(e => `${e.attr} ${e.dir}`).join(', ')}. Tap to read why.`}
+              onClick={() => setExpanded(open ? null : s.id)}
+            >
+              <span className={`fridge-stock__icon fridge-stock__icon--${s.id}${empty ? ' is-empty' : ''}`} aria-hidden/>
+              <div className="fridge-stock__detail">
+                <div>
+                  <b>{s.label}</b>
+                  <span className="fridge-stock__arrows">{s.effects.map(e => <EffectArrow key={e.attr} attr={e.attr} dir={e.dir} />)}</span>
+                  <span className={`fridge-stock__count${empty ? ' is-empty' : ''}`}>{shelf ? (empty ? 'out' : `× ${shelf.count}`) : '—'}</span>
+                </div>
+                <small>{shelf ? `${money(shelf.price)} each` : 'price unavailable'}</small>
+              </div>
+            </button>
+            {open && <p className="fridge-stock__why">{s.sentence}</p>}
             <button type="button" className="fridge-stock__buy" aria-label={`Buy 6 ${s.id}`} data-testid={`home-buy-${s.id}`} onClick={() => buy(s.id)} disabled={!shelf || loading || !!busy}><span>{busy === s.id ? 'BUYING…' : 'BUY 6'}</span></button>
           </li>;
         })}
       </ul>
       {error && <div className="fridge-stock__error" role="alert">{error}{!items && <button type="button" onClick={load} disabled={loading}>Try again</button>}</div>}
       {said && <p className="home-sheet__said" role="status">{said}</p>}
-      <p className="fridge-stock__foot">A beer cools <b>heat</b>, but temporarily lowers <b>discipline</b> and makes bluffs more likely in his next casino session. A snack offers gentler cooling. If the fridge is empty, he will say so.</p>
     </div>
   </div>;
 }

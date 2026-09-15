@@ -67,6 +67,10 @@
   --error: #b04736;
   --warning: #966522;
   --neutral: var(--text-muted);
+  /* UI-3 job D: cooling — the fridge's own third colour, for a reading that
+     goes DOWN and is a good thing (heat), as distinct from success (up and
+     good) and error (down and a cost). No existing token was this hue. */
+  --cool: #3f6f8a;
 
   /* Game state */
   --your-turn: var(--accent);
@@ -143,6 +147,7 @@
   --success: #426236;
   --error: #a3432d;
   --warning: #85571b;
+  --cool: #47738f;
   --gold-reward: #805523;
   --gold-highlight: #97682f;
 }
@@ -173,6 +178,7 @@
   --success: #b6c89b;
   --error: #f39a83;
   --warning: #e2b571;
+  --cool: #8fb9d6;
   --gold-reward: #dcc395;
   --gold-highlight: #ead5b0;
   --scrim: rgba(18, 19, 15, .62);

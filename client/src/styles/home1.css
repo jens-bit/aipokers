@@ -1265,7 +1265,10 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .fridge-stock .home-sheet__close{min-height:32px;padding:0;align-self:stretch;font-size:14px}
 .fridge-stock .home-sheet__title{font:600 9px Oswald,sans-serif;letter-spacing:.16em;flex:0;color:var(--text-muted);white-space:nowrap}
 .fridge-stock__from{flex:1;font-size:10.5px;color:var(--text-muted)}
-.fridge-stock__row{display:flex;align-items:center;gap:10px;padding:3px 0;border-top:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent)}
+.fridge-stock__row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:3px 0;border-top:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent)}
+/* UI-3 job D: the icon and detail are a tap target now — the item itself,
+   answering "what does this do" on demand instead of always saying so. */
+.fridge-stock__item{display:flex;align-items:center;gap:10px;flex:1;min-width:0;border:0;padding:0;margin:0;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}
 .fridge-stock__icon{position:relative;display:block;flex-shrink:0;width:26px;height:22px}
 .fridge-stock__icon:before{content:"";position:absolute;bottom:0;left:9px;width:8px;height:20px;border-radius:2px 2px 3px 3px;background:#7aa88ab3;border-top:3px solid #7AA88A}
 .fridge-stock__icon--snack:before{left:4px;width:18px;height:13px;border:0;border-radius:2px;background:color-mix(in srgb, var(--gold-reward) 46.7%, transparent)}
@@ -1273,14 +1276,19 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .fridge-stock__detail{flex:1;min-width:0}
 .fridge-stock__detail>div{display:flex;align-items:baseline;gap:7px}
 .fridge-stock__detail b{font:600 10px Oswald,sans-serif;letter-spacing:.12em;color:var(--text-primary)}
-.fridge-stock__count{font:700 11px 'JetBrains Mono',monospace;color:var(--accent)}
+/* The arrows: stamina up in green, heat down in blue, discipline down in
+   red — the same three tokens (--success/--cool/--error) mean everywhere
+   else, never a colour invented just for this list. */
+.fridge-stock__arrows{display:inline-flex;align-items:center;gap:3px}
+.fridge-stock__arrow{font-size:11px;font-weight:700;line-height:1}
+.fridge-stock__count{margin-left:auto;font:700 11px 'JetBrains Mono',monospace;color:var(--accent)}
 .fridge-stock__count.is-empty{color:var(--error)}
 .fridge-stock__detail small{display:block;margin-top:2px;font:10.5px Inter,sans-serif;color:var(--text-muted)}
-.fridge-stock__detail small span{font:9.5px 'JetBrains Mono',monospace}
 .fridge-stock__buy{min-height:44px;min-width:44px;flex-shrink:0;border:0;padding:0;font:600 8.5px Oswald,sans-serif;letter-spacing:.1em;color:var(--gold-reward);background:transparent}
 .fridge-stock__buy span{display:block;border:1px solid color-mix(in srgb, var(--gold-reward) 33.3%, transparent);border-radius:10px;padding:4px 10px}
-.fridge-stock__foot{margin:6px 0 0;padding-top:10px;border-top:1px solid color-mix(in srgb, var(--text-primary) 10.2%, transparent);font:10.5px/1.5 Inter,sans-serif;color:var(--text-muted)}
-.fridge-stock__foot b{color:var(--text-secondary)}
+/* UI-3 job D: one sentence, for the one item just tapped — never the whole
+   list's worth at once, and never open by default. */
+.fridge-stock__why{flex-basis:100%;margin:0;padding:6px 0 2px 36px;font:10.5px/1.45 Inter,sans-serif;color:var(--text-muted)}
 .fridge-stock__loading,.fridge-stock__error{padding:6px 0;font:11px/1.4 Inter,sans-serif;color:var(--gold-reward)}
 .fridge-stock__error button{display:block;padding:6px 0;color:var(--gold-reward);font:11px Inter,sans-serif}
 .home-thread__error{position:absolute;left:12px;right:12px;bottom:76px;padding:8px 10px;border:1px solid color-mix(in srgb, var(--gold-reward) 26.7%, transparent);border-radius:10px;background:#1b2019;color:var(--gold-reward);font:11px/1.4 Inter,sans-serif;z-index:20;pointer-events:none}
