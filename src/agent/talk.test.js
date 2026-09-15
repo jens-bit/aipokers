@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {
   SHAPES, SHAPE_MEMORY, shapeOf, noteShape, ensureShapes,
   isQuestion, answersQuestion, faultsIn, selfFacts, talkLaws, handFact, repairReply,
+  SELF_FACT_HANDS, handIndex, claimedHoldings, handNumbersIn, inventedCitations,
 } from './talk.js';
 
 const hand = (extra = {}) => ({
@@ -171,7 +172,19 @@ test('LIFE-1: a dodged question about a hand is repaired from the real hand', ()
 test('LIFE-1: the repair never invents — no fact, no repair', () => {
   // The rule that keeps the fallback from being a worse failure than the reply
   // it replaced: it returns null and his own weak sentence stands.
-  assert.equal(repairReply({ }, { said: 'what happened in that hand?', faults: ['deflection'] }), null);
+  //
+  // LIFE-2 job 2 REWROTE one third of this test rather than loosening it, and
+  // the rule it encoded is one the product no longer wants. It used to require
+  // that an agent with NO HANDS asked about a hand be repaired to null — his
+  // own evasion left standing. That was the one case where the evasion was not
+  // laziness (he genuinely had nothing) and still the wrong answer: "empty
+  // history means he says so plainly", LIFE-2 job 2. The no-invention rule is
+  // unchanged and is what the new line obeys — it names no hand, no card and no
+  // figure. The two clauses below it are untouched.
+  assert.equal(
+    repairReply({ }, { said: 'what happened in that hand?', faults: ['deflection'] }),
+    'I have not played a hand yet. Nothing to go over.',
+  );
   assert.equal(repairReply(agent(), { said: 'what happened?', faults: [] }), null,
     'a clean reply is never repaired');
   const fixed = repairReply(agent(), { said: 'nothing it can answer', faults: ['deflection'] });
@@ -182,4 +195,167 @@ test('LIFE-1: a question about the session is repaired from the session', () => 
   const fixed = repairReply(agent(), { said: 'how did the session go?', faults: ['deflection'] });
   assert.match(fixed, /1450/);
   assert.match(fixed, /96 hands/);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIFE-2 job 2 — he cites a real hand
+// ═══════════════════════════════════════════════════════════════════════════
+
+const full = (extra = {}) => ({
+  handNumber: 812, won: false, potSize: 1450, holeCards: ['Ah', 'Kd'],
+  board: ['Qh', '7d', '2s', 'Kc', '3h'], net: -820,
+  decisions: [{ street: 'turn', action: { type: 'call', amount: 400 } }], ...extra,
+});
+
+const played = (extra = {}) => agent({
+  recentHands: [
+    full(),
+    full({ handNumber: 811, won: true, potSize: 620, holeCards: ['Qs', 'Qc'], board: ['9c', '4d', '4s'], net: 260 }),
+    full({ handNumber: 810, won: false, potSize: 120, holeCards: ['7h', '2c'], board: [], net: -20 }),
+  ],
+  ...extra,
+});
+
+// ── the supply ──────────────────────────────────────────────────────────────
+
+test('LIFE-2: a hand carries what came and what it cost, not just the pot', () => {
+  const line = handFact(full());
+  assert.match(line, /board Qh 7d 2s Kc 3h/);
+  // The NET, and it is not the pot. A 1450 pot he called 400 into cost him 820.
+  assert.match(line, /cost you 820/);
+  assert.doesNotMatch(line, /cost you 1450/);
+  assert.match(handFact(full({ won: true, net: 260 })), /made you 260/);
+});
+
+test('LIFE-2: a hand that never saw a flop says so', () => {
+  assert.match(handFact(full({ board: [] })), /no flop/);
+});
+
+test('LIFE-2: a record written before the fields existed prints what it has', () => {
+  // Neither is guessed at. A hand that cost him nothing and a hand whose cost
+  // was never written down are different facts, and only one is safe to say.
+  const old = handFact(hand());
+  assert.match(old, /hand 812 — lost — pot 1450 — holding Ah Kd/);
+  assert.doesNotMatch(old, /board/);
+  assert.doesNotMatch(old, /no flop/);
+  assert.doesNotMatch(old, /cost you|made you/);
+});
+
+test('LIFE-2: the prompt names the hands he is allowed to cite, and the law', () => {
+  const laws = talkLaws(played(), { said: 'what happened?' });
+  assert.match(laws, /A HAND YOU CITE IS A HAND YOU PLAYED/);
+  assert.match(laws, /Hand numbers: 812, 811, 810\./);
+});
+
+test('LIFE-2: with nothing behind him the prompt says so twice, and offers no list', () => {
+  const facts = selfFacts({ recentHands: [] });
+  assert.match(facts, /nothing yet; you have not played a hand/);
+  assert.match(facts, /say so plainly/);
+  const laws = talkLaws({ recentHands: [] }, { said: 'what happened in that hand?' });
+  assert.match(laws, /You have played no hands\./);
+  assert.doesNotMatch(laws, /Hand numbers:/);
+});
+
+test('LIFE-2: he is graded against exactly the hands he was shown', () => {
+  // The hinge. selfFacts puts SELF_FACT_HANDS in front of him and
+  // inventedCitations grades that same slice; a fourth hand on the record is
+  // not one he was given, so citing it is an invention and not a gate bug.
+  const four = played({
+    recentHands: [
+      full(), full({ handNumber: 811, holeCards: ['Qs', 'Qc'] }),
+      full({ handNumber: 810, holeCards: ['7h', '2c'] }),
+      full({ handNumber: 809, holeCards: ['Js', 'Jd'] }),
+    ],
+  });
+  assert.equal(handIndex(four).count, SELF_FACT_HANDS);
+  assert.doesNotMatch(selfFacts(four), /hand 809/);
+  assert.deepEqual(inventedCitations(four, { reply: 'I had jacks.' }).holdings, ['JJ']);
+});
+
+// ── what counts as a citation ───────────────────────────────────────────────
+
+test('LIFE-2: a hand he claims as his own is checked against the record', () => {
+  const a = played();
+  for (const reply of [
+    'I had ace king and it cost me 820.',
+    'I had Ah Kd on that one.',
+    'I was holding queens.',
+    'I had seven deuce. Folded it.',
+  ]) {
+    assert.deepEqual(inventedCitations(a, { reply }), { numbers: [], holdings: [] }, reply);
+  }
+  // …and the ones he did not play are caught.
+  assert.deepEqual(inventedCitations(a, { reply: 'I had aces.' }).holdings, ['AA']);
+  assert.deepEqual(inventedCitations(a, { reply: 'I had jack ten suited.' }).holdings, ['JT']);
+  assert.deepEqual(inventedCitations(a, { reply: 'Hand 806 was the one.' }).numbers, [806]);
+});
+
+test('LIFE-2: the first person is the whole rule — nothing else is graded', () => {
+  const a = played();
+  // The opponent's cards. This file holds no record of them, so calling it a
+  // lie would be the gate inventing a fact of its own.
+  assert.deepEqual(claimedHoldings('He had aces. I was drawing dead.').size, 0);
+  // The board. Two ranks side by side that are not a holding at all — and the
+  // reason a bare two-word pattern could not survive.
+  assert.deepEqual(
+    inventedCitations(a, { reply: 'I had ace king. Board came queen seven deuce, then a king.' }),
+    { numbers: [], holdings: [] },
+  );
+  // A hypothetical his owner opened. Engaging with it is law 2.
+  assert.equal(claimedHoldings('Ace king is a call at that price.').size, 0);
+});
+
+test('LIFE-2: a figure is not a citation', () => {
+  const a = played();
+  for (const reply of [
+    'I am still down 1450.',
+    '2400 across the whole thing. 1450 of it this week.',
+    'I folded 810 hands waiting for something to happen.',
+    'Low room, forty hands, then I stop.',
+  ]) {
+    assert.deepEqual(inventedCitations(a, { reply }), { numbers: [], holdings: [] }, reply);
+  }
+  // A hand number is only a citation when it is dressed as one.
+  assert.deepEqual([...handNumbersIn('hand 812 and #811 and hand number 810')], [812, 811, 810]);
+  assert.deepEqual([...handNumbersIn('812 hands, 1450 down')], []);
+});
+
+test('LIFE-2: saying he cannot place it is never an invention', () => {
+  // It names a hand number that is not his. That is the point of the sentence,
+  // and it is exactly what the prompt asks him to do.
+  const a = played();
+  assert.deepEqual(inventedCitations(a, { reply: 'I do not remember hand 700.' }),
+    { numbers: [], holdings: [] });
+  assert.deepEqual(inventedCitations(a, { reply: 'Hand 700 is not one of mine.' }),
+    { numbers: [], holdings: [] });
+});
+
+// ── the gate and the repair ─────────────────────────────────────────────────
+
+test('LIFE-2: the record is what turns the fifth law on', () => {
+  const reply = 'I had aces and he rivered a flush on me.';
+  // Without a record, the other four laws still run. A caller with no record in
+  // hand should get those rather than nothing.
+  assert.ok(!faultsIn({ said: 'and?', reply }).includes('invention'));
+  assert.ok(faultsIn({ said: 'and?', reply, agent: played() }).includes('invention'));
+});
+
+test('LIFE-2: an invented hand is replaced by a real one, not by a hedge', () => {
+  const fixed = repairReply(played(), { said: 'what happened?', faults: ['invention'] });
+  assert.match(fixed, /Hand 812/);
+  assert.match(fixed, /Ah Kd/);
+  assert.match(fixed, /cost me 820/);
+  assert.match(fixed, /Board Qh 7d 2s Kc 3h/);
+  // It goes first: a false sentence has to go whatever else is right about it.
+  const both = repairReply(played(), { said: 'how did the session go?', faults: ['deflection', 'invention'] });
+  assert.match(both, /Hand 812/);
+});
+
+test('LIFE-2: with nothing behind him, the repair is the plain admission', () => {
+  const none = { recentHands: [], sessionLog: [] };
+  const line = repairReply(none, { said: 'what happened?', faults: ['invention'] });
+  assert.equal(line, 'I have not played a hand yet. There is nothing for me to tell you about.');
+  // And the admission has to survive its own gate, or the repair would be a
+  // reply the product then rejects.
+  assert.deepEqual(faultsIn({ said: 'what happened?', reply: line, agent: none }), []);
 });

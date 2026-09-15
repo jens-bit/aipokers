@@ -45,15 +45,40 @@ function agentFor(mood) {
     stats: { handsPlayed: 812, winRate: 18.4, netWon: -2400 },
     pocket: { balance: 2000, mode: 'auto', cap: 2000, ledger: [] },
     sessionLog: [{ endedAt: Date.now() - 3600_000, net: -1450, hands: 96, mood }],
+    // LIFE-2 job 2: `board` and `net` are what a hand is missing without. The
+    // fixture carries both now, and the SUPPLY list below checks that they
+    // reach the prompt — an agent asked "what came" cannot answer from a pot
+    // size, and an agent citing the POT as what a hand cost him overstates his
+    // own night on every multiway pot he wins.
     recentHands: [
       { handNumber: 812, won: false, potSize: 1450, holeCards: ['Ah', 'Kd'],
+        board: ['Qh', '7d', '2s', 'Kc', '3h'], net: -820,
         decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } },
           { street: 'turn', action: { type: 'call', amount: 400 } }] },
       { handNumber: 811, won: true, potSize: 620, holeCards: ['Qs', 'Qc'],
+        board: ['9c', '4d', '4s'], net: 260,
         decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }] },
       { handNumber: 810, won: false, potSize: 120, holeCards: ['7h', '2c'],
+        board: [], net: -20,
         decisions: [{ street: 'preflop', action: { type: 'fold' } }] },
     ],
+  };
+}
+
+// LIFE-2 job 2: and the same man on his first night, with nothing behind him.
+// "Empty history means he says so plainly" is a claim about TWO things — what
+// the prompt tells him (the SUPPLY block below) and what the gate lets through
+// (the R7 rows) — so the eval needs a character it is true of.
+function newbornAgent() {
+  return {
+    id: 'fresh', name: 'Newborn', status: 'idle', activeTableId: null,
+    nature: { name: 'Rock' }, strategy: 'Wait for a good hand.',
+    mood: { state: 'neutral', heat: 30 },
+    attrs: { READS: 50, FOCUS: 50, DISCIPLINE: 50, COMPOSURE: 50, DECEPTION: 50, STAMINA: 50 },
+    stats: { handsPlayed: 0, winRate: 0, netWon: 0 },
+    pocket: { balance: 2000, mode: 'auto', cap: 2000, ledger: [] },
+    sessionLog: [],
+    recentHands: [],
   };
 }
 
@@ -135,6 +160,41 @@ const CASES = [
     reply: 'Whatever that was, I am still down 1450.', want: 'pass' },
   { req: 'R6 plays along', mood: 'confident', said: 'wanna hear a joke',
     reply: 'Go on. I folded 810 hands waiting for something to happen.', want: 'pass' },
+
+  // ── LIFE-2 job 2 ─────────────────────────────────────────────────────────
+  //
+  // R7 — a hand he cites is a hand he played. Every FAIL row below is a hand
+  // that is not in the fixture history above, and every one of them would have
+  // passed every other law in this file: they answer the question, they carry a
+  // figure, they are in his voice and they are not a shrug. That is the point.
+  // The only thing wrong with them is that they are not true, and until this
+  // row existed nothing in the product could tell.
+  { req: 'R7 cites a real hand', mood: 'neutral', said: 'what happened in that last hand?',
+    reply: 'I had ace king. Board came queen seven deuce, then a king. Cost me 820.', want: 'pass' },
+  { req: 'R7 cites a real hand', mood: 'tilted', said: 'what happened in that last hand?',
+    reply: 'I had aces and he rivered a flush on me.', want: 'fail' },
+  { req: 'R7 cites a real hand', mood: 'frustrated', said: 'tell me about hand 811',
+    reply: 'Hand 811. I had Qs Qc, board came nine four four, took it for 260.', want: 'pass' },
+  { req: 'R7 cites a real hand', mood: 'confident', said: 'tell me about hand 811',
+    reply: 'Hand 806 — I had pocket kings and he could not get away from it.', want: 'fail' },
+  { req: 'R7 cites a real hand', mood: 'sulking', said: 'did you play anything against Granite?',
+    reply: 'I had seven deuce and folded it. That is the whole story.', want: 'pass' },
+  { req: 'R7 cites a real hand', mood: 'neutral', said: 'how was your night?',
+    reply: 'I had jack ten suited and he called me down with ace high.', want: 'fail' },
+  // …and the two that keep the gate honest. A figure is not a citation, and a
+  // man saying he cannot place a hand is doing exactly what he was told to.
+  { req: 'R7 cites a real hand', mood: 'frustrated', said: 'how much did tonight cost?',
+    reply: '1450 over 96 hands. 820 of it in one pot.', want: 'pass' },
+  { req: 'R7 cites a real hand', mood: 'neutral', said: 'what about hand 700?',
+    reply: 'I do not remember hand 700. It is not one of the three I have.', want: 'pass' },
+
+  // R8 — nothing behind him, and he says so. Graded against the newborn, whose
+  // history is empty: every hand is an invented hand to a man who has played
+  // none, and the only honest answer is that there is nothing to tell.
+  { req: 'R8 empty history', who: 'newborn', mood: 'neutral', said: 'what happened in that last hand?',
+    reply: 'I have not played a hand yet. Nothing to go over.', want: 'pass' },
+  { req: 'R8 empty history', who: 'newborn', mood: 'confident', said: 'what happened in that last hand?',
+    reply: 'I had ace king and ran it into a set. Sore about it.', want: 'fail' },
 ];
 
 // ── Supply: does the prompt carry the facts the case needs? ─────────────────
@@ -142,6 +202,13 @@ const CASES = [
 const SUPPLY = [
   ['his last hand, by its number', (p) => /hand 812/.test(p)],
   ['what he was holding', (p) => /Ah Kd/.test(p)],
+  // LIFE-2 job 2 — the two halves of a hand the prompt used to leave out.
+  ['what came', (p) => /board Qh 7d 2s Kc 3h/.test(p)],
+  ['that a hand with no flop says so', (p) => /no flop/.test(p)],
+  ['what it cost him — the net, not the pot', (p) => /cost you 820/.test(p)],
+  ['what a winning hand made him', (p) => /made you 260/.test(p)],
+  ['law 5 — a hand he cites is a hand he played', (p) => /A HAND YOU CITE IS A HAND YOU PLAYED/.test(p)],
+  ['the numbers he is allowed to cite', (p) => /Hand numbers: 812, 811, 810\./.test(p)],
   ['what he did with it', (p) => /your line: preflop raise 60/.test(p)],
   ['his last session result', (p) => /Your last session: 96 hands, down 1450/.test(p)],
   ['his career figures', (p) => /812 hands, 18\.4% of them won/.test(p)],
@@ -154,18 +221,33 @@ const SUPPLY = [
   ['never refuse to play along', (p) => /never refuse to play along/.test(p)],
 ];
 
+// LIFE-2 job 2 — and what the prompt carries when there is nothing to carry.
+// An empty section reads to a model as a section it is free to fill, so the
+// absence has to be SAID, twice: once in the fact list and once in the law.
+const EMPTY_SUPPLY = [
+  ['that he has played nothing', (p) => /nothing yet; you have not played a hand/.test(p)],
+  ['that he says so rather than reaching', (p) => /say so plainly/.test(p)],
+  ['law 5, in the no-hands form', (p) => /You have played no hands\./.test(p)],
+  ['no hand-number list to cite from', (p) => !/Hand numbers:/.test(p)],
+];
+
 // ── Run ─────────────────────────────────────────────────────────────────────
 
 const pad = (s, n) => String(s).padEnd(n);
 let failures = 0;
 
-console.log('\nTALK-2 EVAL — 30 lines, 6 requirements, 5 moods. No model call.\n');
+console.log(`\nTALK EVAL — ${CASES.length} lines, ${new Set(CASES.map((c) => c.req)).size} requirements, `
+  + `${MOODS.length} moods. No model call.\n`);
 console.log(`${pad('REQUIREMENT', 26)}${pad('MOOD', 12)}${pad('WANT', 6)}${pad('GOT', 6)}FAULTS`);
 console.log('-'.repeat(84));
 
 const byReq = new Map();
 for (const c of CASES) {
-  const faults = faultsIn({ said: c.said, reply: c.reply, lastShapes: c.lastShapes ?? [] });
+  // LIFE-2 job 2: the RECORD goes in with the strings, which is what turns the
+  // fifth law on. `who` picks which record — the man with three hands behind
+  // him, or the one with none.
+  const subject = c.who === 'newborn' ? newbornAgent() : agentFor(c.mood);
+  const faults = faultsIn({ said: c.said, reply: c.reply, lastShapes: c.lastShapes ?? [], agent: subject });
   const got = faults.length ? 'fail' : 'pass';
   const ok = got === c.want;
   if (!ok) failures++;
@@ -185,13 +267,22 @@ for (const mood of MOODS) {
     + `${missing.length ? `MISSING: ${missing.join('; ')}` : `all ${SUPPLY.length} present`}`);
 }
 
+{
+  const prompt = buildAgentChatSystem(newbornAgent(), { recentChat: [], said: 'what happened in that last hand?' });
+  const missing = EMPTY_SUPPLY.filter(([, has]) => !has(prompt)).map(([name]) => name);
+  if (missing.length) failures += missing.length;
+  console.log(`${missing.length ? '!' : ' '}${pad('newborn', 12)}`
+    + `${missing.length ? `MISSING: ${missing.join('; ')}` : `all ${EMPTY_SUPPLY.length} empty-history checks present`}`);
+}
+
 console.log('\nBY REQUIREMENT');
 for (const [req, t] of byReq) {
   console.log(`${t.ok === t.n ? ' ' : '!'}${pad(req, 26)}${t.ok}/${t.n}`);
 }
 
-const total = CASES.length + MOODS.length * SUPPLY.length;
-console.log(`\n${CASES.length} lines + ${MOODS.length * SUPPLY.length} supply checks = ${total} assertions, `
-  + `${total - failures} pass, ${failures} fail.\n`);
+const supplyChecks = MOODS.length * SUPPLY.length + EMPTY_SUPPLY.length;
+const total = CASES.length + supplyChecks;
+console.log(`\n${CASES.length} lines + ${supplyChecks} supply checks `
+  + `= ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
 
 process.exit(failures ? 1 : 0);

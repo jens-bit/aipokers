@@ -1273,7 +1273,7 @@ export function getAgentMemoryContext(agent) {
 // ── Direct-call functions (used by table.js — no HTTP round-trip) ─────────────
 
 // Record a hand result for an agent in-process.
-export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20, holeCards = [] } = {}) {
+export function recordHandResult(agentId, userId, { won, potSize, decisions = [], handNumber, seats = [], bb = 20, holeCards = [], board = [], net = null } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -1310,7 +1310,20 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
   s.biggestPot = Math.max(s.biggestPot ?? 0, Number.isFinite(potSize) ? potSize : 0);
 
   agent.recentHands = [
-    { handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0, timestamp: Date.now(), decisions, seats, holeCards: Array.isArray(holeCards) ? [...holeCards] : [] },
+    {
+      handNumber, won: !!won, potSize: Number.isFinite(potSize) ? potSize : 0,
+      timestamp: Date.now(), decisions, seats,
+      holeCards: Array.isArray(holeCards) ? [...holeCards] : [],
+      // LIFE-2 job 2: what came, and what the hand did to HIM.
+      //
+      // Both are additive and both are optional: a record written before this
+      // tree has neither, handFact prints what it has, and nothing downstream
+      // branches on their absence. `net` stays null rather than defaulting to 0
+      // — a hand that cost him nothing and a hand whose cost was never recorded
+      // are different facts, and only one of them is safe to say out loud.
+      board: Array.isArray(board) ? [...board] : [],
+      net: Number.isFinite(net) ? Math.round(net) : null,
+    },
     ...agent.recentHands,
   ].slice(0, 20);
 
@@ -4490,7 +4503,14 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   let graded = spoken;
   let talkFaults = [];
   if (spoken) {
-    talkFaults = faultsIn({ said: content, reply: spoken, lastShapes: ensureShapes(existingAgent) });
+    // LIFE-2 job 2: the record goes in with the strings, which is what turns on
+    // the fifth law. Every hand he cited is checked against the same three
+    // hands selfFacts() put in front of him, and a hand he did not play is a
+    // fault like any other — repaired from a hand he did, or, with nothing
+    // behind him, replaced by the plain admission.
+    talkFaults = faultsIn({
+      said: content, reply: spoken, lastShapes: ensureShapes(existingAgent), agent: existingAgent,
+    });
     if (talkFaults.length) {
       const repaired = repairReply(existingAgent, { said: content, faults: talkFaults });
       if (repaired) graded = repaired;
