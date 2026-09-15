@@ -110,6 +110,44 @@ function newbornAgent() {
   };
 }
 
+// ── LIFE-3 job 2: the man from the transcript ───────────────────────────────
+//
+// The hand Jens actually asked about: a queen-six he got his stack in with and
+// busted on. The R9 rows below quote both halves of that conversation word for
+// word, which is the whole reason this fixture exists rather than reusing
+// Stone's ace-king — "queen six? the one you just busted on" has to resolve to
+// a hand with a queen and a six in it, or the row proves nothing.
+function bustedAgent(extra = {}) {
+  return {
+    ...agentFor('tilted'), id: 'burn', name: 'Burn',
+    recentHands: [
+      { handNumber: 812, won: false, potSize: 1450, holeCards: ['Qh', '6d'],
+        board: ['Qs', '7d', '2s', 'Kc', '3h'], net: -820,
+        decisions: [{ street: 'turn', action: { type: 'call', amount: 400 }, allIn: true }],
+        why: { street: 'turn', action: { type: 'call', amount: 400 }, allIn: true,
+          reasoning: 'he has been firing every street, I put him on a bluff',
+          heat: 78, stamina: 'worn', moodState: 'tilted' } },
+      { handNumber: 811, won: true, potSize: 620, holeCards: ['Js', 'Td'],
+        board: ['9c', '4d', '4s'], net: 260,
+        decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }],
+        why: { street: 'preflop', action: { type: 'raise', amount: 60 }, allIn: false,
+          reasoning: 'suited connector, cheap to see a flop', heat: 30,
+          stamina: 'settled', moodState: 'neutral' } },
+    ],
+    ...extra,
+  };
+}
+
+// …and the same man, later in the same conversation, having already said it
+// once. `chatHistory` is the window the repeat rule reads and it is the one
+// agentProfiles already keeps: twelve messages, no new field, no new storage.
+function repeatingAgent() {
+  return bustedAgent({ chatHistory: [
+    { role: 'user', content: 'why did you go all in on that hand?' },
+    { role: 'assistant', content: "Don't remember that one, man — which hand you talking about?" },
+  ] });
+}
+
 // ── The thirty lines ────────────────────────────────────────────────────────
 //
 // `want` is 'pass' when the grader must accept the line and 'fail' when it
@@ -223,6 +261,42 @@ const CASES = [
     reply: 'I have not played a hand yet. Nothing to go over.', want: 'pass' },
   { req: 'R8 empty history', who: 'newborn', mood: 'confident', said: 'what happened in that last hand?',
     reply: 'I had ace king and ran it into a set. Sore about it.', want: 'fail' },
+
+  // ── LIFE-3 job 2 ─────────────────────────────────────────────────────────
+  //
+  // R9 — the dead end. Every FAIL row here is a sentence Jens was actually
+  // given on the night of 15 September, quoted word for word, and every one of
+  // them passed the whole gate before this tree: they are not refusals (law 6's
+  // failure is not the help-desk voice), they are not deflections (they are
+  // real questions, so shapeOf calls them questions), and they carry no
+  // invented hand because they carry no hand at all. That is what made them
+  // invisible. The PASS rows beside them are the same question answered.
+  { req: 'R9 no dead end', who: 'busted', mood: 'tilted', said: 'why did you go all in on that hand?',
+    reply: "Don't remember that one, man — which hand you talking about?", want: 'fail' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'tilted', said: 'why did you go all in on that hand?',
+    reply: 'Hand 812, the queen-six. He fired every street and I put him on a bluff. Cost me 820.', want: 'pass' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'frustrated', said: 'queen six? the one you just busted on.',
+    reply: "Man, I don't know what you're asking about — what happened?", want: 'fail' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'frustrated', said: 'queen six? the one you just busted on.',
+    reply: 'That is the one. Queen six, board came queen seven deuce, and I could not put it down.', want: 'pass' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'sulking', said: 'why???',
+    reply: "Man, I don't know what you're asking about — what happened?", want: 'fail' },
+  { req: 'R9 no dead end', who: 'busted', mood: 'sulking', said: 'why???',
+    reply: 'Because I had him on a bluff and he had the king. 820 says I was wrong.', want: 'pass' },
+  // And the one that is not the dead end however much it looks like one: he
+  // NAMES the hand he cannot place, which is what law 5 asks for.
+  { req: 'R9 no dead end', who: 'busted', mood: 'neutral', said: 'what about hand 700?',
+    reply: 'I have no hand 700 on my list. Not one of mine.', want: 'pass' },
+
+  // R10 — and it may never be said twice in one conversation. `repeating` has
+  // already said it once, two messages ago. The transcript had it three times,
+  // word for word, which is what a character with one string in it sounds like.
+  { req: 'R10 never twice', who: 'repeating', mood: 'tilted', said: 'why???',
+    reply: "Man, I don't know what you're asking about — what happened?", want: 'fail' },
+  { req: 'R10 never twice', who: 'repeating', mood: 'tilted', said: 'why???',
+    reply: "Don't remember that one, man — which hand you talking about?", want: 'fail' },
+  { req: 'R10 never twice', who: 'repeating', mood: 'tilted', said: 'why???',
+    reply: 'The queen-six. I called 400 on the turn with top pair and he had the king.', want: 'pass' },
 ];
 
 // ── Supply: does the prompt carry the facts the case needs? ─────────────────
@@ -252,6 +326,12 @@ const SUPPLY = [
   ['law 2 — advice is worth something', (p) => /YOU WANT TO GET BETTER/.test(p)],
   ['law 3 — speech only', (p) => /SPEECH ONLY/.test(p)],
   ['law 4 — do not repeat your shape', (p) => /DO NOT REPEAT YOUR OWN SHAPE/.test(p)],
+  // LIFE-3 job 2 — the law against handing the question back, and the answer to
+  // the question it is about. The hand is worked out by the same resolver the
+  // gate grades him with, so the prompt and the repair cannot disagree.
+  ['law 6 — never ask which hand he means', (p) => /NEVER ASK HIM WHICH HAND HE MEANS/.test(p)],
+  ['which hand he is being asked about', (p) => /THE HAND HE IS ASKING ABOUT IS HAND 812 — the ace-king/.test(p)],
+  ['that he was not told one, so it is the notable one', (p) => /the hand your night turned on/.test(p)],
   ['never refuse to play along', (p) => /never refuse to play along/.test(p)],
 ];
 
@@ -263,6 +343,10 @@ const EMPTY_SUPPLY = [
   ['that he says so rather than reaching', (p) => /say so plainly/.test(p)],
   ['law 5, in the no-hands form', (p) => /You have played no hands\./.test(p)],
   ['no hand-number list to cite from', (p) => !/Hand numbers:/.test(p)],
+  // LIFE-3 job 2 — law 6 is stated to him too, but no hand is named, because
+  // there is none to name. A pointer at a hand he has not played would be the
+  // prompt itself inventing one.
+  ['law 6, with no hand pointed at', (p) => /NEVER ASK HIM WHICH HAND HE MEANS/.test(p) && !/THE HAND HE IS ASKING ABOUT/.test(p)],
 ];
 
 // ── Run ─────────────────────────────────────────────────────────────────────
@@ -275,12 +359,16 @@ console.log(`\nTALK EVAL — ${CASES.length} lines, ${new Set(CASES.map((c) => c
 console.log(`${pad('REQUIREMENT', 26)}${pad('MOOD', 12)}${pad('WANT', 6)}${pad('GOT', 6)}FAULTS`);
 console.log('-'.repeat(84));
 
+// LIFE-3 job 2 — one place the `who` column resolves, so a row cannot name a
+// character that does not exist and quietly get the default one instead.
+const SUBJECTS = { newborn: newbornAgent, busted: bustedAgent, repeating: repeatingAgent };
+
 const byReq = new Map();
 for (const c of CASES) {
   // LIFE-2 job 2: the RECORD goes in with the strings, which is what turns the
   // fifth law on. `who` picks which record — the man with three hands behind
   // him, or the one with none.
-  const subject = c.who === 'newborn' ? newbornAgent() : agentFor(c.mood);
+  const subject = SUBJECTS[c.who]?.() ?? agentFor(c.mood);
   const faults = faultsIn({ said: c.said, reply: c.reply, lastShapes: c.lastShapes ?? [], agent: subject });
   const got = faults.length ? 'fail' : 'pass';
   const ok = got === c.want;
