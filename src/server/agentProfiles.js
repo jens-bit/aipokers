@@ -13,6 +13,7 @@ import { opponentRecallContext } from './opponentRecall.js';
 // LIFE-1 job 5 (TALK-2): the facts he can cite, the four laws, and the
 // deterministic gate that grades the reply afterwards. No model call.
 import { selfFacts, talkLaws, faultsIn, repairReply, noteShape, ensureShapes } from '../agent/talk.js';
+import { handWhy } from '../agent/handWhy.js';
 // LIFE-2 job 1: his own voice for the one thing he is asking for, and the one
 // thing the owner can do about it.
 import { natureWantLine, wantAction, wantActionLabel } from '../agent/wantVoice.js';
@@ -1323,6 +1324,13 @@ export function recordHandResult(agentId, userId, { won, potSize, decisions = []
       // are different facts, and only one of them is safe to say out loud.
       board: Array.isArray(board) ? [...board] : [],
       net: Number.isFinite(net) ? Math.round(net) : null,
+      // LIFE-3 job 1: the decisive action, the reason behind it, and the state
+      // he was in when he took it. Derived from `decisions` — which already
+      // carry `reasoning` and, since this tree, `attr.heat` — rather than
+      // stored a second time; see handWhy.js for which decision counts as the
+      // decisive one and why a ladder rather than a score. Null when there is
+      // nothing on file, which is what a hand recorded before this tree has.
+      why: handWhy(decisions),
     },
     ...agent.recentHands,
   ].slice(0, 20);

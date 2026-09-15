@@ -46,6 +46,8 @@
 // admission that he does not know. A fallback that guessed would be a worse
 // failure than the flat reply it replaced.
 
+import { whyFact } from './handWhy.js';
+
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
 // Words too common to count as answering anything.
@@ -286,6 +288,13 @@ export function handFact(hand) {
     came,
     line ? `your line: ${line}` : null,
     net,
+    // LIFE-3 job 1: and WHY. The fifth thing a hand is made of, and the one an
+    // owner asks about most. It was on the record — every decision has carried
+    // a `reasoning` string since the first model call — and it stopped here,
+    // where the line was rebuilt as actions with the reasons stripped out. A
+    // hand recorded before this tree has no `why` and prints exactly what it
+    // printed before.
+    whyFact(hand.why) || null,
   ].filter(Boolean).join(' — ');
 }
 

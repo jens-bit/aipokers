@@ -187,3 +187,86 @@ test('LIFE-2: a net of zero is kept as zero', () => {
   assert.equal(heroHands()[0].net, 0);
   assert.match(handFact(heroHands()[0]), /made you 0/);
 });
+
+// ── LIFE-3 job 1: and the fifth thing a hand is made of ─────────────────────
+//
+// The reason survived the whole way to the record already — every decision has
+// carried `reasoning` since the first model call, and formatHandForPrompt reads
+// it. What did not survive was any way to USE it: nothing picked the decisive
+// decision out of the three to five in a hand, the prompt rebuilt the line with
+// the reasons stripped out, and his heat and stamina at the time were never
+// written down at all.
+//
+// Two seams, because they fail independently. The table has to WRITE the heat
+// onto the decision, and the record has to turn a hand's decisions into one
+// `why` and put it in the sentence he speaks from.
+
+test('LIFE-3: the table writes his heat onto the decision he makes', async (t) => {
+  const { chooseFromPolicy } = await import('../agent/policyPlay.js');
+  const table = new Table({ tableId: `hw-${seq++}`, home: true, homeOwnerId: 'o', smallBlind: 10, bigBlind: 20, maxSeats: 4 });
+  t.after(() => table._clearTimers());
+  table._broadcastState = () => {};
+  table._maybeRunAiTurn = async () => {};
+  table.seatAI({ displayName: 'One', stableId: 'a1', userId: 'u1', buyIn: 2000 });
+  table.seatAI({ displayName: 'Two', stableId: 'a2', userId: 'u2', buyIn: 2000 });
+  table.autoPlay = true;
+  table.maybeStartHand();
+
+  const seat = table.game.toAct;
+  // The briefing he would really be handed, with a mood on it. `heat` is the
+  // number the old context dropped: moodState is five words, and a hand played
+  // at 78 and a hand played at 61 are both 'tilted'.
+  const gs = {
+    ...table._buildAiGameState(seat), seat, street: 'flop', nature: 'Shark',
+    equity: 0.7, potOdds: 0.25, canCheck: false, canBet: false, canRaise: false, toCall: 10,
+    mood: { state: 'tilted', heat: 78 }, fatigue: 'worn',
+  };
+  const expected = chooseFromPolicy(gs);
+  table._buildAiGameState = () => gs;
+  table.actionTimer = { seat, key: 'hw-turn', deadlineTs: Date.now() };
+  await Table.prototype._maybeRunAiTurn.call(table);
+
+  const d = table.currentHandDecisions.at(-1);
+  assert.equal(d.attr.heat, 78, 'the number, not just the band');
+  assert.equal(d.attr.moodState, 'tilted');
+  assert.equal(d.attr.fatigue, 'worn');
+  assert.equal(d.reasoning, expected.reasoning, 'and the reason he acted on');
+});
+
+test('LIFE-3: the record turns a hand into one why, and the prompt speaks from it', () => {
+  recordHandResult('hero', 'u1', {
+    won: false, potSize: 1450, handNumber: 9100,
+    holeCards: ['Ah', 'Kd'], board: ['Qh', '7d', '2s', 'Kc', '3h'], net: -820,
+    decisions: [
+      { street: 'preflop', action: { type: 'raise', amount: 60 },
+        reasoning: 'standard open', attr: { heat: 20, fatigue: 'fresh', moodState: 'neutral' } },
+      { street: 'turn', action: { type: 'call', amount: 400 },
+        reasoning: 'he fires every turn, I am not folding top pair',
+        attr: { heat: 78, fatigue: 'worn', moodState: 'tilted' } },
+    ],
+  });
+  const hand = heroHands()[0];
+  // The DECISIVE one — the 400 he lost on, not the 60 he opened with.
+  assert.equal(hand.why.street, 'turn');
+  assert.equal(hand.why.action.amount, 400);
+  assert.match(hand.why.reasoning, /not folding top pair/);
+  assert.equal(hand.why.heat, 78);
+  assert.equal(hand.why.stamina, 'worn');
+
+  const facts = selfFacts(_agentRecordForTests('hero', 'u1'));
+  assert.match(facts, /why: you turn called 400/, facts);
+  assert.match(facts, /not folding top pair/, facts);
+  assert.match(facts, /I was steaming/, facts);
+});
+
+test('LIFE-3: why is additive — a hand with no reason on file prints what it always did', () => {
+  recordHandResult('hero', 'u1', {
+    won: true, potSize: 300, handNumber: 9101, holeCards: ['Qs', 'Qc'],
+    board: ['9c', '4d', '4s'], net: 140,
+    decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }],
+  });
+  const hand = heroHands()[0];
+  assert.equal(hand.why, null, 'nothing on file is null, never an empty shell');
+  assert.doesNotMatch(handFact(hand), /why:/);
+  assert.match(handFact(hand), /made you 140/, 'and everything else is unharmed');
+});

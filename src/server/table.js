@@ -5263,6 +5263,13 @@ export class Table {
       deviationDie: !!gameState.policy?.dice?.deviationDie,
       inRange: gameState.policy?.range ? !!gameState.policy.range.inRange : null,
       moodState: gameState.mood?.state ?? 'neutral',
+      // LIFE-3 job 1: the NUMBER, beside the band it falls in. `moodState` is
+      // five words and heat is 0-100; a hand he played at 78 and a hand he
+      // played at 61 are both 'tilted', and only one of them is the one he
+      // says he was steaming on. Stored per decision so the hand he is asked
+      // about tomorrow reports what he was like when he played it, not what he
+      // is like now. `fatigue` below is the stamina stage and was already here.
+      heat: Number.isFinite(gameState.mood?.heat) ? gameState.mood.heat : null,
       readSubjects: (gameState.opponentReads ?? []).map((r) => r.displayName || r.playerId),
       fatigue: gameState.fatigue ?? null,
     };

@@ -66,16 +66,29 @@ function agentFor(mood) {
     // size, and an agent citing the POT as what a hand cost him overstates his
     // own night on every multiway pot he wins.
     recentHands: [
+      // LIFE-3 job 1: and `why` — the decisive action, the reason behind it and
+      // the state he was in. 812 is the hand from the transcript: the call he
+      // lost on, made steaming and worn. It is what "why did you do that" has
+      // to be answerable from.
       { handNumber: 812, won: false, potSize: 1450, holeCards: ['Ah', 'Kd'],
         board: ['Qh', '7d', '2s', 'Kc', '3h'], net: -820,
         decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } },
-          { street: 'turn', action: { type: 'call', amount: 400 } }] },
+          { street: 'turn', action: { type: 'call', amount: 400 } }],
+        why: { street: 'turn', action: { type: 'call', amount: 400 }, allIn: false,
+          reasoning: 'he has been firing every turn, I am not folding top pair',
+          heat: 78, stamina: 'worn', moodState: 'tilted' } },
       { handNumber: 811, won: true, potSize: 620, holeCards: ['Qs', 'Qc'],
         board: ['9c', '4d', '4s'], net: 260,
-        decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }] },
+        decisions: [{ street: 'preflop', action: { type: 'raise', amount: 60 } }],
+        why: { street: 'preflop', action: { type: 'raise', amount: 60 }, allIn: false,
+          reasoning: 'queens play better heads up', heat: 22, stamina: 'fresh',
+          moodState: 'confident' } },
       { handNumber: 810, won: false, potSize: 120, holeCards: ['7h', '2c'],
         board: [], net: -20,
-        decisions: [{ street: 'preflop', action: { type: 'fold' } }] },
+        decisions: [{ street: 'preflop', action: { type: 'fold' } }],
+        why: { street: 'preflop', action: { type: 'fold' }, allIn: false,
+          reasoning: 'worst hand in the deck', heat: 40, stamina: 'settled',
+          moodState: 'neutral' } },
     ],
   };
 }
@@ -225,6 +238,12 @@ const SUPPLY = [
   ['law 5 — a hand he cites is a hand he played', (p) => /A HAND YOU CITE IS A HAND YOU PLAYED/.test(p)],
   ['the numbers he is allowed to cite', (p) => /Hand numbers: 812, 811, 810\./.test(p)],
   ['what he did with it', (p) => /your line: preflop raise 60/.test(p)],
+  // LIFE-3 job 1 — the fifth thing a hand is made of, and the one the owner
+  // asks about most. It was on the record and stopped at handFact().
+  ['WHY he did it', (p) => /because: "he has been firing every turn/.test(p)],
+  ['which action the why is about', (p) => /why: you turn called 400/.test(p)],
+  ['his heat at the time', (p) => /heat 78/.test(p)],
+  ['his stamina at the time', (p) => /I was steaming and I had been sitting there too long/.test(p)],
   ['his last session result', (p) => /Your last session: 96 hands, down 1450/.test(p)],
   ['his career figures', (p) => /812 hands, 18\.4% of them won/.test(p)],
   ['where he is right now', (p) => /Right now: at home/.test(p)],
