@@ -92,6 +92,14 @@ describe('BUGS-A job 9 · the sheet', () => {
     expect(screen.getByText('−$120')).toBeInTheDocument();
     expect(screen.queryByText('+$75')).toBeNull();
   });
+  // UI-3 job C: the net figure was already one of the row's four facts — its
+  // label lived only in a hover title, which a touch screen never shows.
+  it('BUG-216: the net figure carries a visible label, not just a hover title', () => {
+    render(<RosterRow agent={agent('h', 'Home player', { sessionLog: [{ net: -120 }] })} index={0} onOpen={() => {}} />);
+    expect(screen.getByText('NET')).toBeInTheDocument();
+    expect(screen.getByText('−$120')).toHaveAttribute('title', 'Last session result');
+  });
+
   it('BUG-69: the C5 row carries a full name, result and actual pocket separately', async () => {
     fetchMock.route('/api/agents', { agents: [{ ...AT_TABLE, name: 'The Very Patient Grinder', liveGame: { tableId: 't1', heroStack: 1800, net: -120 }, pocket: { balance: 410 } }] });
     render(<RosterSheet onOpenThread={() => {}} onClose={() => {}} />);

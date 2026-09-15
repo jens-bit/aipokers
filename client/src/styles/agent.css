@@ -69,6 +69,16 @@
    to the panel's Inter. The phone sheet is not inside .home1 and never showed
    it. Same declaration, one class further in, so both surfaces read the mono. */
 .agent-view__actions .agent-view__deploy span{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:normal;color:var(--text-secondary);white-space:nowrap}
+/* UI-3 job C: his net, beside the pocket the deploy button already states.
+   Specificity has to beat `.agent-view__deploy b` (the DEPLOY word itself)
+   above, or every tone reads as the same accent teal as the label. */
+.agent-view__actions .agent-view__deploy b.agent-view__net{font-weight:600;letter-spacing:normal}
+.agent-view__actions .agent-view__deploy b.agent-view__net--up{color:var(--success)}
+.agent-view__actions .agent-view__deploy b.agent-view__net--down{color:var(--error)}
+.agent-view__actions .agent-view__deploy b.agent-view__net--flat{color:var(--text-muted)}
+/* UI-3 job C: the word itself, not a hover-only title — this is what makes
+   "$2,000 $0" read as "a $2,000 pocket, a $0 net" instead of two stacks. */
+.agent-view__actions .agent-view__deploy small.agent-view__net-label{font-family:Oswald,Inter,sans-serif;font-size:7px;font-weight:600;color:var(--text-muted);white-space:nowrap}
 .agent-view__thread{flex:1;min-height:0;overflow:hidden auto;padding:8px 12px 4px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none}
 .agent-view__thread::-webkit-scrollbar{display:none}
 .agent-view__thread-space{margin-top:auto}

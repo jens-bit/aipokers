@@ -381,6 +381,9 @@ describe('WUI-2 — the funding sheet on the You screen', () => {
   it('confirming gives him the chips and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', { ok: true }, { method: 'POST' });
+    // A flush safe: this test is about the confirm/re-read round trip, not
+    // GIVE's own cap against the safe's balance.
+    fetchMock.route('/api/wallet', { ...wallet, balance: 50_000 });
     await openMoney();
     await screen.findByText('Value Bot');
 
@@ -567,7 +570,7 @@ describe('WALLET-7 — the sheet opens on where he actually stands', () => {
     await user.click(within(row('Topped Up')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
 
-    expect(screen.getByLabelText(/Amount/i)).toHaveValue(2000);
+    expect(screen.getByLabelText('Amount to give')).toHaveValue(2000);
     expect(screen.getByRole('checkbox')).toBeChecked();
   });
 });

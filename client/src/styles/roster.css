@@ -136,6 +136,11 @@
 .roster__place { display:flex; align-items:center; gap:6px; margin-top:2.5px; min-width:0; }
 .roster__routine { font:9.5px 'JetBrains Mono',monospace; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .roster__numbers { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:2.5px; }
+/* UI-3 job C: the same small-caps label pocket already carries, on the net
+   figure above it — same gap, same baseline, so the two lines read as one
+   pair rather than a label that only sometimes shows up. */
+.roster__result-line { display:flex; align-items:center; gap:4px; }
+.roster__result-line small { font:600 7.5px Oswald,sans-serif; letter-spacing:.1em; color:var(--text-muted); }
 .roster__result { font:700 11.5px 'JetBrains Mono',monospace; color:var(--text-muted); }
 .roster__result.is-up { color:var(--accent); }
 .roster__result.is-down { color:var(--error); }

@@ -19,13 +19,14 @@
 // You screen shows exactly what it shows today.
 //
 //   GET  /api/wallet                  -> { balance, staked, session, ledger[] }
-//   agent.pocket                      -> { balance, mode, cap, broke }
+//   agent.pocket                      -> { balance, mode, cap, broke, pnl }
 //   POST /api/agents/:id/fund         <- { verb, amount, cap, refill }
-//   POST /api/agents/:id/collect      <- { all? }
+//   POST /api/agents/:id/collect      <- { all?, amount? }
 //
-// WALLET-7 — two verbs, not four modes:
+// WALLET-7 — two verbs, not four modes; UI-3 job C adds a third:
 //
 //   GIVE HIM CHIPS   an amount, and one toggle for whether it refills.
+//   TAKE HIS CHIPS   any amount up to what is actually in his pocket.
 //   CALL HIM IN      he finishes the hand and everything comes back.
 //
 // The store still holds the four modes it always did and the route maps
@@ -300,10 +301,15 @@ export async function fetchWallet() {
   }
 }
 
-// Both verbs go to /fund: one moves money out to him, the other brings it
-// back, and both are the same decision about how he is backed. The route maps
-// the verb onto the mode the store holds.
+// GIVE and CALL IN go to /fund: one moves money out to him, the other brings
+// it back, and both are the same decision about how he is backed. UI-3 job C
+// adds a third: TAKE, any amount up to what is actually in his pocket, which
+// is /collect's own job (WALLET-7) rather than a new verb on /fund — this
+// just gives it the same one-call shape the other two already have, so
+// FundSheet and every screen that renders it keep calling `fundAgent` with a
+// `decision` and never have to know two different routes are behind it.
 export async function fundAgent(agentId, { verb = 'give', amount = null, cap = null, refill = false } = {}) {
+  if (verb === 'take') return collectFrom(agentId, { amount, all: true });
   const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/fund`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -317,11 +323,16 @@ export function callInAgent(agentId) {
   return fundAgent(agentId, { verb: 'callin', amount: null, cap: null, refill: false });
 }
 
-export async function collectFrom(agentId, { all = false } = {}) {
+// `all: true` widens the ceiling from his winnings alone to his whole pocket
+// (WALLET-7's `collect()` on the server) — the fact that makes this a genuine
+// TAKE rather than a repeat of "collect winnings": an explicit `amount` is
+// taken up to whatever is actually there, principal included, and `all` with
+// no amount takes every chip he is holding.
+export async function collectFrom(agentId, { all = false, amount = null } = {}) {
   const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/collect`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ userId: getUserId(), all }),
+    body: JSON.stringify({ userId: getUserId(), all, amount }),
   });
   if (!res.ok) throw new Error(`collect failed (${res.status})`);
   return res.json();

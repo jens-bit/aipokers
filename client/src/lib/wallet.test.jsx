@@ -340,7 +340,7 @@ describe('fund and collect', () => {
     expect(await collectFrom('agent_balanced')).toEqual({ collected: 340 });
     const [req] = fetchMock.requestsMatching('/collect');
     expect(req.method).toBe('POST');
-    expect(req.body).toMatchObject({ all: false });
+    expect(req.body).toMatchObject({ all: false, amount: null });
 
     await collectFrom('agent_cannon', { all: true });
     expect(fetchMock.requestsMatching('/collect')[1].body).toMatchObject({ all: true });
@@ -349,5 +349,20 @@ describe('fund and collect', () => {
   it('throws on a refusal so the caller can leave the row as it was', async () => {
     fetchMock.route('/fund', () => ({ status: 402, body: {} }), { method: 'POST' });
     await expect(fundAgent('a', { verb: 'give', amount: 10 })).rejects.toThrow(/402/);
+  });
+
+  // UI-3 job C: TAKE is a third verb on the give sheet, any amount up to what
+  // is actually in his pocket — not just the winnings collect() alone would
+  // cap it at — so it is /collect's `all: true` ceiling with an explicit
+  // amount, reached through the same `fundAgent(decision)` shape GIVE and
+  // CALL IN already use, so no caller of FundSheet has to learn a second call.
+  it('routes a take decision to /collect with the full-pocket ceiling, not /fund', async () => {
+    fetchMock.route('/collect', { collected: 250, left: 1250 }, { method: 'POST' });
+    const result = await fundAgent('agent_cannon', { verb: 'take', amount: 250 });
+    expect(result).toEqual({ collected: 250, left: 1250 });
+    expect(fetchMock.requestsMatching('/fund')).toHaveLength(0);
+    const [req] = fetchMock.requestsMatching('/collect');
+    expect(req.url).toContain('agent_cannon');
+    expect(req.body).toMatchObject({ all: true, amount: 250 });
   });
 });

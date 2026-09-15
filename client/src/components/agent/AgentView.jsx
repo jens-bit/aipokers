@@ -9,7 +9,7 @@ import { MoodChip } from '../floor/atoms.jsx';
 import { identityOf } from '../../lib/identity.js';
 import { ANSWERS, answerWant } from '../home/WantToast.jsx';
 import { FundSheet } from '../wallet/FundSheet.jsx';
-import { fetchWallet, fundAgent, money, pocketOf, stakesFor } from '../../lib/wallet.js';
+import { fetchWallet, fundAgent, money, pnlTone, pocketOf, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { ReplayCard } from '../replay/ReplayCard.jsx';
 import { FridgeSheet } from '../home/FridgeSheet.jsx';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
@@ -108,7 +108,22 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
       </div>}
     </div>
     <div className="agent-view__actions">
-      <button type="button" className="agent-view__deploy" disabled={!onDeploy || live} onClick={() => onDeploy(currentAgent)}><b>DEPLOY</b><span>{stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}</span></button>
+      <button type="button" className="agent-view__deploy" disabled={!onDeploy || live} onClick={() => onDeploy(currentAgent)}>
+        <b>DEPLOY</b>
+        <span>
+          {stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}
+          {/* UI-3 job C: his NET, not just his stack — a pocket and what he
+              has actually made are two different numbers. A `title` alone is
+              invisible on a phone (nothing to hover), so the word itself has
+              to sit on the button, same as FundSheet's "his net" line. */}
+          {Number.isFinite(pocket?.pnl) && (
+            <>
+              <b className={`agent-view__net agent-view__net--${pnlTone(pocket.pnl)}`}> {signedMoney(pocket.pnl)}</b>
+              <small className="agent-view__net-label"> net</small>
+            </>
+          )}
+        </span>
+      </button>
       <button type="button" aria-label="Give chips" onClick={openFunds}><Icon name="chips"/><span>GIVE CHIPS</span></button>
       <button type="button" aria-label="Carry" disabled={!atHome || !onCarry} onClick={() => onCarry(currentAgent)}><Icon name="carry"/><span>CARRY</span></button>
       <button type="button" aria-label="Profile" onClick={() => onOpenProfile?.(currentAgent)}><Icon name="profile"/><span>PROFILE</span></button>

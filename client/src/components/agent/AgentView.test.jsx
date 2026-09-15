@@ -60,6 +60,22 @@ it('AGENT-1: opens board 42 with the large character, four real actions and a qu
   expect(await screen.findByRole('dialog', { name: 'Fund Loose Cannon' })).toBeInTheDocument();
 });
 
+it('BUG-216: DEPLOY states his net alongside his pocket, not just his stack', async () => {
+  const up = { ...agent, pocket: { balance: 2000, pnl: 340 } };
+  const { rerender } = show({ agent: up });
+  const deploy = await screen.findByRole('button', { name: /deploy/i });
+  expect(deploy).toHaveTextContent('+$340');
+  expect(deploy.querySelector('.agent-view__net--up')).toBeTruthy();
+  // The word itself, not only a hover title — a title is invisible on a
+  // phone, which is where this button actually lives.
+  expect(deploy.querySelector('.agent-view__net-label')).toHaveTextContent('net');
+
+  rerender(<AgentThread agent={{ ...agent, pocket: { balance: 900, pnl: -1200 } }} companion onDeploy={() => {}} onCarry={() => {}} onOpenProfile={() => {}} onBack={() => {}} />);
+  const redeploy = screen.getByRole('button', { name: /deploy/i });
+  expect(redeploy).toHaveTextContent('−$1,200');
+  expect(redeploy.querySelector('.agent-view__net--down')).toBeTruthy();
+});
+
 it('AGENT-1: an away agent can be watched but cannot be carried from the casino', async () => {
   const away = { ...agent, activeTableId: 't1', status: 'playing', location: { where: 'table', tableId: 't1' } };
   const onWatch = vi.fn();

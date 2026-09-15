@@ -1,14 +1,25 @@
-// client/src/components/wallet/FundSheet.jsx — WUI-2, WALLET-7
+// client/src/components/wallet/FundSheet.jsx — WUI-2, WALLET-7, UI-3 job C
 // The sheet's look is ported from FundSheetScreenM in design-refs/mood-wallet.jsx;
-// WALLET-7 changed what is inside it.
+// WALLET-7 changed what is inside it, UI-3 job C gave it a second direction.
 //
-// TWO VERBS, NOT FOUR MODES. The old sheet asked the owner to pick between a
-// one-time top-up, an allowance, auto-refill and cutting him off — four answers
-// to one question, and two of them ("top-up" and "allowance") were the same
-// thing wearing different names. What is left is what a backer actually does:
+// THREE VERBS NOW, NOT TWO. The old sheet moved money one way (out to him)
+// plus one all-or-nothing way back (call him in, which also ends his
+// session). What was missing was the plain, small, reversible move: taking
+// some of what is in his pocket back without pulling him off a table. That
+// is TAKE, and it is genuinely a different thing from "collect winnings" —
+// this sheet's own callin already collects winnings and the principal both,
+// the moment his session ends. Job C's complaint was that nothing let the
+// owner move an arbitrary amount OUT of a pocket that was just sitting
+// there, the same way GIVE moves an arbitrary amount in.
 //
-//   GIVE HIM CHIPS   an amount, and one toggle for whether it refills
-//   CALL HIM IN      he finishes the hand and comes home with the money
+//   GIVE HIM CHIPS   an amount up to the safe's balance, refill or not
+//   TAKE HIS CHIPS   an amount up to his pocket, principal included
+//   CALL HIM IN      he finishes the hand and everything comes back
+//
+// EVERY FIGURE SAYS WHAT IT IS. "Pocket now", "his net" and "the safe" are
+// three different numbers that all look like money, and the reason to label
+// each one in words is the reason job C exists: a pocket and a safe with six
+// digits apiece are not distinguishable by size alone.
 //
 // The copy law is unchanged: calling him in is a legitimate answer, drawn
 // without a shred of guilt. It says what he keeps, never what he loses.
@@ -18,7 +29,7 @@ import { useState } from 'react';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { moodOf, heatOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
-import { CALL_IN, CALL_IN_LINE, GIVE, money, pocketOf, refillLabel, stakesFor } from '../../lib/wallet.js';
+import { CALL_IN, CALL_IN_LINE, GIVE, money, pocketOf, refillLabel, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { Lbl, Num } from './atoms.jsx';
 
 const M_TEXT = 'var(--text-primary)';
@@ -42,6 +53,12 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
   // is not a state the UI gets to forget.
   const [amount, setAmount] = useState(pocket?.cap ?? DEFAULT_AMOUNT);
   const [refill, setRefill] = useState(pocket?.mode === 'auto');
+  const pocketBalance = pocket?.balance ?? 0;
+  // UI-3 job C: the second direction. Opens on his whole pocket — "take it
+  // all" is as legitimate a first read as any smaller amount — and from
+  // there is free text the same way GIVE's amount is (`?? ''` when cleared,
+  // never silently snapping back to the ceiling mid-edit).
+  const [takeAmount, setTakeAmount] = useState(pocketBalance);
   const [busy, setBusy] = useState(false);
 
   const accent = accentFor(agent, index);
@@ -49,9 +66,16 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
   // What the amount buys, in the ref's own words.
   const impliedStakes = stakesFor({ balance: amount ?? 0, cap: amount, broke: false });
 
+  // Job C: GIVE is a real transfer out of the safe, so it cannot ask for more
+  // than the safe holds — the safe's balance is GIVE's own ceiling, the same
+  // way his pocket is TAKE's.
+  const overSafe = wallet && Number.isFinite(amount) && amount > wallet.balance;
+
   // Calling him in is only a thing to offer when there is something to call in:
   // a seat at a table, or chips in the pocket.
-  const canCallIn = seated || (pocket?.balance ?? 0) > 0;
+  const canCallIn = seated || pocketBalance > 0;
+  const takeCeiling = pocketBalance;
+  const canTake = pocketBalance > 0;
 
   async function send(decision) {
     if (busy || disabled) return;
@@ -101,17 +125,30 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
             ) : <div style={frame}>{face}</div>;
           })()}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <Lbl size={8.5}>Pocket now</Lbl>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+            <Lbl size={8.5}>His pocket now</Lbl>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
               <Num size={19} weight={700}>{money(pocket?.balance ?? 0)}</Num>
               {pocket && !pocket.broke && (
                 <Num size={9} color={M_MUTED} weight={500}>PLAYS {stakesFor(pocket)}</Num>
               )}
             </div>
+            {/* UI-3 job C: his NET, not just his stack — what he has actually
+                made, separate from what is sitting in the pocket right now. A
+                $64,000 pocket and a +$1,200 net are two different facts, and
+                the sheet used to state only the one that looks like the
+                other. */}
+            {pocket && Number.isFinite(pocket.pnl) && (
+              <div style={{ marginTop: 3 }}>
+                <Num size={10.5} weight={600} color={pocket.pnl >= 0 ? 'var(--success)' : 'var(--error)'}>
+                  {signedMoney(pocket.pnl)}
+                </Num>
+                <span style={{ fontSize: 9, color: M_MUTED, marginLeft: 4 }}>his net</span>
+              </div>
+            )}
           </div>
           {wallet && (
             <div style={{ textAlign: 'right' }}>
-              <Lbl size={8.5}>Wallet</Lbl>
+              <Lbl size={8.5}>The safe</Lbl>
               <div><Num size={13} weight={700} color="var(--accent)">{money(wallet.balance)}</Num></div>
             </div>
           )}
@@ -138,10 +175,11 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
 
         <div style={{ marginTop: 10, marginBottom: 10 }}>
           <label>
-            <Lbl size={8.5}>Amount</Lbl>
+            <Lbl size={8.5}>{wallet ? `Amount — up to the safe's ${money(wallet.balance)}` : 'Amount'}</Lbl>
             <div style={{ marginTop: 5 }}>
               <input
                 className="wal-cap"
+                aria-label="Amount to give"
                 type="number"
                 inputMode="numeric"
                 min="0"
@@ -151,6 +189,11 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
                 onChange={(e) => setAmount(e.target.value === '' ? null : Number(e.target.value))}
               />
             </div>
+            {overSafe && (
+              <p style={{ margin: '5px 0 0', fontSize: 10, color: 'var(--error)' }}>
+                The safe only holds {money(wallet.balance)}.
+              </p>
+            )}
           </label>
         </div>
 
@@ -180,7 +223,52 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
           </span>
         </div>
 
-        {/* ── verb two: call him in ──────────────────────────────────── */}
+        {/* ── verb two: take his chips (UI-3 job C) ──────────────────── */}
+        {canTake && (
+          <div className="wal-take">
+            <Lbl size={9.5}>Or take his chips</Lbl>
+            <p className="wal-callin__line">
+              Any amount up to what he is actually holding — {money(pocketBalance)} — comes back
+              to the safe. He keeps his seat; this is not calling him in.
+            </p>
+            <div style={{ marginTop: 8, marginBottom: 8 }}>
+              <label>
+                <Lbl size={8.5}>{`Amount — up to his pocket's ${money(pocketBalance)}`}</Lbl>
+                <div style={{ marginTop: 5 }}>
+                  <input
+                    className="wal-cap"
+                    aria-label="Amount to take"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    max={takeCeiling}
+                    step="10"
+                    disabled={disabled}
+                    value={takeAmount ?? ''}
+                    onChange={(e) => setTakeAmount(e.target.value === '' ? null : Number(e.target.value))}
+                  />
+                </div>
+                {Number.isFinite(takeAmount) && takeAmount > takeCeiling && (
+                  <p style={{ margin: '5px 0 0', fontSize: 10, color: 'var(--error)' }}>
+                    His pocket only holds {money(takeCeiling)}.
+                  </p>
+                )}
+              </label>
+            </div>
+            <button
+              type="button"
+              className="wal-btn wal-btn--ghost"
+              style={{ height: 40, width: '100%' }}
+              disabled={busy || disabled || !(takeAmount > 0) || takeAmount > takeCeiling}
+              onClick={() => send({ verb: 'take', amount: takeAmount })}
+            >
+              {!(takeAmount > 0) ? 'Take his chips'
+                : takeAmount >= takeCeiling ? `Take all of it — ${money(takeCeiling)}` : `Take ${money(takeAmount)}`}
+            </button>
+          </div>
+        )}
+
+        {/* ── verb three: call him in ─────────────────────────────────── */}
         {canCallIn && (
           <div className="wal-callin">
             <Lbl size={9.5}>Or call him in</Lbl>
@@ -209,7 +297,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
             type="button"
             className="wal-btn wal-btn--primary"
             style={{ height: 46, width: '100%' }}
-            disabled={busy || disabled || !(amount > 0)}
+            disabled={busy || disabled || !(amount > 0) || overSafe}
             onClick={() => send({ verb: 'give', amount, cap: amount, refill })}
           >
             {GIVE}

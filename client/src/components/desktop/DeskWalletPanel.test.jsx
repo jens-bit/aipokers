@@ -96,7 +96,8 @@ describe('DP-2 — funding from the rail', () => {
   it.each(['loading', 'error'])('BUG-146: an open funding sheet respects a %s wallet read and keeps its choices and navigation', async (walletStatus) => {
     const user = userEvent.setup();
     const onFund = vi.fn(), onRetry = vi.fn();
-    const props = { wallet, agents: [balancedAgent], onFund, onRetry };
+    // A flush safe: this test is about the mid-flow read, not GIVE's own cap.
+    const props = { wallet: { ...wallet, balance: 50_000 }, agents: [balancedAgent], onFund, onRetry };
     const { rerender } = render(<DeskWalletPanel {...props} walletStatus="ready" />);
     await user.click(screen.getByRole('button', { name: 'Give him chips' }));
     await user.click(screen.getByRole('button', { name: '$5,000' }));
@@ -114,7 +115,7 @@ describe('DP-2 — funding from the rail', () => {
     }
     expect(onFund).not.toHaveBeenCalled();
     rerender(<DeskWalletPanel {...props} walletStatus="ready" />);
-    expect(screen.getByRole('spinbutton')).toHaveValue(5000);
+    expect(screen.getByLabelText('Amount to give')).toHaveValue(5000);
     expect(screen.getByRole('button', { name: 'Give him chips' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -147,7 +148,8 @@ describe('DP-2 — funding from the rail', () => {
   it('hands the decision up in the contract shape, then leaves the sheet', async () => {
     const user = userEvent.setup();
     const onFund = vi.fn().mockResolvedValue(undefined);
-    renderPanel({ onFund });
+    // A flush safe: this test is about the handoff shape, not GIVE's own cap.
+    renderPanel({ onFund, wallet: { ...wallet, balance: 50_000 } });
 
     await user.click(within(row('Value Bot')).getByRole('button', { name: 'Give him chips' }));
     await screen.findByRole('dialog');
