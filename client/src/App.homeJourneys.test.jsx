@@ -34,13 +34,13 @@ afterEach(() => {
   sessionStorage.removeItem('agentic_casino_room');
 });
 
-async function enterUpstairs(user) {
+// UI-3 job A: the casino is a single floor, always open — there is no
+// "upstairs" left to walk into, just a table (tbl-upstairs, still its
+// fixture name) sitting on the one floor with everything else.
+async function enterCasino(user) {
   await screen.findByTestId('home-screen');
   await user.click(screen.getByTestId('home-door'));
   await screen.findByTestId('floor-view');
-  await user.click(within(screen.getByTestId('casino-view-toggle')).getByRole('button', { name: 'Board', exact: true }));
-  await user.click(await screen.findByRole('button', { name: /^upstairs,/ }));
-  expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs');
   pushFloorTables();
 }
 
@@ -72,7 +72,7 @@ async function waitForWatch() {
   expect(document.querySelector('.watch-screen')).toBeTruthy();
 }
 
-// MERGE-7: these ten cases boot the whole app and drive multi-screen journeys
+// MERGE-7: these nine cases boot the whole app and drive multi-screen journeys
 // through it, and they cost 1.7-3.8s EACH when they have the machine to
 // themselves. vitest's default deadline is 5s, and vite.config.js already
 // notes the reason it bites here: "Decorative Home trees are expensive; extra
@@ -87,32 +87,20 @@ async function waitForWatch() {
 // 20s still fails a genuine hang in reasonable time; it just stops failing
 // honest work that takes four seconds.
 describe('HOME-3: existing phone journeys preserve their place', () => {
-  it('a floor table returns to the selected room after both Watch trips', async () => {
+  it('a floor table returns to the one floor after both Watch trips', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await enterUpstairs(user);
+    await enterCasino(user);
     for (let trip = 0; trip < 2; trip += 1) {
       const floor = await screen.findByTestId('floor-view');
       await user.click(await within(floor).findByRole('button', { name: /Watch table tbl-upstairs/ }));
       await waitForWatch();
       await user.click(screen.getByRole('button', { name: 'Leave table' }));
-      expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs');
+      expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
       pushFloorTables();
     }
     await user.click(screen.getByRole('button', { name: 'Back home' }));
     expect(await screen.findByTestId('home-screen')).toBeVisible();
-  });
-
-  it('a Watch opened from the board returns to the board', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    await enterUpstairs(user);
-    await user.click(within(screen.getByTestId('casino-view-toggle')).getByRole('button', { name: 'Board', exact: true }));
-    await user.click(await screen.findByRole('button', { name: /Watch this table\./ }));
-    await waitForWatch();
-    await user.click(screen.getByRole('button', { name: 'Leave table' }));
-    expect(await screen.findByRole('heading', { name: 'The casino', exact: true })).toBeVisible();
-    expect(screen.queryByTestId('floor-view')).toBeNull();
   });
 
   it('retains an unsent draft through Profile and separates drafts by agent and owner', async () => {
@@ -140,14 +128,14 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
   it.each(['home', 'casino'])('Profile CHAT resumes the thread and Back returns to its original %s', async origin => {
     const user = userEvent.setup();
     render(<App />);
-    if (origin === 'casino') { await enterUpstairs(user); await openRosterAgent(user, restingAgent.name); }
+    if (origin === 'casino') { await enterCasino(user); await openRosterAgent(user, restingAgent.name); }
     else await openHomeAgent(user, restingAgent.name);
     await user.type(draft(), 'Still writing.');
     await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
     await user.click(await screen.findByRole('button', { name: 'Back to chat' }));
     await screen.findByPlaceholderText('Whisper to him…');
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
-    if (origin === 'casino') expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs');
+    if (origin === 'casino') expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
     else expect(await screen.findByTestId('home-screen')).toBeVisible();
     expect(document.querySelector('.profile-overview')).toBeNull();
   });

@@ -1,28 +1,18 @@
-// client/src/components/casino/FloorView.jsx — CASINO-2 job 5
+// client/src/components/casino/FloorView.jsx — CASINO-2 job 5, UI-3 job A
 //
-// THE ROOM, FROM ABOVE.
+// THE ROOM, FROM ABOVE — and now the only one there is.
 //
-// A doorway was scenery unless you had arrived carrying an agent to place. You
-// could see that the floor had 44 people in it and three tables going, and
-// there was nothing to tap. The room is the unit this building is organised
-// by — "where should I be looking right now" is the question it exists to
-// answer — so tapping one has to answer it.
+// This used to be one of three rooms, walked into through a doorway and left
+// by swiping to the next. UI-3 job A deletes the building around it: the
+// casino is a single room, so this file draws it once, always open, with
+// every table on the floor at once — 10/20 beside 50/100, each carrying its
+// own stakes (TheFloor/TableFelt already drew a felt's stakes off the felt
+// itself, never off the room, so nothing downstream of `ranked` had to
+// change). What is gone is the CHOICE of which room to be standing in: no
+// swipe, no toggle, no doorway back to a building. The staircase inside the
+// room (TheFloor's own furniture) is the only way out, and it goes home.
 //
-// BUGS-A job 7 answered it as far as the wire then allowed: a LIST of the
-// tables the client could name, assembled out of the room's `hot` ids, your
-// own agents' tables and the ticker, saying out loud how many it could not
-// name. It guessed well and it was still a guess, and the file said so —
-// "when ROOMS-1 grows a table list, this component keeps its shape and
-// liveTablesIn is the only thing that changes".
-//
-// ROOMS-1 grew one (CASINO-2 job 1), so this is that change, and it turned out
-// to be bigger than the data layer. Once every table in a room can be named,
-// the room stops being a list and becomes a PLACE: felts laid out on a floor,
-// tiny ghosts in the seats of each, the pot in the middle of the ones with a
-// hand running, and the board by the stairs on the wall. You are standing in
-// the room rather than reading its index.
-//
-// THREE THINGS THIS OBEYS
+// TWO THINGS THIS STILL OBEYS
 //
 //   1. SNAPSHOTS ONLY. Every felt here is a ROOM_TABLES entry. Nothing on this
 //      screen triggers a model call, opens a socket per table, or asks a table
@@ -31,31 +21,19 @@
 //      felt in here, including your own man's: the payload does not carry them
 //      and TableFelt draws backs. His own two face up is a thing that happens
 //      at HIS table, not in a room you are walking through.
-//   3. THE LIST IS THE FALLBACK, NOT THE DESIGN. When no felts have arrived —
-//      the socket is down, or the first frame has not landed — the room falls
-//      back to liveTablesIn's honest list and still says how many tables it
-//      could not name. A busy room drawn as an empty one would be a worse lie
-//      than the guess ever was.
 //
-// ON THE DESK it is full width with the board as a right column, and that is a
-// deliberate departure from FIX-6 job 5's "every sheet opens in the rail". The
-// rail rule is about SHEETS — a bottom sheet at 1440 covers the doorway it is
-// about. This is not a sheet: it is a destination, it replaces the building
-// rather than sitting over it, and it brings the board with it so the ticker
-// is not lost on the way in.
+// THE LIST IS STILL THE FALLBACK, NOT THE DESIGN — when no felts have
+// arrived, the room falls back to liveTablesIn's honest list off `room`
+// (CasinoScreen's merged venue: every room's `hot` ids and the single biggest
+// pot across all of them) and still says how many tables it could not name.
 //
-// WAVE 58 REDREW THE ROOM ITSELF. The first pass at this laid the felts out as
-// a grid of cards; mood-floor58.jsx landed a week of thinking about exactly
-// this screen and its verdict on that shape is in its own header — "a floor you
-// have to read is a list". The room is TheFloor.jsx now: a plan seen from
-// above, felts as ellipses with tiny bodies on their rims, the bar along the
-// bottom wall, the board bolted beside the stairs. This file is the screen
-// around it — the way in, the way out, the fallback, and the real board.
+// ON THE DESK it is full width with the deploy panel as a right column, the
+// same departure from FIX-6 job 5's "every sheet opens in the rail" this
+// screen always took: it is a destination, not a sheet.
 
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
-import { useHorizontalSwipe } from '../../hooks/useHorizontalSwipe.js';
 import { RosterButton } from '../Header.jsx';
 import { TheFloor, FLOOR_CAP, FLOOR_W, FLOOR_H } from './TheFloor.jsx';
 import { money } from '../../lib/wallet.js';
@@ -195,46 +173,43 @@ export function feltsForRoom(felts = [], agents = []) {
   );
 }
 
-// The stairs used to be drawn here, under the room and again above the desk's
-// board column. Wave 58 puts them INSIDE the room, with the board bolted beside
-// them — which is the whole point of drawing either: it says WHERE the board is
-// rather than just listing what is on it. Saying it twice on one screen made
-// the second one furniture about furniture.
+// UI-3 JOB A — ONE ROOM, NOTHING TO SWIPE TO. The stairs used to be drawn
+// here, under the room and again above the desk's board column, with the
+// board bolted beside them. There is one room now and no board left to say
+// the location of, so wave 58's stairs (TheFloor's FloorStairs) go back to
+// being only what they always also were — the way out — and this file's own
+// job shrinks to match: it draws the one room the casino has, not a room
+// picked from a swipeable set of three.
 
 /**
  * THE FLOOR — one room, seen from above.
  *
- * @param room     one entry of the ROOMS-1 payload
- * @param felts    the ROOM_TABLES entries for THIS room (job 1)
- * @param agents   YOUR agents in this room (agentsByRoom's bucket)
+ * @param room     { id, name, hot, biggestPot, tables, seated } — the whole
+ *                 casino's tables and seats, merged across every stake tier
+ *                 (CasinoScreen's job; see mergedVenue there). Stakes are no
+ *                 longer a fact about the room — each felt/table carries its
+ *                 own, drawn by TheFloor/TableFelt directly off `felt.blinds`.
+ * @param felts    every live table's ROOM_TABLES entry, across every stake
+ * @param agents   all of YOUR agents who are seated somewhere on this floor
  * @param events   the ticker, for the fallback list's headlines
- * @param board    the board by the stairs, rendered by the caller so this file
- *                 never has to know what a FloorBoard needs
+ * @param deployPanel the stake-picker or the quick-play card, rendered by the
+ *                 caller so this file never has to know what either needs —
+ *                 same division of labour the old `board` prop had
  * @param onWatch  (tableId) => spectate it
- * @param onClose  back to the building
- * @param desktop  full width, the board as a right column
+ * @param onHome   back home — the screen's only way out, and the staircase's
+ * @param desktop  full width, the deploy panel as a right column
  */
 export function FloorView({
-  room, felts = [], agents = [], events = [], board = null, play = null,
-  onWatch, onClose, onHome = null, onOpenRoster = null, desktop = false,
-  // BUGS-C job 12: the Floor | Board segmented control, rendered by the
-  // caller (CasinoScreen.jsx owns which view is current) so this file never
-  // has to know about the toggle's own state.
-  toggle = null,
+  room, felts = [], agents = [], events = [], deployPanel = null,
+  onWatch, onHome = null, onOpenRoster = null, desktop = false,
   headerOwned = false, zoom = null, onZoom = null,
-  // JOB 5: swipe the floors. `roomIndex`/`roomCount` are for the dot
-  // indicator alone; CasinoScreen owns the actual room list and which one is
-  // open, the same division of labour it already has with `toggle`.
-  roomIndex = null, roomCount = 0, onSwipeLeft = null, onSwipeRight = null,
 }) {
   // The phone still drags to dismiss: the gesture is how you leave a room in
   // this app and it predates this screen. The desk does not — there is nowhere
-  // to drag a full-width destination to, and it would only spring back.
-  const drag = useSheetDrag(onClose);
-  // A left/right swipe stays under the dismiss gesture's Y slop for its whole
-  // length (BUG-200's fix), so the two never fight over the same touch — see
-  // useHorizontalSwipe's own header for why that is safe rather than lucky.
-  const swipe = useHorizontalSwipe(onSwipeLeft, onSwipeRight, { enabled: !desktop && !!(onSwipeLeft || onSwipeRight) });
+  // to drag a full-width destination to, and it would only spring back. There
+  // is nowhere left to dismiss TO but home, now that the building behind this
+  // room is gone.
+  const drag = useSheetDrag(onHome);
   const ranked = feltsForRoom(felts, agents);
   const rows = ranked.length === 0 ? liveTablesIn(room, { agents, events }) : [];
   const unnamed = unnamedCount(room, ranked.length || rows.length);
@@ -261,9 +236,6 @@ export function FloorView({
   const [floorW, setFloorW] = useState(FLOOR_W);
   const [floorH, setFloorH] = useState(FLOOR_H);
   const hasFelts = ranked.length > 0;
-  // Once tables arrive, their canvas keeps the whole room. The action moves
-  // to the existing rail (or the phone's compact area below the room).
-  const railPlay = hasFelts && !zoom ? play : null;
   useLayoutEffect(() => {
     const el = roomRef.current;
     if (!el) return undefined;
@@ -290,47 +262,27 @@ export function FloorView({
       role="group"
       aria-label={`${room.name} — the room`}
       ref={desktop ? undefined : drag.ref}
-      style={desktop ? undefined : {
-        transform: [drag.style.transform, swipe.style.transform].filter(Boolean).join(' ') || undefined,
-        transition: drag.dragging || swipe.swiping ? 'none' : undefined,
-      }}
-      {...(desktop ? {} : {
-        onMouseDown: (e) => { drag.handlers.onMouseDown(e); swipe.handlers.onMouseDown(e); },
-        onTouchStart: (e) => { drag.handlers.onTouchStart(e); swipe.handlers.onTouchStart(e); },
-        onMouseMove: drag.handlers.onMouseMove,
-        onTouchMove: drag.handlers.onTouchMove,
-      })}
+      style={desktop ? undefined : drag.style}
+      {...(desktop ? {} : drag.handlers)}
     >
       {!headerOwned && <div className="csn-floor__head">
-        <button type="button" className="csn-floor__back" onClick={zoom ? () => onZoom?.(null) : onHome || onClose} aria-label={zoom ? 'Back to the floor' : onHome ? 'Back home' : 'Back to the casino'}>
-          {zoom ? '← THE FLOOR' : onHome ? '← HOME' : '← THE CASINO'}
+        <button type="button" className="csn-floor__back" onClick={zoom ? () => onZoom?.(null) : onHome} aria-label={zoom ? 'Back to the floor' : 'Back home'}>
+          {zoom ? '← THE FLOOR' : '← HOME'}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT,
             lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>{zoom ? 'Table · ' + (zoom.blinds || room.stakes.label) : room.name}</div>
+          }}>{zoom ? 'Table · ' + zoom.blinds : room.name}</div>
           <div style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
-            {zoom ? 'pinch again to watch' : `${room.stakes.label} · ${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
+            {zoom ? 'pinch again to watch' : `${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
           </div>
         </div>
-        {/* JOB 5: the tiny room indicator — design-refs/mood-nav.jsx exports a
-            `CarouselDots` for this shape, but never for this screen, so this
-            is a gap recorded rather than a design ported (see BUGS.md). */}
-        {!zoom && roomCount > 1 && (
-          <span className="csn-floor__rooms" role="img" aria-label={`Room ${roomIndex + 1} of ${roomCount}`}>
-            {Array.from({ length: roomCount }, (_, i) => (
-              <i key={i} className={i === roomIndex ? 'is-current' : undefined} />
-            ))}
-          </span>
-        )}
-        {!zoom && toggle}
         {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
       </div>}
 
       <div className="csn-floor__body">
         <div className="csn-floor__room">
-          {!hasFelts && !zoom && play}
           {ranked.length > 0 ? (
             <div className="csn-floor__plan" ref={roomRef}>
               <TheFloor
@@ -338,8 +290,8 @@ export function FloorView({
                 zoom={zoom} onZoom={onZoom}
                 mineAt={mineAt}
                 standing={standing}
-                boardLines={events.length}
                 onWatch={onWatch}
+                onHome={zoom ? null : onHome}
                 width={floorW}
                 height={zoom && !desktop ? floorH : floorW * (FLOOR_H / FLOOR_W)}
               />
@@ -351,32 +303,34 @@ export function FloorView({
           ) : (
             <p className="csn-floor__quiet">
               {room.tables > 0
-                ? 'The floor has not named a table in here yet. Watch the board by the stairs — a felt that goes hot puts itself on this list.'
-                : 'Nothing is running in here right now.'}
+                ? 'The floor has not named a table yet. Watch the ticker at the top — a felt that goes hot puts itself on this list.'
+                : 'Nothing is running right now.'}
             </p>
           )}
 
           {!zoom && beyond > 0 && (
             <p className="csn-floor__unnamed">
-              {`${beyond} more table${beyond === 1 ? '' : 's'} running in here than the room has space to draw.`}
+              {`${beyond} more table${beyond === 1 ? '' : 's'} running than the room has space to draw.`}
             </p>
           )}
 
           {!zoom && unnamed > 0 && (
             <p className="csn-floor__unnamed">
-              {`${unnamed} more table${unnamed === 1 ? '' : 's'} in here the floor has not named.`}
+              {`${unnamed} more table${unnamed === 1 ? '' : 's'} the floor has not named.`}
             </p>
           )}
 
         </div>
 
-        {/* The board by the stairs. On the phone it is under the room, where
-            the stairs are; on the desk it is the right column, which is the
-            same place — you pass it on the way out either way. */}
-        {(board || railPlay) && (!zoom || desktop) && (
-          <div className={`csn-floor__board${railPlay && !desktop ? ' csn-floor__board--play' : ''}`}>
-            {railPlay}
-            {(desktop || !railPlay) && board}
+        {/* The deploy panel — a stake picker while placing a man, or the
+            quick-play card. One stable position regardless of whether the
+            floor has named any tables yet: moving it between two different
+            parents when the first felt arrives would unmount and remount it
+            mid-interaction, which is a worse bug than the panel keeping the
+            same modest footprint the whole time. */}
+        {deployPanel && (!zoom || desktop) && (
+          <div className="csn-floor__board csn-floor__board--play">
+            {deployPanel}
           </div>
         )}
       </div>

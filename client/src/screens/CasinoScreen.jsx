@@ -1,50 +1,56 @@
-// client/src/screens/CasinoScreen.jsx — CASINO-1
+// client/src/screens/CasinoScreen.jsx — CASINO-1, UI-3 job A
 //
-// Board 27, direction B: "a place you walk into."
+// UI-3 JOB A — ONE ROOM. Board 27's building had three rooms behind three
+// doorways — the floor, upstairs, the back room — and CASINO-2/BUGS-C spent
+// several waves teaching the owner how to walk between them: a doorway, then
+// a floor you stood inside, then a toggle back to the board, then a swipe
+// between floors. Jens's decision reverses all of that at once: the casino
+// is a SINGLE room. Every live table is on the one floor at once, each
+// showing its own stakes (10/20 beside 50/100), because stakes were always a
+// fact about a TABLE — the felt payload has carried `blinds` since CASINO-2
+// job 1 — and only ever became a fact about a ROOM because the building
+// organised itself by stakes tier. That organisation is what is gone.
 //
-// The casino is THE BUILDING — rooms by stakes, seen through their doorways —
-// and it is the only place you deploy. You arrive with an agent already chosen
-// (from Home, or from his profile), you pick a room, his pocket has to cover
-// the buy-in, and you deal him in. There is no stake slider anywhere on this
-// screen, because the pocket already is the wager.
+// WHAT THAT DELETES: the doorway list (RoomDoors), the tall deploy doorway
+// (CasinoDoor), the Floor|Board toggle and the board it toggled to
+// (FloorBoard/LiveNow/Tonight), the swipe between rooms, and the session
+// memory of which room was last open — there is only ever one. This also
+// kills the bug where entering the casino auto-targeted an empty room and
+// said nothing was running while games were live somewhere else on the
+// ladder: there is no longer a specific room to mis-target, because the
+// floor always shows every table there is.
 //
-// The three ref artboards are one screen here, composed rather than redrawn:
+// WHAT REPLACES IT: `CasinoTicker` (components/casino/CasinoTicker.jsx) is
+// pinned to the very top of the screen, above even the header, answering the
+// question the board used to answer — is anything happening right now — in
+// one line instead of two panels. `StakePicker` (CasinoBuilding.jsx) is what
+// is left of the doorway when an owner is placing a man: he still has to
+// choose a stake, so it is a row of chips instead of a room to step into.
+// The staircase INSIDE the one room (TheFloor's own furniture) takes him
+// home when tapped — the fix for a building that used to have three rooms
+// and a board to navigate, and now has none.
 //
-//   K1 · arriving with an agent   → the doorways, and the tray at the foot.
-//   K2 · the board by the stairs  → the five lines, the stairs, the doorways.
-//   K3 · a felt goes hot          → the hot doorway grows and the row above the
-//                                   rest offers the one action it asks for.
-//
-// ON THE DESK (DESK-2, board 31's frame). The building is the stage and the
-// TICKER MOVES TO THE RAIL. It is the same three artboards, split down the seam
-// they already have: the doorways are what you look at and the board by the
-// stairs is what you keep half an eye on, and on the phone those have to be
-// stacked because there is one column. Given two, the board takes the second
-// one and stops competing with the rooms for the top of the screen — which also
-// lets it hold the run of the evening rather than the top five of it.
-//
-// THE TRAY IS UNCHANGED. It is the decision, it belongs under the thing being
-// decided, and it stays at the foot of the stage on both platforms.
-//
-// The parts are in components/casino/CasinoBuilding.jsx; this file is the wiring
-// — three live sources joined into one room list, and the two things an owner
-// can do here.
+// `rooms` (from useCasinoRooms, `src/server/rooms.js`) is unchanged on the
+// wire — it is still the stakes ladder, still named `floor`/`upstairs`/
+// `backroom` there, because agents' wants and location text elsewhere in the
+// app ("upstairs. send me.") still speak in those terms. This file simply
+// stops using it to pick which ROOM to stand in, and uses it only for what
+// each stake costs and who is at it.
 
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  CasinoDoor, CasinoHead, DeployTray, RoomDoors, Stairs, Btn, count, M_BG,
+  DeployTray, StakePicker, count, M_BG,
 } from '../components/casino/CasinoBuilding.jsx';
-import { FloorBoard } from '../components/casino/FloorBoard.jsx';
+import { CasinoTicker } from '../components/casino/CasinoTicker.jsx';
 import { YourTables } from '../components/casino/YourTables.jsx';
 import { FloorView, tableIdOf } from '../components/casino/FloorView.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
-import { useCasinoRooms, roomForBlinds, roomForTable, agentsByRoom, feltsIn, totalSeated } from '../hooks/useCasinoRooms.js';
+import { useCasinoRooms, roomForBlinds, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
 import { fetchWallet, fundAgent, money, pocketOf } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
-import { Num } from '../components/wallet/atoms.jsx';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 // BUG-156: the building's own sheet, and the desk shell's, travel with the
 // chunk that draws them instead of with every phone entry.
@@ -52,22 +58,18 @@ import '../styles/casino.css';
 import '../styles/desktop.css';
 
 const POLL_MS = 10_000;
-const MONO = '"JetBrains Mono",ui-monospace,monospace';
-const M_TEAL = 'var(--success)';
-const M_GOLD = 'var(--gold-reward)';
-const M_RED = 'var(--error)';
 
 // ── Pure helpers ────────────────────────────────────────────────────────────
 
 /**
- * Is this room hot right now?
+ * Is this stake hot right now?
  *
  * Both halves of the answer come from the same `hot` events. The server's
- * room.hot is time-bounded by HOT_RECENT_MS and floorChannel schedules a push
- * for the moment it expires; the client's own 20s window (EVENT-2's hotTables)
- * is the one with a guaranteed clock even when the socket is down. So the
- * client window wins whenever it has anything to say, and the server's list is
- * the fallback for a ticker that has not backfilled yet.
+ * room.hot is time-bounded by HOT_RECENT_MS; the client's own 20s window
+ * (EVENT-2's hotTables) is the one with a guaranteed clock even when the
+ * socket is down. So the client window wins whenever it has anything to say,
+ * and the server's list is the fallback for a ticker that has not backfilled
+ * yet.
  */
 export function isRoomHot(room, hotTables) {
   const hot = room?.hot ?? [];
@@ -76,104 +78,23 @@ export function isRoomHot(room, hotTables) {
   return hot.some((id) => hotTables.has(String(id)));
 }
 
-/**
- * The one felt that is asking for you now, or null. K3: the doorway grows, the
- * centre felt shimmers, and one row states the pot.
- */
-export function hotFocus(rooms, hotTables, agents = []) {
-  for (const room of rooms ?? []) {
-    if (!isRoomHot(room, hotTables)) continue;
-    const tableId = room.biggestPot && room.hot.includes(room.biggestPot.tableId)
-      ? room.biggestPot.tableId
-      : room.hot[0];
-    const mine = agents.find((a) => a.activeTableId && String(a.activeTableId) === String(tableId)) ?? null;
-    const pot = room.biggestPot?.tableId === tableId ? room.biggestPot.pot : null;
-    return { room, tableId, pot, agent: mine };
-  }
-  return null;
-}
-
-/** Can this pocket sit down in this room? */
+/** Can this pocket sit down at this stake? */
 export function canAfford(pocket, room) {
   if (!room) return false;
   return (pocket?.balance ?? 0) >= (room.stakes?.buyIn ?? 0);
 }
 
 /**
- * Which room the tray opens on: the highest rung his pocket covers, which is
+ * Which stake the tray opens on: the highest rung his pocket covers, which is
  * the rung the server's own ladder (stakesFor in src/server/wallet.js) would
- * pick for him. Opening on a room he cannot afford would make the tray's first
- * reading a refusal. When he can afford none, the lowest is shown shut, which
- * is what states the price.
+ * pick for him. Opening on a stake he cannot afford would make the tray's
+ * first reading a refusal. When he can afford none, the lowest is shown shut,
+ * which is what states the price.
  */
 export function defaultRoom(rooms, pocket) {
   const affordable = (rooms ?? []).filter((r) => canAfford(pocket, r));
   if (affordable.length > 0) return affordable[affordable.length - 1];
   return (rooms ?? [])[0] ?? null;
-}
-
-// The doorway heights, from the ref. The hot room grows to 176; a shut room
-// shrinks, because there is nothing to look at in a room he cannot enter.
-//
-// FIX-6 job 5 — ON THE DESK THEY ARE THE SAME HEIGHT, because they are no
-// longer stacked. Three doorways in a column can differ in height and read as a
-// building with a hot floor in it; three cards SIDE BY SIDE that differ in
-// height read as a broken grid. The hot room still says so — the badge, the
-// shimmering felt, the gold rim — and the shut room still says its price. What
-// it stops doing is changing size to say it, which is the one thing a row
-// cannot afford.
-export const DESK_DOOR_H = 360;
-
-function doorHeight({ hot, shut, index, desktop = false }) {
-  if (desktop) return DESK_DOOR_H;
-  if (hot) return 176;
-  if (shut) return 104;
-  return [152, 134, 120][index] ?? 120;
-}
-
-// ── BUGS-C job 12 · the floor first ─────────────────────────────────────────
-//
-// The casino used to open on the building — three doorways and the board by
-// the stairs — and a room's own floor (felts, tiny ghosts in the seats) was
-// somewhere you walked to. The playtest wanted the floor itself first, the
-// board reached by a toggle. Session-only (sessionStorage, not localStorage):
-// it is "which of the two you were just looking at", not a setting.
-const VIEW_KEY = 'agentic_casino_view';
-const ROOM_KEY = 'agentic_casino_room';
-
-function readCasinoRoom() {
-  try { return sessionStorage.getItem(ROOM_KEY) || null; }
-  catch { return null; }
-}
-
-function readCasinoView() {
-  try {
-    const v = sessionStorage.getItem(VIEW_KEY);
-    return v === 'board' ? 'board' : 'floor';
-  } catch { return 'floor'; }
-}
-
-function writeCasinoView(view) {
-  try { sessionStorage.setItem(VIEW_KEY, view); } catch { /* session-only anyway */ }
-}
-
-/** "FLOOR | BOARD", a segmented control rather than two buttons — one choice. */
-function ViewToggle({ view, onChange }) {
-  return (
-    <div className="csn-view-toggle" role="group" aria-label="Floor or board" data-testid="casino-view-toggle">
-      {['floor', 'board'].map((v) => (
-        <button
-          key={v}
-          type="button"
-          className={`csn-view-toggle__btn${view === v ? ' is-active' : ''}`}
-          aria-pressed={view === v}
-          onClick={() => onChange(v)}
-        >
-          {v === 'floor' ? 'Floor' : 'Board'}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 // ── The screen ──────────────────────────────────────────────────────────────
@@ -186,15 +107,21 @@ export function CasinoScreen({
   onReplay = null,
   onPlace = null,
   onCancelDeploy = null,
-  // HOME-2 job 1 · back from anywhere returns to the room. The phone reached
-  // the casino through the door, so the way out of it is a back arrow rather
-  // than a tab; the desk never passes one, because the desk did not leave home.
+  // HOME-2 job 1 · back from anywhere returns home. The phone reached the
+  // casino through the door, so the way out of it is a back arrow rather
+  // than a tab; the desk never passes one, because the desk did not leave
+  // home. UI-3 job A: also the staircase inside the room, and the only
+  // navigation this screen has left.
   onBack = null,
   onOpenRoster = null,
   onSend = null,
   desktop = false,
-  shellHeader = false,
   headerTarget = null,
+  // UI-3 job A: there is one room now, so there is nothing left for a room
+  // id to select. Accepted and otherwise ignored — an old caller (or a
+  // stored `agentic_casino_room` from before this change) still resolves to
+  // the one floor rather than erroring or targeting a room that no longer
+  // exists as a destination.
   initialRoomId = null,
   // BUG-208: the roster sheet is deliberately glass over the room, but this
   // screen's own foreground panels (the deploy card, the conversation band)
@@ -207,11 +134,13 @@ export function CasinoScreen({
   const [agents, setAgents] = useState([]);
   const [wallet, setWallet] = useState(null);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [playRoomId, setPlayRoomId] = useState(null);
   const [fundTarget, setFundTarget] = useState(null);
   const [busy, setBusy] = useState(false);
   const [playAgentId, setPlayAgentId] = useState(null);
   const [playError, setPlayError] = useState('');
   const [pendingTable, setPendingTable] = useState(null);
+  const [zoom, setZoom] = useState(null);
   const playInFlight = useRef(false);
   const playEntry = useRef(0);
   const mounted = useRef(false);
@@ -227,29 +156,14 @@ export function CasinoScreen({
   const [conversationId, setConversationId] = useState(null);
   const [threadOpen, setThreadOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  // BUGS-A job 7: which doorway the owner has walked up to and looked into.
-  // Only ever set when he is NOT placing an agent — with somebody in the tray
-  // a doorway is the choice of where to seat him, and that is the older and
-  // more important meaning of the tap.
-  const [openRoomId, setOpenRoomId] = useState(() => initialRoomId ?? readCasinoRoom());
-  // BUGS-C job 12: floor or board — remembered for the session, not tapped
-  // fresh every time the owner leaves and comes back to the casino tab.
-  const [view, setView] = useState(readCasinoView);
-  const [zoom, setZoom] = useState(null);
-  const changeView = useCallback((v) => {
-    if (v !== view) abandonFloorPlay();
-    setZoom(null); setView(v); writeCasinoView(v);
-  }, [view, abandonFloorPlay]);
 
-  // CASINO-2: `felts` is one public snapshot per live table and `roomOf` is
-  // the server's table -> room map. The doorways are still drawn from `rooms`;
-  // everything that names a particular felt now reads the felts.
+  // CASINO-2: `felts` is one public snapshot per live table, across every
+  // stake — UI-3 job A draws them all on the one floor at once, so there is
+  // no per-room filtering left to do with them.
   const { rooms, felts, roomOf } = useCasinoRooms({ wsUrl });
   const { events, hotTables } = useCasinoEvents({ wsUrl });
   useEffect(() => { if (zoom && !felts.some(f => f.tableId === zoom.tableId)) setZoom(null); }, [felts, zoom]);
 
-  // The roster, on the same 10s beat the floor uses. It is what puts your own
-  // agents in the doorway of the room they are sitting in.
   const loadAgents = useCallback(async () => {
     try {
       const res = await fetch(`/api/agents?userId=${getUserId()}`, {
@@ -258,7 +172,7 @@ export function CasinoScreen({
       if (!res.ok) return;
       const data = await res.json();
       setAgents(Array.isArray(data?.agents) ? data.agents : []);
-    } catch { /* the doorways keep whoever they had */ }
+    } catch { /* the floor keeps whoever it had */ }
   }, []);
 
   useEffect(() => {
@@ -311,75 +225,42 @@ export function CasinoScreen({
 
   const mineByRoom = useMemo(() => agentsByRoom(rooms, agents, roomOf), [rooms, agents, roomOf]);
   const mineIds = useMemo(() => new Set(agents.map((a) => String(a.id))), [agents]);
-  const focus = useMemo(() => hotFocus(rooms, hotTables, agents), [rooms, hotTables, agents]);
-  // CASINO-2 job 3: which rooms the small doors mark as hot. Same answer the
-  // tall doorway gets from isRoomHot, asked once for the row rather than once
-  // per door, so the two sizes of door can never disagree.
+  // CASINO-2 job 3: which stakes the picker marks as hot. Same answer a tall
+  // doorway used to get from isRoomHot, asked once for the row rather than
+  // once per chip.
   const hotRoomIds = useMemo(
     () => new Set(rooms.filter((r) => isRoomHot(r, hotTables)).map((r) => r.id)),
     [rooms, hotTables],
   );
 
   const seated = totalSeated(rooms);
-  const minePlaying = agents.filter((a) => a.liveGame).length;
   const availableAgents = agents.filter(agent => !tableIdOf(agent) && !agent.guest && !agent.archived && !agent.retiring
     && agent.location?.where !== 'visiting');
   const playAgent = availableAgents.find(agent => agent.id === playAgentId) ?? availableAgents[0] ?? null;
-  const net = agents.reduce((sum, a) => {
-    const p = pocketOf(a);
-    return sum + (Number.isFinite(p?.pnl) ? p.pnl : 0);
-  }, 0);
 
-  // The stake chip beside a ticker line. Only hot tables and each room's
-  // biggest pot are named on the wire, so most lines have no room to name and
-  // simply carry no chip — see the note in useCasinoRooms.js.
-  // The stake chip beside a line. CASINO-2 made this answer for every live
-  // table rather than only for the two kinds ROOMS-1 names, because the
-  // table -> room map is now stated on the wire — see useCasinoRooms.
-  const stakesForTable = useCallback(
-    (tableId) => roomForTable(rooms, tableId, roomOf)?.stakes.label ?? null,
-    [rooms, roomOf],
+  // The stake the quick-play card opens on: an explicit tap wins (playRoomId),
+  // and otherwise it is the highest rung his pocket buys — computed straight
+  // off this render's own data, never a follow-up effect, so the exact buy-in
+  // is on screen the first time this card paints rather than one tick later.
+  const playRoom = useMemo(
+    () => rooms.find((r) => r.id === playRoomId) ?? (playAgent ? defaultRoom(rooms, pocketOf(playAgent)) : null),
+    [rooms, playRoomId, playAgent],
   );
 
-  // FIX-6 job 2 · A DOORWAY WITH SOMEBODY IN THE TRAY IS THE DEAL, NOT A PICK.
+  // UI-3 JOB A · THE DEAL, NOT A PICK.
   //
   // The want asks "put me in?", the owner says Yes, and the casino opens with
-  // him already in the tray. From there it took two more taps — one to select a
-  // room, one to confirm in the tray — to do the thing that had already been
-  // agreed to. The second tap was asking the same question twice.
-  //
-  // So the doorway deals him in. The shut door is unchanged and is still the
-  // one thing that opens his chips: law 4, a fact about his pocket and never a
-  // paywall. The tray keeps its own button, which is not a confirmation — it is
-  // the same one action, for the room the tray already opened on.
-  function selectRoom(room) {
+  // him already in the tray. Tapping a stake chip deals him in directly — one
+  // tap, no second confirmation — the same law FIX-6 job 2 gave the doorway
+  // it replaces. A shut chip is the one exception: it opens his chips, which
+  // is the only thing law 4 lets it open.
+  function selectStake(room) {
     if (trayAgent && !canAfford(pocket, room)) {
       setFundTarget(trayAgent);
       return;
     }
     setSelectedRoomId(room.id);
     dealHimIn(room);
-  }
-
-  // BUGS-A job 7: with nobody in the tray, a doorway is a place you look INTO.
-  // It was scenery — the one tap on this screen that did nothing.
-  function lookIntoRoom(room) {
-    if (room.id !== openRoomId) abandonFloorPlay();
-    setOpenRoomId(room.id);
-    try { sessionStorage.setItem(ROOM_KEY, room.id); } catch { /* Keep this visit in memory. */ }
-    changeView('floor');
-  }
-
-  // JOB 5: the rungs are the building's own order (floor, upstairs, back
-  // room) — the same order RoomDoors always listed them in, so a swipe left
-  // moves up the ladder exactly the way tapping the next door down used to.
-  // No wraparound: the back room has nowhere further to go, the same way the
-  // door list itself had an end.
-  function swipeRoom(step) {
-    if (!rooms.length) return;
-    const at = Math.max(0, rooms.findIndex((r) => r.id === openRoomId));
-    const next = rooms[at + step];
-    if (next) lookIntoRoom(next);
   }
 
   async function handleFund(decision) {
@@ -391,11 +272,7 @@ export function CasinoScreen({
     } catch { /* the sheet stays open, the choice is not lost */ }
   }
 
-  // "Deal him in" — the existing deploy path, with the room's stakes attached.
-  //
-  // `rung` and `stakes` carry the owner's room choice. The successful queue
-  // response states the actual table's room and blinds; remember that place
-  // for the return from Watch on both the phone and the desktop shell.
+  // "Deal him in" — the existing queue path, with the chosen stake attached.
   async function dealHimIn(into = null) {
     const room = into ?? selectedRoom;
     if (!trayAgent || !room || busy) return;
@@ -418,14 +295,13 @@ export function CasinoScreen({
       const queuedRoom = rooms.find(candidate => candidate.id === payload.room)
         ?? roomForBlinds(rooms, `${smallBlind}/${bigBlind}`)
         ?? room;
-      lookIntoRoom(queuedRoom);
       onDeployed?.(payload, trayAgent, queuedRoom);
     } catch { /* he stays in the tray */ }
     finally { setBusy(false); }
   }
 
-  // Unlike the older tray's queue, deploy joins a compatible populated table
-  // or starts a session. The server owns admission, money and opponent choice.
+  // Unlike the tray's queue, deploy joins a compatible populated table or
+  // starts a session. The server owns admission, money and opponent choice.
   async function playOnFloor(agent, room) {
     if (!agent || !room || playInFlight.current || pendingTable) return;
     setPlayError('');
@@ -453,7 +329,7 @@ export function CasinoScreen({
         }
         const message = typeof payload?.message === 'string' ? payload.message
           : typeof payload?.error === 'string' && /\s/.test(payload.error) ? payload.error : null;
-        setPlayError(message || `${agent.name} could not join this room. Try again.`);
+        setPlayError(message || `${agent.name} could not join. Try again.`);
         return;
       }
       if (typeof payload?.tableId !== 'string' || !payload.tableId || payload.agentId !== agent.id
@@ -462,7 +338,6 @@ export function CasinoScreen({
       }
       const actualRoom = rooms.find(candidate => candidate.id === payload.room)
         ?? roomForBlinds(rooms, `${payload.stakes?.smallBlind}/${payload.stakes?.bigBlind}`) ?? room;
-      lookIntoRoom(actualRoom);
       const confirmed = { payload, agent, room: actualRoom };
       setPendingTable(confirmed);
       if (payload.sessionStarted || payload.alreadyPlaying) onDeployed?.(payload, agent, actualRoom);
@@ -473,6 +348,21 @@ export function CasinoScreen({
       if (mounted.current) setBusy(false);
     }
   }
+
+  // The venue is every stake tier, folded into one: the census the floor's
+  // own header states, and the honest fallback list for a client whose felts
+  // have not arrived yet. Stakes themselves are never read off it — each felt
+  // carries its own (TheFloor/TableFelt draw off `felt.blinds` directly).
+  const venue = useMemo(() => ({
+    id: 'floor',
+    name: 'The casino floor',
+    tables: rooms.reduce((sum, r) => sum + (r.tables ?? 0), 0),
+    seated,
+    hot: rooms.flatMap((r) => r.hot ?? []),
+    biggestPot: rooms.reduce((best, r) => (
+      r.biggestPot && (!best || r.biggestPot.pot > best.pot) ? r.biggestPot : best
+    ), null),
+  }), [rooms, seated]);
 
   const fund = fundTarget ? (
     <FundSheet
@@ -485,8 +375,8 @@ export function CasinoScreen({
   ) : null;
 
   // On the phone his chips take the screen, because the phone has one screen.
-  // On the desk it is a rail panel like everything else — see the desktop
-  // return below.
+  // On the desk it is a rail panel like everything else — see FloorView's
+  // deployPanel, which carries `fund` there instead.
   if (fund && !desktop) {
     return (
       <div className="csn wal" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
@@ -495,294 +385,88 @@ export function CasinoScreen({
     );
   }
 
-  const sub = trayAgent
-    ? `placing ${trayAgent.name}`
-    : `${count(seated)} playing · ${minePlaying} of yours in`;
-
-  const doors = rooms.map((room, index) => {
-    const hot = isRoomHot(room, hotTables);
-    const shut = !!trayAgent && !canAfford(pocket, room);
-    return (
-      <CasinoDoor
-        key={room.id}
-        room={room}
-        mine={mineByRoom[room.id] ?? []}
-        hot={hot}
-        shut={shut}
-        shutFor={trayAgent?.name ?? null}
-        selected={!!trayAgent && room.id === selectedRoomId}
-        h={doorHeight({ hot, shut, index, desktop })}
-        onSelect={trayAgent ? selectRoom : lookIntoRoom}
-      />
-    );
-  });
-
-  // BUGS-C job 12: the room the floor shows when nobody has tapped a specific
-  // doorway yet — the one the small "a felt goes hot" card already points at,
-  // or the first room the building has, so "opens on the floor" never needs
-  // an empty room to fall back to.
-  const defaultFloorRoomId = focus?.room?.id ?? rooms[0]?.id ?? null;
-  const openRoom = rooms.find((r) => r.id === openRoomId)
-    ?? rooms.find((r) => r.id === defaultFloorRoomId) ?? null;
-
-  function watchTable(tableId, roomId = null) {
+  function watchTable(tableId) {
     abandonFloorPlay();
     const agent = agents.find(candidate => tableIdOf(candidate) === String(tableId));
-    // Only the authenticated roster supplies owner context; public felt seats
-    // cannot turn a spectator request into an owner's private view.
-    if (agent) onSpectate?.(tableId, { roomId, agent });
-    else if (desktop && roomId) onSpectate?.(tableId, { roomId });
+    if (agent) onSpectate?.(tableId, { agent });
     else onSpectate?.(tableId);
   }
 
-  function watchFromRoom(tableId) {
-    // Also remember a room opened by the initial live focus. A changing hot
-    // table must not move the owner to a different room when Watch closes.
-    if (openRoom) {
-      try { sessionStorage.setItem(ROOM_KEY, openRoom.id); } catch { /* Storage may be unavailable. */ }
-    }
-    watchTable(tableId, openRoom?.id);
-  }
-
-  // CASINO-2 job 2 — the board, split by tense. LIVE NOW comes off the felts
-  // (pots being built), TONIGHT off the ticker (hands that are over), and both
-  // are ranked by money rather than by recency.
+  // UI-3 JOB A · THE DEPLOY PANEL.
   //
-  // With somebody in the tray it shrinks to its live half plus the headline:
-  // the decision is the tray, so the board reads as two lines and not as
-  // seven. It never disappears, because "where is the action" is exactly the
-  // question an owner about to place a man is asking.
-  const board = (
-    <FloorBoard
-      felts={felts}
-      events={events}
-      mineIds={mineIds}
-      rooms={rooms}
-      playing={seated}
-      liveLimit={trayAgent ? 2 : 3}
-      rows={trayAgent ? 0 : desktop ? 3 : 2}
-      separated={!desktop && !trayAgent}
-      stakesFor={stakesForTable}
-      onWatch={onSpectate ? watchTable : null}
-      onReplay={onReplay ?? null}
-    />
-  );
-
-  // CASINO-2 job 3: the sign is dark when there is no building behind it.
-  const head = (
-    <CasinoHead
-        sub={sub}
-        onOpenRoster={desktop ? null : onOpenRoster}
-        toggle={!desktop && !trayAgent && rooms.length > 0 ? <ViewToggle view={view} onChange={changeView} /> : null}
-        onBack={desktop ? null : onBack}
-        lit={rooms.length > 0}
-        right={trayAgent ? (
-          <button
-            type="button"
-            onClick={() => onCancelDeploy?.()}
-            aria-label="Stop placing him"
-            style={{
-              height: 17, padding: '0 7px', borderRadius: 9, background: 'var(--bg-secondary)',
-              border: '1px solid var(--edge)', color: 'var(--text-secondary)', fontSize: 9, cursor: 'pointer',
-            }}
-          >Not now</button>
-        ) : desktop ? (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', height: 17, padding: '0 7px',
-            borderRadius: 9, background: 'var(--bg-secondary)',
-            border: `1px solid color-mix(in srgb, ${net >= 0 ? M_TEAL : M_RED} 33%, transparent)`,
-          }}>
-            <Num size={10} weight={700} color={net >= 0 ? M_TEAL : M_RED}>
-              {money(net, { sign: true })}
-            </Num>
-          </span>
-        ) : null}
-    />
-  );
-
-  const roomsColumn = (
-      <div className="csn-rooms" style={{
-        flex: 1, minHeight: 0, overflow: 'hidden auto', display: 'flex', flexDirection: 'column',
-        gap: 10, padding: '11px 14px',
-      }}>
-        {/* K3 · the one thing that asks for you now */}
-        {!trayAgent && focus && (desktop || !felts.some(f => f.tableId === focus.tableId && f.pot > 0)) && (
-          <div
-            className="csn-hot"
-            style={{
-              flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-              borderRadius: 12, background: `color-mix(in srgb, ${M_GOLD} 7%, transparent)`, border: `1px solid color-mix(in srgb, ${M_GOLD} 33%, transparent)`,
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11.5, color: M_GOLD }}>
-                {focus.pot ? `${money(focus.pot)} in the middle, ` : 'A big pot is live in '}
-                {focus.room.name}
-              </div>
-              {focus.agent && (
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {focus.agent.name} is in the hand
-                </div>
-              )}
-            </div>
-            <Btn h={30} onClick={() => watchTable(focus.tableId)}>
-              {focus.agent ? 'Watch him' : 'Watch'}
-            </Btn>
-          </div>
+  // He came with you from Home or from his profile (trayAgent), or you are
+  // choosing fresh from the floor itself (playAgent) — the two paths CASINO-1
+  // and CASINO-2 job 5 kept apart because they used to live on different
+  // screens (the lobby's tray, a room's own quick-play card). There is one
+  // screen now, so both render into the same slot; they still never appear
+  // together, because a man already in the tray is the decision being made.
+  const deployPanel = rosterOpen ? null : trayAgent ? (
+    <div className="csn-deploy" data-testid="casino-deploy">
+      <div className="csn-deploy__head">
+        <p className="csn-deploy__label">{`placing ${trayAgent.name}`}</p>
+        {!desktop && (
+          <button type="button" className="csn-deploy__cancel" aria-label="Stop placing him" onClick={onCancelDeploy}>
+            Not now
+          </button>
         )}
-
-        {!trayAgent && !desktop && board}
-
-        {/* N3 places the phone's event panels before these compact room doors.
-            Desktop keeps the board in its own column. The taller deployment
-            doorways below remain the explicit choice when carrying an agent. */}
-        {!trayAgent && (
-          <RoomDoors
-            rooms={rooms}
-            mineByRoom={mineByRoom}
-            hotRooms={hotRoomIds}
-            onOpen={lookIntoRoom}
-          />
-        )}
-
-        {/* CASINO-2 job 4 · YOUR TABLE, once per man.
-            Everything above this is about strangers — three rooms with
-            hundreds of people in them, and a board of pots that are almost all
-            somebody else's. This is the block the owner opened the screen to
-            see, so it takes what is left of it. */}
-        {!trayAgent && rooms.length > 0 && (
-          <YourTables
-            agents={agents}
-            felts={felts}
-            onSelectAgent={setConversationId}
-            onWatch={onSpectate ? watchTable : null}
-            onSend={onPlace ?? null}
-          />
-        )}
-
-        {rooms.length === 0 && (
-          <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--text-muted)', padding: '18px 2px' }}>
-            The floor has not opened yet.
-          </div>
-        )}
-
-        {/* K1 · placing him. The stairs say the building has floors, and the
-            tall doorways are the rooms he can be put in — his crowd drawn, your
-            other men standing in them, the price on the ones his pocket cannot
-            cover.
-
-            FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE on the desk. The phone
-            stacks them because it has one column and a doorway you scroll past
-            is still a doorway; 1440 has room to show the whole building at
-            once, and a column of three in the middle of it is the phone's
-            layout with air poured down both sides. */}
-        {trayAgent && rooms.length > 0 && (
-          <>
-            <Stairs />
-            {desktop ? <div className="csn-rooms__row">{doors}</div> : doors}
-          </>
-        )}
-
-        {/* The board stays reachable while you are placing him, but the
-            decision is the tray, so it reads as two lines and not as seven. On
-            the desk it never left: the rail is not the stage, so it does not
-            have to stand down for the tray. */}
-        {trayAgent && !desktop && board}
       </div>
-  );
+      <StakePicker
+        stakes={rooms}
+        mineByStake={mineByRoom}
+        hotStakes={hotRoomIds}
+        pocket={pocket}
+        selectedId={selectedRoomId}
+        onSelect={selectStake}
+      />
+    </div>
+  ) : (!zoom && onDeployed && (pendingTable || playAgent)) ? (
+    <div className="csn-floor-play" data-testid="casino-play">
+      {pendingTable ? <>
+        <p role="status" data-testid="casino-play-status">{pendingTable.payload.sessionStarted || pendingTable.payload.alreadyPlaying
+          ? `${pendingTable.agent.name}’s table is ready.` : `Waiting for ${pendingTable.agent.name}’s table to start.`}</p>
+        <button type="button" onClick={() => onDeployed(pendingTable.payload, pendingTable.agent, pendingTable.room)}>
+          Watch {pendingTable.agent.name}
+        </button>
+      </> : <>
+        {availableAgents.length > 1 && <label>Choose your agent
+          <select data-testid="casino-play-agent" value={playAgent.id} disabled={busy}
+            onChange={event => { setPlayAgentId(event.target.value); setPlayRoomId(null); setPlayError(''); }}>
+            {availableAgents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+          </select>
+        </label>}
+        <StakePicker
+          stakes={rooms}
+          mineByStake={mineByRoom}
+          hotStakes={hotRoomIds}
+          pocket={pocketOf(playAgent)}
+          selectedId={playRoomId}
+          onSelect={(room) => setPlayRoomId(room.id)}
+        />
+        {playRoom && <p className="csn-floor-play__note">
+          {money(playRoom.stakes.buyIn)} play-money buy-in from {playAgent.name}’s pocket. Joins an open table, or starts one.
+        </p>}
+        <button type="button" disabled={busy || !playRoom} onClick={() => playOnFloor(playAgent, playRoom)}>
+          {busy ? `Finding ${playAgent.name} a seat…` : playRoom && canAfford(pocketOf(playAgent), playRoom) && pocketOf(playAgent)?.mode !== 'cut'
+            ? `Send ${playAgent.name} to play` : `Fund ${playAgent.name} to play`}
+        </button>
+      </>}
+      {playError && <p role="alert">{playError}</p>}
+    </div>
+  ) : null;
 
-  // CASINO-2 job 5 — TAPPING A DOOR TAKES YOU IN.
-  //
-  // BUGS-A job 7 opened a sheet listing what the client could name in there,
-  // which was the honest answer while the wire carried no table list. Job 1
-  // gave it one, and once every table in a room can be named the room stops
-  // being a list and becomes a place: felts on a floor, tiny ghosts in the
-  // seats, and the board by the stairs on the way out.
-  //
-  // A DESTINATION, NOT A SHEET, on both platforms. It replaces the building
-  // rather than sitting over it — which is also why the desk does not put it
-  // in the rail (FIX-6 job 5's law is about sheets, and a sheet is a panel
-  // about something you can still see behind it). It takes the board with it
-  // so the ticker is not lost on the way in.
-  // BUGS-C job 12: floor first. `view` decides which of the two the casino
-  // opens on; a tapped doorway (lookIntoRoom) always wins into 'floor', and
-  // "← THE CASINO" is now the board side of the same toggle rather than a
-  // one-way exit — openRoomId is left alone so flipping back to Floor returns
-  // to the room he was just looking at, not the default one.
-  // The shell owns one header row. Render the live room context and controls
-  // into that row without copying local room/view state into its parent.
-  const roomOnStage = view === 'floor' && openRoom && !trayAgent ? openRoom : null;
+  const ticker = <CasinoTicker
+    felts={felts} events={events} mineIds={mineIds} rooms={rooms}
+    onWatch={onSpectate ? watchTable : null} onReplay={onReplay ?? null}
+  />;
+
   const headerPortal = desktop && headerTarget ? createPortal(<>
     <div className="dsk-top__room">
-      <h1>{zoom ? 'Table · ' + (zoom.blinds || roomOnStage?.stakes.label || '') : roomOnStage?.name ?? 'The casino'}</h1>
-      <p>{zoom ? 'pinch again to watch' : roomOnStage ? roomOnStage.stakes.label + ' · ' + count(roomOnStage.seated) + ' in · ' + count(roomOnStage.tables) + ' tables' : sub}</p>
+      <h1>{zoom ? 'Table · ' + zoom.blinds : 'The casino floor'}</h1>
+      <p>{zoom ? 'pinch again to watch' : `${count(venue.seated)} in · ${count(venue.tables)} tables`}</p>
     </div>
-    {zoom ? <button type="button" className="dsk-btn dsk-btn--ghost" onClick={()=>setZoom(null)}>Back to the floor</button> : !trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView}/>}
+    {zoom && <button type="button" className="dsk-btn dsk-btn--ghost" onClick={() => setZoom(null)}>Back to the floor</button>}
     {trayAgent && <button type="button" className="dsk-btn dsk-btn--ghost" aria-label="Stop placing him" onClick={onCancelDeploy}>Not now</button>}
   </>, headerTarget) : null;
-
-  const floorView = view === 'floor' && openRoom && !trayAgent ? (
-    <FloorView
-      room={openRoom}
-      zoom={zoom} onZoom={setZoom}
-      headerOwned={!!headerPortal}
-      onHome={desktop ? null : onBack}
-      onOpenRoster={desktop ? null : onOpenRoster}
-      desktop={desktop}
-      felts={feltsIn(felts, openRoom.id)}
-      agents={mineByRoom[openRoom.id] ?? []}
-      // JOB 5: phone swipes between rooms instead of backing out to a door
-      // list. The desk keeps its own doors (DeskFloorRail) — a swipe gesture
-      // buys a phone something a mouse-and-click layout does not need.
-      roomIndex={desktop || zoom ? null : rooms.findIndex((r) => r.id === openRoom.id)}
-      roomCount={desktop || zoom ? 0 : rooms.length}
-      onSwipeLeft={desktop || zoom ? null : () => swipeRoom(1)}
-      onSwipeRight={desktop || zoom ? null : () => swipeRoom(-1)}
-      play={!rosterOpen && !zoom && !fund && onDeployed && (pendingTable || playAgent) ? (
-        <div className="csn-floor-play" data-testid="casino-play">
-          {pendingTable ? <>
-            <p role="status" data-testid="casino-play-status">{pendingTable.payload.sessionStarted || pendingTable.payload.alreadyPlaying
-              ? `${pendingTable.agent.name}’s table is ready.` : `Waiting for ${pendingTable.agent.name}’s table to start.`}</p>
-            <button type="button" onClick={() => onDeployed(pendingTable.payload, pendingTable.agent, pendingTable.room)}>
-              Watch {pendingTable.agent.name}
-            </button>
-          </> : <>
-            {availableAgents.length > 1 && <label>Choose your agent
-              <select data-testid="casino-play-agent" value={playAgent.id} disabled={busy}
-                onChange={event => { setPlayAgentId(event.target.value); setPlayError(''); }}>
-                {availableAgents.map(agent => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-              </select>
-            </label>}
-            <p>{openRoom.stakes.label} · {money(openRoom.stakes.buyIn)} play-money buy-in from {playAgent.name}’s pocket</p>
-            <p className="csn-floor-play__note">Joins an open table, or starts one.</p>
-            <button type="button" disabled={busy} onClick={() => playOnFloor(playAgent, openRoom)}>
-              {busy ? `Finding ${playAgent.name} a seat…` : canAfford(pocketOf(playAgent), openRoom) && pocketOf(playAgent)?.mode !== 'cut'
-                ? `Send ${playAgent.name} to play` : `Fund ${playAgent.name} to play`}
-            </button>
-          </>}
-          {playError && <p role="alert">{playError}</p>}
-        </div>
-      ) : null}
-      events={events}
-      board={fund ?? (
-        <FloorBoard
-          felts={feltsIn(felts, openRoom.id)}
-          events={events}
-          mineIds={mineIds}
-          rooms={rooms}
-          playing={openRoom.seated}
-          liveLimit={desktop ? 6 : 2}
-          rows={desktop ? 12 : 2}
-          stakesFor={stakesForTable}
-          onWatch={onSpectate ? watchFromRoom : null}
-          onReplay={onReplay ?? null}
-        />
-      )}
-      toggle={<ViewToggle view={view} onChange={changeView} />}
-      onClose={() => changeView('board')}
-      onWatch={watchFromRoom}
-    />
-  ) : null;
 
   const tray = trayAgent ? (
     <DeployTray
@@ -796,69 +480,45 @@ export function CasinoScreen({
     />
   ) : null;
 
-  // CASINO-2 job 5: a room you have walked into is the whole screen, on both
-  // platforms. There is no building behind it to keep visible — that is the
-  // difference between a destination and a sheet, and it is why this returns
-  // before either shell rather than being drawn over one.
-  if (floorView) {
-    return (
-      <div
-        className={`csn${desktop ? ' csn--desk-room' : ' csn--phone'}`}
-        style={{ flex: 1, minHeight: 0, position: 'relative', display:'flex', flexDirection:'column', overflow: 'hidden', background: M_BG }}
-      >
-        {headerPortal}
-        {floorView}
-        {conversation}
-      </div>
-    );
-  }
+  // CASINO-2 job 4 · YOUR TABLE, once per man. The one block on this screen
+  // the owner opens it to see — unrelated to which room he is standing in,
+  // so UI-3 job A's merge leaves it exactly where it was, just no longer
+  // gated behind having first walked into a room.
+  const yourTables = !trayAgent && rooms.length > 0 ? (
+    <YourTables
+      agents={agents}
+      felts={felts}
+      onSelectAgent={setConversationId}
+      onWatch={onSpectate ? watchTable : null}
+      onSend={onPlace ?? null}
+    />
+  ) : null;
 
-  // DESK-2 — the building on the stage, the ticker in the rail. Board 31's
-  // frame: the shell's top bar is already across the top, so this is the body.
-  if (desktop) {
-    // FIX-6 job 5 — HIS CHIPS OPEN IN THE RAIL. A bottom sheet at 1440 is a
-    // full-width strip across a two-column layout: it covers the doorway it is
-    // about, it covers the ticker it is not about, and it makes the desk read
-    // like a phone that got bigger. The rail is the desk's answer to a sheet
-    // (board 31, "sheets that arrive from a fixture arrive in the rail"), and
-    // the ticker stands down for as long as one is open — it is the resting
-    // panel here, the way the room's thread is on HOME.
-    return (
-      <div className="csn csn--desk" style={{ background: M_BG }}>
-        {headerPortal}
-        <div className="csn-desk__stage">
-          {!shellHeader && !headerPortal && head}
-          {!headerPortal && !trayAgent && rooms.length > 0 && <ViewToggle view={view} onChange={changeView} />}
-          {roomsColumn}
-          {tray}
-        </div>
-        <aside className="csn-desk__rail dsk-panel" aria-label="By the stairs">
-          {fund ?? (
-            <FloorBoard
-              felts={felts}
-              events={events}
-              mineIds={mineIds}
-              rooms={rooms}
-              playing={seated}
-              liveLimit={6}
-              rows={20}
-              stakesFor={stakesForTable}
-              onWatch={onSpectate ? watchTable : null}
-              onReplay={onReplay ?? null}
-            />
-          )}
-        </aside>
-      </div>
-    );
-  }
+  const floor = (
+    <FloorView
+      room={venue}
+      felts={felts}
+      agents={agents}
+      events={events}
+      deployPanel={fund && desktop ? fund : deployPanel}
+      onWatch={onSpectate ? watchTable : null}
+      onHome={onBack}
+      onOpenRoster={desktop ? null : onOpenRoster}
+      desktop={desktop}
+      headerOwned={!!headerPortal}
+      zoom={zoom} onZoom={setZoom}
+    />
+  );
 
   return (
     <div
-      className="csn csn--phone"
-      style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
+      className={`csn${desktop ? ' csn--desk-room' : ' csn--phone'}`}
+      style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
     >
-      {head}
-      {roomsColumn}
+      {headerPortal}
+      {ticker}
+      {yourTables}
+      {floor}
       {tray}
       {conversation}
     </div>

@@ -126,18 +126,14 @@ describe('App shell', () => {
     const user = userEvent.setup();
     fetchMock.route('/api/rooms', roomsResponse);
     fetchMock.route('/api/events', { events: [], lastId: 0 });
-    // BUGS-C job 12: the casino opens on the floor now; this test is about the
-    // BUILDING naming its rooms, so it starts on the board view directly
-    // rather than switching there through the toggle.
-    try { sessionStorage.setItem('agentic_casino_view', 'board'); } catch { /* n/a */ }
     render(<App />);
     await bootedOnHome();
 
     await user.click(screen.getByTestId('home-door'));
     await waitFor(() => expect(screen.queryByTestId('home-screen')).not.toBeInTheDocument());
-    // The building names its rooms; the flat has none. CASINO-2 job 3: at rest
-    // the name is on the small door under the sign, in the house's sign case.
-    expect(await screen.findByText('BACK ROOM')).toBeInTheDocument();
+    // UI-3 job A: the casino is a single floor, always open — no building of
+    // named rooms left to assert on, just the destination itself.
+    expect(await screen.findByTestId('floor-view')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Back home' }));
     expect(await bootedOnHome()).toBeInTheDocument();
