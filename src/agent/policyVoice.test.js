@@ -1,5 +1,11 @@
 // BUG-170: public instant remarks keep the saved nature's cadence.
-// This changes no poker decision, speaking opportunity, or private reasoning.
+// This changes no poker decision and no speaking opportunity.
+//
+// LIFE-2 job 4 amended the header's third clause. It read "or private
+// reasoning", and that is no longer true on purpose: the line under his ghost
+// on the felt is now his nature's too. See the rewritten test below for why,
+// and voice.js NATURE_ACTION_LINE for the table. Everything else BUG-170 pinned
+// is pinned harder.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -63,17 +69,40 @@ test('BUG-170: public words depend on action and nature, never private cards, na
   }
 });
 
-test('BUG-170: changing nature leaves decisions, ratings, reasoning and input unchanged without RNG', t => {
+// LIFE-2 job 4 REWROTE this test rather than loosening it, and the rule it
+// encoded is one the product no longer wants.
+//
+// It used to require that changing the nature left `reasoning` unchanged along
+// with the decision, the ratings and the input. That fourth clause was BUG-170
+// saying what IT was touching — only the public bubble — not a law about the
+// product. `reasoning` is the line under his ghost on the felt, and leaving it
+// nature-blind meant a Rock and a Showman at one table, both folding, both said
+// "Not with this one." for the whole session. Since COST-1 the compiled policy
+// answers a large share of decisions, so that fallback is most of what an owner
+// watching an unwatched-then-opened table actually reads.
+//
+// The three clauses that ARE laws are unchanged and still asserted here: nature
+// moves no poker decision, no rating, no input, and rolls no die. What is added
+// is strictly stronger than what was removed — `reasoning` must now DIFFER
+// between two natures in the same spot, which nothing asserted before.
+test('BUG-170/LIFE-2: nature moves the voice and nothing else, and never rolls a die', t => {
   t.mock.method(Math,'random',()=>{throw new Error('Instant voice must never roll a die');});
   const base = state();
-  const {say:ignored,...expected} = chooseFromPolicy(base);
+  const {say:baseSay,reasoning:baseReasoning,...expected} = chooseFromPolicy(base);
+  const reasonings = new Set();
   for (const {name} of NATURES) {
     const input = {...base,nature:name}, before=structuredClone(input);
-    const {say,...actual} = chooseFromPolicy(input);
-    assert.deepEqual(actual,expected);
-    assert.deepEqual(input,before);
+    const {say,reasoning,...actual} = chooseFromPolicy(input);
+    assert.deepEqual(actual,expected,`${name} moved the poker`);
+    assert.deepEqual(input,before,`${name} mutated its input`);
     assert.equal(say,chooseFromPolicy(input).say);
+    assert.equal(reasoning,chooseFromPolicy(input).reasoning,`${name} is not deterministic`);
+    reasonings.add(reasoning);
   }
+  // LIFE-2 job 4: eight natures, eight different lines under the ghost — and
+  // none of them the natureless one a House regular still gets.
+  assert.equal(reasonings.size,NATURES.length,`${[...reasonings].join(' | ')}`);
+  assert.equal(reasonings.has(baseReasoning),false,'a nature borrowed the house line');
 });
 
 test('BUG-170: a legacy river caller does not promise another community card', () => {

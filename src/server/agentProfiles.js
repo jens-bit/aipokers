@@ -3592,7 +3592,10 @@ export function sessionDipsOf(agentId, userId) {
  */
 // BUG-142: the acknowledgement describes a rest, never an invented venue.
 // Cadence follows the existing nature voices; firstWords stay birth-only.
-const REST_ACKNOWLEDGEMENTS = Object.freeze({
+// LIFE-2 job 4: exported for the same reason NATURE_LINES is — the voice audit
+// in `npm run talk:eval` walks every nature-keyed table of sentences, and a
+// table it cannot reach is a table nothing is checking.
+export const REST_ACKNOWLEDGEMENTS = Object.freeze({
   Grinder: 'Pacing myself. There are more hands ahead.',
   Hothead: 'Fine. Give me a minute.',
   Professor: 'A short break. Then back to the numbers.',

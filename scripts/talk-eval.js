@@ -1,6 +1,6 @@
 // scripts/talk-eval.js — LIFE-1 job 5
 //
-// `npm run talk:eval` — thirty lines, six requirements, every mood.
+// `npm run talk:eval` — the lines, the supply behind them, and the voices.
 //
 // WHAT THIS IS, AND WHAT IT DELIBERATELY IS NOT.
 //
@@ -12,24 +12,39 @@
 // sample from a good distribution — it is what you get when the prompt carries
 // no facts and the reply is never checked.
 //
-// So it evaluates the two halves that decide whether a reply CAN be good:
+// So it evaluates the halves that decide whether a reply CAN be good:
 //
-//   SUPPLY — does the prompt this agent would actually be given contain the
-//            fact the question needs? Built through the real
-//            buildAgentChatSystem, not a copy of it.
-//   GATE   — does the deterministic grader catch the reply that fails, and
-//            let the reply that works through? Run over thirty hand-written
-//            lines, half of them the failure modes from the playtest and half
-//            of them what a good answer looks like.
+//   SUPPLY  — does the prompt this agent would actually be given contain the
+//             fact the question needs? Built through the real
+//             buildAgentChatSystem, not a copy of it.
+//   GATE    — does the deterministic grader catch the reply that fails, and
+//             let the reply that works through? Run over hand-written lines,
+//             half of them the failure modes from the playtest and half of
+//             them what a good answer looks like.
+//   VARIETY — LIFE-2 job 4. Do two agents of different natures say the same
+//             sentence in the same state? Every nature-keyed table of
+//             sentences in the product, imported and walked column by column.
+//             A voice that is only distinct because nobody put two of them
+//             side by side is not distinct.
 //
-// A regression in either is a regression in the conversation, and both are
-// checkable without a key, in under a second, with byte-identical output.
+// A regression in any of them is a regression in the conversation, and all
+// three are checkable without a key, in under a second, with byte-identical
+// output.
 //
 // Exit code is 0 when every case behaves as expected and 1 otherwise, so it
 // can be run in anger even though nothing runs it automatically.
 
 import { faultsIn, shapeOf, selfFacts, talkLaws, isQuestion, answersQuestion } from '../src/agent/talk.js';
-import { buildAgentChatSystem } from '../src/server/agentProfiles.js';
+import { buildAgentChatSystem, REST_ACKNOWLEDGEMENTS } from '../src/server/agentProfiles.js';
+// LIFE-2 job 4 - every nature-keyed table of sentences in the product, imported
+// rather than copied. A copy is a second place to update and therefore a place
+// that goes stale without going red.
+import { NATURES, firstWordsFor } from '../src/agent/attributes.js';
+import { NATURE_OPENERS, SEATED_OPENERS } from '../src/agent/moment.js';
+import { NATURE_ACTION_LINE } from '../src/agent/voice.js';
+import { NATURE_LINES } from '../src/agent/policyPlay.js';
+import { NATURE_WANT_LINES } from '../src/agent/wantVoice.js';
+import { SUGGESTIONS } from '../src/server/naming.js';
 
 const MOODS = ['confident', 'neutral', 'frustrated', 'tilted', 'sulking'];
 const HEAT = { confident: 10, neutral: 30, frustrated: 50, tilted: 75, sulking: 90 };
@@ -280,9 +295,118 @@ for (const [req, t] of byReq) {
   console.log(`${t.ok === t.n ? ' ' : '!'}${pad(req, 26)}${t.ok}/${t.n}`);
 }
 
+// ── LIFE-2 job 4: two natures must not be the same man ──────────────────────
+//
+// Not a line grader and not a supply check — a TABLE AUDIT, and it belongs in
+// this file because this is the file somebody runs after touching what an agent
+// says. It walks every nature-keyed table of SENTENCES in the product and fails
+// when two different natures in the same state emit the same one.
+//
+// "The same state" is one column of one table: the same ask kind, the same
+// action, the same seated/standing flag. A nature-keyed table of POSES is
+// deliberately not here — four idle habits across eight natures is home.js's
+// design, and a pose is not a sentence.
+//
+// The tables are IMPORTED, not copied. A copy is a second place to update and
+// therefore a place that goes stale without going red.
+
+function column(name, byNature) {
+  return { name, byNature };
+}
+
+function spread(name, table, keys) {
+  return keys.map((k) => column(`${name}:${k}`, Object.fromEntries(
+    Object.keys(table).map((n) => [n, table[n][k]]),
+  )));
+}
+
+const NATURE_NAMES = NATURES.map((n) => n.name);
+const byName = (pick) => Object.fromEntries(NATURE_NAMES.map((n) => [n, pick(n)]));
+
+const VOICE_COLUMNS = [
+  // attributes.js — the four sentences the birth card is built out of.
+  column('birth: first words', byName((n) => firstWordsFor(n))),
+  column('birth: signature', byName((n) => NATURES.find((x) => x.name === n).sig)),
+  column('birth: announcement', byName((n) => NATURES.find((x) => x.name === n).line)),
+  column('birth: built for', byName((n) => NATURES.find((x) => x.name === n).builtFor)),
+  column('birth: will struggle', byName((n) => NATURES.find((x) => x.name === n).struggle)),
+  // moment.js — the thread's first line, standing and seated.
+  column('opener: standing', NATURE_OPENERS),
+  column('opener: seated', SEATED_OPENERS),
+  // agentProfiles.js — what he says when you bench him.
+  column('rest: acknowledgement', REST_ACKNOWLEDGEMENTS),
+  // voice.js — the line under his ghost on the felt. LIFE-2 job 4 keyed this
+  // table on nature; before that every agent in the product shared five
+  // clauses, and since COST-1 the policy path reaches them on a large share of
+  // all decisions.
+  ...spread('felt line', NATURE_ACTION_LINE, ['fold', 'check', 'call', 'bet', 'raise']),
+  // wantVoice.js — LIFE-2 job 1.
+  ...spread('want', NATURE_WANT_LINES, Object.keys(NATURE_WANT_LINES.Rock)),
+];
+
+console.log('\nVOICE VARIETY — one row per state, eight natures each. No two alike.\n');
+for (const { name, byNature } of VOICE_COLUMNS) {
+  const seen = new Map();
+  const bad = [];
+  for (const nature of NATURE_NAMES) {
+    const line = byNature[nature];
+    if (line == null || line === '') { bad.push(`${nature} has no line`); continue; }
+    if (seen.has(line)) bad.push(`${seen.get(line)} = ${nature}: "${line}"`);
+    seen.set(line, nature);
+  }
+  failures += bad.length;
+  console.log(`${bad.length ? '!' : ' '}${pad(name, 26)}${bad.length ? bad.join(' | ') : 'all 8 distinct'}`);
+}
+
+// The pooled tables — several alternates per nature per state — get the same
+// rule across the whole pool: no line may belong to two natures.
+const POOLED = [
+  ['table talk', NATURE_LINES, ['fold', 'check', 'call', 'bet', 'raise']],
+  ['name suggestions', SUGGESTIONS, null],
+];
+for (const [name, table, keys] of POOLED) {
+  const owner = new Map();
+  const bad = [];
+  for (const nature of Object.keys(table)) {
+    const pools = keys ? keys.map((k) => table[nature][k]) : [table[nature]];
+    for (const pool of pools) {
+      for (const line of pool ?? []) {
+        if (owner.has(line) && owner.get(line) !== nature) bad.push(`${owner.get(line)} = ${nature}: "${line}"`);
+        owner.set(line, nature);
+      }
+    }
+  }
+  failures += bad.length;
+  console.log(`${bad.length ? '!' : ' '}${pad(name, 26)}${bad.length ? bad.join(' | ') : `${owner.size} lines, none shared`}`);
+}
+
+// And the two surfaces a single policy decision can light at once: the public
+// bubble over his seat (policyPlay) and the private line under his ghost
+// (voice). They may not print the same sentence in the same beat — that reads
+// as a bug rather than as a character.
+{
+  const bubbles = new Set();
+  for (const nature of Object.keys(NATURE_LINES)) {
+    for (const k of ['fold', 'check', 'call', 'bet', 'raise']) {
+      for (const line of NATURE_LINES[nature][k] ?? []) bubbles.add(line);
+    }
+  }
+  const clash = [];
+  for (const nature of Object.keys(NATURE_ACTION_LINE)) {
+    for (const k of ['fold', 'check', 'call', 'bet', 'raise']) {
+      const line = NATURE_ACTION_LINE[nature][k];
+      if (bubbles.has(line)) clash.push(`${nature}/${k}: "${line}"`);
+    }
+  }
+  failures += clash.length;
+  console.log(`${clash.length ? '!' : ' '}${pad('felt line vs bubble', 26)}`
+    + `${clash.length ? clash.join(' | ') : 'disjoint — one decision never says it twice'}`);
+}
+
 const supplyChecks = MOODS.length * SUPPLY.length + EMPTY_SUPPLY.length;
-const total = CASES.length + supplyChecks;
-console.log(`\n${CASES.length} lines + ${supplyChecks} supply checks `
+const varietyChecks = VOICE_COLUMNS.length + POOLED.length + 1;
+const total = CASES.length + supplyChecks + varietyChecks;
+console.log(`\n${CASES.length} lines + ${supplyChecks} supply checks + ${varietyChecks} variety checks `
   + `= ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
 
 process.exit(failures ? 1 : 0);

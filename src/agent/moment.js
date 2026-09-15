@@ -126,7 +126,7 @@ const FLAG_CLAUSE = Object.freeze({
 //    or adjust my strategy?"
 // A scoreboard is not a hello. Never a model call — a template per nature, the
 // same way firstWords works.
-const NATURE_OPENERS = Object.freeze({
+export const NATURE_OPENERS = Object.freeze({
   Grinder:   'Ready when you are. I will still be here at hand four hundred.',
   Hothead:   'Deal me in. I am not here to wait around.',
   Professor: 'Give me the spot and the numbers. I will tell you the answer.',
@@ -140,7 +140,7 @@ const NATURE_OPENERS = Object.freeze({
 // BUG-158: kitchen hands do not count toward casino career stats. A player
 // can therefore still have zero recorded hands while already sitting in the
 // Home game. His fallback greeting must not ask to be seated again.
-const SEATED_OPENERS = Object.freeze({
+export const SEATED_OPENERS = Object.freeze({
   Grinder:   'One hand at a time. I can do this all night.',
   Hothead:   'This hand first. Then we make something happen.',
   Professor: 'I am watching the sizes. Small details add up.',

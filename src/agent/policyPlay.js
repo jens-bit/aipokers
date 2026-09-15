@@ -227,7 +227,10 @@ const INSTANT_LINES = Object.freeze({
 // (ported from char-system.jsx), not the display name or a changing strategy.
 // Only the public action is expressed: never cards, reads, a promised next
 // card, or a result. These are remarks, not their birth catchphrases repeated.
-const NATURE_LINES = Object.freeze({
+// LIFE-2 job 4: exported so `npm run talk:eval` can audit it rather than trust
+// it. The audit has to be able to enumerate the table; a private constant can
+// only be checked by an eye, and an eye cannot hold eighty lines at once.
+export const NATURE_LINES = Object.freeze({
   Grinder: {
     fold: ['I can wait.', 'Leave that one. Keep going.'],
     check: ['No hurry here.', 'Steady. Check.'],
@@ -348,7 +351,11 @@ export function chooseFromPolicy(gs, speech = {}) {
     : { type: best.type, amount: best.amount };
   return {
     action,
-    reasoning: fallbackLine({ holeCards: gs?.holeCards, action }),
+    // LIFE-2 job 4: in HIS register, not the house one. This is the line under
+    // his ghost on the felt, and since COST-1 the policy answers a large share
+    // of decisions — so without the nature two agents at one table folded with
+    // the same sentence, all night, every night.
+    reasoning: fallbackLine({ holeCards: gs?.holeCards, action, nature: gs?.nature }),
     say: instantLine(gs, action, speech),
     rated,
     options: countOptions(rated),
