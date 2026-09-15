@@ -1,9 +1,14 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
-## 0.15.0 — the money, the life, and the rest of the room (2026-09-14)
+## 0.15.0 — the money, the life, and the rest of the room (2026-09-15)
 
-Release candidate. Merged as MERGE-7; not deployed. Five branches, thirty-one
-commits, `69a554c..60444a2`.
+Seven branches, forty-one commits, `69a554c..a10083b`. Merged as MERGE-7,
+gated at CI-FIX, and finished as MERGE-8.
+
+**The candidate was unverified for a day.** MERGE-7 merged five branches and
+committed a 0.15.0 candidate, but the machine died before the final gate ran.
+It was pushed, CI went red, and nothing deployed. CI-FIX treated it as
+unverified and ran the whole gate from scratch — see *Gated*, below.
 
 **Numbered 0.15.0, not 0.14.0.** The queue was planned as 0.14.0 on the belief
 that main still stood at the 0.13.0 candidate; it did not — main had moved 39
@@ -48,15 +53,52 @@ the number would have buried a shipped release.
   and twenty-one PNGs of the shipped product at 390 and 1440, so a design wave
   starts from what the thing actually looks like.
 
+- **A write-capable admin panel (ADMIN-2, `ab7decc`).** Beside ADMIN-1's
+  read-only dashboard: adjust or reset an owner's chips with a mandatory
+  reason and a balanced ledger entry, page his ledger, rename an agent, hide
+  or unhide him reversibly, unseat him, force his fatigue or mood. Its own
+  tighter guard, an append-only audit log that never carries the key, and a
+  mandatory confirm on anything destructive. All of it 404s with `ADMIN_KEY`
+  unset, exactly as the read panel does.
+
+- **Swipe the floors, and read your own hand (UI-1 follow-ups, `a10083b`).**
+  The casino's room switcher is a horizontal swipe on the phone now, with a
+  dot indicator and the old door list left as a fallback. And the owner's own
+  seat — phone and desk — finally says what his two cards make ("pair of
+  sixes", "ace-high") instead of only naming the street.
+
 Two reds found and fixed on main during the merge rather than left for CI:
 the HOME-3 journeys' 5s deadline (`64a6155`) and the desk's condition readings
 riding up over the stack and equity once the dots replaced the bars
 (`150ba4f`, BUG-100/BUG-86).
 
-Verified after the last merge: 360 simulated hands across six households with
-the snack, the fridge and the house bankroll all live in one process for the
-first time — 743 conservation checks, **drift 0**, chips in existence
-50,210,000 in and 50,210,000 out.
+Verified after the last MERGE-7 merge: 360 simulated hands across six
+households with the snack, the fridge and the house bankroll all live in one
+process for the first time — 743 conservation checks, **drift 0**, chips in
+existence 50,210,000 in and 50,210,000 out.
+
+**Gated (CI-FIX, `5065dbc`).** The one red CI found was BUG-55 coming back by
+a different route: LIFE-1-B's dots left the home pill's rows taking a 16px
+text line box instead of the 6px the dots occupy, the pill grew from 27px to
+55px, and because a body is anchored by his feet all of it came off the top —
+over the centre of the kitchen table. Pinned in the browser with
+`elementsFromPoint` and isolated by reverting each suspect alone; fixed in
+the product, in one CSS rule. Two AGENT-1 assertions that described the
+continuous bar LIFE-1-B deliberately retired were rewritten to the same rules
+in the shape they now take, with the reasoning in the commit (Testing law
+#5), and the real defect that exposed — a 40px pill against a live 32px
+bound — fixed in `agent.css`.
+
+Chip conservation, re-measured at CI-FIX on a fresh scratch DB with no key:
+350 hands across ten households, **delta 0**, and the total never moved
+across 1,841 samples.
+
+**One thing is held back on purpose.** BUG-211 — "opening Home always seats a
+hand" — is not on main. The one-line server change works, and it makes Carry
+unreachable for the solo household it is for: the only body is then
+permanently in a live hand, and a man in a hand cannot be picked up
+(BUG-134). Two rules Jens asked for; choosing between them is a design call.
+BUGS.md has the measurement and three ways out.
 
 The sections below, down to `0.14.0 — THE SHOW`, are the per-queue detail for
 this release.
