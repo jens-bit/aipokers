@@ -34,7 +34,7 @@
 // Exit code is 0 when every case behaves as expected and 1 otherwise, so it
 // can be run in anger even though nothing runs it automatically.
 
-import { faultsIn, shapeOf, selfFacts, talkLaws, isQuestion, answersQuestion } from '../src/agent/talk.js';
+import { faultsIn, shapeOf, selfFacts, talkLaws, isQuestion, answersQuestion, repairReply } from '../src/agent/talk.js';
 import { buildAgentChatSystem, REST_ACKNOWLEDGEMENTS } from '../src/server/agentProfiles.js';
 // LIFE-2 job 4 - every nature-keyed table of sentences in the product, imported
 // rather than copied. A copy is a second place to update and therefore a place
@@ -297,6 +297,26 @@ const CASES = [
     reply: "Don't remember that one, man — which hand you talking about?", want: 'fail' },
   { req: 'R10 never twice', who: 'repeating', mood: 'tilted', said: 'why???',
     reply: 'The queen-six. I called 400 on the turn with top pair and he had the king.', want: 'pass' },
+
+  // -- LIFE-3 job 3 ---------------------------------------------------------
+  //
+  // R11 - he owns a bad call. Asked why he made a decision that lost, the
+  // answer is the reason he actually had and the state he was actually in, and
+  // it ends with him rather than with the deck. The FAIL rows are two of the
+  // three ways out of that: the shrug and the refusal. The third - blaming the
+  // cards - is a sentence no line grader can catch, because "he had the king"
+  // is true; it is caught on the REPAIR side below, where the product writes
+  // the line itself and can be held to ending on him.
+  { req: 'R11 owns it', who: 'busted', mood: 'tilted', said: 'why did you call there?',
+    reply: 'Hand 812. He fired every street so I had him on a bluff, and I was steaming. Cost me 820 and that is on me.', want: 'pass' },
+  { req: 'R11 owns it', who: 'busted', mood: 'sulking', said: 'why did you call there?',
+    reply: 'Dunno.', want: 'fail' },
+  { req: 'R11 owns it', who: 'busted', mood: 'frustrated', said: 'why did you call there?',
+    reply: 'I cannot answer that right now. Try me again in a moment.', want: 'fail' },
+  { req: 'R11 owns it', who: 'busted', mood: 'tilted', said: 'that was a terrible call',
+    reply: 'It was. I had him on a bluff at that price and he had the king. My call, my 820.', want: 'pass' },
+  { req: 'R11 owns it', who: 'busted', mood: 'neutral', said: 'were you tilting?',
+    reply: 'I was, and I still called. Heat does not get to sign for it, I do.', want: 'pass' },
 ];
 
 // ── Supply: does the prompt carry the facts the case needs? ─────────────────
@@ -395,6 +415,48 @@ for (const mood of MOODS) {
   if (missing.length) failures += missing.length;
   console.log(`${missing.length ? '!' : ' '}${pad('newborn', 12)}`
     + `${missing.length ? `MISSING: ${missing.join('; ')}` : `all ${EMPTY_SUPPLY.length} empty-history checks present`}`);
+}
+
+// -- LIFE-3 job 3: what he is handed when the line fails ---------------------
+//
+// The GATE half of this eval grades sentences somebody wrote. This grades the
+// sentence the PRODUCT writes - the repair, which is what the owner actually
+// reads whenever the model's line is rejected. It has been checked by hand
+// since LIFE-1 and never by anything that runs.
+//
+// Three claims per row, and the last is the one that matters: the repair must
+// survive its own gate. A product that answers with a line it would itself
+// reject has two opinions about what a good reply is.
+const REPAIRS = [
+  ['the hand he was asked about, by name', 'busted', 'why did you go all in on that hand?',
+    (line) => /Hand 812, the queen-six/.test(line)],
+  ['the decisive action, not the first one', 'busted', 'why did you call there?',
+    (line) => /I put it all in on the turn/.test(line)],
+  ['his own reason, verbatim off the record', 'busted', 'why???',
+    (line) => /I put him on a bluff/.test(line)],
+  ['his heat at the time, said out loud', 'busted', 'why???',
+    (line) => /I was steaming/.test(line)],
+  ['and he owns it, after the heat and not instead of it', 'busted', 'why???',
+    (line) => /that one is on me/.test(line) && line.indexOf('steaming') < line.indexOf('on me')],
+  ['never the cards alone', 'busted', 'why???',
+    (line) => !/\b(?:ran bad|unlucky|bad beat|variance|nothing i could do)\b/i.test(line)],
+  ['a hand he does not have is named, not shrugged at', 'busted', 'what about hand 700?',
+    (line) => /no hand 700/.test(line)],
+  ['nothing behind him is said plainly', 'newborn', 'why did you shove?',
+    (line) => line === 'I have not played a hand yet. Nothing to go over.'],
+];
+
+console.log('\nREPAIR - the line the product writes when the model\'s is rejected:\n');
+for (const [name, who, said, ok] of REPAIRS) {
+  const subject = SUBJECTS[who]();
+  const line = repairReply(subject, { said, faults: ['deflection'] });
+  const good = typeof line === 'string' && ok(line);
+  // ...and it must pass the gate that produced it.
+  const back = line ? faultsIn({ said, reply: line, agent: subject }) : ['empty'];
+  if (!good) failures++;
+  if (back.length) failures++;
+  console.log(`${good && !back.length ? ' ' : '!'}${pad(name, 54)}`
+    + `${back.length ? `REJECTED BY ITS OWN GATE: ${back.join(',')} ` : ''}"${String(line).slice(0, 60)}"`);
 }
 
 console.log('\nBY REQUIREMENT');
@@ -512,8 +574,9 @@ for (const [name, table, keys] of POOLED) {
 
 const supplyChecks = MOODS.length * SUPPLY.length + EMPTY_SUPPLY.length;
 const varietyChecks = VOICE_COLUMNS.length + POOLED.length + 1;
-const total = CASES.length + supplyChecks + varietyChecks;
+const repairChecks = REPAIRS.length * 2;   // what it says, and that it survives its own gate
+const total = CASES.length + supplyChecks + varietyChecks + repairChecks;
 console.log(`\n${CASES.length} lines + ${supplyChecks} supply checks + ${varietyChecks} variety checks `
-  + `= ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
+  + `+ ${repairChecks} repair checks = ${total} assertions, ${total - failures} pass, ${failures} fail.\n`);
 
 process.exit(failures ? 1 : 0);

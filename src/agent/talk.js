@@ -701,7 +701,10 @@ export function answerFor(agent, said = '', { focus = null } = {}) {
     const q = candidateQuestion(res.candidates);
     if (q) return { line: q, how: res.how, hand: null };
   }
-  if (res.hand) return { line: handSentence(res.hand), how: res.how, hand: res.hand };
+  // LIFE-3 job 3: ownSentence rather than handSentence. The question that
+  // reaches this line is nearly always "why", and the identity of a hand is not
+  // an answer to it. It degrades to handSentence for a hand with no why on file.
+  if (res.hand) return { line: ownSentence(res.hand), how: res.how, hand: res.hand };
 
   if (res.how === 'unknown') {
     // He named something and it is not on the list. Say WHAT is not on it.
@@ -799,4 +802,71 @@ function handSentence(hand) {
   return hand.won
     ? `Hand ${hand.handNumber}${held} — I took ${hand.potSize} off him.${came} That one I got right.`
     : `Hand ${hand.handNumber}${held} — pot was ${hand.potSize}.${came} I have been over it.`;
+}
+
+// ── LIFE-3 job 3: he owns it ────────────────────────────────────────────────
+
+const trimEnd = (s) => String(s ?? '').replace(/[\s.!,;:—-]+$/, '');
+
+/**
+ * One real hand WITH THE REASON HE PLAYED IT THAT WAY.
+ *
+ * handSentence above is the identity of a hand — the cards, the board, the
+ * number. It is what you say when the question is "which hand"; it is not what
+ * you say when the question is "why". Asked why he made a call that lost, a man
+ * who answers "Hand 812 with Qh 6d — cost me 820" has recited the hand history
+ * back, which is a different failure from the shrug but is not an answer either.
+ *
+ * WHAT THIS SAYS, in the order he would say it:
+ *
+ *   WHICH HAND     by number and by name, so the owner knows they are talking
+ *                  about the same one — law 6's other half.
+ *   WHAT HE DID    the decisive action, off the stored why (handWhy.js): the
+ *                  call for 400 on the turn, not the raise to 60 preflop.
+ *   WHY HE DID IT  his own reasoning, VERBATIM off the record, from the model
+ *                  call or the compiled policy that actually made the decision.
+ *                  It is his sentence and it is not rewritten here.
+ *   HOW HE WAS     the heat and the tiredness, but only at the edges, and only
+ *                  when they are on file (statePhrase). "I was steaming" is
+ *                  true, it is the character, and it is not an excuse — it is
+ *                  the thing before the last clause rather than instead of it.
+ *   AND IT IS HIS  what it cost, and that he owns it.
+ *
+ * THE LAST CLAUSE IS THE WHOLE POINT. A loss ends with "that one is on me" —
+ * never a shrug, never the cards. "I ran bad" is the sentence this function
+ * exists to make impossible: the record holds what he DECIDED, so the decision
+ * is what he answers with, and the cards are context rather than a defendant.
+ * He is allowed to say he was steaming because that is a fact about him; he is
+ * not allowed to stop there, which is why the ownership clause comes after it
+ * and not in place of it.
+ *
+ * Falls back to handSentence for a hand recorded before LIFE-3, which has no
+ * why to speak from — the same additive rule every field in this tree follows.
+ */
+export function ownSentence(hand) {
+  if (!hand) return null;
+  const why = hand.why;
+  if (!why) return handSentence(hand);
+
+  const nick = handNickname(hand);
+  const parts = [`Hand ${hand.handNumber}${nick ? `, the ${nick}` : ''}.`];
+
+  const act = actionPhrase(why);
+  const where = why.street ? ` on the ${why.street}` : '';
+  const reason = trimEnd(why.reasoning);
+  if (act) parts.push(reason ? `I ${act}${where} — ${reason}.` : `I ${act}${where}.`);
+  else if (reason) parts.push(`${reason}.`);
+
+  const state = statePhrase(why);
+  if (state) parts.push(`${state}.`);
+
+  if (Number.isFinite(hand.net)) {
+    const n = Math.abs(Math.round(hand.net));
+    parts.push(hand.net >= 0
+      ? `Made me ${n}, and I would make that call again.`
+      : `Cost me ${n}, and that one is on me.`);
+  } else {
+    parts.push(hand.won ? 'It came in.' : 'It missed, and that was my call to make.');
+  }
+  return parts.join(' ');
 }

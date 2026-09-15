@@ -11,7 +11,7 @@ import {
   SHAPES, SHAPE_MEMORY, shapeOf, noteShape, ensureShapes,
   isQuestion, answersQuestion, faultsIn, selfFacts, talkLaws, handFact, repairReply,
   SELF_FACT_HANDS, handIndex, claimedHoldings, handNumbersIn, inventedCitations,
-  isConfused, confusionsBefore, answerFor,
+  isConfused, confusionsBefore, answerFor, ownSentence, REFUSAL,
 } from './talk.js';
 
 const hand = (extra = {}) => ({
@@ -432,7 +432,9 @@ test('LIFE-3: a question with no hand named is answered with the hand his night 
   for (const said of ['why did you go all in on that hand?', 'why???']) {
     const fixed = repairReply(a, { said, faults: faultsIn({ said, reply: DEAD_END, agent: a }) });
     assert.match(fixed, /Hand 812/, said);
-    assert.match(fixed, /Qh 6d/, said);
+    // LIFE-3 job 3 turned this line from the identity of a hand into an answer
+    // to "why", so the cards arrive as the name he calls it by.
+    assert.match(fixed, /the queen-six/, said);
   }
 });
 
@@ -478,4 +480,58 @@ test('LIFE-3: law 6 is stated, and the prompt names the hand he is being asked a
   assert.match(ambiguous, /TWO OF YOUR HANDS FIT WHAT HE SAID/);
   const unknown = talkLaws(busted(), { said: 'what about hand 700?' });
   assert.match(unknown, /HE HAS NAMED A HAND THAT IS NOT ON YOUR LIST/);
+});
+
+// ── LIFE-3 job 3: he owns a bad call ────────────────────────────────────────
+
+test('LIFE-3: asked why a losing call, he gives the reason he actually had', () => {
+  const a = busted();
+  const said = 'why did you call there?';
+  const line = repairReply(a, { said, faults: ['deflection'] });
+  assert.match(line, /Hand 812, the queen-six/);
+  assert.match(line, /I put it all in on the turn/, 'the DECISIVE action, not the preflop one');
+  assert.match(line, /he has been firing every street/, 'his own reasoning, verbatim off the record');
+  assert.match(line, /Cost me 820/);
+});
+
+test('LIFE-3: he says he was steaming, because it is true and it is not the excuse', () => {
+  const line = ownSentence(bustHand());
+  assert.match(line, /I was steaming/);
+  assert.match(line, /I had been sitting there too long/);
+  // …and the ownership clause comes AFTER it, never instead of it.
+  assert.ok(line.indexOf('I was steaming') < line.indexOf('on me'), line);
+  assert.match(line, /that one is on me/);
+});
+
+test('LIFE-3: a clear head is said too, and the middle says nothing', () => {
+  const cool = bustHand({ why: { ...bustHand().why, heat: 15, stamina: 'fresh' } });
+  assert.match(ownSentence(cool), /I was clear-headed/);
+  const middling = bustHand({ why: { ...bustHand().why, heat: 45, stamina: 'settled' } });
+  assert.doesNotMatch(ownSentence(middling), /steaming|clear-headed|sitting there/);
+  assert.match(ownSentence(middling), /that one is on me/, 'he still owns it');
+});
+
+test('LIFE-3: it is never a shrug, a refusal or a blame on the cards', () => {
+  const a = busted();
+  const line = ownSentence(bustHand());
+  assert.equal(shapeOf(line) === 'deflection', false);
+  assert.equal(REFUSAL.test(line), false);
+  assert.equal(isConfused(line), false);
+  assert.doesNotMatch(line, /\b(?:ran bad|unlucky|bad beat|nothing i could do|variance)\b/i);
+  // And the repair has to survive the gate it came from, or the product would
+  // be rejecting its own answer.
+  assert.deepEqual(faultsIn({ said: 'why did you call there?', reply: line, agent: a }), []);
+});
+
+test('LIFE-3: a hand he won is owned too, and does not apologise for winning', () => {
+  const won = bustHand({ won: true, net: 620 });
+  assert.match(ownSentence(won), /Made me 620, and I would make that call again/);
+});
+
+test('LIFE-3: a hand with no why on file still answers, exactly as it did before', () => {
+  const old = bustHand({ why: null });
+  const line = ownSentence(old);
+  assert.match(line, /Hand 812 with Qh 6d/);
+  assert.match(line, /Board Qs 7d 2s Kc 3h/);
+  assert.equal(ownSentence(null), null);
 });
