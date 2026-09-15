@@ -270,14 +270,25 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             console.log(`[JOIN] AI_ENABLED=${process.env.AI_ENABLED}, wantAI=${msg.wantAI} (type: ${typeof msg.wantAI}), agentDisplayName=${msg.agentDisplayName ?? 'n/a'}`);
             if (msg.wantAI === true) {
               const agentProfile = msg.agentId ? getAgentProfile(msg.agentId, msg.userId) : null;
-              table.maybeAutoSeatAI({
-                agentStrategy: msg.agentStrategy ?? null,
-                agentDisplayName: msg.agentDisplayName ?? null,
-                agentId: msg.agentId ?? null,
-                userId: msg.userId ?? null,
-                memoryContext: msg.memoryContext ?? '',
-                agentProfile,
-              });
+              // MONEY-2 job 1: this seat is paid for now (table.js
+              // maybeAutoSeatAI), and a pocket that cannot cover it refuses.
+              // The human is already seated and has already had JOINED, so the
+              // refusal is reported and the House is offered instead — an owner
+              // who cannot afford to send his own man still gets a game, and he
+              // is told why it is not his man he is playing.
+              try {
+                table.maybeAutoSeatAI({
+                  agentStrategy: msg.agentStrategy ?? null,
+                  agentDisplayName: msg.agentDisplayName ?? null,
+                  agentId: msg.agentId ?? null,
+                  userId: msg.userId ?? null,
+                  memoryContext: msg.memoryContext ?? '',
+                  agentProfile,
+                });
+              } catch (err) {
+                sendError(ws, err.message);
+                table.scheduleHouseFallback();
+              }
             } else {
               table.scheduleHouseFallback();
             }

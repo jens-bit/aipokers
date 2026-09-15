@@ -313,8 +313,13 @@ console.log('\n[verify] 5) a forced multiway all-in — side pots, every chip ac
 
   const banked = [0, 1, 2].map((i) => sp.seatStack(i));
   const chipsAfter = banked.reduce((a, b) => a + b, 0);
-  check('chip conservation across the multiway all-in', chipsAfter === startingChips,
-    `${chipsAfter} vs ${startingChips}`);
+  // MONEY-2 job 3: the felt still neither creates nor destroys a chip. What it
+  // has lost is exactly what the HOUSE took, and the table's own per-seat rake
+  // record is what says so — a cut that went anywhere else would fail here.
+  const raked = sp.seatRake.reduce((sum, n) => sum + (n ?? 0), 0);
+  check('chip conservation across the multiway all-in, less the house cut',
+    chipsAfter === startingChips - raked,
+    `${chipsAfter} vs ${startingChips} - ${raked} raked`);
 
   // 600 uncalled comes back to the big stack; 1000 is contested in two layers:
   // 200*3 = 600 for everyone, then 200*2 = 400 between the two deeper stacks.

@@ -42,6 +42,15 @@ import {
   raiseFloor, raisesCapped, raiseCapPerStreet,
 } from './pace.js';
 import { classifyCooler } from './cooler.js';
+import { rakeFor, rakeSettings, splitRake, rakeLine } from './rake.js';   // MONEY-2 job 3
+
+// MONEY-2 job 3: how many Monte Carlo runs one equity estimate takes. Read per
+// call so an offline harness can lower it in-process; 800 everywhere else, and
+// deliberately not documented as a deployment knob — see the call site.
+const EQUITY_ITERATIONS = () => {
+  const n = Math.floor(Number(process.env.EQUITY_ITERATIONS));
+  return Number.isFinite(n) && n > 0 ? n : 800;
+};
 import { DRINK_DISCIPLINE_PENALTY, DRINK_BLUFF_BONUS } from './fridge.js';
 // SERVER-5 job 1: the states he arrived in, applied where the drink's cost is.
 import { applyDips } from '../agent/dips.js';
@@ -528,6 +537,9 @@ export class Table {
     // table: the ceremony prints HIS session, and a monster pot he folded out
     // of preflop is not part of it.
     this.seatBiggestPot = Array(maxSeats).fill(0);
+    // MONEY-2 job 3: what the house has taken off this seat's pots this stay.
+    // Carried to the rail so the safe can show it as its own line.
+    this.seatRake = Array(maxSeats).fill(0);
     // SERVER-3: the acting seat's clock — { key, seat, deadlineTs, totalMs }.
     // See _armActionTimer. `key` never leaves the server.
     this.actionTimer = null;
@@ -608,6 +620,7 @@ export class Table {
     ['seatSeatedAt',     () => 0],      // SERVER-3
     ['seatEndReason',    () => null],   // SERVER-3
     ['seatBiggestPot',   () => 0],      // SERVER-3
+    ['seatRake',         () => 0],      // MONEY-2 job 3
     ['seatDrinking',     () => false],  // FRIDGE-1
     ['seatDips',         () => null],    // SERVER-5
     ['_routeReadPrint',  () => null],    // COST-1
@@ -862,6 +875,10 @@ export class Table {
           buyInAmount: buyIn,
           tableId: this.tableId,
           sessionEnd,
+          // MONEY-2 job 3: what the house took off his pots this stay. The
+          // stack above is already net of it; this is what lets the rail pay
+          // the gross and take the cut back, so the safe shows both lines.
+          rakePaid: this.seatRakePaid(seat),
         });
         // Before the TABLE_CLOSED below: that message is what a client tears
         // the screen down on, and the ceremony has to have arrived first.
@@ -1360,6 +1377,7 @@ export class Table {
             .map((p, i) => (i === seat ? null : p?.playerId ?? null))
             .filter(Boolean),
           sessionEnd,
+          rakePaid: this.seatRakePaid(seat),   // MONEY-2 job 3
         });
         this._broadcastSessionEnd(sessionEnd);
         this._notifySessionEnd({
@@ -1603,6 +1621,7 @@ export class Table {
     this.seatSeatedAt[free] = Date.now();
     this.seatEndReason[free] = null;
     this.seatBiggestPot[free] = 0;
+    this.seatRake[free] = 0;
     console.log(`[table:${this.tableId}] AI agent seated at slot ${free} (stack ${aiBuyIn}, model ${process.env.AI_MODEL || 'claude-haiku-4-5'}${agentId ? `, agentId=${agentId}` : ''}${this.agentMemory[free] ? ', memory: yes' : ''}${this.agentProfiles[free] ? `, profile T${this.agentProfiles[free].tightness}/A${this.agentProfiles[free].aggression}` : ''})`);
     return free;
   }
@@ -2325,14 +2344,45 @@ export class Table {
 
   // Auto-seat AI at the free slot when one human is seated. No-op if table is
   // already full or has no human seated.
+  //
+  // MONEY-2 job 1 — THE vs-YOU DOOR IS A DOOR INTO A SEAT, SO IT PAYS LIKE ONE.
+  //
+  // JOIN with `wantAI: true` and an `agentId` (wsServer.js) is the third way an
+  // OWNED agent gets chips in front of him, beside deploy and WATCH. MONEY-1
+  // made WATCH pay (addSpectator) and left this one taking `bigBlind * 100` out
+  // of the air (MONEY_AUDIT.md §6.2, row 4) — his owner's safe did not move,
+  // because nothing asked it to. Same rail as the other two doors:
+  // chargeSeatBuyIn debits the pocket, moves the chips into the bank and writes
+  // both ledgers in one transaction, and REFUSES rather than granting.
+  //
+  // A refusal throws, exactly as addSpectator's does, so the owner is told why
+  // instead of watching an agent he cannot afford quietly fail to appear. The
+  // kitchen table is excluded on the same line every other money rule draws:
+  // nothing at home costs a chip.
+  //
+  // Returns the seat index, or null when there was nothing to do.
   maybeAutoSeatAI({ agentStrategy = null, agentDisplayName = null, agentId = null, userId = null, memoryContext = '', agentProfile = null, stableId = null, accentColor = null, talkLines = null } = {}) {
     const humanSeated = this.pending.some((p, i) => p !== null && !this.aiSeats[i]);
     const hasFree = this.pending.some((p) => p === null);
     console.log(`[maybeAutoSeatAI] humanSeated=${humanSeated}, hasFree=${hasFree}, spectators=${this.spectators.length}, agentDisplayName=${agentDisplayName}, agentStrategy=${String(agentStrategy).slice(0, 40)}`);
-    if (!hasFree) return;
-    if (!humanSeated && this.spectators.length === 0) return;
+    if (!hasFree) return null;
+    if (!humanSeated && this.spectators.length === 0) return null;
+
+    let paidBuyIn;
+    if (agentId && userId != null && !this.home) {
+      const paid = chargeSeatBuyIn(agentId, userId, {
+        amount: this.defaultBuyIn(), tableId: this.tableId,
+      });
+      if (paid.ok) paidBuyIn = paid.moved;
+      // `already`: he is bought in here and this is the same stay.
+      // `unknown`: no agent record, so nothing can ever be credited for the
+      // seat either — see chargeSeatBuyIn. Everything else is a real refusal.
+      else if (paid.already) paidBuyIn = paid.buyIn;
+      else if (!paid.unknown) throw new Error(paid.reason || 'his pocket does not cover this table');
+    }
+
     if (agentStrategy) this.agentStrategy = agentStrategy;
-    this.seatAI({
+    return this.seatAI({
       displayName: agentDisplayName || undefined,
       strategy: agentStrategy || '',
       agentId,
@@ -2342,6 +2392,7 @@ export class Table {
       stableId,
       accentColor,
       talkLines,
+      buyIn: paidBuyIn,
     });
   }
 
@@ -2712,6 +2763,11 @@ export class Table {
     // hand-end half of the face vocabulary, and the per-seat high-water pot
     // feeds SESSION_END's biggestPot when he eventually stands up.
     if (this.game?.result) {
+      // MONEY-2 job 3: the house takes its cut FIRST, before anything reads the
+      // result or the stacks. Everything downstream — the broadcast, the
+      // per-hand reports, the moods, _captureStacks — then sees the net, which
+      // is the number actually in front of him.
+      this._takeRake(this.game.result);
       this._noteSeatPots(this.game.result);
       this.game.result.events = this._handEndEvents(this.game.result);
       this._threadResult(this.game.result);
@@ -2862,6 +2918,98 @@ export class Table {
     }
   }
 
+  // ── MONEY-2 job 3 · the house's cut ───────────────────────────────────────
+  //
+  // Taken off the winner's stack the moment the pot is awarded, at CASINO
+  // tables only. The engine is untouched: it awards the whole pot and its own
+  // conservation law (deltas sum to zero, game.test.js) still holds on the
+  // result it produced. This is the table skimming the felt afterwards, which
+  // is the one place that knows whether it is a casino at all.
+  //
+  // No bank write here, on purpose. A stack is a claim against the bank and the
+  // chips behind it are already inside it (houseBank.js), so shrinking the
+  // claim IS the house keeping the money — it collects at the rail when he
+  // stands up. Calling houseBank.take() as well would count the same chips
+  // twice and mint them; the conservation suite fails on exactly that.
+  //
+  // `result.deltas` is reduced by the same amount, and so stops summing to
+  // zero. That is correct and is the difference between the engine's law and
+  // the table's: a hand never makes chips, but a raked hand does REMOVE some
+  // from the felt, and a per-seat net that ignored it would tell the owner he
+  // won more than he is holding.
+  _takeRake(result) {
+    // The kitchen table is not a casino: no buy-in, no session, no ledger, and
+    // nothing here to rake. Same line every other money rule in this file draws.
+    if (this.home || !result) return 0;
+    const settings = rakeSettings();
+    const total = rakeFor(this._rakeablePot(result), this.bigBlind, settings);
+    if (total <= 0) return 0;
+
+    const shares = splitRake(total, result.winners);
+    if (shares.size === 0) return 0;
+
+    const bySeat = {};
+    let taken = 0;
+    for (const [seat, amount] of shares) {
+      const holding = this.game?.seats?.[seat];
+      // Never more than he is actually holding. A winner cannot be raked into
+      // a negative stack, and a seat the rebuild has already moved is not one
+      // to charge — both are impossible on the path this runs on, and both are
+      // worth being impossible by construction rather than by argument.
+      const cut = Math.max(0, Math.min(Math.floor(amount), Math.floor(holding?.stack ?? 0)));
+      if (cut <= 0) continue;
+      holding.stack -= cut;
+      this.seatRake[seat] = (this.seatRake[seat] ?? 0) + cut;
+      if (result.deltas && Number.isFinite(result.deltas[seat])) result.deltas[seat] -= cut;
+      bySeat[seat] = cut;
+      taken += cut;
+    }
+    if (taken <= 0) return 0;
+
+    // On the wire, so the felt can name it the moment the pot is pushed.
+    result.rake = {
+      total: taken,
+      bySeat,
+      percent: settings.percent,
+      capBb: settings.capBb,
+      bigBlind: this.bigBlind,
+    };
+    return taken;
+  }
+
+  /**
+   * THE POT A CARDROOM WOULD RAKE — which is not always `result.pot`.
+   *
+   * A hand that ends to a fold leaves the winner's own uncalled bet inside
+   * `result.pot`: he raises 300 into a 20 blind, everybody folds, and the
+   * engine reports a pot of 320 while what he actually won is 20. The 300 was
+   * never in the middle — nobody matched it — and raking it would take the
+   * house's percentage out of the raiser's own stack. At the default setting
+   * that is twelve chips off a twenty-chip win, and it is the first thing an
+   * owner would notice and the last thing he would forgive.
+   *
+   * No cardroom rakes an uncalled bet, and none of them thinks of that as an
+   * exception: the uncalled portion is pushed back before the pot is counted.
+   * So this is not an extra rule beside "a percentage of each pot" — it is what
+   * "the pot" means. The excess is the top contribution above the second, which
+   * is zero at every showdown (the engine refunds before it awards) and exactly
+   * the uncalled bet when a hand ends to a fold.
+   */
+  _rakeablePot(result) {
+    const pot = Math.max(0, Math.floor(result?.pot ?? 0));
+    const contribs = (this.game?.seats ?? [])
+      .map((s) => Math.max(0, Math.floor(s?.contribTotal ?? 0)))
+      .sort((a, b) => b - a);
+    if (contribs.length < 2) return pot;
+    const uncalled = Math.max(0, contribs[0] - contribs[1]);
+    return Math.max(0, pot - uncalled);
+  }
+
+  /** The rake this seat's pots have paid this stay. */
+  seatRakePaid(seat) {
+    return Math.max(0, Math.floor(this.seatRake?.[seat] ?? 0));
+  }
+
   // One line for the sheet, in the room's voice: who took it and for how much.
   _threadResult(result) {
     if (!result) return;
@@ -2869,10 +3017,14 @@ export class Table {
     if (winners.length === 0) return;
     const names = this._nameList(winners.map((w) => w.seat));
     const pot = result.pot ?? 0;
+    // MONEY-2 job 3: the cut is named on the line that says who won, never
+    // discovered later by an owner differencing two stacks.
+    const cut = rakeLine(result.rake?.total ?? 0);
+    const tail = cut ? ` — ${cut}` : '';
     this._threadTable(
       result.type === 'showdown'
-        ? `${names} won ${pot} at showdown`
-        : `${names} took ${pot} uncontested`,
+        ? `${names} won ${pot} at showdown${tail}`
+        : `${names} took ${pot} uncontested${tail}`,
       ThreadCategory.RESULT,
     );
   }
@@ -4965,13 +5117,23 @@ export class Table {
 
     // Monte Carlo equity vs the live opponents. 800 iterations keeps the
     // per-decision cost around 30ÔÇô80 ms while staying under ±2% standard error.
+    //
+    // MONEY-2 job 3 made the count a dial, unchanged at 800 and not set on the
+    // VPS. It exists because this call is ~90% of the wall clock of anything
+    // that plays a lot of hands offline (measured with --cpu-prof), and an
+    // economy simulation that wants four thousand hands per setting needs a
+    // cheaper estimate, not a different product: `scripts/simulate-economy.js`
+    // runs at 120, which is about ±4.5% standard error — far too loose to ship
+    // and far tighter than the question "do owner chips climb" can tell apart.
+    // Nothing in the product reads it, and lowering it on a deployment would
+    // make every agent play worse.
     let equity = null;
     try {
       const est = estimateEquity({
         holeCards: me.holeCards,
         community: g.community,
         nOpponents: Math.max(1, activeOpponents),
-        iterations: 800,
+        iterations: EQUITY_ITERATIONS(),
       });
       equity = est.equity;
     } catch (err) {

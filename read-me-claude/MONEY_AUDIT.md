@@ -904,3 +904,391 @@ zero, and no household carries more than one starting grant.
 - **BUG-200**, a pre-existing client test that asserts a US-formatted number and
   fails under any other system locale. Red on `origin/main` before this branch
   and untouched by it.
+
+---
+
+# MONEY-2 — 2026-09-15, `fix/money-2`
+
+## 16. Job 1 — every path that can fund a seated agent
+
+Jens, after MONEY-1 shipped: *his agent ran out of chips, was topped back up,
+and the safe did not move at all.*
+
+Every way an agent's **pocket** or his **stack** can go up, audited one at a
+time, against the one law MONEY-1 wrote down:
+
+> `Σ safes + Σ pockets + houseBank` is the same number before and after
+> anything that happens to a chip.
+
+| # | Path | Where | Debits the safe? | Atomic? | Verdict |
+|---|------|-------|------------------|---------|---------|
+| 1 | auto-refill | `wallet.js autoRefill`, called from the admission gate | **Yes.** `wallet.balance -= moved` in the same call, bounded by `Math.min(need, wallet.balance)`, both ledgers written | Yes — one function, one object graph, one `saveProfile` transaction after it | Sound |
+| 2 | allowance / "give him chips" | `POST /api/agents/:id/fund` → `wallet.js fund` | **Yes.** Refuses with `wallet does not cover that` and moves nothing | Yes | Sound |
+| 3 | legacy reload | `POST /api/agents/:id/reload` → `wallet.js fund` | **Yes.** 409 `There are not enough chips in your safe` | Yes — `saveStore` writes profile and wallet in one transaction | Sound |
+| 4 | home-game buy-in | `homeGame.js` `HOME_BUYIN` | **No — and correctly so.** 200 chips from nowhere, back to nowhere; `_retireSeat` and `closeTable` skip the ceremony when `this.home`, so a home stack never reaches a pocket | n/a | Isolated, intended |
+| 5 | casino deploy | `deployAgent` → `chargeSeatBuyIn` | pocket → bank | Yes, before the seat (MONEY-1) | Sound |
+| 6 | WATCH | `table.js addSpectator` → `chargeSeatBuyIn` | pocket → bank | Yes | **Broken via #8** |
+| 7 | **JOIN with `wantAI`** | `table.js maybeAutoSeatAI`, from `wsServer.js` JOIN | **No. Nothing at all.** `seatAI` with no `buyIn` → `bigBlind * 100` out of the air, on a seat carrying an `agentId` | n/a | **FAUCET — BUG-215** |
+| 8 | **queue, then WATCH** | `POST /api/agents/:id/queue`, then #6 | **No.** Queue writes `activeTableId` for free; `chargeSeatBuyIn` read that as proof of payment and short-circuited | n/a | **FAUCET — BUG-214** |
+| 9 | session cash-out | `finishAgentSession` | bank → pocket, gated on an open stay | Yes | Sound |
+| 10 | refund | `refundSeatBuyIn` | bank → pocket, gated on an open stay | Yes | Sound |
+| 11 | visit stake | `visit.js:226` / `:333` | pocket ↔ pocket, pot built from the two debits | Yes (`persist(...)`, checks `.ok`) | Conserves; bypasses the bank by design |
+| 12 | starting grant | `commitAgent` | Mint, bounded by `startingGrantClaimed` | Yes | Intended, closed since BUG-136 |
+| 13 | admin adjust | `admin/ops.js adjustOwnerChips` | Mint, with a reason and an audit line | Yes | Intended |
+
+### 16.1 The faucet Jens hit
+
+"Deal him in" on the casino screen is **not** `/deploy`. `CasinoScreen.jsx:405`
+(and `AgentsTab.jsx`, `HomeTab.jsx`) posts to `POST /api/agents/:id/queue`, which
+is a matchmaking *reservation*: it deliberately spends no buy-in and returns a
+`tableId`, having written `agent.activeTableId = tableId` and `status: 'playing'`.
+The client then WATCHes that table, and `addSpectator` — which MONEY-1 correctly
+made pay — calls `chargeSeatBuyIn`.
+
+`chargeSeatBuyIn` accepted two proofs that he had already paid:
+
+```js
+const open = openStayFor(pocket, tableId);
+if (open > 0 || (tableId && agent.activeTableId === tableId)) { … already … }
+```
+
+The second one is the field queue had just written, for nothing. So the charge
+short-circuited, `seatAI` was handed a phantom buy-in as a stack, and the owner
+economy never moved.
+
+**And the other half was invisible.** At session end `finishAgentSession`'s
+open-stay gate found nothing owed, logged `no open buy-in … settling nothing`,
+and paid him **nothing for a session he had just played**. Chips were conserved
+in both directions, which is exactly why `chipConservation.test.js` stayed green
+through all of it — the law held and the product was still wrong.
+
+### 16.2 The fix
+
+- **`chargeSeatBuyIn`**: the open stay is the only proof of payment. The
+  `activeTableId` clause is gone. It was redundant for the case it was written
+  for (a deploy writes the `buyin` ledger line as well as the field), and for
+  queue it was the whole bug. **The record is a cache of where he is; only the
+  ledger is a receipt.**
+- **`maybeAutoSeatAI`**: the vs-You door pays like a door — `chargeSeatBuyIn`,
+  seat what was charged, throw on a refusal the way `addSpectator` does. Home is
+  excluded on the same line every other money rule draws. `wsServer.js` catches
+  the refusal, tells the client, and calls `scheduleHouseFallback()` so the human
+  still gets a game.
+- **`admitToFelt(userId, agent)`**, new and exported: the admission gate deploy
+  always had — cut off? refill; still broke? refuse — lifted out of `deployAgent`
+  and asked by **both** doors. Queue used to refuse only a room the pocket could
+  not cover, and only when the owner had named one; it never looked at the refill
+  toggle or at `mode: 'cut'`. The refusal keeps deploy's shape (`required`, the
+  pocket projection, and the man's own line), because MONEY-2's rule is that he
+  runs out **in the open**.
+
+Queue still spends nothing. The buy-in is taken by the seat, at the table, which
+is the only place that knows what a seat costs.
+
+### 16.3 What the tests assert
+
+`src/server/money2Faucets.test.js`, twelve tests, each reading
+`Σ safes + Σ pockets + bank` out of SQLite. Red first, green after:
+
+- queue then WATCH takes one buy-in (was: pocket `6000 !== 4000`);
+- a queued agent who wins is **paid** (was: `6000 !== 8000` — he was paid nothing);
+- JOIN with `wantAI` pays for its seat (was: `6000 !== 4000`);
+- broke at a named room, broke at no room, and cut off are all refused, with the
+  reason, the number and his own line, and none of them marks him `playing`;
+- WATCH refuses an empty pocket and names the figure;
+- auto-refill, give-chips and the legacy reload are each bounded by the safe and
+  each move it by exactly what they moved;
+- the kitchen table neither charges a pocket nor pays one.
+
+`table.casinoStart.test.js`'s `resident()` fixture built a queued agent with an
+empty pocket and relied on the free seat — it was asserting the faucet was open.
+It now holds one top-rung buy-in; every FIRST-HOUSE-1 assertion is unchanged.
+
+## 17. Job 2 — the stale wallet cache: checked, and it was not the cause
+
+ADMIN-2 found that `agentProfiles.js` caches owner wallets in a module-level
+`Map` (`wallets`, L205) and that a write made **through `store.js`, around that
+cache**, looks silently reverted until `reloadOwners()` drops the entry. If that
+cache also sat in the read path the safe uses, Jens's "the safe did not move at
+all" could have been a stale read of a balance that *had* been debited — and the
+fix would belong at the cache, not near the money.
+
+**It does sit in the read path.** `GET /api/wallet` (`agentProfiles.js`) ends in
+`walletProjection(walletFor(userId), …)`, and `walletFor` returns the cached
+object.
+
+**And that is exactly why it is not the cause.** The cache is not a copy of the
+write path, it *is* the write path. `fund`, `collect`, `autoRefill`, `callIn`,
+the fridge and `recordEarned` all mutate the same object `walletFor` hands the
+read, so there is no window in which the two can disagree. There is one writer
+that genuinely goes round it — the ADMIN-2 panel's `adjustOwnerChips` and
+`resetOwnerWallet`, which write straight through `store.saveWallet` — and both
+already call `reloadOwners` (`admin/ops.js saveWalletAndInvalidate`).
+
+Measured rather than read off the code, in `src/server/walletCache.test.js`:
+
+| what was done | what the very next `GET /api/wallet` said |
+|---|---|
+| "give him chips", 1,500 out of a 5,000 safe | 3,500, SQLite agrees, `fund` line on the list |
+| an auto-refill on the way to a seat | 3,000, SQLite agrees, refill and buy-in both on the list |
+| an admin adjustment of −2,000 | 3,000 — not stale |
+| an admin adjustment, then an ordinary save | the adjustment stood; the gift came out of it |
+| `store.saveWallet` with **no** `reloadOwners` | **5,000 — stale.** `reloadOwners` then fixes it |
+
+The last row is the trap, written down on purpose. Nothing in the product takes
+that path; the case exists so that anything which starts to fails this file
+instead of a playtest.
+
+### The one thing job 2 did find
+
+Not staleness — **durability**. `admitToFelt`'s auto-refill is a real transfer,
+and the gate can be passed and the request still refused afterwards for a reason
+that has nothing to do with money (queue's `cantAfford` for a named room). That
+path returned without saving, so the transfer sat in memory only. It could never
+half-commit — `saveProfile` writes the safe and the pocket in one transaction —
+so this was a durability gap and not a conservation one, and one write on a rare
+path is the whole cost of closing it. Red first as
+"MONEY-2: a refill survives a request that is refused after it" (the safe on
+disk still read 5,000), green after, three runs each way.
+
+### Which cause was real
+
+**The first.** The third faucet (§16) is the whole of what Jens saw; the stale
+cache is contained and was never in the way of an ordinary debit. Both were
+checked, only one was minting.
+
+### One flaky assertion of my own, removed rather than re-run
+
+The first version of the refill test asserted the safe's ledger read
+`['buyin', 'refill']`, newest first. Both entries are stamped with `Date.now()`,
+they land in the same millisecond often enough (1 flip in 3 runs), and
+`ledgerView`'s sort is stable — so on a tie the wallet's row is drawn above the
+pocket's and the order flips. The assertion is now on the set, because the merge
+is what is under test and the order of two simultaneous entries is not a rule
+this product has made.
+## 18. Job 3 — the rake
+
+### The model
+
+A casino table takes **a percentage of the pot, capped in big blinds**, off the
+winner's stack the moment the pot is awarded. `src/server/rake.js` is the whole
+of the arithmetic; `RAKE_PERCENT` and `RAKE_CAP_BB` are the two dials, read at
+call time rather than at import, and `RAKE_PERCENT=0` switches it off entirely
+without a deploy — the same shape COST-1's `DECISION_ROUTER=off` has.
+
+**The engine is untouched.** It awards the whole pot and its own conservation
+law (deltas sum to zero, asserted on every shape in `game.test.js`) still holds
+on the result it produces. The table skims the felt afterwards, in
+`_handCompleted`, before anything downstream reads the result or the stacks.
+
+**Where the chips go, and why no bank write happens at the moment of the rake.**
+A stack is a CLAIM against the bank and the chips behind it are already inside
+`houseBank` (section 12). Shrinking the claim by the rake means the bank owes
+that much less, so the bank keeps it at settlement with nothing written on the
+felt. Calling `houseBank.take()` as well would count the same chips twice and
+mint them — `money2Rake.test.js` fails on exactly that.
+
+**A rake on a pot a House regular wins is a no-op in the books**, and correctly
+so: a House stack is notional and never settles, so there is nothing to keep.
+The drain is on chips owners take home, which is the number in question.
+
+**The bank is a number we watch, not a gate.** Unchanged from MONEY-1: seeded at
+`HOUSE_FLOAT`, never refuses to pay, may go negative and shouts when it does. No
+top-up was invented.
+
+### Visible, in two places
+
+- **The result line.** `result.rake = { total, bySeat, percent, capBb, bigBlind }`
+  rides every `HAND_RESULT`, and the thread's result line names it:
+  *"GRANITE won 1,000 at showdown — 10 to the house."* One phrase, `rakeLine()`,
+  so the felt and the history cannot describe one cut two ways. The WATCH
+  screen's own live result moment does not read it yet — filed as BUG-217, and
+  it is client work.
+- **The safe ledger.** `finishAgentSession` pays out the **gross** and takes the
+  cut back in the same breath, so the safe shows two lines where a silent
+  smaller cash-out would have shown one:
+
+      cashed out   +4,200
+      rake           -200
+
+  Net movement identical; books double-entry; and the pocket ledger still sums
+  to the pocket balance, which is the invariant `scripts/audit-chips.js`
+  reconciles against. A single net cash-out plus an informational rake line
+  would have broken that.
+
+### The one correction the rake needed
+
+The first version raked `result.pot`. On a hand that ends to a fold that pot
+still contains the winner's own uncalled bet: raise 300 into a 20 blind,
+everybody folds, `pot` reads 320, and what he actually won is 20. It was taking
+the house percentage out of the raiser's own stack — at the first-guess setting,
+twelve chips off a twenty-chip win.
+
+No cardroom rakes an uncalled bet and none of them calls that an exception: the
+uncalled portion is pushed back before the pot is counted. `table.js`
+`_rakeablePot` is that — the pot less the top contribution above the second,
+which is zero at every showdown (the engine refunds before it awards) and
+exactly the uncalled bet when a hand ends to a fold. It is not a rule beside "a
+percentage of each pot"; it is what "the pot" means.
+
+### The simulation
+
+`scripts/simulate-economy.js`. Real engine, real `Table` (so House regulars
+refill the felt when they bust, which is the compounding half of the original
+problem), real compiled policy through the table's own `_buildAiGameState`, real
+`_takeRake`. The RAIL is modelled in plain objects — buy-in, cash-out, rake back
+— because `chipConservation.test.js` and `money2Rake.test.js` already pin that
+the real rail matches, and doing it through SQLite would put a few thousand
+hands out of reach.
+
+Two honest limits, printed with the numbers rather than buried:
+
+1. **A run is not reproducible.** The seed controls the cards. It does not
+   control the policy: `compilePolicy` rolls its bluff die on `Math.random`
+   (`policy.js` `rollDice`). So the same seed at two settings plays two
+   different games. **Drift is a sample, not a measurement.** `raked` is the
+   number that holds still — within ~10% run to run at a fixed setting — which
+   is why the recommendation is built on it.
+2. **The equity estimate is cheaper than production's.** `estimateEquity` is
+   ~90% of the wall clock of anything that plays offline (measured with
+   `--cpu-prof`), so the script runs at `EQUITY_ITERATIONS=120` against the
+   product's 800. **Checked rather than assumed:** four seeds of 1,500 hands at
+   0% rake came back -2.2% at 120 and -3.7% at 800. Same answer, same sign; the
+   cheap estimate is not choosing the winner.
+
+### Every setting tried, and the curve
+
+12 owners, one agent each, 10,000 starting grant apiece (120,000 in owner
+hands), $10/$20, sessions capped at 100 hands, three seeds of ~1,500 hands per
+row, House regulars dealt in and refilled.
+
+| rake | cap | raked per 1,000 hands | drift, per seed | mean drift |
+|---|---|---|---|---|
+| **0%** | — | 0 | -2.6%, -0.2%, +1.9% | **-0.3%** |
+| 1% | 3bb | 1,170 | +0.1%, -2.7%, -3.0% | **-1.9%** |
+| 2% | 2bb | 2,574 | -1.9%, -9.4%, -11.6% | **-7.6%** |
+| 2% | 3bb | 2,620 | -8.7%, -8.8%, -1.9% | **-6.5%** |
+| 3% | 3bb | 4,001 | -8.2%, -18.8% *(2 seeds)* | **-13.5%** |
+
+An earlier pass at 4% and 5% ran against the pre-`_rakeablePot` code, so its
+raked figures are ~20% high and are not in the table; for the record it came
+back at +5.3/+2.7/-9.3% and -3.9/-17.3% mean drift, which is inside the same
+noise and well past the point of being a brake rather than a grinder.
+
+### THE FINDING, which is not the one the job expected
+
+**There is no climb left to cancel.** With the rake off, ten runs of ~1,500
+hands put the population at **-0.3%** — flat, inside its own noise, and if
+anything slightly down against the House. MONEY-1's own post-fix measurement
+(+727 on 30,000 over 207 hands, section 15) is a 207-hand sample and sits
+comfortably inside that noise band.
+
+That is MONEY-1 working. The climb Jens saw was **minting** — a fresh 100bb
+arriving on the felt every time the House busted, banked as if it were a
+balance — and the house bank ended it. What is left is a population playing a
+roughly break-even game against the House.
+
+So the rake is no longer a brake on a runaway number. It is the structural
+guarantee that the number **cannot** run away, and the only question left is how
+small it can be while still being real.
+
+**One more thing the curve shows.** From 2% upwards the drift runs at about
+twice the rake taken (2%: 2,620 raked against a -6.5% drift on a 120,000
+economy). That is compounding, not noise in one direction: a shaved stack busts
+sooner, a bust costs a whole buy-in, and the safe drains faster than the cut
+alone explains. At 1% it has not started — the drift and the rake are the same
+size.
+
+### The recommendation
+
+> **`RAKE_PERCENT=1`, `RAKE_CAP_BB=3`.** Shipped as the default; neither needs
+> to be set on the VPS.
+
+- It is the **smallest setting that is still a real drain**: ~1,170 chips per
+  thousand hands across twelve agents, about 98 chips each, a twentieth of a
+  buy-in. Against a 10,000 starting grant that is a very long runway.
+- It is **the only row where the drift and the rake are the same size.**
+  Everything above it costs the population roughly twice what the house
+  collects, which is a grinder rather than a brake.
+- It is **visible where it matters and invisible where it does not**: a 60-chip
+  pot rakes nothing, a 1,000-chip pot rakes 10, and a 6,000-chip pot hits the
+  60-chip cap at the floor.
+- The cap is **3bb rather than 2bb** because at the entry rung the two are
+  indistinguishable (2,620 against 2,574 per thousand hands, 1.1% apart — the
+  percentage binds, the cap almost never does). It earns its keep upstairs: 3bb
+  is 60 on the floor, 150 upstairs, 300 in the back room.
+- **Err small, on purpose.** Too little rake means the number creeps and
+  somebody raises the dial — no deploy, no code change. Too much means people
+  lose bankrolls, and no setting gives those back.
+
+**What the simulation cannot tell us**, said plainly rather than left for
+somebody to discover: the population here plays the **compiled policy**, because
+no automated suite in this repo may make a model call (TEST-2). A watched table
+in production sends its hard spots to the model, which plays better than the
+policy — so real owner agents may well beat the House by more than these twelve
+do, and the right setting in production may be higher than the right setting
+here. That is an argument for the dial, not against the number: measure prod
+with `scripts/audit-chips.js` over a few weeks, and if the total in owner hands
+is climbing, raise `RAKE_PERCENT` and watch it again.
+
+## 19. Job 4 — the decisions, recorded and not built
+
+Nothing in this section is implemented. It is the record of what was settled
+and what still needs Jens, so that the next queue starts from a decision rather
+than from a conversation.
+
+### DECIDED — where the chips go
+
+The rake (§18) is the *drain*; these are the **sinks** — what a player spends
+chips on because he wants to, rather than what the house takes because he
+played. A drain stops the number climbing. A sink is what makes having the
+number worth something.
+
+**Consumables.** Snacks and beers, which already exist: `fridge.js` is a real
+sink today (`stockFridge` debits the safe, `giveItemTo` consumes a unit and
+colours one session). This is the shape the rest follows — small, repeated,
+and attached to a moment the owner was going to have anyway.
+
+**The flat itself.** Chips buy apartment upgrades: more space, more storage,
+furniture, a better TV, and more chairs. The flat is the screen the product
+opens on and the thing an owner looks at when nobody is playing, so it is the
+right place to put the money — an upgrade is visible every session, forever,
+which is what a snack is not.
+
+**Chairs gate the roster, so this sink also prices the game's main
+progression.** More chairs means a household can keep more agents. That is not
+a decorative purchase: it is the same lever `slots.js` currently moves with
+lifetime EARNINGS, and putting a second, purchasable lever beside it makes the
+flat the place where "how big is my stable" is decided. Worth saying out loud
+because it is the one item in this list that changes what the game IS rather
+than what it looks like, and because two unlock paths for one thing need to be
+reconciled deliberately (does a bought chair also need the earnings, or instead
+of them?) rather than discovered after both have shipped.
+
+### DEFERRED — needs Jens
+
+**A stakes ladder.** New households start near 100 chips; rooms run from 10/20
+up to 5,000. **Held** until there is another way to earn, because today the
+only source of chips for a household past its starting grant is winning at the
+casino — and a ladder whose bottom rung is 10/20 with a 100-chip household is a
+ladder somebody can fall off with no way back. The order matters: the earn path
+first, then the ladder. (For scale against what exists: `wallet.js STAKES` is
+three rungs, 10/20 to 50/100, and the starting grant is 10,000.)
+
+**What a player does when his agent busts with an empty safe.** MONEY-2 job 1
+made this state *honest* — he runs out, he leaves the table, and the refusal
+says why (§16.2) — but honest is not the same as answered. Right now the answer
+is "nothing, until you have chips again", and there is no way to get chips
+again. Every candidate (a daily allowance, a rail job, selling the agent, a
+sponsor) is a product decision with a different game behind it, so none of them
+is a default anybody should pick quietly.
+
+**Paid coaching.** Ruled out as currently imagined, and the reason is a law
+rather than a preference: **items touch STATE, never SKILL.** A beer changes
+how he plays tonight; nothing bought changes who he is. Coaching that raises an
+attribute would sell the one thing the game is about — watching a character
+become better by playing — and it would make the answer to "why is he good"
+"because his owner paid", which is the answer this product exists not to give.
+If it comes back, it comes back as something that changes state (rest, a
+routine, a settled mood) and is priced as a consumable, or it does not come
+back.

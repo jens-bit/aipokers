@@ -76,6 +76,62 @@ null for a visitor, who is not yours to feed.
   no key, under a second. The variety section fails when two natures in the
   same state emit the same sentence.
 
+## The money, part two — local candidate (2026-09-15, MONEY-2)
+
+- **The house takes a rake, and the economy has a drain (MONEY-2 job 3).** A
+  percentage of each pot, capped in big blinds, off the winner's stack the
+  moment it is awarded — at casino tables only, never at the kitchen table. It
+  is visible: named on the result line beside who won, and its own line in the
+  safe, because the rail now pays out the gross and takes the cut back rather
+  than quietly handing over a smaller number. Both dials are env-configurable
+  and read per call (`RAKE_PERCENT`, `RAKE_CAP_BB`; `0` turns it off without a
+  deploy). `scripts/simulate-economy.js --sweep` plays thousands of real hands
+  with House regulars dealt in and is what chose the setting.
+
+  **The measurement said something the queue did not expect, and it is the
+  headline: there is no climb left to cancel.** With the rake off, ten runs of
+  ~1,500 hands put a twelve-agent population at -0.3% — flat. MONEY-1's house
+  bank had already ended the minting that caused the 30,000-chip stacks. So the
+  shipped setting is **1% capped at 3 big blinds**, the smallest one that is
+  still a real drain and the only one where the cost to players is the rake
+  itself rather than twice it. The number is now guaranteed not to run away;
+  it is not being ground down.
+
+- **The safe's own cache was checked, and cleared (MONEY-2 job 2).** The second
+  candidate for "the safe did not move" was ADMIN-2's stale in-memory wallet
+  cache. It does sit in the read path — and that is why it is not the cause: it
+  is also the write path, so an ordinary debit is on the next read with no
+  window between them, and the one writer that genuinely goes round it (the
+  admin panel) already invalidates. Measured in `walletCache.test.js`, including
+  the trap itself, so anything that starts writing a wallet round the cache
+  fails there instead of in a playtest. It did find one real thing: an
+  auto-refill on a request that is refused *after* the gate was left in memory
+  only. It is persisted now.
+
+- **The sinks and the open questions are written down, not built (MONEY-2
+  job 4).** `read-me-claude/MONEY_AUDIT.md` section 19 records what was
+  settled — consumables, and the flat itself: space, storage, furniture, a
+  better TV, and chairs, with the note that chairs gating roster size means
+  that sink also prices the game's main progression — and what still needs
+  Jens: a stakes ladder (held until there is another way to earn), what a
+  player does when his agent busts with an empty safe, and paid coaching, which
+  is ruled out as imagined because items touch STATE and never SKILL. Nothing
+  in it is implemented.
+
+- **The third faucet is closed (MONEY-2 job 1).** MONEY-1 made deploy and WATCH
+  pay for a seat; it left two doors that did not. `POST /api/agents/:id/queue`
+  — the route the casino screen's "Deal him in" actually uses — writes
+  `activeTableId` as a reservation and spends nothing, and the buy-in rail was
+  reading that field as proof of payment, so the WATCH that followed seated a
+  full stack no pocket was debited for. An open stay in the pocket ledger is
+  now the only receipt. JOIN with `wantAI` (the vs-You flow) took a stack out
+  of the air the same way and now pays like the other two doors. And the
+  admission gate — cut off? refill; still broke? refuse, with the reason and
+  the number — has been lifted out of deploy into `admitToFelt` and is asked
+  at both doors, so an agent whose owner has an empty safe runs out in the open
+  instead of being silently funded. `src/server/money2Faucets.test.js` holds
+  every path to the `safes + pockets + bank` law.
+
 ## 0.15.0 — the money, the life, and the rest of the room (2026-09-15)
 
 Seven branches, forty-one commits, `69a554c..a10083b`. Merged as MERGE-7,

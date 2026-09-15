@@ -130,7 +130,7 @@ import {
   emptyWallet, emptyPocket, ensurePocket,
   stakesFor, isBroke, canAffordTable, buyInFor,
   fund as walletFund, collect as walletCollect, autoRefill,
-  debitBuyIn, creditCashOut,
+  debitBuyIn, creditCashOut, takeRake,
   modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
   collectMoment, callInMoment, brokeMoment, appendEntry,
@@ -887,6 +887,83 @@ function openStayFor(pocket, tableId) {
 }
 
 /**
+ * MONEY-2 job 1 — THE ADMISSION GATE, in one place.
+ *
+ * "Can this man go to work at all" is one question and it was answered in one
+ * place: inside deployAgent. `POST /api/agents/:id/queue` is the OTHER door the
+ * casino screen uses ("Deal him in", CasinoScreen.jsx), and it asked a narrower
+ * question — it refused a room the pocket could not cover, but only when the
+ * owner had named a room, and it never looked at the refill toggle or at
+ * whether the owner had cut him off at all. So an agent with 300 chips and an
+ * empty safe could be marked `playing` and pointed at a felt, and the seat that
+ * followed was funded by nobody.
+ *
+ * Returns { status, body } to refuse with, or null when he may sit down. The
+ * refusal is the same shape deploy has always sent, because it is the same
+ * refusal: the client already knows how to draw it.
+ *
+ * It is allowed to MOVE money — an `auto` pocket collects from the safe here,
+ * which is the one top-up that is supposed to happen without the owner being
+ * asked. It is bounded by the safe (wallet.js autoRefill) and writes both
+ * halves, so it is a transfer and never a grant.
+ */
+export function admitToFelt(userId, agent) {
+  const owner = String(userId ?? 'anon');
+  const wallet = walletFor(owner);
+  const pocket = ensurePocket(agent);
+  pocket.agentId = agent.id;
+
+  // Cut off is cut off — he finishes nothing and starts nothing. Not a
+  // punishment, and nothing he has learned is lost.
+  if (pocket.mode === 'cut') {
+    return { status: 402, body: {
+      error: 'He is cut off. Fund him to put him back in a seat.',
+      broke: true, cut: true,
+      pocket: pocketProjection(pocket),
+    } };
+  }
+
+  // Auto-refill happens here, before the gate: he comes to the wallet and
+  // collects when he is short. allowance and topup deliberately do not.
+  //
+  // MONEY-2 job 2: and it is PERSISTED here, rather than left for whatever the
+  // caller does next. The gate can be passed and the request still refused
+  // afterwards for a reason that has nothing to do with money (queue's
+  // `cantAfford` for a named room, say), and that path returns without saving —
+  // which used to leave a real transfer sitting in memory only. It could not
+  // half-commit, because saveProfile writes the safe and the pocket in one
+  // transaction, so this is a durability gap rather than a conservation one;
+  // one write on a rare path is the whole cost of closing it.
+  if (isBroke(pocket.balance) && autoRefill(wallet, pocket).ok) {
+    mirrorBankroll(agent);
+    saveStore(owner);
+  }
+
+  if (isBroke(pocket.balance)) {
+    // Broke: he rests at the bar. One moment, one notification a day. The
+    // moment and the notification are how the owner SEES why — MONEY-2's rule
+    // is that he runs out in the open, not that he quietly stops appearing.
+    recordBrokeMoment(agent);
+    agent.status = 'idle';
+    agent.activeTableId = null;
+    mirrorBankroll(agent);
+    saveStore(owner);
+    saveWalletFor(owner);
+    emitAgentChange(owner);
+    notifyBrokeOnce(owner, agent);
+    return { status: 402, body: {
+      error: "His pocket is empty. He's at the bar — your call.",
+      broke: true,
+      pocket: pocketProjection(pocket),
+      required: ENTRY_BUYIN,
+      moment: agent.lastMoment,
+    } };
+  }
+
+  return null;
+}
+
+/**
  * Take a buy-in. POCKET -> BANK, in one step, persisted in one transaction.
  *
  * Refuses rather than granting: a pocket that does not cover the buy-in gets
@@ -915,23 +992,37 @@ export function chargeSeatBuyIn(agentId, userId, { amount, tableId } = {}) {
   const want = Math.max(0, Math.floor(Number(amount) || 0));
   if (want === 0) return { ok: false, moved: 0, reason: 'a buy-in of nothing is not a buy-in' };
 
-  // ALREADY ADMITTED. Two ways of knowing, and either is enough:
+  // ALREADY ADMITTED — and there is exactly ONE way of knowing.
   //
   //   an open stay      his pocket ledger holds a buyin for this table with no
-  //                     cashout after it — he is bought in right now;
-  //   the record        `activeTableId` names this table, which is what a
-  //                     deploy writes and what WATCH is required to match
-  //                     (wsServer.js: "Deploy your agent before watching a new
-  //                     table"). A watcher attaching to the seat his own deploy
-  //                     paid for must not be charged a second time for it.
+  //                     cashout after it. He is bought in right now, and the
+  //                     ledger is the receipt that says so.
+  //
+  // MONEY-2 job 1 — THE THIRD FAUCET WAS THE SECOND WAY OF KNOWING.
+  //
+  // This check also used to accept `agent.activeTableId === tableId` as proof
+  // of payment, on the reading that a deploy writes that field and a watcher
+  // attaching to his own deployed seat must not pay twice. It is true that a
+  // deploy writes it — but a deploy ALSO writes the buyin ledger line, so the
+  // open stay already covers that case and the second clause was redundant for
+  // it. What it was not redundant for is `POST /api/agents/:id/queue`, which is
+  // the door the casino screen's "Deal him in" actually uses: queue sets
+  // `activeTableId` as a matchmaking reservation and deliberately spends no
+  // buy-in, and then WATCH's chargeSeatBuyIn looked at the field queue had just
+  // written, concluded he had already paid, and put a full 100bb stack in front
+  // of him that no pocket was ever debited for. The safe did not move, because
+  // nothing asked it to.
+  //
+  // So: the record is a cache of where he is, never a receipt for what he paid.
+  // Only the ledger is the receipt.
   //
   // Reported as a refusal rather than a no-op debit so the caller can tell the
   // difference between "he is in" and "he just paid".
   const open = openStayFor(pocket, tableId);
-  if (open > 0 || (tableId && agent.activeTableId === tableId)) {
+  if (open > 0) {
     return {
       ok: false, moved: 0, already: true,
-      buyIn: open > 0 ? open : want,
+      buyIn: open,
       reason: 'already bought in at this table',
     };
   }
@@ -1618,7 +1709,7 @@ export function withTapeClause(agent, opener) {
 // `recap` (AGE-35) is the line the agent leaves the session on — "long
 // session, sitting out", "sat out by owner", etc. It becomes both the stored
 // sessionRecap and the lastMoment the floor renders in the ghost's bubble.
-export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null, seatedPlayerIds = [], sessionEnd = null } = {}) {
+export function finishAgentSession(agentId, userId, { recap = null, sessionPnl = null, watched = false, sessionHands = 0, finalStack = null, buyInAmount = null, tableId = null, attrEvidence = null, seatedPlayerIds = [], sessionEnd = null, rakePaid = 0 } = {}) {
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
@@ -1719,18 +1810,36 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     ensureBankroll(agent);
     const creditAmount = typeof finalStack === 'number' ? finalStack
       : typeof buyInAmount === 'number' ? buyInAmount + sessionPnl : sessionPnl;
+    // MONEY-2 job 3 — THE RAKE IS PAID AT THE RAIL, IN THE OPEN.
+    //
+    // The house already has it: the table shrank his stack on every pot he won
+    // (table.js `_takeRake`), so `creditAmount` is net and the books would
+    // balance with nothing written about it at all. That is precisely the
+    // problem Jens reported in the other direction — money moving with no line
+    // to explain it. So the cage pays out the GROSS and takes the cut back in
+    // the same breath. The net movement is identical; what changes is that the
+    // safe has two lines instead of one silent smaller one, and the pocket
+    // ledger still sums to the pocket balance, which is the invariant
+    // `scripts/audit-chips.js` reconciles against.
+    const cut = Math.max(0, Math.floor(Number(rakePaid) || 0));
+    const gross = creditAmount + cut;
     // WALLET-1: the chips he walked away with come back to the POCKET — the
     // buy-in left it on deploy, so this restores net movement exactly. Money
     // stays in the pocket until the owner collects (§7.1).
-    houseBank.pay(creditAmount, `cashout ${agent.id} @ ${tableId ?? '?'}`);
-    creditCashOut(ensurePocket(agent), creditAmount, tableId ?? null);
+    houseBank.pay(gross, `cashout ${agent.id} @ ${tableId ?? '?'}`);
+    creditCashOut(ensurePocket(agent), gross, tableId ?? null);
+    if (cut > 0) {
+      houseBank.take(cut, `rake ${agent.id} @ ${tableId ?? '?'}`);
+      takeRake(ensurePocket(agent), cut, tableId ?? null);
+    }
     mirrorBankroll(agent);
     appendLedger(agent, {
       ts: Date.now(),
       type: 'cashout',
-      amount: creditAmount,
+      amount: gross,
       tableId: tableId ?? null,
     });
+    if (cut > 0) appendLedger(agent, { ts: Date.now(), type: 'rake', amount: -cut, tableId: tableId ?? null });
   }
 
   // SLOTS-1: a winning session is what buys the next agent slot. The counter
@@ -4748,38 +4857,8 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   };
 
   if (liveTables) {
-    // Cut off is cut off — he finishes nothing and starts nothing. Not a
-    // punishment, and nothing he has learned is lost.
-    if (pocket.mode === 'cut') {
-      return { status: 402, body: {
-        error: 'He is cut off. Fund him to put him back in a seat.',
-        broke: true, cut: true,
-        pocket: pocketProjection(pocket),
-      } };
-    }
-
-    // Auto-refill happens here, before the gate: he comes to the wallet and
-    // collects when he is short. allowance and topup deliberately do not.
-    if (isBroke(pocket.balance)) autoRefill(wallet, pocket);
-
-    if (isBroke(pocket.balance)) {
-      // Broke: he rests at the bar. One moment, one notification a day.
-      recordBrokeMoment(agent);
-      agent.status = 'idle';
-      agent.activeTableId = null;
-      mirrorBankroll(agent);
-      saveStore(userId);
-      saveWalletFor(userId);
-      emitAgentChange(userId);
-      notifyBrokeOnce(userId, agent);
-      return { status: 402, body: {
-        error: "His pocket is empty. He's at the bar — your call.",
-        broke: true,
-        pocket: pocketProjection(pocket),
-        required: ENTRY_BUYIN,
-        moment: agent.lastMoment,
-      } };
-    }
+    const refused = admitToFelt(userId, agent);
+    if (refused) return refused;
 
     // SERVER-4: the room the owner asked for, or the highest one his pocket
     // reaches when he asked for none. Refused, never quietly downgraded.
@@ -5785,6 +5864,17 @@ export function installAgentProfileRoutes(app) {
     for (const [rung, slot] of matchmakingSlots) {
       if (Date.now() > slot.expiresAt) matchmakingSlots.delete(rung);
     }
+
+    // MONEY-2 job 1: the SAME admission gate deploy runs, and for the same
+    // reason. This route hands the client a tableId and marks the agent
+    // `playing`; the WATCH that follows turns that into a seat with chips in
+    // front of it. A door that leads to a felt has to ask whether he can afford
+    // to be there, and it has to ask the whole question — cut off, refill, and
+    // then broke — rather than only "does his pocket cover the room he named".
+    // It deliberately does NOT spend the buy-in: the buy-in is taken by the
+    // seat, at the table, by chargeSeatBuyIn. Queue is a reservation.
+    const refused = admitToFelt(userId, agent);
+    if (refused) return res.status(refused.status).json(refused.body);
 
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;

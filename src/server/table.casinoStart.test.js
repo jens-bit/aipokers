@@ -31,11 +31,19 @@ test.after(() => {
   fs.rmSync(scratch, { recursive: true, force: true });
 });
 
+// A queued agent: the record says he is on his way to this table, and the WATCH
+// that follows is what actually puts him in the chair.
+//
+// MONEY-2 job 1: his pocket has to hold a buy-in for the top rung this file
+// plays, because WATCH now takes one. It used to be zero and the seat was free
+// — chargeSeatBuyIn read `activeTableId`, which the queue route writes without
+// spending anything, and concluded he had already paid. That was the third
+// faucet, and a fixture that stays at zero would be asserting it is still open.
 function resident(tableId, suffix = 'hero') {
   const owner = `${tableId}-${suffix}-owner`;
   const agent = { id: `${tableId}-${suffix}`, name: suffix, status: 'playing', activeTableId: tableId,
     strategy: 'Play patiently.', profile: { tightness: 75, aggression: 55, bluffFreq: 15, discipline: 80 },
-    pocket: { balance: 0, mode: 'allowance', cap: null, realised: 0, ledger: [] },
+    pocket: { balance: 10_000, mode: 'allowance', cap: null, realised: 0, ledger: [] },
     mood: { state: 'neutral', heat: 30, losingRun: 0 }, stats: { handsPlayed: 0, handsWon: 0 } };
   store.saveProfile(owner, { userId: owner, chat: [], agents: [agent] });
   store.saveWallet(owner, { ownerId: owner, balance: 0, ledger: [] });
@@ -151,7 +159,13 @@ test('FIRST-HOUSE-1: a House bust gets one funded replacement before the normal 
   assert.equal(houseIds(table).length, 1);
   assert.equal(table._lonelyTimer, null);
   assert.equal(table.sessionIdFor(owner.agentId), sessionId, 'opponent replacement keeps the same owned session');
-  assert.equal(table.seatStack(0), 20_000, 'the winner keeps the engine-awarded stack');
+  // MONEY-2 job 3: the engine awards the whole pot and the house then takes its
+  // cut off the winner's stack, so what he carries into the next hand is the
+  // award less the rake. `houseBusted` moved both buy-ins into one seat.
+  const cut = table.seatRakePaid(0);
+  assert.ok(cut > 0, 'a 20,000 all-in pot is raked');
+  assert.equal(table.seatStack(0), 20_000 - cut,
+    'the winner keeps the engine-awarded stack, less the house cut');
   assert.equal(table.seatStack(1), 10_000, 'the replacement has the table buy-in');
   assert.ok(table._nextHandTimer, 'normal server pacing schedules the next deal');
   t.mock.timers.tick(table._dealPauseMs());
