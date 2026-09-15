@@ -18,6 +18,21 @@
   (AGE-37's `liveGame`, the same projection the home television already
   plays from) instead of going blank the moment he is not the one being
   watched. Fixes BUG-215.
+- **Money you can read and move (JOB C).** Every agent's own NET P&L now
+  shows beside his stack — on the agent view's DEPLOY button, in the roster
+  row, and in the give sheet — and every figure names itself in words rather
+  than leaning on a hover title a phone can never show. The give sheet gets
+  a real second direction: TAKE any amount up to his whole pocket, including
+  all of it, not just "collect winnings"; GIVE now refuses to ask the safe
+  for more than it holds instead of allowing a request it cannot honour.
+  Both directions still go through the existing wallet functions only.
+  Fixes BUG-216.
+- **The fridge loses its essay (JOB D).** The item list no longer carries a
+  sentence per item or a standing paragraph at the foot. Each item shows
+  what it does as arrows only — stamina up in green, heat down in blue (a
+  new `--cool` token; nothing in the palette was blue before), discipline
+  down in red — and the one-sentence explanation now appears only once the
+  owner taps the item, for that item alone.
 
 ## 0.15.0 — the money, the life, and the rest of the room (2026-09-15)
 
