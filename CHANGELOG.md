@@ -32,6 +32,16 @@
   auto-refill on a request that is refused *after* the gate was left in memory
   only. It is persisted now.
 
+- **The sinks and the open questions are written down, not built (MONEY-2
+  job 4).** `read-me-claude/MONEY_AUDIT.md` section 19 records what was
+  settled — consumables, and the flat itself: space, storage, furniture, a
+  better TV, and chairs, with the note that chairs gating roster size means
+  that sink also prices the game's main progression — and what still needs
+  Jens: a stakes ladder (held until there is another way to earn), what a
+  player does when his agent busts with an empty safe, and paid coaching, which
+  is ruled out as imagined because items touch STATE and never SKILL. Nothing
+  in it is implemented.
+
 - **The third faucet is closed (MONEY-2 job 1).** MONEY-1 made deploy and WATCH
   pay for a seat; it left two doors that did not. `POST /api/agents/:id/queue`
   — the route the casino screen's "Deal him in" actually uses — writes

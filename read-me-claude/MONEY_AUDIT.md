@@ -1230,3 +1230,65 @@ do, and the right setting in production may be higher than the right setting
 here. That is an argument for the dial, not against the number: measure prod
 with `scripts/audit-chips.js` over a few weeks, and if the total in owner hands
 is climbing, raise `RAKE_PERCENT` and watch it again.
+
+## 19. Job 4 — the decisions, recorded and not built
+
+Nothing in this section is implemented. It is the record of what was settled
+and what still needs Jens, so that the next queue starts from a decision rather
+than from a conversation.
+
+### DECIDED — where the chips go
+
+The rake (§18) is the *drain*; these are the **sinks** — what a player spends
+chips on because he wants to, rather than what the house takes because he
+played. A drain stops the number climbing. A sink is what makes having the
+number worth something.
+
+**Consumables.** Snacks and beers, which already exist: `fridge.js` is a real
+sink today (`stockFridge` debits the safe, `giveItemTo` consumes a unit and
+colours one session). This is the shape the rest follows — small, repeated,
+and attached to a moment the owner was going to have anyway.
+
+**The flat itself.** Chips buy apartment upgrades: more space, more storage,
+furniture, a better TV, and more chairs. The flat is the screen the product
+opens on and the thing an owner looks at when nobody is playing, so it is the
+right place to put the money — an upgrade is visible every session, forever,
+which is what a snack is not.
+
+**Chairs gate the roster, so this sink also prices the game's main
+progression.** More chairs means a household can keep more agents. That is not
+a decorative purchase: it is the same lever `slots.js` currently moves with
+lifetime EARNINGS, and putting a second, purchasable lever beside it makes the
+flat the place where "how big is my stable" is decided. Worth saying out loud
+because it is the one item in this list that changes what the game IS rather
+than what it looks like, and because two unlock paths for one thing need to be
+reconciled deliberately (does a bought chair also need the earnings, or instead
+of them?) rather than discovered after both have shipped.
+
+### DEFERRED — needs Jens
+
+**A stakes ladder.** New households start near 100 chips; rooms run from 10/20
+up to 5,000. **Held** until there is another way to earn, because today the
+only source of chips for a household past its starting grant is winning at the
+casino — and a ladder whose bottom rung is 10/20 with a 100-chip household is a
+ladder somebody can fall off with no way back. The order matters: the earn path
+first, then the ladder. (For scale against what exists: `wallet.js STAKES` is
+three rungs, 10/20 to 50/100, and the starting grant is 10,000.)
+
+**What a player does when his agent busts with an empty safe.** MONEY-2 job 1
+made this state *honest* — he runs out, he leaves the table, and the refusal
+says why (§16.2) — but honest is not the same as answered. Right now the answer
+is "nothing, until you have chips again", and there is no way to get chips
+again. Every candidate (a daily allowance, a rail job, selling the agent, a
+sponsor) is a product decision with a different game behind it, so none of them
+is a default anybody should pick quietly.
+
+**Paid coaching.** Ruled out as currently imagined, and the reason is a law
+rather than a preference: **items touch STATE, never SKILL.** A beer changes
+how he plays tonight; nothing bought changes who he is. Coaching that raises an
+attribute would sell the one thing the game is about — watching a character
+become better by playing — and it would make the answer to "why is he good"
+"because his owner paid", which is the answer this product exists not to give.
+If it comes back, it comes back as something that changes state (rest, a
+routine, a settled mood) and is priced as a consumable, or it does not come
+back.
