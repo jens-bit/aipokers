@@ -1,5 +1,24 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## UI-3 — one room, and real monitors — local candidate (2026-09-15)
+
+- **The casino is a single room (JOB A).** The three doorways (the floor,
+  upstairs, the back room), the Floor|Board toggle and the swipe between
+  rooms are gone. Every live table is on the one floor at once, each showing
+  its own stakes — a 10/20 and a 50/100 table share the same space. The
+  ticker (what used to be the two-panel board) is one line pinned to the very
+  top of the screen. A staircase inside the room takes the owner home when
+  tapped. Placing a man is now a stake picked from a row of chips instead of
+  a room walked into — the same law 4 (a stake he cannot afford is shut and
+  says the price) and the same one-tap deal FIX-6 job 2 gave the doorway it
+  replaces. Fixes BUG-214 (entering the casino auto-targeted an empty room
+  and said nothing was running while games were live elsewhere).
+- **The desk's other monitors show the real game (JOB B).** Every live
+  agent's tile in the Standup panel now draws from his own real table state
+  (AGE-37's `liveGame`, the same projection the home television already
+  plays from) instead of going blank the moment he is not the one being
+  watched. Fixes BUG-215.
+
 ## 0.15.0 — the money, the life, and the rest of the room (2026-09-15)
 
 Seven branches, forty-one commits, `69a554c..a10083b`. Merged as MERGE-7,
