@@ -73,6 +73,24 @@ describe('the owner in the chair', () => {
     const { container } = render(<OwnerHero hole={HOLE} street="FLOP" />);
     expect(container.querySelector('.felt-bars')).toBeNull();
   });
+
+  // JOB C / BUG-206 — the label under his cards said only the street name
+  // ('FLOP'), never what his own two cards actually make, at the same size
+  // and weight WatchHero already gives a spectated agent's reading.
+  it('BUG-206: names the hand once it is known, not just the street', () => {
+    render(<OwnerHero hole={HOLE} street="FLOP" currentHand="ace-high" />);
+    const num = document.querySelector('.watch-hero__hand-name');
+    expect(num).toBeTruthy();
+    expect(num.textContent).toBe('ace-high');
+    expect(screen.getByText(/FLOP · Hand now/)).toBeInTheDocument();
+  });
+
+  it('BUG-206: falls back to the street label when there is no reading yet', () => {
+    render(<OwnerHero hole={HOLE} street="FLOP" currentHand={null} />);
+    expect(document.querySelector('.watch-hero__hand-name')).toBeNull();
+    expect(screen.getByText('Street')).toBeInTheDocument();
+    expect(screen.getByText('FLOP')).toBeInTheDocument();
+  });
 });
 
 
@@ -90,5 +108,24 @@ describe('DkOwnerM desktop owner seat',()=>{
     const {container}=render(<OwnerHero variant="desktop" hole={null} between />);
     expect(container.querySelector('.owner-hero__pill')).toHaveTextContent('YOU —');
     expect(container.querySelector('.owner-hero__chance')).toHaveTextContent('YOU WIN—');
+  });
+
+  // JOB C / BUG-206 — the desk owner seat had no reading of his own hand at
+  // all, on or off; this is that reading, in the desk's own label/value pair.
+  it('BUG-206: reads his own hand on the desk seat too', () => {
+    const { container } = render(
+      <OwnerHero variant="desktop" hole={HOLE} street="FLOP" currentHand="pair of kings" />,
+    );
+    const street = container.querySelector('.owner-hero__desk-street');
+    expect(street).toBeTruthy();
+    expect(street).toHaveTextContent('pair of kings');
+    expect(street.textContent).toMatch(/FLOP · Hand now/);
+  });
+
+  it('BUG-206: the desk seat falls back to the street label with no reading', () => {
+    const { container } = render(<OwnerHero variant="desktop" hole={HOLE} street="FLOP" />);
+    const street = container.querySelector('.owner-hero__desk-street');
+    expect(street).toHaveTextContent('Street');
+    expect(street).toHaveTextContent('FLOP');
   });
 });

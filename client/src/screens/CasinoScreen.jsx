@@ -370,6 +370,18 @@ export function CasinoScreen({
     changeView('floor');
   }
 
+  // JOB 5: the rungs are the building's own order (floor, upstairs, back
+  // room) — the same order RoomDoors always listed them in, so a swipe left
+  // moves up the ladder exactly the way tapping the next door down used to.
+  // No wraparound: the back room has nowhere further to go, the same way the
+  // door list itself had an end.
+  function swipeRoom(step) {
+    if (!rooms.length) return;
+    const at = Math.max(0, rooms.findIndex((r) => r.id === openRoomId));
+    const next = rooms[at + step];
+    if (next) lookIntoRoom(next);
+  }
+
   async function handleFund(decision) {
     if (!fundTarget) return;
     try {
@@ -719,6 +731,13 @@ export function CasinoScreen({
       desktop={desktop}
       felts={feltsIn(felts, openRoom.id)}
       agents={mineByRoom[openRoom.id] ?? []}
+      // JOB 5: phone swipes between rooms instead of backing out to a door
+      // list. The desk keeps its own doors (DeskFloorRail) — a swipe gesture
+      // buys a phone something a mouse-and-click layout does not need.
+      roomIndex={desktop || zoom ? null : rooms.findIndex((r) => r.id === openRoom.id)}
+      roomCount={desktop || zoom ? 0 : rooms.length}
+      onSwipeLeft={desktop || zoom ? null : () => swipeRoom(1)}
+      onSwipeRight={desktop || zoom ? null : () => swipeRoom(-1)}
       play={!rosterOpen && !zoom && !fund && onDeployed && (pendingTable || playAgent) ? (
         <div className="csn-floor-play" data-testid="casino-play">
           {pendingTable ? <>

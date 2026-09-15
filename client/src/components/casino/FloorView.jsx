@@ -55,6 +55,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
+import { useHorizontalSwipe } from '../../hooks/useHorizontalSwipe.js';
 import { RosterButton } from '../Header.jsx';
 import { TheFloor, FLOOR_CAP, FLOOR_W, FLOOR_H } from './TheFloor.jsx';
 import { money } from '../../lib/wallet.js';
@@ -221,11 +222,19 @@ export function FloorView({
   // has to know about the toggle's own state.
   toggle = null,
   headerOwned = false, zoom = null, onZoom = null,
+  // JOB 5: swipe the floors. `roomIndex`/`roomCount` are for the dot
+  // indicator alone; CasinoScreen owns the actual room list and which one is
+  // open, the same division of labour it already has with `toggle`.
+  roomIndex = null, roomCount = 0, onSwipeLeft = null, onSwipeRight = null,
 }) {
   // The phone still drags to dismiss: the gesture is how you leave a room in
   // this app and it predates this screen. The desk does not — there is nowhere
   // to drag a full-width destination to, and it would only spring back.
   const drag = useSheetDrag(onClose);
+  // A left/right swipe stays under the dismiss gesture's Y slop for its whole
+  // length (BUG-200's fix), so the two never fight over the same touch — see
+  // useHorizontalSwipe's own header for why that is safe rather than lucky.
+  const swipe = useHorizontalSwipe(onSwipeLeft, onSwipeRight, { enabled: !desktop && !!(onSwipeLeft || onSwipeRight) });
   const ranked = feltsForRoom(felts, agents);
   const rows = ranked.length === 0 ? liveTablesIn(room, { agents, events }) : [];
   const unnamed = unnamedCount(room, ranked.length || rows.length);
@@ -281,8 +290,16 @@ export function FloorView({
       role="group"
       aria-label={`${room.name} — the room`}
       ref={desktop ? undefined : drag.ref}
-      style={desktop ? undefined : drag.style}
-      {...(desktop ? {} : drag.handlers)}
+      style={desktop ? undefined : {
+        transform: [drag.style.transform, swipe.style.transform].filter(Boolean).join(' ') || undefined,
+        transition: drag.dragging || swipe.swiping ? 'none' : undefined,
+      }}
+      {...(desktop ? {} : {
+        onMouseDown: (e) => { drag.handlers.onMouseDown(e); swipe.handlers.onMouseDown(e); },
+        onTouchStart: (e) => { drag.handlers.onTouchStart(e); swipe.handlers.onTouchStart(e); },
+        onMouseMove: drag.handlers.onMouseMove,
+        onTouchMove: drag.handlers.onTouchMove,
+      })}
     >
       {!headerOwned && <div className="csn-floor__head">
         <button type="button" className="csn-floor__back" onClick={zoom ? () => onZoom?.(null) : onHome || onClose} aria-label={zoom ? 'Back to the floor' : onHome ? 'Back home' : 'Back to the casino'}>
@@ -297,6 +314,16 @@ export function FloorView({
             {zoom ? 'pinch again to watch' : `${room.stakes.label} · ${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
           </div>
         </div>
+        {/* JOB 5: the tiny room indicator — design-refs/mood-nav.jsx exports a
+            `CarouselDots` for this shape, but never for this screen, so this
+            is a gap recorded rather than a design ported (see BUGS.md). */}
+        {!zoom && roomCount > 1 && (
+          <span className="csn-floor__rooms" role="img" aria-label={`Room ${roomIndex + 1} of ${roomCount}`}>
+            {Array.from({ length: roomCount }, (_, i) => (
+              <i key={i} className={i === roomIndex ? 'is-current' : undefined} />
+            ))}
+          </span>
+        )}
         {!zoom && toggle}
         {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
       </div>}

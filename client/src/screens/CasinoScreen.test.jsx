@@ -9,7 +9,7 @@
 // them being able to take it down, your own agents appear in the doorway of
 // the room they are sitting in, and the ticker's tap reaches a felt.
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -67,6 +67,21 @@ function routeFloor({ agents = [], rooms: floor = rooms, events = [], felts = []
 
 function renderCasino(props = {}) {
   return render(<CasinoScreen {...props} />);
+}
+
+// JOB 5: one finger, past useHorizontalSwipe's own threshold. Named for the
+// direction the ROOM moves, matching the hook's own convention.
+function swipeLeft(el) {
+  fireEvent.touchStart(el, { touches: [{ clientX: 260, clientY: 200 }] });
+  fireEvent.touchMove(window, { touches: [{ clientX: 200, clientY: 200 }] });
+  fireEvent.touchMove(window, { touches: [{ clientX: 180, clientY: 200 }] });
+  fireEvent.touchEnd(window);
+}
+function swipeRight(el) {
+  fireEvent.touchStart(el, { touches: [{ clientX: 120, clientY: 200 }] });
+  fireEvent.touchMove(window, { touches: [{ clientX: 180, clientY: 200 }] });
+  fireEvent.touchMove(window, { touches: [{ clientX: 200, clientY: 200 }] });
+  fireEvent.touchEnd(window);
 }
 
 const door = (name) => screen.getByRole('button', { name: new RegExp(`^${name},`) });
@@ -593,6 +608,44 @@ describe('BUGS-C job 12: the floor first', () => {
 
     await user.click(screen.getByRole('button', { name: 'Floor' }));
     expect(await screen.findByTestId('floor-view')).toBeInTheDocument();
+  });
+
+  // JOB 5: swipe the floors, phone only. The rungs are the room list's own
+  // order (floor, upstairs, back room) — the same order the retired door list
+  // always offered them in.
+  it('JOB 5: a swipe left moves to the next room and remembers it for the session', async () => {
+    routeFloor();
+    renderCasino();
+
+    const view = await screen.findByTestId('floor-view');
+    expect(view).toHaveAttribute('data-room', 'floor');
+    expect(screen.getByRole('img', { name: 'Room 1 of 3' })).toBeInTheDocument();
+
+    swipeLeft(view);
+    await waitFor(() => expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs'));
+    expect(screen.getByRole('img', { name: 'Room 2 of 3' })).toBeInTheDocument();
+    // Deep links: the same session memory a tapped door already wrote to.
+    expect(sessionStorage.getItem('agentic_casino_room')).toBe('upstairs');
+
+    swipeLeft(screen.getByTestId('floor-view'));
+    await waitFor(() => expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'backroom'));
+
+    // No wraparound: the back room is the last rung.
+    swipeLeft(screen.getByTestId('floor-view'));
+    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'backroom');
+
+    swipeRight(screen.getByTestId('floor-view'));
+    await waitFor(() => expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs'));
+  });
+
+  it('JOB 5: the desk keeps its own doors — no dots, no swipe', async () => {
+    routeFloor();
+    renderCasino({ desktop: true });
+
+    const view = await screen.findByTestId('floor-view');
+    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
+    swipeLeft(view);
+    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
   });
 
   it('BUGS-C-12: remembers the last choice for the session', async () => {

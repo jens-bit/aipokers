@@ -11,7 +11,7 @@
 // becomes a place.
 
 import { describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { FloorView, liveTablesIn, unnamedCount, tableIdOf, feltsForRoom } from './FloorView.jsx';
@@ -373,5 +373,49 @@ describe('BUG-103 · a floor that arrives after the room opens', () => {
       view.rerender(<FloorView room={room()} desktop={desktop} felts={[felt()]} />);
       expect(parseFloat(screen.getByTestId('the-floor').style.width)).toBeCloseTo(expected(), 4);
     } finally { view.unmount(); widthSpy.mockRestore(); heightSpy.mockRestore(); vi.unstubAllGlobals(); }
+  });
+});
+
+describe('JOB 5 · swipe the floors', () => {
+  const drag = (el, x0, x1) => {
+    fireEvent.touchStart(el, { touches: [{ clientX: x0, clientY: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientX: (x0 + x1) / 2, clientY: 100 }] });
+    fireEvent.touchMove(window, { touches: [{ clientX: x1, clientY: 100 }] });
+    fireEvent.touchEnd(window);
+  };
+
+  it('shows one dot per room, the open one lit, and none when there is only one', () => {
+    const { rerender } = render(<FloorView room={room()} roomIndex={0} roomCount={3} onSwipeLeft={() => {}} onSwipeRight={() => {}} />);
+    const dots = document.querySelectorAll('.csn-floor__rooms i');
+    expect(dots).toHaveLength(3);
+    expect(dots[0]).toHaveClass('is-current');
+    expect(dots[1]).not.toHaveClass('is-current');
+    expect(screen.getByRole('img', { name: 'Room 1 of 3' })).toBeInTheDocument();
+
+    rerender(<FloorView room={room()} roomIndex={0} roomCount={1} />);
+    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
+  });
+
+  it('a swipe left calls onSwipeLeft, a swipe right calls onSwipeRight', () => {
+    const onSwipeLeft = vi.fn(), onSwipeRight = vi.fn();
+    render(<FloorView room={room()} roomIndex={1} roomCount={3} onSwipeLeft={onSwipeLeft} onSwipeRight={onSwipeRight} />);
+    const surface = screen.getByTestId('floor-view');
+    drag(surface, 250, 150);
+    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
+    drag(surface, 150, 260);
+    expect(onSwipeRight).toHaveBeenCalledTimes(1);
+  });
+
+  it('the desk has no dots — CasinoScreen never sends it a room count', () => {
+    // CasinoScreen never passes roomCount/onSwipeLeft for a desktop FloorView
+    // (it gates both on `desktop` itself) — this is that call shape.
+    render(<FloorView room={room()} desktop />);
+    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
+  });
+
+  it('a zoomed table shows neither the dots nor the toggle — it is not the room view any more', () => {
+    render(<FloorView room={room()} roomIndex={0} roomCount={3} zoom={{ blinds: '10/20' }} toggle={<button>Board</button>} />);
+    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Board' })).toBeNull();
   });
 });

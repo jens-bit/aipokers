@@ -401,6 +401,24 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             // Syncing HERE and not at boot is what keeps the cost bounded to
             // people who are actually looking: a fan-out over every owner in
             // the database would stand up a table for each of them.
+            //
+            // BUG-211 (fix/ui-nav-2's JOB B) wanted `{ manual: true }` here,
+            // so that opening Home always seats a hand — the solo House game
+            // included — instead of leaving an owner with one eligible agent
+            // looking at a still kitchen table. It is HELD BACK at MERGE-8,
+            // and this comment is the record of why rather than a plan:
+            //
+            // `manual: true` makes a SOLO household's only body permanently
+            // seated in a live hand, and HomeScreen's `canLift` refuses to
+            // lift a man whose street is preflop..river (BUG-134). So HOME-2
+            // job 5 — pick him up and put him down — becomes unreachable for
+            // exactly the household the change is for. Measured, not argued:
+            // with it in, `npm run test:home2` is 17/20 with the three carry
+            // cases red; with it out, 20/20. Two rules Jens asked for, and
+            // which of them gives is a design call, not an integration one.
+            //
+            // The wanted rule is kept as a todo test rather than deleted —
+            // homeMembership.test.js's BUG-211 case, and BUGS.md's BUG-211.
             try {
               homeGame.sync(userId);
               homeNight.noteHousehold(userId, presentedRoster(userId, { owner: true }));

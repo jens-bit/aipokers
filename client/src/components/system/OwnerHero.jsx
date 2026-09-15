@@ -36,6 +36,11 @@ export function OwnerHero({
   hole, landed = 2, between = false, mucking = false,
   equity, villain, bigRope, deadRope,
   street, pos, toCall = 0, action, tag, warm, note,
+  // JOB C: what he is actually holding, in words ("Ace high", "Pair of
+  // sixes") — WatchHero's own reading, computed the same way, just off his
+  // own two cards instead of an agent's. Null between hands or before both
+  // cards have landed, the same as the ghost's.
+  currentHand = null,
   // Whether the table is waiting on him. The pill is the quiet register for it.
   turn = false,
   timer = null, timerOf = 12,
@@ -63,7 +68,27 @@ export function OwnerHero({
       </span>);
   if (variant === 'desktop') return <div className="watch-hero owner-hero owner-hero--desk" data-testid="owner-hero">
     <span className={'owner-hero__pill'+(turn?' is-turn':'')} data-turn={turn?'yes':'no'}>YOU <strong>{Number.isFinite(stack)?money(stack):'—'}</strong>{timer != null && <SeatClock d={20} left={timer} of={timerOf}/>}</span>
-    <div className="owner-hero__desk-hand">{hand}<div className="owner-hero__chance"><span>YOU WIN</span><strong>{Number.isFinite(equity)?Math.round(equity)+'%':'—'}</strong></div></div>
+    {/* JOB C: the desk had no reading of his own hand at all, on phone or
+        off — this is that reading, in the same label/value pair the rest of
+        the desk strip already uses.
+
+        BUG-212 at MERGE-8: it sits INSIDE the glass pill, a third column
+        beside his cards and his equity, not stacked under it. The desk hero
+        is anchored to the felt's bottom (`.dsk-home-table.is-seated
+        .owner-hero { bottom: var(--owner-clearance) }`), so a row added below
+        is a row taken off the TOP — and 29px of it put his pill over the
+        community board, which BUG-99 requires him to clear by 8px. A column
+        costs the hero no height, and it is what "the same label/value pair
+        the rest of the desk strip uses" meant in the first place: Street,
+        Stack and Equity are side by side there, not stacked. */}
+    <div className="owner-hero__desk-hand">
+      {hand}
+      <div className="owner-hero__desk-street">
+        <span className="dsk-label">{currentHand ? `${street} · Hand now` : 'Street'}</span>
+        <strong className="dtb__hero-num is-dim" title={currentHand ?? undefined}>{currentHand || street || '—'}</strong>
+      </div>
+      <div className="owner-hero__chance"><span>YOU WIN</span><strong>{Number.isFinite(equity)?Math.round(equity)+'%':'—'}</strong></div>
+    </div>
     <div className="watch-hero__tug"><TugBar equity={equity} villain={villain} big={bigRope} dead={deadRope}/></div>
     {toast}
   </div>;
@@ -98,10 +123,10 @@ export function OwnerHero({
             <div className="watch-felt__hero-divider" />
           </>
         )}
-        <div>
-          <span className="watch-felt__hero-lbl">Street</span>
+        <div className="watch-hero__holding">
+          <span className="watch-felt__hero-lbl">{currentHand ? `${street} · Hand now` : 'Street'}</span>
           <div className="watch-hero__stack-row">
-            <span className="watch-felt__hero-num is-dim">{street || '—'}</span>
+            <span className={`watch-felt__hero-num is-dim${currentHand ? ' watch-hero__hand-name' : ''}`} title={currentHand ?? undefined}>{currentHand || street || '—'}</span>
             {pos && <span className="watch-felt__hero-pos">{pos}</span>}
           </div>
         </div>
