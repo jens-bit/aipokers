@@ -28,10 +28,23 @@ function renderHome(props = {}) {
 // Every agent appears twice on this shell: once as a ghost on the floor, once
 // as a roster row in the panel. These helpers pick the roster row, the way
 // CasinoFloor.test.jsx picks occupants.
+// DEFLAKE-1: this used to be `getAllByRole('button', { name: new RegExp(name) })`
+// scoped to the roster, and that one query cost about A FULL SECOND on this
+// shell — measured at 970ms for a single call. Computing an accessible name
+// means walking each row's whole subtree, and a roster row carries a MoodGhost
+// (a decorative SVG face), a whereabouts line, a money figure and a BodyBars
+// dot pair. `waitFor` wraps its callback in act(), so that second was spent
+// inside a 1000ms default timeout: locally it landed at ~980ms and passed, and
+// on a CI runner a few percent slower it did not. That is the whole flake.
+//
+// The row is a real <button> carrying the agent's name in a span of its own,
+// so it can be found exactly and in microseconds. This is STRICTER than the
+// regexp it replaces — an exact name rather than a substring — and it still
+// throws when the row is absent, which is what lets waitFor below wait on the
+// row appearing rather than on a clock.
 function rosterRow(name) {
-  const row = within(screen.getByTestId('desk-roster'))
-    .getAllByRole('button', { name: new RegExp(name) })
-    .find((el) => el.classList.contains('dsk-roster-row'));
+  const row = [...screen.getByTestId('desk-roster').querySelectorAll('button.dsk-roster-row')]
+    .find((el) => el.querySelector('.dsk-roster-row__name')?.textContent === name);
   if (!row) throw new Error(`no roster row for ${name}`);
   return row;
 }
