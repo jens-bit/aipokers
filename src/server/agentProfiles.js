@@ -71,6 +71,7 @@ import {
   birthAttributes,
   effectiveAttrs,
   restedFatigue,
+  FATIGUE_RECOVERY_HOURS,
 
   logAttrChange,
   firstWordsFor,
@@ -3212,6 +3213,29 @@ export function fatigueNow(agent, { now = Date.now() } = {}) {
   return restedFatigue(agent?.fatigue ?? 'fresh', hours);
 }
 
+/**
+ * AGENT-4 job C — THE READING THE OWNER IS ACTUALLY LOOKING AT.
+ *
+ * `fatigueNow` is the SESSION half and `staminaStageNow` is the RESERVE half,
+ * and what every surface draws is the worse of the two — presentAgent's own
+ * line, and the rule LIFE-1 wrote it under: neither number may hide the other.
+ * Three call sites had that expression spelled out longhand and a fourth (the
+ * fridge) asked only the reserve, which is how food came to be refused to a
+ * man showing one dot.
+ *
+ * One function, so the thing an owner sees and the thing a gate decides on
+ * cannot be two different numbers again.
+ */
+export function visibleFatigue(agent, { now = Date.now() } = {}) {
+  if (!agent) return 'fresh';
+  const seated = !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
+    || !!liveTables?.homeTableOf?.(agent.id);
+  return worseStage(
+    fatigueNow(agent, { now }),
+    staminaStageNow(agent, { now, resting: !seated }),
+  );
+}
+
 // ── Computing the one want ──────────────────────────────────────────────────
 
 /**
@@ -3526,9 +3550,12 @@ export function giveItemTo(agent, userId, item) {
   // The reserve is read RESTED here on purpose: an agent being handed food is
   // by definition not in a seat, and asking whether the snack would help has
   // to use the number he actually has, not the one he had an hour ago.
+  // AGENT-4 job C: the reserve AND the word the owner can see. Asking only the
+  // first is the threshold that refused food at one dot — see itemHelp.
   const help = itemHelp(item, {
     mood: agent.mood,
     staminaLeft: staminaPercent(agent, { resting: true }),
+    stage: visibleFatigue(agent),
   });
   if (!help.any) {
     return { ok: false, status: 400, body: {
@@ -3571,6 +3598,32 @@ export function giveItemTo(agent, userId, item) {
   // charge does — so a snack can genuinely help a sleeping agent up, but only
   // by getting him all the way back to rested.
   const fed = help.feeds ? feedStamina(agent, staminaEffectOf(item)) : null;
+  // ── AGENT-4 job C · EATING IS A BREAK, SO IT MOVES THE DOT ────────────────
+  //
+  // The reserve was only ever HALF of what the owner is looking at. The card
+  // draws `worseStage(session fatigue, reserve stage)`, and feeding a man back
+  // to a full reserve while the session half still says 'worn' leaves him at
+  // one dot with nothing left to give him — which is the state in which the
+  // fridge used to refuse. Widening the gate without this would have been
+  // worse than the bug: it would accept the snack, consume the stock and
+  // change nothing visible.
+  //
+  // So food credits the session ladder too, and it does it by moving
+  // `restedAt` BACK rather than by writing a stage. restedFatigue already
+  // walks him one step toward 'fresh' per FATIGUE_RECOVERY_HOURS away from the
+  // table; a snack buys two of those hours, so the existing curve does the
+  // arithmetic, the hours he had already banked are not thrown away, and there
+  // is no new state to keep consistent. It is bounded by the ladder's own
+  // floor at 'fresh'.
+  //
+  // NOT A SKILL EFFECT, so fridge.js rule 2 holds: `effectiveAttrs` derives
+  // fatigue from the hand count of the seat he is in and never reads this
+  // field, so a man fed at home sits down exactly as sharp as he would have.
+  // This only moves what the owner is told about a man who is at home.
+  if (help.feeds) {
+    const restedAt = Number.isFinite(agent.restedAt) ? agent.restedAt : Date.now();
+    agent.restedAt = restedAt - FATIGUE_RECOVERY_HOURS * 3_600_000;
+  }
   recordOwnerEvent(agent, 'item_given', { item });
 
   // SERVER-5 job 1: when he last ate. Hunger is measured from this, and being

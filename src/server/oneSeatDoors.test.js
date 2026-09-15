@@ -140,7 +140,7 @@ async function queue(owner, agentId, extra = {}) {
 
 // ── the JOIN door — the one that reproduced ─────────────────────────────────
 
-test('AGENT-4 job A: JOIN cannot seat an agent who is already at a casino table', () => {
+test('BUG-219: JOIN cannot seat an agent who is already at a casino table', () => {
   makeOwner('join-door', ['j1']);
   const deploy = profiles.deployAgent('join-door', 'j1', { body: { rung: 0 } });
   assert.equal(deploy.status, 200, JSON.stringify(deploy.body));
@@ -169,7 +169,7 @@ test('AGENT-4 job A: JOIN cannot seat an agent who is already at a casino table'
   assert.equal(totalChips(), chipsBefore, 'a refusal moves nothing');
 });
 
-test('AGENT-4 job A: the vs-You door still seats an agent who is free', () => {
+test('BUG-219: the vs-You door still seats an agent who is free', () => {
   makeOwner('free-door', ['f1']);
   const vsYou = liveTable('t-free');
   vsYou.seatPlayer(fakeWs(), { playerId: 'human', buyIn: 2_000, displayName: 'Jens' });
@@ -182,7 +182,7 @@ test('AGENT-4 job A: the vs-You door still seats an agent who is free', () => {
 
 // ── the queue door ──────────────────────────────────────────────────────────
 
-test('AGENT-4 job A: POST /queue refuses an agent who is already seated', async () => {
+test('BUG-219: POST /queue refuses an agent who is already seated', async () => {
   makeOwner('queue-door', ['q1']);
   const deploy = profiles.deployAgent('queue-door', 'q1', { body: { rung: 0 } });
   assert.equal(deploy.status, 200, JSON.stringify(deploy.body));
@@ -202,7 +202,7 @@ test('AGENT-4 job A: POST /queue refuses an agent who is already seated', async 
   assert.equal(totalChips(), chipsBefore, 'a refusal moves nothing');
 });
 
-test('AGENT-4 job A: POST /queue still works for an agent who is free', async () => {
+test('BUG-219: POST /queue still works for an agent who is free', async () => {
   makeOwner('queue-free', ['qf1']);
   const queued = await queue('queue-free', 'qf1');
   assert.equal(queued.status, 200, JSON.stringify(queued.body));
@@ -212,7 +212,7 @@ test('AGENT-4 job A: POST /queue still works for an agent who is free', async ()
 
 // ── both doors racing ───────────────────────────────────────────────────────
 
-test('AGENT-4 job A: deploy and queue racing take one seat between them', async () => {
+test('BUG-219: deploy and queue racing take one seat between them', async () => {
   makeOwner('race-owner', ['r1']);
   const chipsBefore = totalChips();
 
@@ -231,7 +231,7 @@ test('AGENT-4 job A: deploy and queue racing take one seat between them', async 
   assert.equal(totalChips(), chipsBefore, 'and the floor still conserves chips');
 });
 
-test('AGENT-4 job A: three doors at once — deploy, JOIN and queue — leave one seat', async () => {
+test('BUG-219: three doors at once — deploy, JOIN and queue — leave one seat', async () => {
   makeOwner('all-doors', ['a1']);
   const chipsBefore = totalChips();
 
@@ -260,7 +260,7 @@ test('AGENT-4 job A: three doors at once — deploy, JOIN and queue — leave on
 
 // ── the invariant itself ────────────────────────────────────────────────────
 
-test('AGENT-4 job A: seatAI is the chokepoint, so a new door inherits the rule', () => {
+test('BUG-219: seatAI is the chokepoint, so a new door inherits the rule', () => {
   makeOwner('choke-owner', ['c1']);
   const first = liveTable('t-choke-1');
   first.seatAI({ agentId: 'c1', userId: 'choke-owner', displayName: 'C1', buyIn: 2_000 });
@@ -275,7 +275,7 @@ test('AGENT-4 job A: seatAI is the chokepoint, so a new door inherits the rule',
   assert.equal(second.seatedCount(), 0);
 });
 
-test('AGENT-4 job A: the kitchen table is still not a casino seat', () => {
+test('BUG-219: the kitchen table is still not a casino seat', () => {
   makeOwner('home-owner', ['h1']);
   const home = liveTable('home-home-owner', { home: true, homeOwnerId: 'home-owner' });
   home.seatAI({ agentId: 'h1', userId: 'home-owner', displayName: 'H1', buyIn: 2_000 });
