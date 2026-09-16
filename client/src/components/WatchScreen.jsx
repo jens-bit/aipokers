@@ -947,7 +947,11 @@ export function WatchFelt({
     <div ref={feltRef}
       className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
         + (majorWin ? ' is-major-result' : '') + (watchedResult ? ' is-result-moment' : '')
-        + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')}
+        + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')
+        // TABLE-2 job A: reading an OPPONENT is its own case, distinct from
+        // BUG-133's "keep his own cards visible above the glass" rule — see
+        // the selector this drives in watch6.css.
+        + (selectedSeat != null ? ' watch-felt--reading' : '')}
       style={feltStyle} data-pace={pace} data-watch-hero-seat={heroSeat}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />

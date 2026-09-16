@@ -1194,6 +1194,19 @@
   z-index: 10;
   pointer-events: none;
 }
+/* TABLE-2 job A: BUG-133's rule was written for the THREAD sheet — a
+   conversation about himself, where his own hand staying visible above it
+   is the point. Reading an OPPONENT is the opposite case: the card being
+   opened is about somebody else, and the hero has no business floating over
+   it. Without this, his cards, his floating hands and the "Est. pot share"
+   rope drew on top of the opponent's card, and his speech bubble ran under
+   the card's own Close button. `.watch-hero`'s un-boosted z-index (5) sits
+   below `.read-sheet`'s own (8, watch.css) — restoring it, rather than
+   inventing a new number, is what puts the opened card above every felt
+   element again. */
+.watch-felt--overlay.watch-felt--reading .watch-hero {
+  z-index: 5;
+}
 .watch-felt--overlay .watch-hero__body {
   pointer-events: none;
 }
