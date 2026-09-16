@@ -1,5 +1,63 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## AGENT-5 — he never starts a session he cannot finish (2026-09-16)
+
+Nine commits on `fix/agent-5`, branched from `fix/agent-4` (since merged to
+main as 0.17.0; the seven commits are identical either way).
+
+**THE BUG, and it was three correct numbers meeting.** Jens's household drained
+to empty overnight and then every agent played exactly one hand and came home
+with a YOU LOST screen. Nothing was broken. `staminaStage` has hysteresis —
+once worn he stays worn until the reserve is back to `SETTLED_AT` (67), not
+until it clears `WORN_AT` (34) — and the session stop rule pulls a worn casino
+seat after any hand. So a man deployed at any reserve under 67 was worn on hand
+one and stood straight back up with his buy-in spent. AGENT-4 fixed the two
+things that were genuinely broken (food is accepted, rest runs); neither of
+them stops him sitting down, and nothing named the number.
+
+**He is refused at the door, and the refusal carries the fix.** The gate is in
+`seatAI` — the only function in the codebase that puts an agent in a chair — so
+every door inherits it, including the next one somebody adds. The floor is
+`SETTLED_AT` because `reserve >= 67` is precisely `stage === 'fresh'`: one
+number, two directions, the same threshold the hysteresis uses to let him get
+up. Casino only. The refusal is his own sentence out of `NATURE_WANT_LINES`
+with the arithmetic spoken into it — "three snacks", "a couple of hours" — and
+LIFE-2's `.action` / `.actionLabel` on it, so a client that can draw a want can
+draw this. An empty shelf says so and names what to buy.
+
+**Both remedies are proved end to end on a fresh database**
+(`scripts/verify-rest-floor.js`), and the walk found two faults that reading
+did not: the gate was crediting a man at the KITCHEN TABLE for the hours he
+spent playing at it, and the remedy preferred the clock over the shelf, so
+after two of three snacks he was told to have a lie down with the third one in
+the fridge. An agent already at zero self-recovers in `67 / 22 = 3.05` hours,
+credited on read rather than by a scheduler.
+
+**Two of his agents may sit at the same table.** Jens overruled MATCH-1. The
+refusal is gone from all three doors and `table.stablemateMessage` with it; no
+collusion guard and no special-cased play came in its place, because two of one
+owner's agents are two players and the engine has never known who owns a seat.
+What the rule protected is now a DEFAULT: deploying spreads them across felts,
+and `together: true` on the deploy body gathers them. Past the floor cap the
+preference gives way and he sits beside his own man, which is strictly better
+than being sent home. Four suites that encoded the old rule are rewritten under
+testing law #5, each case saying what it used to assert and why.
+
+**He notices his housemate** — once per session, in his own voice, through a new
+`housemate` kind that `talk:eval` picks up and audits on its own.
+
+**The end screen tells the truth.** A session that ended worn reads WORN OUT and
+repeats the door's sentence, with the chip result demoted rather than removed.
+
+**One reading of fatigue, and no refusal without a way out.** AGENT-4's
+`visibleFatigue()` had three longhand copies still beside it; two are now the
+one reading and the third is documented as not being one. Five refusals that
+stated a fact and left the owner holding nothing now name the remedy.
+
+**Gate:** `npm test` 183/183, `npm run test:client` 2902/2902,
+`npm run test:e2e` 7/7, `npm run talk:eval` 232/232, `npm run test:home2`
+20/20, `node scripts/audit-chips.js` exit 0 on a fresh scratch DB.
+
 ## 0.17.0 candidate — the doors he walked through, and the verbs that meant it (2026-09-16)
 
 One branch, seven commits, `f01f8c8..HEAD`. Merged as MERGE-13, gated after
@@ -68,6 +126,7 @@ BUG-34's abort landed on five different files across the same session — it is
 a property of the run, not of any suite. MERGE-13-SMOKE-ENV records why the
 browser smoke is three-red locally without CI's env dials, and that it is
 three-red identically on main.
+
 
 ## 0.16.0 candidate, two — the money has a drain, and he knows why he did it (2026-09-15)
 

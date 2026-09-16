@@ -475,6 +475,19 @@ function useFlyTo(rootRef, targets, deps) {
 export function SessionCeremony({
   won, busted, agentName, net, stack, hands, reason, mood, heat, accent,
   onFund, onFloor, onTalk, talkLabel, human = false, onRebuy,
+  // AGENT-5 job H · THE REASON, READ.
+  //
+  // `reason` has ridden the SESSION_END record since SERVER-3 and this block
+  // used it for one thing: a word in the small grey line at the bottom. So a
+  // session that ended because the man was SPENT was announced as "LOST", off
+  // the chip result, with WORN filed under the figures in 9px type. The number
+  // was true and the story was wrong — he did not lose the night, he ran out,
+  // and what the owner needs is not a scoreboard but the thing that fixes it.
+  //
+  // `note` is that thing, built at the table by restFloor.js in his own voice,
+  // and it is the SAME sentence job A puts at the door when a spent man is
+  // refused a seat. One voice for "he cannot start" and "he had to stop".
+  note = null,
   // WATCH-10 job 3 · the last hand, NAMED. lib/handResult.js's parts, exactly
   // as the felt's own result pill takes them, so the sentence the owner read a
   // beat ago on the felt is the sentence he reads here. Absent when the session
@@ -483,10 +496,16 @@ export function SessionCeremony({
 }) {
   var hot = Number.isFinite(heat) && heat > 66;
   var netText = money(net);
+  // Not for a human's own game, which has no stamina behind it, and never over
+  // BUSTED — a man with no chips has one problem and it is not his sleep.
+  // (_endReasonFor already prefers 'bust' when the stack is gone; this is the
+  // belt to that brace, because the two facts arrive on different fields.)
+  var worn = !human && !busted && reason === 'worn';
 
   return (
     <div className="watch-ceremony" data-outcome={won ? 'won' : 'lost'}
-      data-heat={hot ? 'hot' : 'calm'} data-scope="session" role="status">
+      data-heat={hot ? 'hot' : 'calm'} data-scope="session"
+      data-reason={worn ? 'worn' : undefined} role="status">
       <div className="watch-ceremony__block">
         {/* The scope is said in the small line, so the big word can stay the
             big word. WON here means the night, not the hand — the hand has not
@@ -495,12 +514,27 @@ export function SessionCeremony({
           {human ? 'YOUR GAME' : (agentName || 'YOUR AGENT').toUpperCase() + ' · TONIGHT'}
         </div>
         <div className="watch-ceremony__head">
-          {human ? (won == null && !busted ? 'GAME ENDED' : won ? 'YOU WON' : 'YOU LOST') : busted ? 'BUSTED' : (won ? 'WON' : 'LOST')}
+          {human
+            ? (won == null && !busted ? 'GAME ENDED' : won ? 'YOU WON' : 'YOU LOST')
+            : busted ? 'BUSTED' : worn ? 'WORN OUT' : (won ? 'WON' : 'LOST')}
         </div>
 
+        {/* AGENT-5 job H. What he says about it, and what to do — his own
+            sentence, with the number in it: "three snacks", "a couple of
+            hours". It sits directly under the head because on this one ending
+            it IS the message; the money below is the footnote. */}
+        {worn && note && (
+          <div className="watch-ceremony__note">{note}</div>
+        )}
+
         {/* WHERE HE STANDS AT THE END OF IT: the night's net against the buy-in,
-            and what he is walking away with. */}
+            and what he is walking away with. On a WORN ending this is still
+            here and still true — it is simply not the headline any more, and
+            [data-reason='worn'] is what makes it read that way. */}
         <div className="watch-ceremony__delta">
+          {worn && (
+            <span className="watch-ceremony__scope">{won ? 'up' : 'down'}</span>
+          )}
           {netText && (
             <>
               <span className={'watch-ceremony__delta-amt' + (won ? ' is-won' : ' is-lost')}>{netText}</span>
@@ -546,9 +580,13 @@ export function SessionCeremony({
           <span className="watch-ceremony__aura" aria-hidden />
           <MoodGhost mood={mood || (won ? 'confident' : 'frustrated')}
             accent={accent || '#00D4AA'} size={76} heat={Number.isFinite(heat) ? heat : 45}
-            event={won ? 'smug' : 'stunned'} ring={false} />
-          <GhostHandLayer className="watch-ceremony__hands"
-            pose={won ? 'raise' : 'cover'} size={76} />
+            event={worn ? null : (won ? 'smug' : 'stunned')} ring={false} />
+          {/* AGENT-5 job H: hands over the face is the pose for a beat that
+              went against him. A man who is worn out is not stunned, he is
+              done for the night, and the ghost's own resting posture says that
+              better than either of the two faces the result picks. */}
+          {!worn && <GhostHandLayer className="watch-ceremony__hands"
+            pose={won ? 'raise' : 'cover'} size={76} />}
         </div>}
 
         {/* A busted agent has one thing he needs and it is not conversation. */}
@@ -2061,6 +2099,7 @@ export function WatchScreen({
         stack={finalStack}
         hands={handsPlayed}
         reason={sessionEnd.reason}
+        note={sessionEnd.note}
         mood={heroMood}
         heat={heroHeat}
         accent={heroAccent}

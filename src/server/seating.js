@@ -79,9 +79,22 @@ export function seatedElsewhere(table, agentId) {
   return seated.tableId === hereId ? null : seated;
 }
 
-/** The sentence an owner is shown. It names the felt, because "no" does not. */
+/**
+ * The sentence an owner is shown. It names the felt, because "no" does not —
+ * and since AGENT-5 job D it names the WAY OUT, because a fact is not a remedy.
+ *
+ * "He plays one table at a time" is a rule, and an owner who has just been
+ * stopped by a rule is left holding nothing he can press. What he can actually
+ * do is the same two things in both cases: go and look at the game he already
+ * has, or end it. The kitchen table and a casino felt take different verbs for
+ * the second one, so the sentence takes different verbs.
+ */
 export function seatedElsewhereMessage(displayName, other) {
   const who = displayName || 'He';
-  const where = other?.home ? 'the kitchen table at home' : `table ${other?.tableId}`;
-  return `${who} is already sitting at ${where}. He plays one table at a time.`;
+  const home = !!other?.home;
+  const where = home ? 'the kitchen table at home' : `table ${other?.tableId}`;
+  const fix = home
+    ? 'Watch the kitchen table, or take him out of it first.'
+    : 'Watch that table, or finish his session there first.';
+  return `${who} is already sitting at ${where}. He plays one table at a time. ${fix}`;
 }

@@ -72,17 +72,23 @@ const NEUTRAL  = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 
 const TIGHT    = { tightness: 85, aggression: 15, bluffFreq: 5,  discipline: 80 };
 const LOOSE    = { tightness: 20, aggression: 80, bluffFreq: 50, discipline: 30 };
 
-// ── The refusal ──────────────────────────────────────────────────────────────
-console.log('\nSame-owner tables are refused');
+// ── AGENT-5 job E · the refusal is gone ──────────────────────────────────────
+//
+// TESTING LAW #5. This section asserted MATCH-1's rule — two agents of one
+// owner never share a casino table. JENS HAS EXPLICITLY OVERRULED IT, so the
+// cases are rewritten to the behaviour we want rather than loosened until they
+// pass. What the rule protected is job F's DEFAULT, asserted below: three
+// sequential deploys still land at three tables, because deployAgent prefers
+// opening a fresh felt over a stablemate's while the floor has room.
+console.log('\nSame-owner tables are ranked, not refused');
 
 const ownTable = mockTable([
   { userId: 'user1', profile: LOOSE },
   { userId: null,    profile: TIGHT },  // House
 ]);
 
-assert('joinBlocker names the owner as the reason',
-  joinBlocker(ownTable, { agentId: 'agent-new', userId: 'user1' }),
-  'another agent of the same owner is already here');
+assert('joinBlocker no longer refuses a stablemate',
+  joinBlocker(ownTable, { agentId: 'agent-new', userId: 'user1' }), null);
 assert('a stranger is not blocked by it',
   joinBlocker(ownTable, { agentId: 'agent-new', userId: 'user2' }), null);
 assert('seatsAgentOf sees his man', seatsAgentOf(ownTable, 'user1'), true);
@@ -90,10 +96,16 @@ assert('and does not see one that is not there', seatsAgentOf(ownTable, 'user2')
 assert('the House belongs to nobody', seatsAgentOf(ownTable, null), false);
 
 const ownScore = scoreTableForJoin(ownTable, LOOSE);
-console.log(`  INFO  the own table scores ${ownScore} (JOIN_MIN_SCORE=${JOIN_MIN_SCORE}) and is refused anyway`);
-assert('a lively own table is still refused — it is a rule, not a ranking',
-  ownScore >= JOIN_MIN_SCORE && pickTableToJoin([ownTable], { profile: LOOSE, agentId: 'agent-new', userId: 'user1' }) === null,
+console.log(`  INFO  the own table scores ${ownScore} (JOIN_MIN_SCORE=${JOIN_MIN_SCORE})`);
+assert('a lively own table is offered when it is the only one — a ranking, not a rule',
+  ownScore >= JOIN_MIN_SCORE
+    && pickTableToJoin([ownTable], { profile: LOOSE, agentId: 'agent-new', userId: 'user1' })?.table === ownTable,
   true);
+assert('and it is flagged as one of his own, so the deploy can decide',
+  pickTableToJoin([ownTable], { profile: LOOSE, agentId: 'agent-new', userId: 'user1' })?.stablemate, true);
+assert('job F: asked to gather, the same table is the first choice',
+  pickTableToJoin([ownTable], { profile: LOOSE, agentId: 'agent-new', userId: 'user1', together: true })?.table,
+  ownTable);
 
 // ── What he gets instead ─────────────────────────────────────────────────────
 console.log('\nHe is sent to another table, in the same room');
@@ -106,6 +118,10 @@ const picked = pickTableToJoin([ownTable, foreignTable], {
   profile: NEUTRAL, agentId: 'agent-x', userId: 'user1',
 });
 assert('the foreign table is the one picked', picked?.table, foreignTable);
+assert('job F: and `together` picks the other one',
+  pickTableToJoin([ownTable, foreignTable], {
+    profile: NEUTRAL, agentId: 'agent-x', userId: 'user1', together: true,
+  })?.table, ownTable);
 
 // The room outranks the action score: turned away from his own felt, he stays
 // on the floor he was going to play on rather than being sent up a rung.
@@ -133,8 +149,15 @@ console.log('\nThree sequential same-owner deploys → three tables');
 // to the winning table's agentUserIds. Start with no tables.
 const tables = [];  // grows as deploys create new tables
 
-function simulateDeploy(userId, agentId, profile = NEUTRAL) {
-  const candidate = pickTableToJoin(tables, { profile, agentId, userId, room: 'floor' });
+// AGENT-5 job F: the simulation mirrors deployAgent, which is now TWO steps —
+// the ranking, and then the choice to open a fresh felt rather than join one
+// his own man is already at. Without the second step the default does nothing:
+// on a floor with one open table, that table is both the worst candidate and
+// the only one. `floorHasRoom` stands in for the MAX_CONCURRENT_TABLES check,
+// which is what makes the preference give way rather than send him home.
+function simulateDeploy(userId, agentId, profile = NEUTRAL, { together = false, floorHasRoom = true } = {}) {
+  let candidate = pickTableToJoin(tables, { profile, agentId, userId, room: 'floor', together });
+  if (!together && candidate?.stablemate && floorHasRoom) candidate = null;
   if (candidate) {
     // Join: add to table's mock state.
     const t = candidate.table;
@@ -165,14 +188,39 @@ const d2 = simulateDeploy('user1', 'agent-B');
 const d3 = simulateDeploy('user1', 'agent-C');
 
 assert('deploy 1 creates a new table',            d1.created, true);
-assert('deploy 2 will not join deploy 1\'s table', d2.created, true);
-assert('deploy 3 will not join either of them',   d3.created, true);
+assert('deploy 2 opens its own rather than joining deploy 1', d2.created, true);
+assert('deploy 3 opens its own too',              d3.created, true);
 assert('no two of them share a felt',
   d1.table !== d2.table && d2.table !== d3.table && d1.table !== d3.table, true);
 assert('one table per agent',                     tables.length, 3);
 
+// ── AGENT-5 job F · and the other direction ─────────────────────────────────
+console.log('\nAsked to sit together, they sit together');
+{
+  const together = [];
+  const saved = tables.length;
+  tables.length = 0;
+  const t1 = simulateDeploy('user9', 'agent-P');
+  const t2 = simulateDeploy('user9', 'agent-Q', NEUTRAL, { together: true });
+  together.push(t1, t2);
+  assert('the first one opens a table',      t1.created, true);
+  assert('and the second JOINS it',          t2.created, false);
+  assert('one felt, both of his',            t1.table === t2.table, true);
+  assert('and the floor has one table, not two', tables.length, 1);
+
+  // The floor with no room left: the default gives way rather than refusing.
+  tables.length = 0;
+  simulateDeploy('user9', 'agent-R');
+  const crowded = simulateDeploy('user9', 'agent-S', NEUTRAL, { floorHasRoom: false });
+  assert('past the floor cap he takes the seat beside his own man',
+    crowded.created === false && tables.length === 1, true);
+
+  tables.length = 0;
+  for (let n = 0; n < saved; n++) tables.push(mockTable([{ userId: 'filler', profile: NEUTRAL }]));
+}
+
 // A fourth agent belonging to somebody ELSE fills one of them instead of
-// standing up a fourth: the refusal is about the owner, not about joining.
+// standing up a fourth: the preference is about the owner, not about joining.
 const stranger = simulateDeploy('user2', 'agent-D');
 assert('a stranger joins rather than opening another table', stranger.created, false);
 assert('and the floor still has three tables', tables.length, 3);

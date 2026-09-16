@@ -2,6 +2,7 @@ import { Game, Streets } from '../engine/game.js';
 import { evaluate } from '../engine/hand.js';
 import { plainHandName } from '../engine/handName.js';
 import { cardPhrase } from '../agent/voice.js';
+import { natureWantLine } from '../agent/wantVoice.js';   // AGENT-5 job G
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, perceivedMath } from '../agent/handler.js';
@@ -35,6 +36,8 @@ import {
   // through the SAME door his owner's deploy uses — same pocket gate, same
   // matchmaking, same cost bound.
   deployAgent,
+  // AGENT-5 job A: the stamina floor, asked of the record and the fridge.
+  restRefusalFor,
 } from './agentProfiles.js';
 import { classifyHand, isSessionBiggestPot, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
@@ -414,6 +417,8 @@ export class Table {
     this.attrReadSubjects = Array.from({ length: maxSeats }, () => new Set());
     // BIO-2c: whether this seat has already noticed his nemesis this session.
     this._nemesisNoted = Array(maxSeats).fill(false);
+    // AGENT-5 job G: once per seat stay, which is once per session.
+    this._housemateNoted = Array(maxSeats).fill(false);
     // EVENT-1: the hand this table has already shouted `hot` about. A hand
     // reaches the river once, but every river action calls _broadcastPace, and
     // a ticker that repeats itself is a ticker nobody reads.
@@ -609,6 +614,7 @@ export class Table {
     ['attrEvidence',      () => newEvidence()],   // ATTR-3
     ['attrReadSubjects',  () => new Set()],           // ATTR-3
     ['_nemesisNoted',     () => false],                // BIO-2c
+    ['_housemateNoted',   () => false],                // AGENT-5 job G
     ['seatAccentColors',       () => null],
     ['seatTalkLines',          () => null],
     ['pendingNeedle',          () => null],   // TLK-1
@@ -686,17 +692,11 @@ export class Table {
     return this.seatOfStablemate(userId, { except }) !== -1;
   }
 
-  // The sentence an owner is shown when MATCH-1 refuses him. It NAMES THE
-  // STABLEMATE, for the same reason seatedElsewhereMessage names the felt: an
-  // owner who is refused has to be told the fact that explains the refusal and
-  // the one he can act on. "another of your agents is already at this table"
-  // named neither man, started mid-sentence, and read as a fault in the product
-  // rather than as a rule of the game — which is exactly how Jens read it.
-  stablemateMessage(seat, displayName) {
-    const mate = this.pending?.[seat]?.displayName || 'One of your agents';
-    const who = displayName || 'He';
-    return `${mate} is already at this table, and two of your agents never play each other here. ${who} needs a table of his own.`;
-  }
+  // AGENT-5 job E: `stablemateMessage` was here — the sentence an owner was
+  // shown when MATCH-1 refused him. There is no refusal left for it to be the
+  // sentence of. `seatOfStablemate` above survives it, because job G needs to
+  // know the same fact for the opposite reason: not to stop him sitting down,
+  // but so he can say something when he notices who he is sitting next to.
   defaultBuyIn() { return this.bigBlind * 100; }
 
   // The stack a seat carries into the next hand.
@@ -1074,16 +1074,12 @@ export class Table {
         return null;
       }
     }
-    // MATCH-1: two agents of the same owner never sit at the same CASINO
-    // table. The matchmaker refuses these before they get here, but the
-    // matchmaker is not the only door into a seat, and a rule that only holds
-    // on one path is not a rule. Refusing with null is exactly what a full
-    // table does, so every caller already handles it: the deploy opens a
-    // table of its own instead.
-    //
-    // The home game is the exception, and it is the whole point of the home
-    // game — see homeGame.js, which seats a household this way on purpose.
-    if (!this.home && this.seatsAgentOfOwner(userId, { except: agentId })) return null;
+    // AGENT-5 job E: MATCH-1's stablemate refusal was here — "two agents of the
+    // same owner never sit at the same CASINO table". JENS HAS OVERRULED IT.
+    // Two of his agents may share a felt; nothing about how the hand is played
+    // changes, because the engine has never known who owns a seat. What
+    // remains is matchmaking's DEFAULT to spread them (job F), which is a
+    // ranking in pickTableToJoin rather than a door that says no.
 
     const seat = this.seatAI({
       displayName: displayName || 'Agent',
@@ -1618,6 +1614,31 @@ export class Table {
       if (other) throw new Error(seatedElsewhereMessage(displayName, other));
     }
 
+    // ── AGENT-5 job A · HE NEVER STARTS A SESSION HE CANNOT FINISH ───────────
+    //
+    // The second invariant to move to the write, for the reason written above
+    // the first one: this is the only function that puts an agent in a chair,
+    // so it is the only place the rule can be stated once and be true for the
+    // door somebody adds next.
+    //
+    // THE FLOOR IS SETTLED_AT, and restFloor.js has the arithmetic. Short
+    // version: below it the session stop rule a few hundred lines down marks
+    // him leaving after one hand, because the hysteresis in staminaStage keeps
+    // a worn man worn until the reserve is back to 67. He paid a buy-in, played
+    // one hand and went home with a YOU LOST screen — which is what Jens saw.
+    //
+    // CASINO ONLY. The stop rule is a casino rule; the kitchen table has its
+    // own door (homeGame's `eligible`) and nobody stands up from it mid-evening.
+    // A floor here would empty the flat of everyone merely 'settled'.
+    //
+    // It THROWS, like the two refusals around it, and the message is the
+    // sentence he says — every caller already handles this function throwing,
+    // and the doors above catch it or refuse earlier with the full body.
+    if (!this.home && agentId) {
+      const spent = restRefusalFor(agentId, userId, { displayName });
+      if (spent) throw new Error(spent.message);
+    }
+
     // Match the human player's buy-in if not specified.
     const humanSeat = this.pending.findIndex((p, i) => p !== null && !this.aiSeats[i]);
     const aiBuyIn = buyIn ?? (humanSeat !== -1 ? this.pending[humanSeat].buyIn : this.bigBlind * 100);
@@ -1678,6 +1699,7 @@ export class Table {
     this.attrEvidence[free] = newEvidence();
     this.attrReadSubjects[free] = new Set();
     this._nemesisNoted[free] = false;
+    this._housemateNoted[free] = false;
     // SERVER-3: a new stay begins. Only an agent gets one -- a House regular
     // has no owner to run a ceremony for and no thread to keep.
     this.seatSessionIds[free] = agentId ? newSessionId() : null;
@@ -1904,7 +1926,25 @@ export class Table {
   // the floor) and the copy that goes to this table's sockets (for the
   // ceremony) can never disagree.
   _sessionEndFor(seat, { reason, finalStack, buyIn, sessionHands }) {
+    // AGENT-5 job H: a session that ended WORN carries the remedy, and it is
+    // the same sentence job A puts at the door — one voice for "he cannot
+    // start" and "he had to stop", because they are the same fact at two
+    // different moments and an owner reading two different stories about one
+    // reserve has been told the product is confused.
+    let note = null;
+    if (reason === 'worn' && this.agentIds[seat]) {
+      try {
+        note = restRefusalFor(this.agentIds[seat], this.agentUserIds[seat], {
+          displayName: this.pending[seat]?.displayName ?? null,
+        })?.message ?? null;
+      } catch (err) {
+        // A ceremony must never fail to arrive because a remedy could not be
+        // phrased. The reason alone still tells the truth.
+        console.error('[table] worn remedy failed:', err.message);
+      }
+    }
     return sessionEndRecord({
+      note,
       sessionId: this.seatSessionIds[seat] ?? null,
       agentId: this.agentIds[seat],
       userId: this.agentUserIds[seat],
@@ -2136,25 +2176,20 @@ export class Table {
       return attachSeat;
     }
 
-    // MATCH-1: WATCH is the other door into a seat — the first watcher seats
-    // its agent, the second seats another, and that is how a table assembles
-    // itself with nobody deploying. The same law applies to it: not two of one
-    // owner's agents at one casino table. It throws rather than returning a
-    // seat, because a WATCH that quietly attached the watcher to somebody
-    // else's seat would be a worse answer than an error the client can show.
-    // MONEY-1 job 5: HIM first, then his stablemates. These are two different
-    // rules and they had one message between them — an owner told "another of
-    // your agents is already at this table" about the agent who is standing at
-    // the table has been told something that is not true.
+    // MONEY-1 job 5: WATCH is the other door into a seat — the first watcher
+    // seats its agent, the second seats another, and that is how a table
+    // assembles itself with nobody deploying. HE may still only be in one seat
+    // at a time. It throws rather than returning a seat, because a WATCH that
+    // quietly attached the watcher to somebody else's seat would be a worse
+    // answer than an error the client can show.
+    //
+    // AGENT-5 job E: the SECOND check that stood here — AGENT-4's named
+    // stablemate refusal — is gone. Two of one owner's agents may sit at one
+    // casino table now, so WATCH seating the second one is a thing that is
+    // allowed to happen.
     {
       const other = seatedElsewhere(this, agentId);
       if (other) throw new Error(seatedElsewhereMessage(displayName, other));
-    }
-    // AGENT-4 job D: the same rule, and a sentence that says what it is. The
-    // stablemate is named, because "another of your agents" names nobody.
-    {
-      const mate = this.seatOfStablemate(userId, { except: agentId });
-      if (!this.home && mate !== -1) throw new Error(this.stablemateMessage(mate, displayName));
     }
 
     // MONEY-1 job 3 — WATCH IS A DOOR INTO A SEAT, SO IT PAYS LIKE ONE.
@@ -2630,6 +2665,9 @@ export class Table {
     // BIO-2c: the roster for this hand is settled, so this is the moment he
     // notices who is across from him.
     for (let seat = 0; seat < this.maxSeats; seat++) this._maybeNemesisSeated(seat);
+    // AGENT-5 job G: and who is from his own flat, which since job E is a
+    // thing that can happen at a casino table.
+    for (let seat = 0; seat < this.maxSeats; seat++) this._maybeGreetHousemate(seat);
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
@@ -3161,6 +3199,15 @@ export class Table {
       // The worse of the two readings — see stamina.js worseStage. At the
       // casino this is almost always the session's own stage, which is why
       // nothing about a casino night reads differently than it did.
+      //
+      // AGENT-5 job D audited this line and deliberately LEFT IT. It looks like
+      // the longhand visibleFatigue replaced in agentProfiles, and it is not:
+      // neither half here is read off the record. `eff.fatigue` is THIS SEAT's
+      // live reading at the hand count this table is holding, and `reserveStage`
+      // is what chargeAgentStamina just RETURNED from the write it has this
+      // instant made. Routing it through visibleFatigue would re-read a record
+      // that was written two statements ago and lose the seat, which is a worse
+      // answer reached by a tidier-looking route.
       const stage = worseStage(eff.fatigue, reserveStage);
       try {
         noteAgentFatigue(agentId, this.agentUserIds[seat], {
@@ -3845,6 +3892,50 @@ export class Table {
       if (role && !best) best = { role, who };
     }
     return best;
+  }
+
+  // ── AGENT-5 job G · HE NOTICES HIS HOUSEMATE ──────────────────────────────
+  //
+  // Job E lets two of one owner's agents share a casino felt. The thing that
+  // makes that worth having is not that it is permitted, it is that he KNOWS.
+  // A man who sits down opposite somebody he lives with and plays the hand as
+  // though it were a stranger is the Tamagotchi failing at the one thing it is
+  // for.
+  //
+  // ONCE PER SESSION, like the nemesis notice beside it and for the same
+  // reason: the man arriving is a moment, not a state of affairs, and a line
+  // about it every hand is wallpaper by the fourth one.
+  //
+  // WHOEVER IS SECOND SPEAKS. `_housemateNoted` is per seat, so both of them
+  // are entitled to their line — but `_speakOnce` caps a seat to one bubble a
+  // hand, and the seat that arrived later is the one with something to notice.
+  // Nothing enforces an order beyond that, because nothing needs to.
+  //
+  // HIS OWN VOICE, through NATURE_WANT_LINES' `housemate` kind — so a Rock
+  // says "You. Don't get in my way." and a Showman says "Two of us. The crowd
+  // gets a story.", and talk:eval audits the eight of them for collisions the
+  // same way it audits every other column.
+  //
+  // NOT AT HOME. The kitchen table is where his household plays each other by
+  // definition; noticing it there is noticing that he is in his own kitchen.
+  _maybeGreetHousemate(seat) {
+    if (this.home) return;
+    const agentId = this.agentIds[seat];
+    if (!agentId || this._housemateNoted[seat]) return;
+    const userId = this.agentUserIds[seat];
+    const mate = this.seatOfStablemate(userId, { except: agentId });
+    if (mate === -1) return;
+
+    this._housemateNoted[seat] = true;
+
+    // His BIRTH nature off the record, the same way the instant remark at the
+    // bottom of this file reads it (BUG-170) — not `_seatIdentity`, which is
+    // hood and glow and has never carried a nature.
+    const nature = getAgentAttributes(agentId, userId)?.nature?.name ?? null;
+    const line = natureWantLine(nature, 'housemate');
+    // No nature yet, no borrowed personality — wantVoice's own rule. He simply
+    // says nothing, and the flag stays set so nothing retries every hand.
+    if (line) this._speakOnce(seat, line);
   }
 
   // BIO-2c: his nemesis sits down. Once per session per seat — the man arriving

@@ -95,6 +95,19 @@ export function sessionEndRecord({
   biggestPot = 0,
   duration = 0,
   endedAt = null,
+  // AGENT-5 job H — WHAT THE OWNER DOES ABOUT IT, when the reason alone is not
+  // enough to act on.
+  //
+  // 'worn' is the only reason today that has a remedy: the ceremony was
+  // drawing YOU LOST off the chip result for a man who had simply run out of
+  // reserve, which is a true number telling the wrong story. The sentence is
+  // built at the table (restFloor.js, in his own voice) and carried rather
+  // than re-derived on the client, for the same reason `reason` is: two
+  // derivations of one fact is two chances to disagree about one man.
+  //
+  // Optional and untyped beyond "a short string", so a reason that grows a
+  // remedy later does not need a second field.
+  note = null,
 } = {}) {
   if (!agentId) return null;
   return Object.freeze({
@@ -108,6 +121,7 @@ export function sessionEndRecord({
     biggestPot: Math.max(0, int(biggestPot)),
     duration: Math.max(0, int(duration)),
     endedAt: Number.isFinite(endedAt) ? Math.round(endedAt) : Date.now(),
+    note: typeof note === 'string' && note.trim() ? note.trim().slice(0, 200) : null,
   });
 }
 

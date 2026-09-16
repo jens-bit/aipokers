@@ -365,55 +365,65 @@ header('Test 11: WALLET-6 - sitOutSeat between hands benches immediately');
 }
 
 // ---------------------------------------------------------------------------
-header('Test 12: MATCH-1 - two agents of one owner never share a casino table');
+header('Test 12: AGENT-5 job E - two agents of one owner MAY share a casino table');
 {
+// TESTING LAW #5 — AGENT-5 job E. This case encoded MATCH-1's rule, "two
+// agents of one owner never share a casino table". JENS HAS EXPLICITLY
+// OVERRULED THAT RULE; the product is not wrong here, the rule is one we no
+// longer want. So the case is REWRITTEN to assert the behaviour we do want,
+// with the reasoning here, rather than loosened until it goes green — which is
+// the one thing that is never allowed.
+  // The door lets him in. Whether the MATCHMAKER sends him there is a separate
+  // question with a separate answer (job F: it spreads unless asked not to),
+  // and it is asserted in matchmaking.test.js — not here, because this is the
+  // door and the door is not where a preference belongs.
   const table = newTable();
   const first = table.joinAgentSession({ agentId: 'a1', userId: 'u1', displayName: 'BALANCE' });
   assert.strictEqual(first, 0, 'the first one sits down');
 
   const second = table.joinAgentSession({ agentId: 'a2', userId: 'u1', displayName: 'GRANITE' });
-  assert.strictEqual(second, null, 'his stablemate is refused the way a full table refuses');
-  assert.strictEqual(table.seatedCount(), 1, 'and no seat was taken doing it');
+  assert.strictEqual(second, 1, 'and so does his stablemate');
+  assert.strictEqual(table.seatedCount(), 2, 'two of his, one felt');
 
   const stranger = table.joinAgentSession({ agentId: 'b1', userId: 'u2', displayName: 'MARLOW' });
-  assert.strictEqual(stranger, 1, "somebody else's agent is exactly who he is here to meet");
+  assert.strictEqual(stranger, 2, "somebody else's agent is exactly who he is here to meet");
 
-  // A seat that stands up releases the claim. A third body keeps the table
-  // above MIN_TO_DEAL so the departure frees a seat rather than closing it.
-  table.joinAgentSession({ agentId: 'c1', userId: 'u3', displayName: 'MARBLE' });
-  table.sitOutSeat(0, { afterHand: true });
-  assert.ok(!table.agentIds.includes('a1'), 'his man is off the felt');
-  assert.strictEqual(table.joinAgentSession({ agentId: 'a2', userId: 'u1', displayName: 'GRANITE' }), 2,
-    'and the owner may sit down again');
-  ok('the casino refuses a second agent of the same owner at both doors');
+  // THE RULE THAT DID NOT GO ANYWHERE. One agent is still one seat: the same
+  // man twice is refused, and it is refused for a different reason entirely.
+  assert.strictEqual(table.joinAgentSession({ agentId: 'a1', userId: 'u1', displayName: 'BALANCE' }), null,
+    'he may not sit down twice — that is the one-table rule, and it stands');
+  assert.strictEqual(table.seatedCount(), 3, 'and no seat was taken doing it');
+  ok('both doors seat a stablemate, and neither seats the same man twice');
 }
 
 // ---------------------------------------------------------------------------
-header('Test 13: MATCH-1 - WATCH cannot assemble a table out of one owner either');
+header('Test 13: AGENT-5 job E - WATCH may assemble a table out of one owner');
 {
+// TESTING LAW #5 — AGENT-5 job E. This case encoded MATCH-1's rule, "two
+// agents of one owner never share a casino table". JENS HAS EXPLICITLY
+// OVERRULED THAT RULE; the product is not wrong here, the rule is one we no
+// longer want. So the case is REWRITTEN to assert the behaviour we do want,
+// with the reasoning here, rather than loosened until it goes green — which is
+// the one thing that is never allowed.
   // The WV2-1 shape: a table nobody deployed to, assembled seat by seat by
-  // watchers. The first WATCH seats his agent; the second is refused with an
-  // error rather than a seat, because silently attaching him to somebody
-  // else's chair would be a worse answer than one the client can show.
+  // watchers. It used to refuse the second of one owner's agents with a thrown
+  // sentence. It seats him now.
   const table = newTable({ tableId: 'watch-assembled' });
   const seated = table.addSpectator(fakeWs(), { agentId: 'a1', userId: 'u1', displayName: 'BALANCE' });
   assert.strictEqual(seated, 0, 'the first watcher seats his agent');
 
-  assert.throws(
-    () => table.addSpectator(fakeWs(), { agentId: 'a2', userId: 'u1', displayName: 'GRANITE' }),
-    /already at this table/,
-    'the WATCH door is shut too',
-  );
-  assert.strictEqual(table.seatedCount(), 1, 'and it seated nobody on the way out');
+  const mate = table.addSpectator(fakeWs(), { agentId: 'a2', userId: 'u1', displayName: 'GRANITE' });
+  assert.strictEqual(mate, 1, 'and the second watcher seats his other one');
 
   const other = table.addSpectator(fakeWs(), { agentId: 'b1', userId: 'u2', displayName: 'MARLOW' });
-  assert.strictEqual(other, 1, 'two owners assembling one felt is still allowed');
+  assert.strictEqual(other, 2, 'two owners assembling one felt is still allowed');
+  assert.strictEqual(table.seatedCount(), 3);
   table.closeTable('test over', { recap: 'test over' });
-  ok('WATCH refuses a second agent of the same owner');
+  ok('WATCH seats a second agent of the same owner');
 }
 
 // ---------------------------------------------------------------------------
-header('Test 14: MATCH-1 - the home game is where they DO play each other');
+header('Test 14: the home game seats the household, as it always has');
 {
   const table = new Table({ tableId: 'home-u1', smallBlind: 1, bigBlind: 2, maxSeats: 4, home: true });
   assert.strictEqual(table.joinAgentSession({ agentId: 'a1', userId: 'u1', displayName: 'BALANCE' }), 0);

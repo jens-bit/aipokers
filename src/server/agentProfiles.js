@@ -26,6 +26,9 @@ import { recordOwnerHand, ownerHandsContext } from '../agent/ownerHands.js';
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
 import { staminaStageNow, worseStage, staminaPercent, restStamina, spendStamina, feedStamina } from '../agent/stamina.js';
+// AGENT-5 jobs A + B — the floor a casino seat costs at the door, the
+// arithmetic behind it and the sentence that names the remedy.
+import { restRefusal, restPlan, DEPLOY_FLOOR } from './restFloor.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 // GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
 // only enforced here — see the note at the top of that file for why the two
@@ -543,6 +546,12 @@ function stakesForRequest(body, pocketBalance) {
       status: 409,
       body: {
         error: 'cantAfford',
+        // AGENT-5 job D: a code and four numbers is not a refusal an owner can
+        // act on. Two remedies, and they are the only two there are: put more
+        // in his pocket, or send him somewhere cheaper.
+        message: `${asked.label} is ${asked.buyIn.toLocaleString()} a seat and he has `
+          + `${Math.max(0, Math.floor(Number(pocketBalance) || 0)).toLocaleString()}. `
+          + 'Fund him, or send him to a smaller room.',
         buyIn: asked.buyIn,
         rung: asked.rung,
         label: asked.label,
@@ -957,7 +966,10 @@ export function admitToFelt(userId, agent) {
     emitAgentChange(owner);
     notifyBrokeOnce(owner, agent);
     return { status: 402, body: {
-      error: "His pocket is empty. He's at the bar — your call.",
+      // AGENT-5 job D: "your call" is not a remedy, it is a shrug. The thing
+      // the owner can do is on the next line of the body already (`required`);
+      // this says it in words, in the same verb notify.js's button uses.
+      error: "His pocket is empty. He's at the bar. Fund him and he goes back in.",
       broke: true,
       pocket: pocketProjection(pocket),
       required: ENTRY_BUYIN,
@@ -2268,6 +2280,63 @@ export function staminaOf(agent, { now = Date.now(), resting = true } = {}) {
   return { left, stage: staminaStageNow(agent, { now, resting }) };
 }
 
+/**
+ * AGENT-5 job A — IS HE FIT TO SIT DOWN, AND IF NOT, WHAT FIXES IT.
+ *
+ * The record-and-wallet half of restFloor.js, which is pure and holds neither.
+ * Returns null when he may take a casino seat, and otherwise the refusal with
+ * the remedy, the number and LIFE-2's action pair on it.
+ *
+ * `null` IS ALSO THE ANSWER FOR AN AGENT NOBODY HAS A RECORD OF. A House
+ * regular, a bare Table in a unit test, a seat with no owner — none of them has
+ * a reserve, and a gate that refused what it cannot measure would stop the
+ * whole cast sitting down. Same shape `seatOf` uses for the one-table rule and
+ * for the same reason: a lookup must never be the thing that empties a felt.
+ *
+ * WHETHER HE IS RESTING IS ASKED, NOT ASSUMED. The first cut read the reserve
+ * with `resting: true` on the reasoning that a man being asked whether he can
+ * start a session is by definition not in a seat — which is false for the one
+ * seat that does not set `activeTableId`. An agent at the kitchen table was
+ * being credited every hour he had spent PLAYING at it, so three hours of home
+ * poker read as three hours of sleep and the floor let him straight through.
+ * That is presentAgent's own `seatedNow` trap, caught by verify-rest-floor.js.
+ * The predicate is visibleFatigue's, for the same reason it is factored out
+ * there: the gate and the card must not measure one man two ways.
+ */
+function seatedAnywhere(agent) {
+  return !!(agent?.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
+    || !!liveTables?.homeTableOf?.(agent.id);
+}
+
+export function restRefusalFor(agentId, userId, { displayName = null, now = Date.now() } = {}) {
+  if (!agentId) return null;
+  const owner = String(userId ?? 'anon');
+  const profile = getOrCreate(owner);
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const wallet = walletFor(owner);
+  ensureFridge(wallet);
+  return restRefusal({
+    left: staminaPercent(agent, { now, resting: !seatedAnywhere(agent) }),
+    snacks: fridgeCountOf(wallet, 'snack'),
+    nature: agent.nature ?? null,
+    displayName: displayName || agent.name || null,
+  });
+}
+
+/** The same question with no sentence attached, for a caller that only gates. */
+export function restPlanFor(agentId, userId, { now = Date.now() } = {}) {
+  const owner = String(userId ?? 'anon');
+  const agent = getOrCreate(owner).agents.find((a) => a.id === agentId);
+  if (!agent) return restPlan({ left: 100 });
+  const wallet = walletFor(owner);
+  ensureFridge(wallet);
+  return restPlan({
+    left: staminaPercent(agent, { now, resting: !seatedAnywhere(agent) }),
+    snacks: fridgeCountOf(wallet, 'snack'),
+  });
+}
+
 // Set the agent's mood record wholesale (used by table.js after applying
 // events / decay). Persists.
 export function setAgentMood(agentId, userId, newMood) {
@@ -2454,9 +2523,12 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // of at SETTLED_AT and flickers in and out of the kitchen game for ever.
   // That flicker is precisely the "never seen an agent sleep" symptom.
   if (!seatedNow) restStamina(agent, { now: Date.now() });
-  fatigue = worseStage(fatigue, staminaStageNow(agent, {
-    now: Date.now(), resting: !seatedNow,
-  }));
+  // AGENT-5 job D: through visibleFatigue, which was factored out of THIS
+  // expression by AGENT-4 and then left with the original still spelled out
+  // beside it. Both halves are handed in, so nothing is re-derived and nothing
+  // is re-asked of liveTables — the change is that there is now one definition
+  // of what an owner sees instead of a definition and a copy of it.
+  fatigue = visibleFatigue(agent, { fatigue, seated: seatedNow });
   if (presence !== 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
@@ -2630,6 +2702,12 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     body: bodyLevels({
       stage: fatigue,
       stamina: staminaPercent(agent, { now: Date.now(), resting: !seatedNow }),
+      // AGENT-5 job I: his STORED stage as well as the number. `stage` above
+      // already wins, so this changes nothing for this call — it is here so
+      // that a surface reading `body.stamina.value` and re-deriving a word
+      // from it gets the hysteresis rather than the two bare thresholds. The
+      // reserve alone cannot tell 50-on-the-way-up from 50-on-the-way-down.
+      was: agent.stamina?.stage ?? null,
       heat: agent.mood?.heat ?? null,
     }),
     sessionHands,
@@ -3230,13 +3308,21 @@ export function fatigueNow(agent, { now = Date.now() } = {}) {
  * One function, so the thing an owner sees and the thing a gate decides on
  * cannot be two different numbers again.
  */
-export function visibleFatigue(agent, { now = Date.now() } = {}) {
+export function visibleFatigue(agent, { now = Date.now(), fatigue = null, seated = null } = {}) {
   if (!agent) return 'fresh';
-  const seated = !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
-    || !!liveTables?.homeTableOf?.(agent.id);
+  // AGENT-5 job D: the two facts a caller may already hold, taken rather than
+  // re-derived. presentAgent knows the session half exactly — it has the live
+  // seat's own sessionHands — and knows whether he is seated, and asking
+  // liveTables a second time for what it has just been asked is how the two
+  // answers get a chance to differ. Absent, both are worked out here, which is
+  // what every other caller wants.
+  const inSeat = seated == null
+    ? !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
+      || !!liveTables?.homeTableOf?.(agent.id)
+    : !!seated;
   return worseStage(
-    fatigueNow(agent, { now }),
-    staminaStageNow(agent, { now, resting: !seated }),
+    fatigue ?? fatigueNow(agent, { now }),
+    staminaStageNow(agent, { now, resting: !inSeat }),
   );
 }
 
@@ -4027,11 +4113,13 @@ function ownerChatScene(agent, table = null) {
     ? liveTables.hasTable?.(agent.activeTableId)
     : true);
   if (casinoTableExists) return { atHome: false, description: 'at the casino, waiting for a game' };
-  const sinceRest = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
   const routine = routineFor({
     id: agent.id,
     nature: agent.nature, studying: !!agent.study,
-    fatigue: worseStage(restedFatigue(agent.fatigue ?? 'fresh', sinceRest), staminaStageNow(agent)),
+    // AGENT-5 job D: the same one reading. This branch is only reached with no
+    // casino table and no kitchen table, so `seated` is false by construction —
+    // stated rather than left for visibleFatigue to re-establish.
+    fatigue: visibleFatigue(agent, { seated: false }),
     resting: isRestBenched(agent),   // AGENT-4 job B
     unseenRecap: !!agent.unseenRecap,
     broke: agent.pocket?.mode !== 'auto' && Number.isFinite(agent.pocket?.balance) && isBroke(agent.pocket.balance),
@@ -5005,8 +5093,22 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   if (visitRefusal) return visitRefusal;
   // AGENTS-2: retired is retired. And an agent who has been called in does not
   // get a second seat on the way out.
-  if (agent.archived) return { status: 410, body: { error: 'agentRetired' } };
-  if (agent.retiring) return { status: 409, body: { error: 'agentRetiring' } };
+  // AGENT-5 job D: both of these were a status code and a machine word, which
+  // leaves a client to invent the sentence and an owner to read whatever it
+  // invented. The code stays — clients branch on it — and a sentence that names
+  // the way out rides beside it.
+  if (agent.archived) {
+    return { status: 410, body: {
+      error: 'agentRetired',
+      message: `${agent.name || 'He'} is retired. Build a new agent to take his seat.`,
+    } };
+  }
+  if (agent.retiring) {
+    return { status: 409, body: {
+      error: 'agentRetiring',
+      message: `${agent.name || 'He'} is on his way out. Wait for his last hand, or cancel the retirement.`,
+    } };
+  }
 
   ensureMemory(agent);
   ensureProfile(agent);
@@ -5022,9 +5124,16 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   if (!seatedNow && isRestBenched(agent)) {
     return { status: 409, body: {
       error: 'agentResting',
-      message: `${agent.name || 'He'} is sitting this one out. He asked, and you said yes.`,
-      fatigue: fatigueNow(agent),
+      // AGENT-5 job D: and what ENDS it. "He asked and you said yes" is a fact
+      // about the past; the bench clears itself the moment he reads 'fresh',
+      // which is the same floor and the same arithmetic job A refuses on, so
+      // the same remedy is offered rather than a second story about rest.
+      message: `${agent.name || 'He'} is sitting this one out. He asked, and you said yes. `
+        + (restRefusalFor(agent.id, userId, { displayName: agent.name })?.message
+          ?? 'He is rested now — put him in.'),
+      fatigue: visibleFatigue(agent),
       restingUntil: 'fresh',
+      ...(restPlanFor(agent.id, userId).ok ? {} : { stamina: { floor: DEPLOY_FLOOR } }),
     } };
   }
 
@@ -5090,6 +5199,35 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     }
   }
 
+  // ── AGENT-5 jobs A + B · REFUSED AT THE DOOR, WITH THE FIX ATTACHED ───────
+  //
+  // seatAI holds the invariant (it is the only function that seats anybody), but
+  // a backstop that throws a string is a worse answer than a door that refuses
+  // in his own voice and hands the owner one tap. So the same question is asked
+  // HERE, where there is a body to put it in.
+  //
+  // PLACED BELOW the "already at a live table" fast path, so a client polling
+  // deploy during the session he is finishing gets his table back rather than
+  // being told he is tired — he is IN a seat; the floor is about starting one.
+  // And ABOVE the pocket gate and the charge, so a refused deploy costs nothing
+  // and moves nothing: this is the cheapest thing the function can do, which is
+  // the same placement rule the guest gate below it is written under.
+  {
+    const spent = restRefusalFor(agent.id, userId, { displayName: agent.name });
+    if (spent) {
+      return { status: 409, body: {
+        ...spent,
+        // The one word a client that knows nothing about this branch can still
+        // render. Everything else is additive.
+        message: spent.message,
+        fatigue: visibleFatigue(agent),
+        agentId: agent.id,
+        agentName: agent.name,
+        moment: { text: spent.message, mood: agent.mood?.state ?? 'neutral', at: Date.now() },
+      } };
+    }
+  }
+
   // GUEST-1: one casino session a day for an unclaimed owner.
   //
   // HERE, and not earlier: the check sits BELOW the "already at a live table"
@@ -5116,10 +5254,26 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   let sessionStarted = false;
 
   // MATCH-1: chosen AFTER the pocket gate below, not before it, because the
-  // matchmaker now needs to know which ROOM this deploy is for — a man turned
-  // away from his own stablemate's table is offered another table in the same
+  // matchmaker now needs to know which ROOM this deploy is for — a man who
+  // cannot have his first-choice table is offered another one in the same
   // room, and the room is whatever his pocket buys into.
   let candidate = null;
+
+  // ── AGENT-5 job F · SPREAD BY DEFAULT, TOGETHER ON REQUEST ────────────────
+  //
+  // THE NATURAL HOME WAS ALREADY HERE. `POST /api/agents/:id/deploy` takes a
+  // body, `rungRequested(body)` already reads a destination out of it, and a
+  // deploy is per-agent — which makes "and put him with the others" one more
+  // field on the request somebody is already sending. No settings screen, no
+  // new endpoint, and nothing to remember between deploys: an owner putting
+  // four agents in sends four deploys and decides once per deploy.
+  //
+  // Job E removed the rule that two of an owner's agents may not share a felt.
+  // Without a default in its place the matchmaker would do the opposite of
+  // what the rule protected — it ranks fuller tables higher, so four deploys
+  // in a row would pile onto one table. So: FALSE spreads, TRUE gathers, and
+  // the answer travels back on the response as `together` / `withStablemate`.
+  const together = body?.together === true || body?.together === 'true';
 
   // ── WALLET-1: the pocket gate ─────────────────────────────────────────────
   // The pocket picks the stakes and decides whether he sits down at all.
@@ -5154,12 +5308,27 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     candidate = liveTables.findJoinableTable?.({
       profile: agent.profile ?? null,
       agentId: agent.id,
-      // MATCH-1: this is the refusal, not a preference. Every table already
-      // seating one of this owner's agents is out of the running, and the
-      // deploy either finds another one in the same room or opens one.
+      // AGENT-5 job F: a PREFERENCE now, not a refusal. `userId` is what lets
+      // the ranking know which tables already seat one of his own; `together`
+      // decides whether that sorts them to the top or the bottom.
       userId,
+      together,
       room: roomForBigBlind(stakes.bigBlind)?.id ?? null,
     });
+
+    // SPREADING MEANS PREFERRING A FRESH FELT, not merely ranking one lower.
+    // The ranking alone is not enough: on a floor with one open table, the one
+    // table is both the worst candidate and the only one, so a pure ranking
+    // would seat him next to his stablemate every time and the default would
+    // do nothing. Dropping the candidate here is what turns "ranked last" into
+    // "opens his own", and it only happens while the floor HAS room — past the
+    // cap the shared table is a better answer than being sent home, which is
+    // exactly where MATCH-1's refusal was worse than this.
+    if (!together && candidate?.stablemate
+      && liveTables.countAutonomousTables?.() < liveTables.MAX_CONCURRENT_TABLES) {
+      console.log(`[agents] ${agent.name} could join ${candidate.table.tableId}, but one of his own is there — opening a table of his own`);
+      candidate = null;
+    }
     // An explicit destination is a constraint. Default matchmaking can still
     // choose another affordable room, but a requested rung cannot move him.
     if (rungRequested(body) && candidate?.table && candidate.table.bigBlind !== stakes.bigBlind) {
@@ -5351,6 +5520,14 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     sessionStarted,
     joinedExisting,
     seat,
+    // AGENT-5 job F: which of the two happened, stated rather than inferred.
+    // `together` is what was ASKED for and `withStablemate` is what he GOT —
+    // they come apart in both directions (ask to gather with nobody to gather
+    // with; spread on a floor with no room to spread into) and a client that
+    // had to guess would guess wrong on exactly the interesting cases.
+    together,
+    withStablemate: !!(liveTables && tableId
+      && liveTables.getTable?.(tableId)?.seatsAgentOfOwner?.(userId, { except: agent.id })),
     // SERVER-4: where he actually ended up. With `rung` this is what was asked
     // for; without it, it is what his pocket chose for him — and either way the
     // client no longer has to infer a room from blinds.

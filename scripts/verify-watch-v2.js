@@ -268,11 +268,23 @@ console.log('\n[verify] 2) WV2-1 / FIRST-HOUSE-1 — WATCH starts heads-up, anot
         (live?.seats ?? []).every((s) => ['confident', 'neutral', 'frustrated', 'tilted', 'sulking'].includes(s.mood.state)),
         JSON.stringify((live?.seats ?? []).map((s) => s.mood.state)));
 
-  // MATCH-1: the other door, on a felt that is still assembling. Two agents of
-  // ONE owner cannot build a table between them: the first WATCH seats his
-  // man, the second is refused and told why rather than being handed a seat.
-  // (Once the table is running, a WATCH for an unseated agent is an ordinary
-  // spectator attaching to a seat — it takes no seat and nothing is refused.)
+  // ── AGENT-5 job E · TESTING LAW #5 ────────────────────────────────────────
+  //
+  // This block asserted MATCH-1's rule: two agents of ONE owner cannot build a
+  // table between them, the second WATCH refused with an error rather than a
+  // seat. JENS HAS EXPLICITLY OVERRULED THAT RULE. The product is not wrong
+  // here, the rule is one we no longer want — the one circumstance in which a
+  // red case is rewritten rather than the code fixed.
+  //
+  // What it asserts now is the same door doing the opposite thing, and the two
+  // facts that had to survive the removal: the second man takes a REAL seat
+  // (not a silent attach to somebody else's), and the felt he lands on is one
+  // table with three bodies on it rather than two tables.
+  //
+  // The DEFAULT that replaced the rule — deploy spreading an owner's agents
+  // across felts unless asked not to — is a matchmaking question and is
+  // asserted in deployTogether.test.js and verify-matchmaking.js. WATCH has no
+  // matchmaker: it is told which table to attach to.
   {
     const soloTableId = 'watch-v2-same-owner';
     const first = await getAgent(await newAgent('same-owner 1', ownerA), ownerA);
@@ -299,13 +311,23 @@ console.log('\n[verify] 2) WV2-1 / FIRST-HOUSE-1 — WATCH starts heads-up, anot
     check('the first owner has a seat and a ready House', solo?.seatedCount() === 2, describeTable(solo));
 
     const two = await openWatch(second);
-    const refused = await waitFor('the refusal',
-      async () => two.seen.find((m) => m.type === ServerMsg.ERROR) ?? null, (m) => !!m, 5_000, 40);
-    check('a second agent of the same owner is refused the felt', refused.ok,
+    const attached = await waitFor('the second watcher',
+      async () => two.seen.find((m) => m.type === ServerMsg.WATCHING) ?? null, (m) => !!m, 5_000, 40);
+    check('a second agent of the same owner is seated, not refused', attached.ok,
           JSON.stringify(two.seen.map((m) => m.type)));
-    check('and told why', /already at this table/i.test(refused.value?.message ?? ''),
-          refused.value?.message);
-    check('no seat was taken doing it', solo?.seatedCount() === 2, describeTable(solo));
+    check('and nothing was thrown at him on the way in',
+          !two.seen.some((m) => m.type === ServerMsg.ERROR),
+          JSON.stringify(two.seen.filter((m) => m.type === ServerMsg.ERROR).map((m) => m.message)));
+
+    // The two halves that had to survive the removal. He took a REAL seat of
+    // his own — three bodies on one felt, not a silent attach to his
+    // stablemate's chair, which is the answer this door has always refused to
+    // give and still refuses.
+    check('the felt now carries three bodies', solo?.seatedCount() === 3, describeTable(solo));
+    check('and the second man holds a seat of his own',
+          (solo?.agentIds ?? []).includes(second.id)
+          && solo.agentIds.indexOf(first.id) !== solo.agentIds.indexOf(second.id),
+          JSON.stringify(solo?.agentIds ?? []));
 
     one.ws.close();
     two.ws.close();
