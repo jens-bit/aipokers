@@ -1,5 +1,28 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## TABLE-2 — the opponent card stacks correctly, the STATS tab gets bars — local candidate (2026-09-16)
+
+- **The opened card sits above the felt (JOB A).** Tapping an opponent drew
+  his read card underneath the hero's own floating hands, his hole cards and
+  the "Est. pot share" rope, and his speech bubble ran under the card's
+  Close button. Root cause: BUG-133's "his cards, hands and strip stay above
+  the read glass" rule boosted the hero above every overlay sheet, including
+  a read of somebody else, when it was written for the thread sheet (a
+  conversation about the owner's own agent) specifically. `WatchFelt` now
+  distinguishes the two with `watch-felt--reading` (driven by the
+  `selectedSeat` it already tracks) and un-boosts the hero for that case, so
+  the opponent's card — already at a higher z-index — wins as it should have
+  all along. Regression: `client/e2e/table2-jobA.spec.js`.
+- **The in-game STATS tab reads like the profile (JOB B).** The four skills
+  it shares with the agent's profile page (READS, FOCUS, DISCIPLINE,
+  DECEPTION) were bare `41/100` figures instead of the profile's own sliders
+  with a range band — along with STAMINA and COMPOSURE, which the profile's
+  Skills section has never shown. `WatchAgentStats` now renders
+  `AgentProfileOverview`'s own `AttrCluster`, reading the same four skills
+  from the same `normalizeAttrs`/`agent.attrLog` data, with the profile's own
+  CSS. Stack at this table stays a plain figure above it. Desktop's Stats
+  tab reuses the same component, so it is fixed there too.
+
 ## TABLE-1 — the in-hand felt stops jumping, labels the felt evenly — local candidate (2026-09-16)
 
 - **The screen stops jumping (JOB A).** `ActionNarrator` used to contribute
