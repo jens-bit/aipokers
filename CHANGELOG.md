@@ -1,5 +1,74 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 0.17.0 candidate — the doors he walked through, and the verbs that meant it (2026-09-16)
+
+One branch, seven commits, `f01f8c8..HEAD`. Merged as MERGE-13, gated after
+the merge. Server only — `git diff --stat f01f8c8 -- client/` on the merge is
+empty. No new dependencies.
+
+**Five things Jens hit playing prod on the night of 15 September, all fixed
+(AGENT-4, `fd7770e`).** They are one queue and they are worth reading as one,
+because four of the five are the same shape: a rule that existed, and a door
+that had never been told about it.
+
+- **One agent, two chairs (BUG-219).** MONEY-1 put the one-table rule on three
+  doors and missed two. `Table.maybeAutoSeatAI` — the vs-You JOIN door — had
+  no seat check at all, and MONEY-2 had given it a buy-in without a gate, so
+  the bug went from a free second seat to a PAID one: an agent seated opposite
+  his own owner and charged twice, pocket 20,000 → 18,000 → 16,000. The check
+  moves to `seatAI`, the only function in the codebase that puts an agent in a
+  chair, so every future door inherits it.
+- **The want answered and did nothing (BUG-220).** *"I guess if he does
+  something, then it's okay, but for now he doesn't."* Behind the button,
+  yes performed two of the five verbs and let `chips`, `deploy` and `listen`
+  fall through to `answered = 'yes'` with nothing done — the routing hint was
+  standing in for the act. All five perform now, through the same doors the
+  screens use, and the act settles BEFORE the want is marked answered. A verb
+  that cannot be performed is not agreed to: an empty safe or a floor with no
+  seat gets the specific obstacle in his own voice and the want survives.
+- **The fridge refused food at one dot (BUG-221).** The gate read the stamina
+  reserve; the card draws the worse of reserve and session fatigue. Two
+  different numbers, one of them invisible, and a man off a long session was
+  told "He's fine. Save it." while his card showed a single dot. Both halves
+  fixed — the gate reads what the owner can see, and food now credits the
+  session ladder as well, so accepting the snack changes something.
+- **"another of your agents is already at this table" (BUG-222).** Reported as
+  *"Another of your agents is already unstable."* The predicate counted the man
+  being seated among his own obstacles (correct only by accident, via early
+  returns at both call sites), and the string named nobody and began
+  mid-sentence, so a rule of the game read as a fault in the product. It names
+  them now: *"Ace is already at this table, and two of your agents never play
+  each other here. Deuce needs a table of his own."*
+- **The draft ignored written instructions (BUG-223).** "All I want him to play
+  is all in, all the time" produced a default personality — because the
+  instruction was dropped BEFORE the model call. `DRAFT_SIGNALS` had no word
+  for shoving, the brief scored zero, and the readiness gate answered with the
+  fallback line without calling the model. On main, that brief and "banana
+  telephone mountain" produced the same recruiter line and the same zero
+  agents.
+
+**Testing law 5, declared rather than quietly done.** Two cases in
+`wants.test.js` encoded rules BUG-220 changes, and both are changed on purpose
+with the reasoning written at the case. No assertion was loosened; both cases
+gained assertions. Five new suites ship with the queue — `oneSeatDoors` (8),
+`wantPerform` (13), `fridgeBrim` (8), `stablemate` (8), `draftInstruction`.
+
+**The gate.** `test:all` (server, client 233 files / 2,892 tests, e2e 7/7),
+browser smoke 8/8, `test:home2` 20/20, `desk.spec.js` 54/54, `talk:eval`
+230/230 — every baseline met. **Chip conservation on a fresh scratch database
+exercised by the full browser smoke: diff 0 on every one of seven owners, no
+residue of the draft-grant loop, and every uncapped ledger explains its own
+balances.** The local `data/app.db` reads red and is expected to — it is a
+gitignored Playwright fixture ledger, and `audit-chips.js` is pointed at a
+fresh DB with `--db` for a number that means anything.
+
+Two measurements filed rather than re-run away, both NOTED in BUGS.md:
+MERGE-13-FLAKE names the suite AGENT-4 lost the output of, and records that
+BUG-34's abort landed on five different files across the same session — it is
+a property of the run, not of any suite. MERGE-13-SMOKE-ENV records why the
+browser smoke is three-red locally without CI's env dials, and that it is
+three-red identically on main.
+
 ## 0.16.0 candidate, two — the money has a drain, and he knows why he did it (2026-09-15)
 
 Three branches, sixteen commits, `1e26f62..HEAD`. Merged as MERGE-10 and
