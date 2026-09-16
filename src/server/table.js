@@ -2,6 +2,7 @@ import { Game, Streets } from '../engine/game.js';
 import { evaluate } from '../engine/hand.js';
 import { plainHandName } from '../engine/handName.js';
 import { cardPhrase } from '../agent/voice.js';
+import { natureWantLine } from '../agent/wantVoice.js';   // AGENT-5 job G
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ServerMsg } from './protocol.js';
 import { getAgentAction, perceivedMath } from '../agent/handler.js';
@@ -416,6 +417,8 @@ export class Table {
     this.attrReadSubjects = Array.from({ length: maxSeats }, () => new Set());
     // BIO-2c: whether this seat has already noticed his nemesis this session.
     this._nemesisNoted = Array(maxSeats).fill(false);
+    // AGENT-5 job G: once per seat stay, which is once per session.
+    this._housemateNoted = Array(maxSeats).fill(false);
     // EVENT-1: the hand this table has already shouted `hot` about. A hand
     // reaches the river once, but every river action calls _broadcastPace, and
     // a ticker that repeats itself is a ticker nobody reads.
@@ -611,6 +614,7 @@ export class Table {
     ['attrEvidence',      () => newEvidence()],   // ATTR-3
     ['attrReadSubjects',  () => new Set()],           // ATTR-3
     ['_nemesisNoted',     () => false],                // BIO-2c
+    ['_housemateNoted',   () => false],                // AGENT-5 job G
     ['seatAccentColors',       () => null],
     ['seatTalkLines',          () => null],
     ['pendingNeedle',          () => null],   // TLK-1
@@ -1695,6 +1699,7 @@ export class Table {
     this.attrEvidence[free] = newEvidence();
     this.attrReadSubjects[free] = new Set();
     this._nemesisNoted[free] = false;
+    this._housemateNoted[free] = false;
     // SERVER-3: a new stay begins. Only an agent gets one -- a House regular
     // has no owner to run a ceremony for and no thread to keep.
     this.seatSessionIds[free] = agentId ? newSessionId() : null;
@@ -2642,6 +2647,9 @@ export class Table {
     // BIO-2c: the roster for this hand is settled, so this is the moment he
     // notices who is across from him.
     for (let seat = 0; seat < this.maxSeats; seat++) this._maybeNemesisSeated(seat);
+    // AGENT-5 job G: and who is from his own flat, which since job E is a
+    // thing that can happen at a casino table.
+    for (let seat = 0; seat < this.maxSeats; seat++) this._maybeGreetHousemate(seat);
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
@@ -3866,6 +3874,50 @@ export class Table {
       if (role && !best) best = { role, who };
     }
     return best;
+  }
+
+  // ── AGENT-5 job G · HE NOTICES HIS HOUSEMATE ──────────────────────────────
+  //
+  // Job E lets two of one owner's agents share a casino felt. The thing that
+  // makes that worth having is not that it is permitted, it is that he KNOWS.
+  // A man who sits down opposite somebody he lives with and plays the hand as
+  // though it were a stranger is the Tamagotchi failing at the one thing it is
+  // for.
+  //
+  // ONCE PER SESSION, like the nemesis notice beside it and for the same
+  // reason: the man arriving is a moment, not a state of affairs, and a line
+  // about it every hand is wallpaper by the fourth one.
+  //
+  // WHOEVER IS SECOND SPEAKS. `_housemateNoted` is per seat, so both of them
+  // are entitled to their line — but `_speakOnce` caps a seat to one bubble a
+  // hand, and the seat that arrived later is the one with something to notice.
+  // Nothing enforces an order beyond that, because nothing needs to.
+  //
+  // HIS OWN VOICE, through NATURE_WANT_LINES' `housemate` kind — so a Rock
+  // says "You. Don't get in my way." and a Showman says "Two of us. The crowd
+  // gets a story.", and talk:eval audits the eight of them for collisions the
+  // same way it audits every other column.
+  //
+  // NOT AT HOME. The kitchen table is where his household plays each other by
+  // definition; noticing it there is noticing that he is in his own kitchen.
+  _maybeGreetHousemate(seat) {
+    if (this.home) return;
+    const agentId = this.agentIds[seat];
+    if (!agentId || this._housemateNoted[seat]) return;
+    const userId = this.agentUserIds[seat];
+    const mate = this.seatOfStablemate(userId, { except: agentId });
+    if (mate === -1) return;
+
+    this._housemateNoted[seat] = true;
+
+    // His BIRTH nature off the record, the same way the instant remark at the
+    // bottom of this file reads it (BUG-170) — not `_seatIdentity`, which is
+    // hood and glow and has never carried a nature.
+    const nature = getAgentAttributes(agentId, userId)?.nature?.name ?? null;
+    const line = natureWantLine(nature, 'housemate');
+    // No nature yet, no borrowed personality — wantVoice's own rule. He simply
+    // says nothing, and the flag stays set so nothing retries every hand.
+    if (line) this._speakOnce(seat, line);
   }
 
   // BIO-2c: his nemesis sits down. Once per session per seat — the man arriving
