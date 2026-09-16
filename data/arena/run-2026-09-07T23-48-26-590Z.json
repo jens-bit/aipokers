@@ -1,0 +1,500 @@
+{
+  "timestamp": "2026-09-07T23:48:26.591Z",
+  "args": {
+    "pairs": 60,
+    "profiles": "scripts/arena-profiles.json",
+    "matchups": "*",
+    "sb": 10,
+    "bb": 20,
+    "buyIn": 2000,
+    "reads": true,
+    "attributes": "off",
+    "model": null,
+    "modelB": null,
+    "route": true
+  },
+  "attributes": {
+    "setting": "off",
+    "seatAValue": 50,
+    "seatBValue": 50,
+    "impact": 0
+  },
+  "profiles": {
+    "Nit": {
+      "strategy": "You are a tight, patient player. Favor premium hands and strong holdings; skip marginal spots. Follow the RANGE line the server gives you rather than a fixed hand list — 'inside your range' means you can play, 'outside' means you can fold. Value bet made hands two streets; rarely bluff.",
+      "profile": {
+        "tightness": 88,
+        "aggression": 50,
+        "bluffFreq": 8,
+        "discipline": 85
+      }
+    },
+    "Loose Cannon": {
+      "strategy": "You are a loose-aggressive pressure player. Attack pots often, but do not attack blindly — follow the sizing and BLUFF DIE hints the server gives. When the BLUFF DIE says NO or the raise counter is 2+ this street, don't just fire another raise — call, pot-control, or jam based on the spot. Calling is a legitimate action when the price is right; the goal is variance, not autoraise.",
+      "profile": {
+        "tightness": 12,
+        "aggression": 85,
+        "bluffFreq": 55,
+        "discipline": 30
+      }
+    },
+    "TAG": {
+      "strategy": "You are a disciplined tight-aggressive player. Open raise premium and strong hands preflop, fold junk, defend selectively. Postflop, value bet strong hands for two streets, bluff on dry boards in position, fold to sustained aggression without a strong made hand. Balanced, patient, but assertive when ahead.",
+      "profile": {
+        "tightness": 70,
+        "aggression": 70,
+        "bluffFreq": 30,
+        "discipline": 80
+      }
+    },
+    "Calling Station": {
+      "strategy": "You are a passive player who loves to see cards. Call almost everything preflop with any two suited cards, connectors, or any pair. Postflop, call bets with any pair or draw. You almost never raise unless you flop the nuts. You almost never fold once you have a piece of the flop.",
+      "profile": {
+        "tightness": 15,
+        "aggression": 5,
+        "bluffFreq": 3,
+        "discipline": 40
+      }
+    }
+  },
+  "matchups": [
+    {
+      "a": "Nit",
+      "b": "Loose Cannon",
+      "Nit": {
+        "hands": 120,
+        "netChips": 2048,
+        "bb100": 85.33,
+        "ci95": 328.35,
+        "vpip": 35.4,
+        "pfr": 5.3,
+        "af": 0.8,
+        "foldRate": 20.2,
+        "fallbackRate": 0,
+        "decisions": 346,
+        "model": "claude-haiku-4-5",
+        "inTok": 196424,
+        "outTok": 9185,
+        "usd": 0.2423,
+        "usdPer100": 0.202,
+        "unpriced": 0,
+        "callsPer100": 160.8,
+        "decisionsPer100": 288.3,
+        "policyPct": 44.2
+      },
+      "Loose Cannon": {
+        "hands": 120,
+        "netChips": -2048,
+        "bb100": -85.33,
+        "ci95": 328.35,
+        "vpip": 80,
+        "pfr": 50,
+        "af": 2.09,
+        "foldRate": 5,
+        "fallbackRate": 0,
+        "decisions": 279,
+        "model": "claude-haiku-4-5",
+        "inTok": 141574,
+        "outTok": 8425,
+        "usd": 0.1837,
+        "usdPer100": 0.1531,
+        "unpriced": 0,
+        "callsPer100": 117.5,
+        "decisionsPer100": 232.5,
+        "policyPct": 49.5
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "TAG",
+      "Nit": {
+        "hands": 120,
+        "netChips": 6204,
+        "bb100": 258.5,
+        "ci95": 269.72,
+        "vpip": 40.7,
+        "pfr": 6.6,
+        "af": 0.82,
+        "foldRate": 13.8,
+        "fallbackRate": 0.3,
+        "decisions": 326,
+        "model": "claude-haiku-4-5",
+        "inTok": 165491,
+        "outTok": 8083,
+        "usd": 0.2059,
+        "usdPer100": 0.1716,
+        "unpriced": 0,
+        "callsPer100": 140.8,
+        "decisionsPer100": 271.7,
+        "policyPct": 48.2
+      },
+      "TAG": {
+        "hands": 120,
+        "netChips": -6204,
+        "bb100": -258.5,
+        "ci95": 269.72,
+        "vpip": 45.2,
+        "pfr": 12.9,
+        "af": 1.86,
+        "foldRate": 12.2,
+        "fallbackRate": 0.3,
+        "decisions": 303,
+        "model": "claude-haiku-4-5",
+        "inTok": 162978,
+        "outTok": 8492,
+        "usd": 0.2054,
+        "usdPer100": 0.1712,
+        "unpriced": 0,
+        "callsPer100": 136.7,
+        "decisionsPer100": 252.5,
+        "policyPct": 45.9
+      }
+    },
+    {
+      "a": "Nit",
+      "b": "Calling Station",
+      "Nit": {
+        "hands": 120,
+        "netChips": -3332,
+        "bb100": -138.83,
+        "ci95": 217.55,
+        "vpip": 28.8,
+        "pfr": 7.6,
+        "af": 1.6,
+        "foldRate": 8.5,
+        "fallbackRate": 0,
+        "decisions": 411,
+        "model": "claude-haiku-4-5",
+        "inTok": 232728,
+        "outTok": 9984,
+        "usd": 0.2826,
+        "usdPer100": 0.2355,
+        "unpriced": 0,
+        "callsPer100": 169.2,
+        "decisionsPer100": 342.5,
+        "policyPct": 50.6
+      },
+      "Calling Station": {
+        "hands": 120,
+        "netChips": 3332,
+        "bb100": 138.83,
+        "ci95": 217.55,
+        "vpip": 69.3,
+        "pfr": 0,
+        "af": 0.38,
+        "foldRate": 2.6,
+        "fallbackRate": 0,
+        "decisions": 382,
+        "model": "claude-haiku-4-5",
+        "inTok": 172358,
+        "outTok": 8561,
+        "usd": 0.2152,
+        "usdPer100": 0.1793,
+        "unpriced": 0,
+        "callsPer100": 145.8,
+        "decisionsPer100": 318.3,
+        "policyPct": 54.2
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "TAG",
+      "Loose Cannon": {
+        "hands": 120,
+        "netChips": 1050,
+        "bb100": 43.75,
+        "ci95": 439.26,
+        "vpip": 70.2,
+        "pfr": 36.2,
+        "af": 1.74,
+        "foldRate": 8.5,
+        "fallbackRate": 0,
+        "decisions": 318,
+        "model": "claude-haiku-4-5",
+        "inTok": 173716,
+        "outTok": 9958,
+        "usd": 0.2235,
+        "usdPer100": 0.1863,
+        "unpriced": 0,
+        "callsPer100": 144.2,
+        "decisionsPer100": 265,
+        "policyPct": 45.6
+      },
+      "TAG": {
+        "hands": 120,
+        "netChips": -1050,
+        "bb100": -43.75,
+        "ci95": 439.26,
+        "vpip": 40.4,
+        "pfr": 11.5,
+        "af": 1.2,
+        "foldRate": 17.4,
+        "fallbackRate": 0,
+        "decisions": 351,
+        "model": "claude-haiku-4-5",
+        "inTok": 205239,
+        "outTok": 11037,
+        "usd": 0.2604,
+        "usdPer100": 0.217,
+        "unpriced": 0,
+        "callsPer100": 174.2,
+        "decisionsPer100": 292.5,
+        "policyPct": 40.5
+      }
+    },
+    {
+      "a": "Loose Cannon",
+      "b": "Calling Station",
+      "Loose Cannon": {
+        "hands": 120,
+        "netChips": 9052,
+        "bb100": 377.17,
+        "ci95": 262.85,
+        "vpip": 79.1,
+        "pfr": 46.1,
+        "af": 3.38,
+        "foldRate": 1.5,
+        "fallbackRate": 0,
+        "decisions": 468,
+        "model": "claude-haiku-4-5",
+        "inTok": 250873,
+        "outTok": 11851,
+        "usd": 0.3101,
+        "usdPer100": 0.2584,
+        "unpriced": 0,
+        "callsPer100": 176.7,
+        "decisionsPer100": 390,
+        "policyPct": 54.7
+      },
+      "Calling Station": {
+        "hands": 120,
+        "netChips": -9052,
+        "bb100": -377.17,
+        "ci95": 262.85,
+        "vpip": 62.9,
+        "pfr": 4.3,
+        "af": 0.2,
+        "foldRate": 4.1,
+        "fallbackRate": 0.2,
+        "decisions": 581,
+        "model": "claude-haiku-4-5",
+        "inTok": 343262,
+        "outTok": 15710,
+        "usd": 0.4218,
+        "usdPer100": 0.3515,
+        "unpriced": 0,
+        "callsPer100": 270,
+        "decisionsPer100": 484.2,
+        "policyPct": 44.2
+      }
+    },
+    {
+      "a": "TAG",
+      "b": "Calling Station",
+      "TAG": {
+        "hands": 120,
+        "netChips": -216,
+        "bb100": -9,
+        "ci95": 354.16,
+        "vpip": 43.7,
+        "pfr": 15.1,
+        "af": 2.07,
+        "foldRate": 5.9,
+        "fallbackRate": 0,
+        "decisions": 443,
+        "model": "claude-haiku-4-5",
+        "inTok": 272759,
+        "outTok": 12355,
+        "usd": 0.3345,
+        "usdPer100": 0.2788,
+        "unpriced": 0,
+        "callsPer100": 196.7,
+        "decisionsPer100": 369.2,
+        "policyPct": 46.7
+      },
+      "Calling Station": {
+        "hands": 120,
+        "netChips": 216,
+        "bb100": 9,
+        "ci95": 354.16,
+        "vpip": 65.3,
+        "pfr": 1,
+        "af": 0.38,
+        "foldRate": 1.9,
+        "fallbackRate": 0.2,
+        "decisions": 463,
+        "model": "claude-haiku-4-5",
+        "inTok": 233876,
+        "outTok": 11410,
+        "usd": 0.2909,
+        "usdPer100": 0.2424,
+        "unpriced": 0,
+        "callsPer100": 199.2,
+        "decisionsPer100": 385.8,
+        "policyPct": 48.4
+      }
+    }
+  ],
+  "perAgent": {
+    "Nit": {
+      "hands": 360,
+      "netChips": 4920,
+      "bb100": 68.33,
+      "ci95": 160.02,
+      "vpip": 34.5,
+      "pfr": 6.5,
+      "af": 1,
+      "foldRate": 13.9,
+      "fallbackRate": 0.1,
+      "decisions": 1083,
+      "model": "claude-haiku-4-5",
+      "inTok": 594643,
+      "outTok": 27252,
+      "usd": 0.7309,
+      "usdPer100": 0.203,
+      "unpriced": 0,
+      "callsPer100": 156.9,
+      "decisionsPer100": 300.8,
+      "policyPct": 47.8
+    },
+    "Loose Cannon": {
+      "hands": 360,
+      "netChips": 8054,
+      "bb100": 111.86,
+      "ci95": 203.59,
+      "vpip": 76.6,
+      "pfr": 44.1,
+      "af": 2.38,
+      "foldRate": 4.5,
+      "fallbackRate": 0,
+      "decisions": 1065,
+      "model": "claude-haiku-4-5",
+      "inTok": 566163,
+      "outTok": 30234,
+      "usd": 0.7173,
+      "usdPer100": 0.1993,
+      "unpriced": 0,
+      "callsPer100": 146.1,
+      "decisionsPer100": 295.8,
+      "policyPct": 50.6
+    },
+    "TAG": {
+      "hands": 360,
+      "netChips": -7470,
+      "bb100": -103.75,
+      "ci95": 207.93,
+      "vpip": 43,
+      "pfr": 13.3,
+      "af": 1.68,
+      "foldRate": 11.3,
+      "fallbackRate": 0.1,
+      "decisions": 1097,
+      "model": "claude-haiku-4-5",
+      "inTok": 640976,
+      "outTok": 31884,
+      "usd": 0.8004,
+      "usdPer100": 0.2223,
+      "unpriced": 0,
+      "callsPer100": 169.2,
+      "decisionsPer100": 304.7,
+      "policyPct": 44.5
+    },
+    "Calling Station": {
+      "hands": 360,
+      "netChips": -5504,
+      "bb100": -76.44,
+      "ci95": 166.14,
+      "vpip": 65.6,
+      "pfr": 2,
+      "af": 0.3,
+      "foldRate": 3,
+      "fallbackRate": 0.1,
+      "decisions": 1426,
+      "model": "claude-haiku-4-5",
+      "inTok": 749496,
+      "outTok": 35681,
+      "usd": 0.9279,
+      "usdPer100": 0.2578,
+      "unpriced": 0,
+      "callsPer100": 205,
+      "decisionsPer100": 396.1,
+      "policyPct": 48.2
+    }
+  },
+  "routes": {
+    "Nit": {
+      "total": 1083,
+      "policy": 518,
+      "model": 565,
+      "byReason": {
+        "clear": 518,
+        "options": 99,
+        "bigPot": 42,
+        "river": 217,
+        "close": 203,
+        "allin": 4
+      }
+    },
+    "Loose Cannon": {
+      "total": 1065,
+      "policy": 539,
+      "model": 526,
+      "byReason": {
+        "clear": 539,
+        "bigPot": 68,
+        "allin": 6,
+        "options": 88,
+        "river": 207,
+        "close": 157
+      }
+    },
+    "TAG": {
+      "total": 1097,
+      "policy": 488,
+      "model": 609,
+      "byReason": {
+        "close": 186,
+        "clear": 488,
+        "options": 144,
+        "river": 208,
+        "bigPot": 59,
+        "allin": 12
+      }
+    },
+    "Calling Station": {
+      "total": 1426,
+      "policy": 688,
+      "model": 738,
+      "byReason": {
+        "close": 331,
+        "clear": 688,
+        "river": 352,
+        "options": 36,
+        "bigPot": 17,
+        "allin": 2
+      }
+    }
+  },
+  "routeEnabled": true,
+  "elapsedSec": 3452.7,
+  "apiKeyPresent": true,
+  "model": "claude-haiku-4-5",
+  "models": {
+    "a": "claude-haiku-4-5",
+    "b": "claude-haiku-4-5"
+  },
+  "providers": {
+    "a": "anthropic",
+    "b": "anthropic"
+  },
+  "prices": {
+    "a": {
+      "in": 1,
+      "out": 5
+    },
+    "b": {
+      "in": 1,
+      "out": 5
+    }
+  }
+}
