@@ -94,3 +94,45 @@ test('LIFE-1: a seat with nothing behind it reads rested and level, not blank', 
   assert.equal(body.heat.level, 'level');
   assert.equal(body.stamina.label, STAMINA_LABELS.fresh);
 });
+
+// ── AGENT-5 job I · the hysteresis, in the module the client draws from ─────
+//
+// levelFromReserve copied stamina.js's two thresholds and not its third rule.
+// Half a rule in a shared module is a screen that can disagree with the server
+// about one man, in exactly the case an owner is looking hardest: two snacks
+// in, reserve 50, and he wants to know whether it worked.
+
+// stamina.js is the server's and levels.js deliberately does not import it —
+// see the note by the constants. So the two are walked against each other here
+// instead, which is the only thing keeping the copy honest.
+const { SETTLED_AT, WORN_AT, staminaStage } = await import('../agent/stamina.js');
+
+test('AGENT-5 job I: a worn record stays worn until the reserve is back to rested', () => {
+  // Two snacks from empty. The bare thresholds say he is settled; the rule
+  // says he is still asleep, and the rule is what the deploy gate uses.
+  assert.equal(levelFromReserve(50), 'settled');
+  assert.equal(levelFromReserve(50, 'worn'), 'worn');
+
+  assert.equal(levelFromReserve(SETTLED_AT - 1, 'worn'), 'worn');
+  assert.equal(levelFromReserve(SETTLED_AT, 'worn'), 'fresh', 'and the third snack wakes him');
+  assert.equal(levelFromReserve(WORN_AT, 'worn'), 'worn', 'clearing WORN_AT is not waking up');
+});
+
+test('AGENT-5 job I: it mirrors staminaStage rather than approximating it', () => {
+  // The two are separate files on purpose (see the note by the constants), so
+  // the only thing that keeps them honest is a case that walks both.
+  for (let v = 0; v <= 100; v += 1) {
+    for (const was of [null, 'fresh', 'settled', 'worn']) {
+      assert.equal(levelFromReserve(v, was), staminaStage(v, was), `reserve ${v}, was ${was}`);
+    }
+  }
+});
+
+test('AGENT-5 job I: a stage still beats a reserve, history or no history', () => {
+  // The existing rule, re-stated against the new argument: a caller that has
+  // the word does not get it overridden by a number and a guess.
+  assert.equal(staminaLevel({ stage: 'fresh', value: 10, was: 'worn' }).level, 'fresh');
+  assert.equal(staminaLevel({ value: 50, was: 'worn' }).level, 'worn');
+  assert.equal(staminaLevel({ value: 50 }).level, 'settled');
+  assert.equal(staminaLevel({ value: 50, was: 'worn' }).dots, 1);
+});

@@ -91,12 +91,23 @@ const num = (v) => {
  *
  * Neither given is 'fresh' with a null value — an agent nobody has measured is
  * not a tired agent.
+ *
+ * AGENT-5 job I — `was` IS THE THIRD THING A RESERVE CANNOT TELL YOU.
+ *
+ * A caller with only a number is asking a question the number cannot answer on
+ * its own, and the reason is in stamina.js: `staminaStage` has HYSTERESIS.
+ * Once worn he stays worn until the reserve is back to SETTLED_AT, not until
+ * it clears WORN_AT. So reserve 50 is 'settled' for a man who was fine an hour
+ * ago and 'worn' for a man who was asleep, and nothing about the 50 says
+ * which. Passing the stored stage is how a value-only caller gets the right
+ * answer; passing nothing keeps the old, thresholds-only reading, which is
+ * correct for an agent with no history and wrong for exactly one case.
  */
-export function staminaLevel({ stage = null, value = null } = {}) {
+export function staminaLevel({ stage = null, value = null, was = null } = {}) {
   const v = num(value);
   const level = STAMINA_LEVELS.includes(stage)
     ? stage
-    : (v === null ? 'fresh' : levelFromReserve(v));
+    : (v === null ? 'fresh' : levelFromReserve(v, was));
   return {
     level,
     dots: STAMINA_LEVELS.indexOf(level) + 1,
@@ -112,9 +123,24 @@ export function staminaLevel({ stage = null, value = null } = {}) {
 export const STAMINA_SETTLED_AT = 67;
 export const STAMINA_WORN_AT = 34;
 
-export function levelFromReserve(value) {
+/**
+ * The stage a bare reserve reads as — AND THE HYSTERESIS, which this function
+ * did not have.
+ *
+ * AGENT-5 job I. The thresholds here were kept numerically identical to
+ * stamina.js's on purpose (see the constants above) and the ASYMMETRY was the
+ * bug waiting to happen: staminaStage's rule is not two thresholds, it is two
+ * thresholds plus "once worn, worn until SETTLED_AT". Half of a rule copied
+ * into the module the client draws from is a screen that can disagree with the
+ * server about one man, and disagree in exactly the case an owner is looking
+ * hardest — two snacks in, reserve 50, still asleep.
+ *
+ * `was` is his stored stage. Mirrors staminaStage(left, was) line for line.
+ */
+export function levelFromReserve(value, was = null) {
   const v = num(value);
   if (v === null) return 'fresh';
+  if (was === 'worn') return v >= STAMINA_SETTLED_AT ? 'fresh' : 'worn';
   if (v >= STAMINA_SETTLED_AT) return 'fresh';
   if (v >= STAMINA_WORN_AT) return 'settled';
   return 'worn';
@@ -147,9 +173,9 @@ export function heatLevel(value) {
  * a human) passes nothing and gets the resting reading, which is what those
  * seats already report for mood.
  */
-export function bodyLevels({ stage = null, stamina = null, heat = null } = {}) {
+export function bodyLevels({ stage = null, stamina = null, heat = null, was = null } = {}) {
   return {
-    stamina: staminaLevel({ stage, value: stamina }),
+    stamina: staminaLevel({ stage, value: stamina, was }),
     heat: heatLevel(heat),
   };
 }

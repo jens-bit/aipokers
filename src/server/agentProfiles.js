@@ -2702,6 +2702,12 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     body: bodyLevels({
       stage: fatigue,
       stamina: staminaPercent(agent, { now: Date.now(), resting: !seatedNow }),
+      // AGENT-5 job I: his STORED stage as well as the number. `stage` above
+      // already wins, so this changes nothing for this call — it is here so
+      // that a surface reading `body.stamina.value` and re-deriving a word
+      // from it gets the hysteresis rather than the two bare thresholds. The
+      // reserve alone cannot tell 50-on-the-way-up from 50-on-the-way-down.
+      was: agent.stamina?.stage ?? null,
       heat: agent.mood?.heat ?? null,
     }),
     sessionHands,

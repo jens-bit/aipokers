@@ -144,6 +144,37 @@ describe('BodyDots on its own', () => {
     expect([...worn.querySelectorAll('.body-dots__dot')].at(0).style.background).toBe(rgb(STAMINA_SPENT));
   });
 
+  // ── AGENT-5 job I ────────────────────────────────────────────────────────
+  //
+  // THE DOT AN OWNER LOOKS AT AFTER FEEDING HIM TWICE.
+  //
+  // Two snacks from empty is reserve 50, which is over WORN_AT (34) and short
+  // of SETTLED_AT (67). The bare thresholds call that "settled in"; the rule
+  // the server plays by calls it worn, because staminaStage keeps a worn man
+  // worn until he is back to rested. A dot that says SETTLED IN while the
+  // deploy door is still shut is the product contradicting itself in the one
+  // moment an owner is checking whether the thing he bought worked.
+  it('draws a worn dot for a man two snacks into an empty reserve', () => {
+    const { container } = render(
+      <BodyDots kind="stamina" reading={staminaLevel({ value: 50, was: 'worn' })} />,
+    );
+    const lit = [...container.querySelectorAll('.body-dots__dot')]
+      .filter((d) => d.style.background && d.style.background !== 'transparent');
+    expect(lit.length).toBe(1);
+    expect(lit[0].style.background).toBe(rgb(STAMINA_SPENT));
+    expect(staminaLevel({ value: 50, was: 'worn' }).label).toBe('Worn out');
+  });
+
+  it('and the stage still wins when the projection carries one', () => {
+    // Which it always does — presentAgent sends `stage` alongside the number.
+    // This is the belt to that brace: a value-only caller now gets the same
+    // answer the server would have given.
+    const byWord = staminaLevel({ stage: 'worn', value: 50 });
+    const byNumber = staminaLevel({ value: 50, was: 'worn' });
+    expect(byNumber.level).toBe(byWord.level);
+    expect(byNumber.dots).toBe(byWord.dots);
+  });
+
   it('colours a level heat dot as an ember and a steaming one fire', () => {
     const { container: cool } = render(<BodyDots kind="heat" reading={heatLevel(10)} />);
     const { container: hot } = render(<BodyDots kind="heat" reading={heatLevel(90)} />);
