@@ -85,6 +85,25 @@ it('AGENT-1: an away agent can be watched but cannot be carried from the casino'
   expect(screen.getByRole('button', { name: 'Carry' })).toBeDisabled();
 });
 
+it('TABLE-1 job F: opening his room mid-hand shows his own two cards, not just his figure', async () => {
+  const live = { ...agent, activeTableId: 't1', status: 'playing', location: { where: 'table', tableId: 't1' },
+    liveGame: { tableId: 't1', street: 'flop', pot: 480, board: ['Ah', 'Kd', '2c'], heroHole: ['Jh', 'Jd'], dealtIn: true } };
+  show({ agent: live });
+  const hole = await screen.findByTestId('agent-view-hole');
+  expect(hole.querySelectorAll('svg')).toHaveLength(2);
+});
+
+it('TABLE-1 job F: draws nothing when he is not owned, not dealt in, or not holding two cards', async () => {
+  show({ agent }); // resting at home: no liveGame at all
+  expect(screen.queryByTestId('agent-view-hole')).not.toBeInTheDocument();
+
+  const noHole = { ...agent, activeTableId: 't1', status: 'playing', location: { where: 'table', tableId: 't1' },
+    liveGame: { tableId: 't1', street: 'flop', pot: 480, board: ['Ah', 'Kd', '2c'], heroHole: null, dealtIn: true } };
+  const { unmount } = show({ agent: noHole });
+  expect(screen.queryByTestId('agent-view-hole')).not.toBeInTheDocument();
+  unmount();
+});
+
 it('BUG-61: a refused want remains answerable and reports the failure', async () => {
   fetchMock.route('/api/agents/a1/want', { status: 503, body: { error: 'Unavailable' } });
   show({ agent: { ...agent, want: { text: 'Let me back in.' } } });

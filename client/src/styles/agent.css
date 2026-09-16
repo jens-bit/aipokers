@@ -22,6 +22,11 @@
 .agent-view__body .home-pill__bars{width:52px}
 .agent-view__breath{position:relative;width:178px;height:178px;animation:agentBreathe 4.2s ease-in-out infinite}
 .agent-view__hands{position:absolute;inset:0;overflow:visible;pointer-events:none}
+/* TABLE-1 job F: his own two cards, over the lower third of him — the same
+   spot WatchHero gives the felt's hero, so a viewer who has seen him play
+   recognises the pose here too. */
+.agent-view__hole{position:absolute;left:50%;top:66%;transform:translateX(-50%);display:flex;gap:2px;z-index:2;pointer-events:none}
+.agent-view__hole-card{filter:drop-shadow(0 2px 6px rgba(0,0,0,0.6))}
 .agent-view__bottle{position:absolute;left:calc(36.4% + 84px);bottom:75px;width:11px;height:30px}
 .agent-view__bottle i{position:absolute;left:3px;top:0;width:5px;height:9px;border-radius:1px;background:#3E5B32}
 .agent-view__bottle b{position:absolute;left:0;top:8px;width:11px;height:22px;border-radius:2px 2px 3px 3px;background:linear-gradient(100deg,#4A6B3A,#2C4222);border:1px solid #0006}
