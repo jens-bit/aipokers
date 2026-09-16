@@ -1,5 +1,49 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## TABLE-1 — the in-hand felt stops jumping, labels the felt evenly — local candidate (2026-09-16)
+
+- **The screen stops jumping (JOB A).** `ActionNarrator` used to contribute
+  no DOM node at all when it had nothing to narrate, then a real ~29px box
+  the moment a hand settled or an action landed. It sits between the felt
+  (flex:1) and the composer, so that difference was the felt's own height —
+  and everything positioned against the felt (the hero strip, its
+  stamina/heat row, the pot, the board) shifted by the same amount every
+  time. It is mounted always now, at one reserved height. The hand-name
+  column's own reserved width also grows from a guessed 150px to the real
+  measured width of handName()'s longest output ("two pair, threes and
+  sevens"), so the one hand worth reading in full no longer gets cut.
+  Regression: `client/e2e/table1-jobA.spec.js` drives a hand through every
+  street plus an opponent check, a hero call and (separately) a hero fold,
+  asserting the stamina/heat row's bounding box never moves.
+- **Job B not reproduced.** The reported title-cased duplicate hand name
+  ("Two Pair, J's & 10's" beside the readable lowercase copy) does not exist
+  anywhere in the code — the strip has exactly one hand-name reading, already
+  in the readable, unabbreviated form the report asked to keep. Nothing
+  changed for this job; see BUGS.md.
+- **The win card, not the pot, states the pot (JOB C).** The standing pot
+  pill used to stay up through a major win, dimmed but legible, printing the
+  same figure the celebrating card already states a few px above it —
+  ordinaryWin already dropped the pill outright on settle; majorWin now does
+  too, so the amount is only ever said once.
+- **Preflop draws no board (JOB D).** The board row always rendered five
+  card backs, including at preflop where there is no board at all yet. It
+  now draws nothing until the flop, the same "there is no board to see"
+  reading between-hands already gets. The flop/turn/river staged reveal is
+  unchanged.
+- **Both sides of the felt read the same way (JOB E).** An opponent's chip
+  pile and every bet spot (his and the hero's) are labelled STACK / BET the
+  same way the hero's stack already was, instead of a bare figure on one
+  side and a labelled block on the other.
+- **His own room shows his own cards (JOB F).** Opening an agent's profile
+  mid-hand now draws his live hole cards over his figure when he is dealt in
+  — `agent.liveGame.heroHole`, already on the wire and owner-gated, just
+  never drawn here.
+- **Job G blocked, not fixed.** The felt-doesn't-draw-the-rake request
+  (MONEY-2's real BUG-218, on `origin/main`) cannot be done on this branch:
+  the rake feature itself has not merged into `fix/ui-3` yet, and this
+  branch's own BUG-218 is already a different, closed UI-3 bug. See BUG-219
+  in BUGS.md.
+
 ## UI-3 — one room, real monitors, readable money, want he can act on — local candidate (2026-09-15)
 
 - **The casino is a single room (JOB A).** The three doorways (the floor,
