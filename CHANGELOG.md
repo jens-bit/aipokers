@@ -58,6 +58,29 @@ stated a fact and left the owner holding nothing now name the remedy.
 `npm run test:e2e` 7/7, `npm run talk:eval` 232/232, `npm run test:home2`
 20/20, `node scripts/audit-chips.js` exit 0 on a fresh scratch DB.
 
+## SPEC-1 — the casino gate describes the one-room casino (2026-09-16)
+
+One commit on `fix/spec-1`, branched from `fix/ui-3`. Gate files only —
+`scripts/casino2.spec.js`, `client/e2e/desk.spec.js`, `scripts/smoke.spec.js`
+and three `desk3-casino*` screenshots. No product code, no new dependencies.
+
+- **The gate had stopped describing the product.** UI-3 job A merged the
+  casino's three rooms into one floor and deleted the Floor|Board toggle, the
+  doors and the board. Every block that reached the room through them had not
+  run since — not failing, just never arriving. Re-expressed against the
+  layout that is actually there.
+- **Which is how BUG-232 was found.** `desk.spec.js`'s BUG-125 camera block
+  reached the room through the deleted toggle. Pointed at the room the casino
+  now opens on, both phone widths went red on claims UI-3 never said it was
+  retiring: at 390x844 the zoomed room measures 309px of an 844px phone (36%)
+  against BUG-125's own rule of more than 65%, and at 390x590 the only felt in
+  the room cannot be pinched at all. Per Testing law #6 both cases stay in the
+  file with their assertions verbatim, marked `test.fixme` and titled
+  `BUG-232:`; 1440x900 still runs and still covers the camera. The 65% is not
+  to be loosened — it is the whole claim.
+  *(Filed on the branch as BUG-219; renumbered at MERGE-14 because AGENT-4 had
+  already spent 219 on main, and the two fixme titles were renamed with it.)*
+
 ## TABLE-2 — the opponent card stacks correctly, the STATS tab gets bars — local candidate (2026-09-16)
 
 - **The opened card sits above the felt (JOB A).** Tapping an opponent drew

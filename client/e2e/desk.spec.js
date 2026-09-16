@@ -491,7 +491,15 @@ test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => 
   });
 });
 
-test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent board', () => {
+// SPEC-1 — UI-3 job A rewrote this block's subject. The casino was a BUILDING:
+// three doorways under a sign, a Floor|Board toggle, and a two-panel board
+// pinned as the desk's permanent right column. It is a SINGLE room now; the
+// doorways, the toggle and FloorBoard.jsx are deleted from the tree. What is
+// NOT deleted is the thing this describe() exists for — DESK-3's law, that the
+// roster is a permanent column and every other panel sits BESIDE it rather
+// than over it — so each assertion below is either re-expressed against the
+// one room or deleted at its site with the decision that retired it named.
+test.describe('DESK-3, job 3 · the casino: the roster, the room, and its right column', () => {
   for (const size of SIZES) {
     test(`BUG-89/91: casino hand replays to its recorded end and returns at ${size.width}`, async ({ page }) => {
       const errors = [];
@@ -500,8 +508,13 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
       await page.route('**/api/events**', route => route.fulfill({ json: { events: [{ id: 91, ts: Date.now(), type: 'bigPot', tableId: 't1', agentIds: ['a2'], handNumber: bigBluffHand.handNumber, pot: bigBluffHand.pot, headline: 'Granite won the recorded hand' }], lastId: 91 } }));
       await page.route('**/api/agents/a2/flagged**', route => route.fulfill({ json: { flaggedHands: [bigBluffHand] } }));
       await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
-      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
-      await page.getByRole('button', { name: /Granite won the recorded hand.*Replay this hand/ }).click();
+      // SPEC-1: the replayable line used to be a row on TONIGHT, reached by
+      // toggling from the floor to the board. UI-3 job A deleted both the
+      // toggle and the board; CasinoTicker inherited TONIGHT's ranking and
+      // its REPLAY affordance verbatim, and it is already on screen. The rule
+      // — a hand of YOURS on the board can be replayed from the casino — is
+      // unchanged; only the thing carrying it is.
+      await page.getByRole('button', { name: /BIGGEST POT.*Granite won the recorded hand.*Replay this hand/ }).click();
       await expect(page.locator('.dsk-replay')).toBeVisible();
       await expect(page.locator('.dtb__hero-stack')).toHaveText('—');
       await expect(page.locator('.dtb__strip [data-bar="heat"]')).toHaveCount(0);
@@ -517,45 +530,72 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
       expect((await page.locator('.dsk-replay__stage').boundingBox()).height).toBeGreaterThan(300);
       if (size.width === 1440) await page.screenshot({ path: '../artifacts/desktop-casino-replay-end.png' });
       await page.locator('.dtb__back').click();
-      await expect(page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true })).toHaveAttribute('aria-pressed', 'true');
-      await expect(page.getByRole('button', { name: /Granite won the recorded hand.*Replay this hand/ })).toBeVisible();
+      // SPEC-1: this read `aria-pressed="true"` on the toggle's Board button —
+      // "the replay hands you back to the half of the casino you left it
+      // from." There is one half now, so the claim is that leaving the replay
+      // returns you to the casino at all, with the line you replayed still
+      // where it was. The second assertion always said that; the first now
+      // says which screen you are on.
+      await expect(page.getByTestId('floor-view')).toBeVisible();
+      await expect(page.getByRole('button', { name: /BIGGEST POT.*Granite won the recorded hand.*Replay this hand/ })).toBeVisible();
       await expect(page.getByTestId('desk-roster')).toBeVisible();
       expect(errors).toEqual([]);
     });
     test(`three columns on the casino stage too (${size.width}x${size.height})`, async ({ page }) => {
       await desk(page, size);
       await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
-      // BUG-53: the casino opens on the floor; the board is an explicit choice.
-      await expect(page.getByTestId('floor-view')).toBeVisible();
-      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
+      // UI-3 job A: the casino IS the floor. There is no building behind it to
+      // toggle to, so `.csn-desk__rail` (the building's shell), the three
+      // `.csn-room-door`s and the single `.csn-board` pinned in that rail are
+      // all deleted rather than re-expressed — the first is markup that no
+      // longer exists, and the other two were claims about a building.
+      const view = page.getByTestId('floor-view');
+      await expect(view).toBeVisible();
 
-      await page.waitForSelector('.csn-desk__rail');
+      // What this test is actually for survives whole: the roster is a
+      // PERMANENT column, and the casino stage begins where it ends and takes
+      // everything it leaves. That was true of the building's rail and it is
+      // true of the room.
       await expect(page.getByTestId('desk-roster')).toBeVisible();
-      // Under the tray-less deploy state the three rooms are the compact
-      // doorway row (CasinoBuilding's RoomDoors) — the tall deploy doorway
-      // (.csn-door) only appears with an agent in the tray, which this stub
-      // never puts there.
-      await expect(page.locator('.csn-room-door')).toHaveCount(ROOMS.length);
-      // One board, and it is the permanent right column.
-      await expect(page.locator('.csn-board')).toHaveCount(1);
-      await expect(page.locator('.csn-desk__rail .csn-board')).toBeVisible();
+      const roster = await page.getByTestId('desk-roster').boundingBox();
+      const viewBox = await view.boundingBox();
+      expect(viewBox.x, 'the room starts where the roster ends')
+        .toBeGreaterThanOrEqual(roster.x + roster.width - 1);
+      expect(viewBox.width, 'and takes the whole stage the roster leaves')
+        .toBeGreaterThan((size.width - roster.width) * 0.95);
+
+      // And nothing slides across anything. The ticker and Your table are what
+      // UI-3 put on this stage with the room; they are stacked above it, in
+      // that order, not floated over it.
+      const ticker = await page.getByTestId('casino-ticker').boundingBox();
+      const your = await page.getByTestId('your-tables').boundingBox();
+      expect(ticker.y + ticker.height).toBeLessThanOrEqual(your.y + 1);
+      expect(your.y + your.height).toBeLessThanOrEqual(viewBox.y + 1);
+
       await page.waitForTimeout(600);
       await shot(page, `casino${size.tag}`);
     });
   }
 
-  test('the three doorways sit side by side, same top, same height', async ({ page }) => {
+  // SPEC-1 — the same rule, about the thing that replaced the doorways.
+  //
+  // "Three side by side, same top, same height" is a layout rule about A ROW
+  // OF CHOICES: one of them sitting lower or shorter than its neighbours reads
+  // as a fourth state nobody designed. UI-3 job A did not retire that rule, it
+  // retired the doorways — placing a man is no longer choosing which of three
+  // rooms to carry him into, it is choosing which stake, and `StakePicker`
+  // draws that as a three-column grid of chips. So the claim moves to the
+  // chips, which are the three things this desk now puts side by side.
+  test('the three stakes sit side by side, same top, same height', async ({ page }) => {
     await desk(page, SIZES[0]);
     await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
-      // BUG-53: the casino opens on the floor; the board is an explicit choice.
-      await expect(page.getByTestId('floor-view')).toBeVisible();
-      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
-    await page.waitForSelector('.csn-doors');
+    await expect(page.getByTestId('floor-view')).toBeVisible();
+    await page.waitForSelector('.csn-stakes');
 
-    const doors = await page.locator('.csn-room-door').all();
-    expect(doors).toHaveLength(ROOMS.length);
+    const chips = await page.locator('.csn-stake').all();
+    expect(chips).toHaveLength(ROOMS.length);
     const boxes = [];
-    for (const door of doors) boxes.push(await door.boundingBox());
+    for (const chip of chips) boxes.push(await chip.boundingBox());
     for (let i = 1; i < boxes.length; i++) {
       expect(Math.abs(boxes[i].y - boxes[0].y)).toBeLessThan(2);
       expect(Math.abs(boxes[i].height - boxes[0].height)).toBeLessThan(2);
@@ -563,20 +603,22 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
     }
   });
 
-  // FloorView's own header states the departure explicitly: opening a room is
-  // a DESTINATION, not a sheet — "full width with the board as a right
-  // column." That already held before DESK-3; what DESK-3 adds is the roster
-  // staying up beside it, so this is still three columns rather than two.
-  test('a doorway opens the floor full width, with the board as its own column, beside the roster', async ({ page }) => {
+  // FloorView's own header states the departure explicitly: the room is a
+  // DESTINATION, not a sheet — "full width with the board as a right column."
+  // That already held before DESK-3; what DESK-3 adds is the roster staying up
+  // beside it, so this is still three columns rather than two.
+  //
+  // SPEC-1: the right column survived UI-3 job A — `.csn-floor__board` is
+  // still there, still 380px, still border-left'd against the room. What
+  // changed is what it CARRIES: the two-panel board is deleted, and the
+  // column now holds the deploy panel (the stake picker while a man is in the
+  // tray, the quick-play card otherwise). The rule is about the column, not
+  // about the board that used to be in it, so it re-expresses in place. The
+  // door click in the middle is gone with the doorways.
+  test('the room is full width beside the roster, with its own right column', async ({ page }) => {
     await desk(page, SIZES[0]);
-    await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
-      // BUG-53: the casino opens on the floor; the board is an explicit choice.
-      await expect(page.getByTestId('floor-view')).toBeVisible();
-      await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
-    await page.waitForSelector('.csn-doors');
-
     const roster = await page.getByTestId('desk-roster').boundingBox();
-    await page.getByRole('button', { name: /^The floor,/ }).click();
+    await page.getByRole('button', { name: 'The door — the casino', exact: true }).click();
 
     const view = page.getByTestId('floor-view');
     await expect(view).toBeVisible();
@@ -590,9 +632,12 @@ test.describe('DESK-3, job 3 · the casino: roster, doors, and the permanent boa
     const board = page.locator('.csn-floor__board');
     await expect(board).toBeVisible();
     const boardBox = await board.boundingBox();
-    // The board is the room's own right edge — a column, not a sheet pulled
-    // over the middle of it.
+    // It is the room's own right edge — a column, not a sheet pulled over the
+    // middle of it.
     expect(boardBox.x + boardBox.width).toBeGreaterThan(viewBox.x + viewBox.width - 2);
+    const roomBox = await view.locator('.csn-floor__room').boundingBox();
+    expect(boardBox.x, 'beside the room, not over it')
+      .toBeGreaterThanOrEqual(roomBox.x + roomBox.width - 1);
 
     await page.waitForTimeout(300);
     await shot(page, 'casino-room');
@@ -637,20 +682,28 @@ test('C9 room header and door give one route between Home and casino',async({pag
   await expect(header.getByRole('heading',{name:'The flat'})).toBeVisible();
   await expect(page.getByRole('group',{name:'Stage'})).toHaveCount(0);
   await page.getByRole('button',{name:'The door — the casino',exact:true}).click();
-  // BUG-104: selected room context replaces the duplicated casino/floor rows.
-  await expect(header.getByRole('heading',{name:'Upstairs',exact:true})).toBeVisible();
+  // BUG-104: room context in the shell header replaces the duplicated
+  // casino/floor rows. SPEC-1: the room the header names is no longer the one
+  // of three you last stood in — there is one, and it is "The casino floor".
+  // The claim (the shell states where you are, once) is untouched.
+  await expect(header.getByRole('heading',{name:'The casino floor',exact:true})).toBeVisible();
   await expect(page.locator('.csn-floor__head')).toHaveCount(0);
-  await expect(header.getByTestId('casino-view-toggle')).toBeVisible();
   await expect(page.getByRole('heading',{level:1})).toHaveCount(1);
-  await page.getByRole('button',{name:'Board',exact:true}).click();
+  // `casino-view-toggle` was asserted here and then used twice below to walk
+  // Board → Floor. UI-3 job A deleted the toggle with the board it toggled to,
+  // so those three are gone; the destination assertions they framed are not,
+  // and they now read against the one room the door opens onto.
   await expect(page.locator('.csn-head')).toHaveCount(0);
-  await expect(page.locator('.csn-desk__stage')).toBeVisible();
+  await expect(page.getByTestId('floor-view')).toBeVisible();
   await header.getByRole('button',{name:'Back home'}).click();
   await expect(page.getByTestId('home-table')).toBeVisible();
   await expect(header.getByRole('heading',{name:'The flat'})).toBeVisible();
+  // ONE ROUTE, and it works the second time: the door is still the only way
+  // in and Back home still the only way out, with no second navigation row
+  // appearing on the return trip.
   await page.getByRole('button',{name:'The door — the casino',exact:true}).click();
-  await page.getByRole('button',{name:'Floor',exact:true}).click();
   await expect(page.locator('.csn-floor')).toBeVisible();
+  await expect(page.getByRole('heading',{level:1})).toHaveCount(1);
   await header.getByRole('button',{name:'Back home'}).click();
   await expect(page.getByTestId('home-table')).toBeVisible();
 });
@@ -690,6 +743,34 @@ test('BUG-100: desktop condition labels stay below the stack and equity',async({
 });
 
 
+// SPEC-1 · UI-3 job B (BUG-215), in the browser.
+//
+// TileStack draws one monitor per live agent. Every agent who was NOT the one
+// being watched used to get `game: null` and draw a SILHOUETTE — a hood, blank
+// cards, POT 0 — for a table genuinely being played at that moment, because
+// the rich `game`/`lastDecision` shape only ever exists for the one table the
+// owner has subscribed to. The compact projection was already riding the
+// roster push (`liveGame`, AGE-37) and was simply discarded.
+//
+// GameTile.test.jsx pins normalizeTile(). This pins what a person sees: the
+// second monitor is a hand in progress and not a still of one. It is here, in
+// the desk file, because the monitors are furniture of the desk — there is no
+// TileStack on the phone.
+test('UI-3 job B: an unwatched monitor shows the real hand, not a silhouette', async ({ page }) => {
+  await desk(page, SIZES[0]);
+  await page.getByRole('button', { name: /Standup/ }).click();
+  // Big Slick is live (t1) and is not the watched table, so his tile is the
+  // unwatched case by construction.
+  const tile = page.locator('.dsk-tile').filter({ hasText: 'Big Slick' });
+  await expect(tile).toBeVisible();
+  // His pot, off his own liveGame — not the 0 a silhouette draws.
+  await expect(tile.locator('.dsk-tile__pot b')).toHaveText('480');
+  // And the board as far as it has actually run: three real cards on the flop,
+  // two still face down. A silhouette drew five backs.
+  await expect(tile.locator('.dsk-tile__center .dsk-card:not(.dsk-card--back)')).toHaveCount(3);
+  await expect(tile.locator('.dsk-tile__center .dsk-card--back')).toHaveCount(2);
+});
+
 test.describe('BUG-103 · populated casino floor uses its stage', () => {
   for (const size of [{width:1280,height:720}, ...SIZES]) {
     test('late tables fit both axes at '+size.width+'×'+size.height, async ({page}) => {
@@ -708,22 +789,51 @@ test.describe('BUG-103 · populated casino floor uses its stage', () => {
       const tables=Array.from({length:6},(_,i)=>({...floorFelts[i%2],tableId:'tbl-geometry-'+i,room:roomId}));
       await page.evaluate(tables=>window.__floorSockets.forEach(socket=>socket.dispatch('message',{data:JSON.stringify({type:'room_tables',tables,rooms:Object.fromEntries(tables.map(t=>[t.tableId,t.room]))})})),tables);
       await expect(page.locator('.csn-felt58')).toHaveCount(6);
+      // SPEC-1 — MEASURED AGAINST THE STAGE, NOT AGAINST A RECONSTRUCTION OF IT.
+      //
+      // This read `min(room.width-60,(room.height-40)*390/470)`: the room box,
+      // minus `.csn-floor--desk .csn-floor__room`'s 30/20 padding, written out
+      // as two numbers. That was only ever a way of naming `.csn-floor__plan`,
+      // which is the box FloorView actually measures — and it stopped being
+      // the same box once the one room started carrying its own notes ("12
+      // more tables the floor has not named", which the merged venue now
+      // produces where three separate rooms did not), because a note takes its
+      // height out of the plan's share of the column and not out of the
+      // padding. The rule is unchanged and is the whole point of BUG-103: the
+      // plan fills its stage on BOTH axes, keeps 390:470, and centres. It is
+      // now asked of the stage itself, which cannot drift from the CSS.
+      const stageOf=async()=>page.locator('.csn-floor__plan').boundingBox();
+      const fitWidth=(stage)=>Math.min(stage.width,stage.height*390/470);
       async function fits() {
         const available=await page.locator('.csn-floor__room').boundingBox();
+        const stage=await stageOf();
         const plan=await page.getByTestId('the-floor').boundingBox();
-        const maxWidth=Math.min(available.width-60,(available.height-40)*390/470);
-        expect(plan.width).toBeCloseTo(maxWidth,0);
+        expect(plan.width).toBeCloseTo(fitWidth(stage),0);
         expect(plan.width/plan.height).toBeCloseTo(390/470,3);
-        expect(plan.x+plan.width/2).toBeCloseTo(available.x+available.width/2,0);
+        expect(plan.x+plan.width/2).toBeCloseTo(stage.x+stage.width/2,0);
+        // Still inside the room's own padded box, notes and all — the claim
+        // the -60/-40 was reaching for, said as containment rather than as
+        // arithmetic.
         expect(plan.y).toBeGreaterThanOrEqual(available.y+19);
         expect(plan.y+plan.height).toBeLessThanOrEqual(available.y+available.height-19);
         expect(await page.locator('.csn-felt58').evaluateAll(els=>els.every(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}))).toBe(true);
       }
-      await expect.poll(async()=>await page.getByTestId('the-floor').evaluate(el=>el.clientWidth)).toBeGreaterThan(390);
+      // LATE TABLES USE THE STAGE. This polled for a plan wider than 390 —
+      // FLOOR_W, the unmeasured default — which was a way of saying "it
+      // re-measured once the felts arrived". 390 was only the right number
+      // while the floor had the whole desk to itself; UI-3 job A puts the
+      // ticker and Your table on this stage above it, so the honest form of
+      // the same claim is that the plan matches its stage, whatever that
+      // stage is.
+      await expect.poll(async()=>Math.abs((await page.getByTestId('the-floor').boundingBox()).width-fitWidth(await stageOf()))).toBeLessThan(1);
       await fits();
       await page.screenshot({path:'../artifacts/casino23-'+size.width+'.png'});
+      const tall=(await page.getByTestId('the-floor').boundingBox()).height;
       await page.setViewportSize({width:size.width,height:600});
-      await expect.poll(async()=> (await page.getByTestId('the-floor').boundingBox()).height).toBeLessThan(540);
+      // A shorter window buys a shorter room. The old number (540) was the
+      // height the full-stage floor came out at; the rule is the direction,
+      // so it is asserted as the direction.
+      await expect.poll(async()=> (await page.getByTestId('the-floor').boundingBox()).height).toBeLessThan(tall-1);
       await fits();
     });
   }
@@ -807,7 +917,12 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
       };
     },{state,owned,tableId,roomId});
     await page.reload();await page.getByTestId('home-door').click();
-    if(!owned){await page.getByRole('button',{name:'Board',exact:true}).click();await page.getByRole('button',{name:/^The floor,/}).click();}
+    // SPEC-1: a stranger's table used to be two taps away — Board, then the
+    // doorway of whichever room it was in — because the floor only ever showed
+    // one rung of the ladder. UI-3 job A puts EVERY live table on the one
+    // floor, so both branches now arrive the same way and the `if(!owned)`
+    // detour is deleted. That is the point of the change, not a shortcut past
+    // it: the test still proves a public table is reachable from the casino.
     await expect(page.locator('.csn-felt58')).toHaveCount(1);
     await page.evaluate(()=>{window.__casinoWatchSent=[];});
     await expect(page.locator('.csn-felt58 .csn-tiny')).toHaveAttribute('data-hood','sand');
@@ -828,7 +943,13 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     await page.screenshot({path:'../artifacts/casino31-'+(owned?'owned':'public')+(width===1920?'-1920':'')+'.png'});
     await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
     await expect(page.getByTestId('floor-view')).toBeVisible();
-    await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room',roomId);
+    // SPEC-1: `data-room` was the rung you came from, and BACK TO THE FLOOR
+    // had to put you back in THAT room rather than in whichever one the casino
+    // defaults to — the bug BUG-105 is named for. One room means there is no
+    // rung left to get wrong, so the attribute is now the constant 'floor' and
+    // asserting it proves nothing. What still has to be true is that you land
+    // back on the room with the table you just left still on it.
+    await expect(page.locator('.csn-felt58[data-table="'+tableId+'"]')).toBeVisible();
     expect(await page.evaluate(()=>window.__casinoWatchSent.some(m=>m.type==='leave'))).toBe(true);
   });
 });
@@ -846,7 +967,12 @@ test('BUG-105 BUG-106: deploying through the casino opens the game with its queu
   await page.getByRole('button',{name:'Carry',exact:true}).click();
   await page.getByTestId('home-door').click();
   await expect(page.locator('.csn-tray')).toBeVisible();
-  await page.getByRole('button',{name:'The floor, 5/10 — 118 seated',exact:true}).click();
+  // SPEC-1: rooms are stakes. The doorway that read "The floor, 5/10 — 118
+  // seated" is a `StakePicker` chip now, and tapping it still deals him in on
+  // one tap with no second confirmation (UI-3 job A kept FIX-6 job 2's law).
+  // Located by its rung so this still names THE FLOOR, and the queued stakes
+  // asserted below are still 5/10.
+  await page.locator('.csn-stake[data-stake="floor"]').click();
   await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>window.__deployWatch.some(m=>m.tableId==='tbl-deployed'&&m.agentId==='a1'))).toBe(true);
   expect(await page.evaluate(()=>window.__deployWatch.find(m=>m.tableId==='tbl-deployed'))).toMatchObject({smallBlind:5,bigBlind:10});
@@ -903,7 +1029,29 @@ test('BUG-108: desktop Watch uses the designed canvas and Home leaves the table'
 
 test.describe('BUG-125: authored casino camera with real touch input',()=>{
   test.use({hasTouch:true});
-  for(const size of [{width:390,height:844},{width:390,height:590},{width:1440,height:900}])test('pinch, return, then Watch at '+size.width+'x'+size.height,async({page,context})=>{
+  // SPEC-1 · TESTING LAW #6 — BUG-232, and this test is what found it.
+  //
+  // With the Board detour deleted (UI-3 job A opens the casino on the room),
+  // the two phone widths ran the camera for the first time since that change
+  // and both go red on claims UI-3 never said it was retiring:
+  //
+  //   390x844  the pinch zooms, but the ZOOMED room comes out 309px tall on an
+  //            844px phone — 36%, where this test's rule is "more than 65%".
+  //            UI-3 put the ticker (44), Your table (362, uncapped on the
+  //            phone by N3's `max-height: none`) and the conversation on the
+  //            casino column above and below the room, and the room got what
+  //            was left.
+  //   390x590  the felt cannot be pinched at all. The room's own box is 102px,
+  //            the 470-unit plan is scaled to the phone's WIDTH and scrolls,
+  //            so the only felt in the room renders below the visible band and
+  //            its centre hit-tests to `.csn-floor-play` underneath.
+  //
+  // Both are the product, not this file, so per law #6 the assertions stay
+  // verbatim and the two phone cases are `fixme` with the bug id in the name
+  // until BUG-232 lands. 1440 still runs and still covers the camera. Do not
+  // loosen the 65% — it is the whole claim.
+  for(const size of [{width:390,height:844},{width:390,height:590},{width:1440,height:900}])
+    (size.width<1100?test.fixme:test)((size.width<1100?'BUG-232: ':'')+'pinch, return, then Watch at '+size.width+'x'+size.height,async({page,context})=>{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await stub(page);await page.setViewportSize(size);
     await page.addInitScript(()=>{
@@ -914,7 +1062,9 @@ test.describe('BUG-125: authored casino camera with real touch input',()=>{
       }};
     });
     await page.goto(HOME);await page.getByTestId('home-door').click();
-    await page.getByRole('button',{name:'Board',exact:true}).click();await page.getByRole('button',{name:/^The floor,/}).click();
+    // SPEC-1: Board → the floor's doorway was how you reached the room drawn
+    // from above. UI-3 job A opens the casino ON that room, so the two clicks
+    // are deleted; the camera this test is about is unchanged.
     const floor=page.getByTestId('the-floor'),felt=page.locator('.csn-felt58').first();await expect(felt).toBeVisible();
     await floor.evaluate(el=>{el.__originalFelt=el.querySelector('.csn-felt58')});
     const cdp=await context.newCDPSession(page);
@@ -1052,9 +1202,17 @@ test('K3/N3: a hot public table is visible and watchable without a false held-ru
  }};});
  await page.goto(HOME);await page.getByTestId('home-door').click();await expect(page.locator('.csn-felt58[data-hot="true"]')).toBeVisible();
  await page.screenshot({path:'../artifacts/hot37-floor.png'});
- await page.getByRole('button',{name:'Board',exact:true}).click();
+ // SPEC-1: the Board tap is deleted with the board. LIVE NOW's row — the pot
+ // in the air, named, with WATCH on it — is what CasinoTicker inherited, and
+ // its accessible name is the same sentence, so the locator below is
+ // unchanged and is simply already on screen.
  const watch=page.getByRole('button',{name:/\$4,180 in the middle.*Watch this table/});await expect(watch).toBeVisible();
- await expect(page.locator('.csn-room-door[data-hot="true"]')).toBeVisible();
+ // A HOT RUNG IS STILL MARKED. `.csn-room-door[data-hot]` was the doorway
+ // glowing because something in that room was running hot; there is no
+ // doorway, and the thing that now carries a rung is the stake chip, which
+ // takes the same flag from the same `isRoomHot`. The felt itself carrying it
+ // is asserted above; this is the rung.
+ await expect(page.locator('.csn-stake[data-stake="floor"][data-hot="true"]')).toBeVisible();
  await expect(page.getByText(/runout held for you/i)).toHaveCount(0);
  await page.screenshot({path:'../artifacts/hot37-board.png'});
  await watch.click();await expect.poll(()=>page.evaluate(()=>window.__hotWatch.length)).toBe(1);

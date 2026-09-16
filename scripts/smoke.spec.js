@@ -495,7 +495,13 @@ test('desktop casino deploy and felt Watch open the actual owned game',async({pa
   await page.locator('.dsk-roster-row').filter({hasText:agent.name}).click();
   await page.getByRole('button',{name:'Carry',exact:true}).click();await page.getByTestId('home-door').click();
   const queued=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/agents/'+agent.id+'/queue'&&r.request().method()==='POST');
-  await page.getByRole('button',{name:/^the floor,/i}).click();
+  // SPEC-1: rooms are stakes now. UI-3 job A deleted the three doorways —
+  // "The floor, $10/$20 — 3 seated" was a door into a room — and left the one
+  // question a door still had to ask: which stake. `StakePicker`'s chip is
+  // that question, and tapping it deals him in with no second confirmation,
+  // which is the same one-tap law the doorway had. Located by the rung it is
+  // for, so this still means THE FLOOR and not "whichever chip is first".
+  await page.locator('.csn-stake[data-stake="floor"]').click();
   const response=await queued;expect(response.status()).toBe(200);const payload=await response.json();
   expect(payload.tableId).toBeTruthy();await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   // An unmatched queue waits five seconds before the House takes its seat.

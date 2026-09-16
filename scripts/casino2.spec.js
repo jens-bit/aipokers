@@ -1,4 +1,4 @@
-// scripts/casino2.spec.js — CASINO-2
+// scripts/casino2.spec.js — CASINO-2, rewritten for UI-3's one room (SPEC-1)
 //
 // The casino, in a real browser, against the real built client and the real
 // server. It runs beside scripts/smoke.spec.js under the same config and in
@@ -6,23 +6,40 @@
 //
 // WHY IT IS ITS OWN FILE. The smoke walks four surfaces and asserts one thing
 // about each: it mounted, and it did not shout. That is the right shape for a
-// smoke and the wrong shape for this — CASINO-2 rebuilt one screen into three
-// (the casino, the room, and the deploy tray's building) and the claims worth
-// pinning are about LAYOUT AT A WIDTH, which is exactly what jsdom cannot see.
-// Every assertion below is one a component test structurally could not make.
+// smoke and the wrong shape for this — the casino's claims worth pinning are
+// about LAYOUT AT A WIDTH, which is exactly what jsdom cannot see. Every
+// assertion below is one a component test structurally could not make.
 //
 // Both shells, because they share almost nothing:
 //   390x844   the Mini App's phone
 //   1440x900  past useIsDesktop's 1100px line, into the desk
 //
-// The three jobs it covers, and what is actually browser-shaped about each:
-//   2  the board splits into LIVE NOW and TONIGHT, and "The casino" does not
-//      wrap at 390 — a claim about a real font at a real width
-//   4  YOUR TABLE is a carousel with one page per man, and the page is exactly
-//      as wide as the track — the whole of a scroll-snap carousel is layout
-//   5  a door takes you INTO the room — wave 58's floor from above, scaled from
-//      its 390-unit plan to whatever width it is given, full width on the desk
-//      with the board as a right column, and the building gone behind it
+// SPEC-1 — WHAT UI-3 CHANGED UNDER THIS FILE.
+//
+// CASINO-2 built a BUILDING: a sign over three doorways (the floor, upstairs,
+// the back room), a two-panel board (LIVE NOW over TONIGHT) bolted to a wall
+// inside whichever room you had walked into, and a Floor|Board toggle to get
+// between the two. UI-3 job A deleted all of it. The casino is a SINGLE room;
+// every live table is on the one floor at once carrying its own stakes;
+// FloorBoard.jsx, RoomDoors, CasinoDoor and the toggle are gone from the tree.
+//
+// So this file's walk is not the same walk. What it still has to prove is:
+//
+//   1  THE ROOM RENDERS AT BOTH WIDTHS AND SAYS NOTHING TO THE CONSOLE. The
+//      one screen the casino has, drawn from above, at 390 and at 1440.
+//   2  THE TICKER ANSWERS THE BOARD'S QUESTION. "Is anything happening right
+//      now" did not stop mattering when the wall did. One line, once, at the
+//      very top — CasinoTicker.jsx's own header says this is the board's job
+//      inherited, and this is where that inheritance is held honest.
+//   3  YOUR TABLE IS A REAL GAME. One page per man, exactly as wide as the
+//      track, and the page is a live felt rather than a silhouette of one.
+//   4  NOTHING SLIDES ACROSS ANYTHING, AND THE FELT DOES NOT SHRINK. DESK-3's
+//      law, re-expressed: the room takes the whole desk the roster leaves, the
+//      ticker and Your table are stacked above it rather than over it, and
+//      Your table keeps the box its felt was drawn for.
+//   5  HIS SEAT IS REACHABLE BY TAP. His body on the rim of his felt, the felt
+//      named after him, hit-testable at its centre through a scaled and
+//      transformed plan, and tapping it opens his table.
 //
 // No ANTHROPIC_API_KEY here either (the workflow's server starts without one),
 // so every agent decision is the deterministic check/fold fallback: the hands
@@ -45,6 +62,8 @@ const IGNORED_CONSOLE = [/favicon\.ico/i];
 const isIgnored = (text) => IGNORED_CONSOLE.some((re) => re.test(text));
 
 fs.mkdirSync(SHOTS, { recursive: true });
+
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ── Seeding ─────────────────────────────────────────────────────────────────
 
@@ -161,65 +180,89 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
   test.describe(`casino ${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport });
 
-    test('the board, the carousel and the room all hold at this width', async ({ page }) => {
-      await seedOnce();
+    test('the ticker, your table and the room all hold at this width', async ({ page }) => {
+      const agent = await seedOnce();
       const noise = watchConsole(page);
       await openCasino(page, UID, desktop);
 
-      // ── job 3 · the sign and the doors ───────────────────────────────────
-      await test.step('the sign, and three doors under it', async () => {
-        // BUGS-C-12 · THE CASINO OPENS ON THE FLOOR. `view` now defaults to
-        // 'floor' and CasinoScreen returns the room BEFORE either shell, so
-        // the building this step is about is not merely scrolled away — it is
-        // not rendered at all. That is the new rule and it gets a claim of its
-        // own here, because everything below it now depends on it being true.
-        await expect(page.getByTestId('floor-view'), 'the casino opens on the floor, not the building')
+      // ── the casino is the room ───────────────────────────────────────────
+      await test.step('the casino is the room, and its name is one line', async () => {
+        // UI-3 job A · ONE ROOM. There is no building left to open onto and
+        // nothing to walk into: CasinoScreen renders the floor itself, always.
+        // The old step tapped `casino-view-toggle` to reach a sign over three
+        // `.csn-room-door`s and counted them; the toggle, the doors and the
+        // building are all deleted from the tree, so those two assertions are
+        // gone rather than re-expressed — there is no longer a second place
+        // for the toggle to go, and no second room for a door to lead to.
+        await expect(page.getByTestId('floor-view'), 'the casino IS the room')
           .toBeVisible({ timeout: 20_000 });
 
-        // Then to the building the way a user gets there: the Floor|Board
-        // segmented control, which BUGS-C-12 put in the floor's own header
-        // exactly so this is one tap. Not a URL, not a state poke — if the
-        // toggle ever stops being reachable from the floor, this fails here,
-        // which is where it should.
-        await page.getByTestId('casino-view-toggle')
-          .getByRole('button', { name: 'Board', exact: true })
-          .click();
-
-        // C9's desktop shell owns the one casino title; the phone keeps its sign.
-        const sign = page.locator(desktop ? '.dsk-top__room h1' : '.csn-marquee__word');
+        // THE SIGN STILL NEVER WRAPS, and it is a longer name than it was:
+        // "The casino floor", not "The casino". Two words in a narrow flex
+        // column broke as "The" over "casino" once, and no amount of jsdom
+        // can see it — this is the real font at the real width, measured, and
+        // a third word only makes the claim worth more. C9's desktop shell
+        // owns the one title; the phone's marquee went with the building, so
+        // the phone's sign is the room's own header, which is where UI-3 put
+        // the name.
+        const sign = desktop
+          ? page.locator('.dsk-top__room h1')
+          : page.locator('.csn-floor__head').getByText('The casino floor', { exact: true });
         await expect(sign).toBeVisible({ timeout: 20_000 });
-
-        // "The casino" NEVER WRAPS. Two words in a narrow flex column broke as
-        // "The" over "casino", and no amount of jsdom can see it: this is the
-        // real font at the real width, measured.
         const box = await sign.boundingBox();
         expect(box.height, 'the sign is one line').toBeLessThan(28);
-
-        await expect(page.locator('.csn-room-door')).toHaveCount(3);
       });
 
-      // ── job 2 · the board, split by tense ────────────────────────────────
-      await test.step('the board answers two questions', async () => {
-        const board = page.locator('.csn-board').first();
-        await expect(board).toBeVisible({ timeout: 20_000 });
-        if (desktop) await expect(board.getByText('ON THE FLOOR RIGHT NOW', { exact: true })).toBeVisible();
-        else {
-          await expect(board.getByText('ON THE FLOOR RIGHT NOW', { exact: true })).toHaveCount(0);
-          const live=await board.locator('.csn-live').boundingBox(),tonight=await board.locator('.csn-tonight').boundingBox(),door=await page.locator('.csn-room-door').first().boundingBox();
-          expect(live.y+live.height).toBeLessThan(tonight.y);
-          expect(tonight.y+tonight.height).toBeLessThan(door.y);
-        }
-        // Exact, because a quiet floor's own copy contains both words —
-        // "Nothing has finished tonight yet." is the TONIGHT half saying it is
-        // empty, which is a state this has to pass through, not trip over.
-        await expect(board.getByText('LIVE NOW', { exact: true })).toBeVisible();
-        await expect(board.getByText('TONIGHT', { exact: true })).toBeVisible();
-        // Exactly one board on the screen: on the desk it is in the rail and
-        // nowhere else, and the same evening told twice is the bug DESK-2 fixed.
-        await expect(page.locator('.csn-board')).toHaveCount(1);
+      // ── the board's question, in one line ────────────────────────────────
+      await test.step('one line at the top answers what the board answered', async () => {
+        // UI-3 job A retired the two-panel board: `.csn-board`, `.csn-live`
+        // and `.csn-tonight` are FloorBoard.jsx, which is deleted, and there
+        // is no wall left inside a single room to hang two panels on. The
+        // QUESTION is not retired — CasinoTicker.jsx's own header says it
+        // inherits it — so the board's three claims come here:
+        //
+        //   "the board is visible"            -> the ticker is
+        //   "exactly one board on the screen" -> exactly one ticker (DESK-2's
+        //                                        rule: one evening, told once)
+        //   "LIVE NOW above TONIGHT"          -> one line, not two panels
+        //
+        // The one that is genuinely gone is `ON THE FLOOR RIGHT NOW`, the
+        // desk board's own heading over LIVE NOW. A heading over one line
+        // would be taller than the line, which is why the ticker does not
+        // have one.
+        const ticker = page.getByTestId('casino-ticker');
+        await expect(ticker).toHaveCount(1);
+        await expect(ticker).toBeVisible({ timeout: 20_000 });
+        await expect(ticker, 'a quiet floor says so rather than saying nothing')
+          .not.toHaveText('');
+        // ONE LINE, measured against itself rather than against a number.
+        // The copy span cannot wrap (nowrap + ellipsis), so the break this
+        // catches is the one the old sign actually suffered: a flex row in a
+        // narrow column turning into a flex column. Every part of the ticker
+        // shares its centre line, and the whole bar is one part tall plus its
+        // own 7px gutters — a second row would roughly double it.
+        //
+        // The floor is the bar's own `min-height`, not zero: on the phone the
+        // ticker is a 44px tap target, which is taller than the 32px of type
+        // in it and is not the ticker growing a second row.
+        const row = await ticker.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const kids = [...el.children].map((c) => c.getBoundingClientRect());
+          return {
+            height: box.height,
+            floor: parseFloat(getComputedStyle(el).minHeight) || 0,
+            tallest: Math.max(...kids.map((r) => r.height)),
+            offCentre: Math.max(...kids.map(
+              (r) => Math.abs((r.y + r.height / 2) - (box.y + box.height / 2)),
+            )),
+          };
+        });
+        expect(row.offCentre, 'every part of the ticker is on the same line').toBeLessThan(4);
+        expect(row.height, 'and the bar is that one line tall')
+          .toBeLessThanOrEqual(Math.max(row.floor, row.tallest + 16));
       });
 
-      // ── job 4 · your table, as a carousel ────────────────────────────────
+      // ── your table, as a carousel ────────────────────────────────────────
       await test.step('your table is a carousel of real games', async () => {
         const your = page.getByTestId('your-tables');
         await expect(your).toBeVisible({ timeout: 20_000 });
@@ -228,6 +271,12 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         // "where he is" page — never a placeholder ghost.
         const felt = your.locator('.csn-felt').first();
         await expect(felt).toBeVisible({ timeout: 30_000 });
+
+        // And it is HIS felt, drawn from the live snapshot: `data-mine` is set
+        // from the seats on the payload, so a page that fell back to a
+        // silhouette of a table he is not in would not carry it.
+        await expect(felt, 'the page is his real table, not a picture of one')
+          .toHaveAttribute('data-mine', 'true');
 
         // A page is exactly as wide as the track, which is the whole of a
         // scroll-snap carousel and is pure layout.
@@ -246,22 +295,26 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
 
       await shot(page, `${shell}-casino2`);
 
-      // ── job 5 · walking into a room ──────────────────────────────────────
-      await test.step('a door takes you into the room', async () => {
-        await page.locator('.csn-room-door[data-room="floor"]').click();
-
+      // ── the room, from above ─────────────────────────────────────────────
+      await test.step('the room is furnished and drawn to the width it is given', async () => {
         const view = page.getByTestId('floor-view');
-        await expect(view).toBeVisible({ timeout: 20_000 });
 
         // Wave 58: it is a ROOM, drawn from above — felts as ellipses with
-        // bodies on their rims, the bar along the bottom wall, the board
-        // bolted beside the stairs — and the real board came along for the
-        // walk.
+        // bodies on their rims, the bar along the bottom wall.
         const floor = view.getByTestId('the-floor');
         await expect(floor).toBeVisible({ timeout: 20_000 });
         await expect(floor.locator('.csn-felt58').first()).toBeVisible({ timeout: 20_000 });
         await expect(floor.getByText('THE BAR')).toBeVisible();
-        await expect(floor.getByText('THE BOARD')).toBeVisible();
+
+        // `THE BOARD` was the plaque on the board bolted beside the stairs.
+        // UI-3 job A took the board away and gave the stairs back their only
+        // other meaning — the way out — so the plaque reads HOME now. The
+        // rule this assertion carries is the one the ref actually states:
+        // THE ROOM IS FURNISHED. A room drawn from above with nothing on its
+        // walls is a diagram of a room. So it is re-expressed against the
+        // furniture that is in there now rather than dropped.
+        await expect(floor.locator('.csn-floor58__stairs')).toBeVisible();
+        await expect(floor.getByText('HOME', { exact: true })).toBeVisible();
 
         // The plan is drawn in 390 units and SCALED to the room's width. On the
         // desk that is a wide room and on the phone it is not, and either way
@@ -273,55 +326,112 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         expect(feltBox.x + feltBox.width).toBeLessThanOrEqual(floorBox.x + floorBox.width + 1);
         expect(feltBox.y + feltBox.height).toBeLessThanOrEqual(floorBox.y + floorBox.height + 1);
 
-        // The building is gone: a room is a destination, not a sheet over one.
-        await expect(page.locator('.csn-room-door')).toHaveCount(0);
-        await expect(page.locator('.csn-desk__rail')).toHaveCount(0);
+        // What used to stand here — `.csn-room-door` back to 0, `.csn-desk__rail`
+        // back to 0 — said "the building is gone, because a room is a
+        // destination and not a sheet over one." There is no building on any
+        // screen of this product any more, so that is not a rule the casino
+        // can break; it is an absence of markup that was deleted a wave ago.
+        // Both assertions are gone. So are the two at the end of the old walk
+        // that toggled back to the board and re-counted the three doors.
+      });
+
+      // ── the columns, and the box the felt was drawn for ──────────────────
+      await test.step('nothing slides across anything, and the felt does not shrink', async () => {
+        // THE BOARD-COLUMN RULE, RE-EXPRESSED. The old walk asserted, on the
+        // desk, that `.csn-floor__board` sat to the RIGHT of `.csn-floor__room`
+        // and that the room took the whole desk the roster leaves; on the
+        // phone, that the board sat UNDER the room. The board is gone, so the
+        // selector is, but what those three assertions were about is DESK-3's
+        // law — "three columns, always open, nothing sliding over anything" —
+        // and that law did not go anywhere. The one room still has to take the
+        // whole desk the roster leaves, and the two things UI-3 put on the
+        // casino stage with it (the ticker, Your table) are STACKED ABOVE it,
+        // which is the same claim the phone's "the board is under the room"
+        // was making. So it is asserted about the elements that are there now.
+        const ticker = await page.getByTestId('casino-ticker').boundingBox();
+        const your = await page.getByTestId('your-tables').boundingBox();
+        const view = await page.getByTestId('floor-view').boundingBox();
+
+        expect(ticker.y + ticker.height, 'the ticker is above Your table, not over it')
+          .toBeLessThanOrEqual(your.y + 1);
+        expect(your.y + your.height, 'Your table is above the room, not over it')
+          .toBeLessThanOrEqual(view.y + 1);
+
+        // THE FELT DOES NOT SHRINK. This is the half of the old rule that was
+        // load-bearing and had nowhere to live once the board column went.
+        // `.csn-your`'s 240px floor is geometry and not taste — casino.css
+        // says so at the rule: everything on the felt is placed by percentage,
+        // and below about 230px the board row (61%) crosses the hero's name
+        // pill. A room that grows by eating Your table's height is exactly the
+        // regression nothing else in the repo would catch, because jsdom lays
+        // nothing out.
+        expect(your.height, 'Your table keeps the box its felt was drawn for')
+          .toBeGreaterThanOrEqual(240);
 
         if (desktop) {
-          // Full width, board as the RIGHT column — the two are beside each
-          // other, which is a claim only a laid-out page can answer.
-          const room = view.locator('.csn-floor__room');
-          const board = view.locator('.csn-floor__board');
-          await expect(board).toBeVisible();
-          const roomBox = await room.boundingBox();
-          const boardBox = await board.boundingBox();
-          expect(boardBox.x, 'the board is to the right of the room')
-            .toBeGreaterThan(roomBox.x + roomBox.width - 2);
-          // ...and the room takes the whole desk THE ROSTER LEAVES. This read
-          // `viewport.width * 0.9` when the desk was DESK-2's rail, which
-          // collapsed to a 68px strip and left the floor very nearly the whole
-          // window. DESK-3 (board 31, wave 58) makes the roster a PERMANENT
-          // 250px column on every desktop screen, so the honest number is
-          // 1440 - 250 = 1190 and the old fraction failed at exactly that.
-          // Measured against the column rather than restated as a smaller
-          // fraction: a hard-coded 0.82 would pass just as well if the roster
+          // ...and the room takes the whole desk THE ROSTER LEAVES. Measured
+          // against the column rather than restated as a fraction of the
+          // window: a hard-coded 0.82 would pass just as well if the roster
           // silently doubled, which is the bug this assertion is for.
-          const rosterBox = await page.getByTestId('desk-roster').boundingBox();
-          const viewBox = await view.boundingBox();
-          expect(viewBox.width, 'and the room takes the whole desk the roster leaves')
-            .toBeGreaterThan((viewport.width - rosterBox.width) * 0.95);
-          // Beside it, not under or over it — three columns, nothing sliding
-          // across anything, which is the whole of the wave's law.
-          expect(viewBox.x, 'the room starts where the roster ends')
-            .toBeGreaterThanOrEqual(rosterBox.x + rosterBox.width - 1);
-        } else {
-          // On the phone the board is under the room, not beside it.
-          const room = view.locator('.csn-floor__room');
-          const board = view.locator('.csn-floor__board');
-          const roomBox = await room.boundingBox();
-          const boardBox = await board.boundingBox();
-          expect(boardBox.y).toBeGreaterThan(roomBox.y);
+          const roster = await page.getByTestId('desk-roster').boundingBox();
+          expect(view.width, 'the room takes the whole desk the roster leaves')
+            .toBeGreaterThan((viewport.width - roster.width) * 0.95);
+          // Beside it, not under or over it — three columns, which is the
+          // whole of the wave's law.
+          expect(view.x, 'the room starts where the roster ends')
+            .toBeGreaterThanOrEqual(roster.x + roster.width - 1);
+
+          // The other half of the ceiling: a 900px-wide page is a felt with
+          // its ring pulled apart, so on the desk Your table keeps a felt's
+          // width and sits in the middle of the room's column rather than
+          // stretching across it.
+          expect(your.width, 'Your table keeps a felt’s width on the desk')
+            .toBeLessThanOrEqual(641);
+          expect(your.height, 'and a felt’s height').toBeLessThanOrEqual(421);
+          expect(
+            Math.abs((your.x + your.width / 2) - (view.x + view.width / 2)),
+            'centred in the room’s column',
+          ).toBeLessThan(2);
         }
+      });
 
-        await shot(page, `${shell}-casino2-room`);
+      await shot(page, `${shell}-casino2-room`);
 
-        // BUG-104: both sizes return through Floor/Board. Desktop now keeps
-        // that same control in the sole shell header; the duplicate back row
-        // is gone. The destination assertions below are unchanged.
-        if (desktop) await expect(page.locator('header.dsk-top').getByTestId('casino-view-toggle')).toBeVisible();
-        await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
-        await expect(page.getByTestId('floor-view')).toHaveCount(0);
-        await expect(page.locator('.csn-room-door')).toHaveCount(3);
+      // ── his seat ─────────────────────────────────────────────────────────
+      await test.step('his seat on the rim is reachable by tap', async () => {
+        const floor = page.getByTestId('floor-view').getByTestId('the-floor');
+        const his = floor.locator('.csn-felt58[data-mine="true"]');
+        await expect(his, 'his table is drawn as his').toBeVisible({ timeout: 20_000 });
+        await expect(his.locator('.csn-tiny[data-mine="true"]'), 'and he is a body on its rim')
+          .toBeVisible();
+        // Named after HIM, not after a table number — the one reason to look
+        // at a room full of strangers' felts is to find the one that is not a
+        // stranger's.
+        await expect(his).toHaveAttribute(
+          'aria-label',
+          new RegExp(`^Watch ${escapeRe(agent.name)} at this table$`),
+        );
+
+        // REACHABLE. The plan is scaled, translated and vignetted, and a felt
+        // can be perfectly visible while something invisible sits on top of
+        // it — so the claim is hit-testing, not visibility: the centre of his
+        // felt belongs to his felt.
+        expect(
+          await his.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+          }),
+          'nothing is covering his seat',
+        ).toBe(true);
+
+        // And tapping it opens his table. The two shells land in different
+        // places — the desk keeps the felt in its stage, the phone takes the
+        // whole screen — so each is named rather than asserted generically.
+        await his.click();
+        await expect(
+          desktop ? page.getByTestId('desk-casino-table') : page.locator('.watch-screen'),
+        ).toBeVisible({ timeout: 30_000 });
+        await shot(page, `${shell}-casino2-his-table`);
       });
 
       expect(noise, `console was not clean:\n${noise.join('\n')}`).toEqual([]);
