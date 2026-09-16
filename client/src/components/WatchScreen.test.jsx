@@ -88,6 +88,13 @@ describe('WatchScreen mid-hand', () => {
     expect(faceUpRanks(board)).toEqual(['5', '4', '8']);
   });
 
+  it('TABLE-1 job D: preflop draws no board at all, not five backs pretending to be a dealt one', () => {
+    const { container } = renderWatch({ ...midHandGame, street: 'preflop', community: [] });
+    const board = container.querySelector('.watch-felt__board');
+    expect(board).toBeTruthy();
+    expect(board.children).toHaveLength(0);
+  });
+
   it('renders the pot', () => {
     const { container } = renderWatch(midHandGame);
     const pot = container.querySelector('.watch-felt__pot');

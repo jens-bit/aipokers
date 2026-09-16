@@ -679,6 +679,12 @@ export function WatchFelt({
   var pot       = game ? (game.pot || 0) : 0;
   var community = game ? (game.community || []) : [];
   var result    = settled ? game.result : null;
+  // TABLE-1 job D: preflop has no board yet, so the five backs `boardSlots`
+  // pads in for it used to draw a full dealt board where there was none —
+  // the flop itself just hadn't landed. `between` already fades the whole
+  // row to nothing for the gap between hands; this is that same "there is no
+  // board to see" reading for the gap before the flop.
+  var noBoardYet = live && community.length === 0;
 
   var revealed = {};
   if (result && result.showdown) {
@@ -1087,7 +1093,7 @@ export function WatchFelt({
       )}
 
       <div className={'watch-felt__board' + (between ? ' is-between' : '')}>
-        {boardSlots.map(function(c, i) {
+        {!noBoardYet && boardSlots.map(function(c, i) {
           var isLanding = pace === 'showdown' && animateLanding && i === landed - 1;
           var cls = 'watch-felt__card' + (isLanding ? ' watch-felt__card--landing' : '');
           return (
