@@ -1005,8 +1005,12 @@ export function WatchFelt({
                 here the chips stop pretending to be the number. */}
             {!geom && (
               <div data-award-seat={o.seat} className={'watch-felt__seat-pile' + (o.folded ? ' is-folded' : '')} aria-hidden>
+                {/* TABLE-1 job E: the hero's pile has read "STACK" beside its
+                    figure since WATCH-10; an opponent's read as a bare number
+                    next to a chip glyph. Same fact, two readings — this is
+                    the hero's own caption, not a new one. */}
                 <ChipStack band={o.band} w={11} cap={SEAT_PILE_CHIPS}
-                  className="is-seat" amt={potMoney(o.stack)} />
+                  className="is-seat" label="STACK" amt={potMoney(o.stack)} />
               </div>
             )}
             {/* And the bet spot in front of his pair. At street end it sweeps
@@ -1014,7 +1018,9 @@ export function WatchFelt({
             {!geom && (o.bet > 0 || o.sweeping) && (
               <div className={'watch-felt__seat-bet' + (o.sweeping ? ' is-sweeping' : '')}
                 data-fly={o.sweeping ? 'pot' : null} data-fly-var="--sweep">
-                <BetSpot band={o.betBand} w={12}
+                {/* TABLE-1 job E: an unlabelled figure on a chip read as
+                    stack or bet with no way to tell which — this is a bet. */}
+                <BetSpot band={o.betBand} w={12} label="BET"
                   amt={o.bet > 0 ? groupChips(o.bet) : null} />
               </div>
             )}
@@ -1174,7 +1180,8 @@ export function WatchFelt({
         {(heroBetOut || heroSweeping) && (
           <div className={'watch-felt__hero-bet' + (heroSweeping ? ' is-sweeping' : '')}>
             <span data-fly={heroSweeping ? 'pot' : null} data-fly-var="--sweep">
-              <BetSpot band={betBand(heroContrib, pot)} w={22}
+              {/* TABLE-1 job E: labelled the same way his stack is. */}
+              <BetSpot band={betBand(heroContrib, pot)} w={22} label="BET"
                 amt={heroContrib > 0 ? groupChips(heroContrib) : null} />
             </span>
           </div>

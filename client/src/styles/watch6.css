@@ -863,6 +863,15 @@
   align-items: center;
   gap: 6px;
 }
+/* TABLE-1 job E: the same caption `.chip-stack__label` gives a stack, so a
+   bet chip reads as a bet rather than as a bare, unexplained figure. */
+.bet-spot__label {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--felt-ink);
+}
 .bet-spot__amt {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 10.5px;

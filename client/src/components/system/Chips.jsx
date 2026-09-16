@@ -70,7 +70,13 @@ export const SEAT_PILE_CHIPS = 3;
 // A stack standing on the felt. `amt` is the figure beside (or under) the chips
 // it describes rather than in a panel elsewhere — that is why STACK left the
 // hero's strip, and since WATCH-10 it is why it left an opponent's name pill.
-// `label` is still the hero's alone: his is the one pile big enough to caption.
+//
+// TABLE-1 job E: `label` used to be the hero's alone — his pile was "the one
+// big enough to caption" and an opponent's bare number beside a chip glyph
+// was read as the same fact without the word. Jens's own screenshot read it
+// as two different things instead: a labelled block on one side of the felt
+// and an unlabelled number on the other. The two sides now read the same way
+// — every caller of ChipStack passes `label`.
 //
 // `cap` takes the TOP `cap` chips of the band rather than the first, so a big
 // stack capped at three is three blacks and a small one is three whites — the
@@ -92,13 +98,19 @@ export function ChipStack({ band = 'mid', chips, w = 26, cap = null, label, amt,
 // Where a bet lands: in front of his cards, on the felt, not in a panel. The
 // chip COUNT is the bet band, which is what makes the size of a bet legible on
 // the table before the figure reaches his strip.
-export function BetSpot({ band = 'mid', chips, w = 22, amt, className }) {
+//
+// TABLE-1 job E: `label` — a bet chip used to carry a bare figure with
+// nothing to say it was a bet rather than, say, more of his stack. `ChipStack`
+// already had the prop; this is the same one, so a caller labels a bet as a
+// bet the same way it labels a stack as a stack.
+export function BetSpot({ band = 'mid', chips, w = 22, label, amt, className }) {
   const set = chips || BET_BANDS[band] || BET_BANDS.mid;
   return (
     <span className={`bet-spot${className ? ` ${className}` : ''}`} data-band={band}>
       <span className="bet-spot__pile" style={{ width: w, height: set.length * 3.2 + w * 0.44 }}>
         {set.map((d, i) => <Chip key={i} d={d} w={w} i={i} step={3.2} />)}
       </span>
+      {label && <span className="bet-spot__label">{label}</span>}
       {amt && <span className="bet-spot__amt">{amt}</span>}
     </span>
   );
