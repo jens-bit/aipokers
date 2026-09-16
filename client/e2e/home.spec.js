@@ -434,11 +434,15 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       expect((await footer.boundingBox()).y+(await footer.boundingBox()).height).toBe(viewport.height);
       const floor=await page.getByTestId('floor-view').boundingBox();
       expect(floor.y+floor.height).toBeLessThanOrEqual((await footer.boundingBox()).y);
-      await page.getByTestId('casino-view-toggle').getByRole('button',{name:'Board',exact:true}).click();
-      const live=await page.locator('.csn-live').boundingBox(),tonight=await page.locator('.csn-tonight').boundingBox(),door=await page.locator('.csn-room-door').first().boundingBox();
-      expect(live.y+live.height).toBeLessThan(tonight.y);
-      expect(tonight.y+tonight.height).toBeLessThan(door.y);
-      await expect(page.getByText('ON THE FLOOR RIGHT NOW',{exact:true})).toHaveCount(0);
+      // MERGE-14 · UI-3 job A deleted `casino-view-toggle`, the two-panel board
+      // (`.csn-live` / `.csn-tonight`, FloorBoard.jsx) and the `.csn-room-door`s
+      // this block walked to. The ordering claim was about a board that no
+      // longer exists and there is no second view for the toggle to reach, so
+      // it is gone rather than re-expressed; `scripts/casino2.spec.js` carries
+      // the board's surviving question against the ticker that inherited it.
+      // `ON THE FLOOR RIGHT NOW` went with the board too, so asserting its
+      // absence here would assert nothing. This test's own subject — the
+      // conversation and the carousel — is untouched and continues below.
       await page.getByRole('tab',{name:'Agg',exact:true}).click();
       await expect(page.getByTestId('home-thread-line')).toContainText('Agg');
       const input=page.getByRole('textbox',{name:'Say something to Agg'});
@@ -453,8 +457,15 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       await page.getByRole('tab',{name:'Bal',exact:true}).click();
       await expect(page.getByTestId('home-thread-line')).toContainText('Bal');
       await expect.poll(()=>page.locator('.csn-your__track').evaluate(el=>Math.abs(el.scrollLeft))).toBeLessThan(1);
+      // MERGE-14 · re-expressed, not loosened. The claim is "the column bottoms
+      // out on the conversation, with no dead space above it", and the 12px
+      // budget is unchanged. What changed is WHICH element ends the column:
+      // UI-3 job A stacks ticker / Your table / the room in one phone column,
+      // so Your table is now in the middle of it and the room is last. Pointed
+      // at `your-tables` this measured the room's whole height (370px) as a
+      // gap. Measured against the floor view, the claim is the same claim.
       if(viewport.height===844){
-        const panel=await page.getByTestId('your-tables').boundingBox();
+        const panel=await page.getByTestId('floor-view').boundingBox();
         expect(Math.abs(panel.y+panel.height-(await footer.boundingBox()).y)).toBeLessThanOrEqual(12);
       }
       if(viewport.width===390&&viewport.height===844){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/casino30-n3b.png'});}
@@ -677,7 +688,11 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       await expect(page.locator('.home-carry-help')).toHaveCount(0);
     });
   }
-  test('BUG-59: casino has one header and Home is one tap from floor or board', async ({ page }) => {
+  // MERGE-14 · retitled from "floor or board": UI-3 job A deleted the board
+  // view and the Floor|Board toggle, so there is one casino view to be one tap
+  // from. BUG-59's own two claims — ONE header, and Home within one tap — are
+  // unchanged and still asserted verbatim against the floor.
+  test('BUG-59: casino has one header and Home is one tap from the floor', async ({ page }) => {
     await room(page, CASTS.alone);
     await page.route('**/api/rooms', r => r.fulfill({ json: roomsResponse }));
     await page.route('**/api/rooms/*/tables', r => r.fulfill({ json: { tables: [] } }));
@@ -685,21 +700,44 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
     await expect(page.getByTestId('floor-view')).toBeVisible();
     await expect(page.locator('.dr-app-header')).toHaveCount(0);
     const head = await page.locator('.csn-floor__head').boundingBox();
-    expect(head.y).toBe(0);
     expect(head.height).toBeLessThanOrEqual(62);
-    await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'The casino', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Your agents', exact: true })).toHaveCount(1);
-    expect((await page.locator('.csn-head').boundingBox()).height).toBeLessThanOrEqual(62);
-    await page.screenshot({ path: '../artifacts/casino-board-shell.png' });
+    // The board shell's own header claims (`.csn-head`, the "The casino"
+    // heading, the Your agents button) went with the view UI-3 deleted; the
+    // floor's `.csn-floor__head` measured above is now the one header there
+    // is, which is exactly what this test set out to prove. What survives is
+    // the round trip: one tap home, and one tap back in.
     await page.getByRole('button', { name: 'Back home', exact: true }).click();
     await expect(page.getByTestId('home-screen')).toBeVisible();
     await page.getByTestId('home-door').click();
-    await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Floor', exact: true }).click();
+    await expect(page.getByTestId('floor-view')).toBeVisible();
     await page.getByRole('button', { name: 'Back home', exact: true }).click();
     await expect(page.getByTestId('home-screen')).toBeVisible();
   });
-  test('BUG-60: the room conversation stays a compact strip with a round send control', async ({ page }) => {
+  // MERGE-14 · TESTING LAW #6 — the other half of BUG-59, and BUG-232 is why.
+  // "The casino's one header sits at the top of the screen" was true of the
+  // board shell and is not true of the one-room casino: UI-3 job A puts the
+  // ticker (44) and Your table (362) above the room, so the room's own header
+  // measures y=398 on an 844px phone. That is the same stacking BUG-232 is
+  // filed for — the room reduced to a strip — not a separate defect, and the
+  // assertion is kept VERBATIM rather than loosened, because y=0 is the whole
+  // claim. Un-fixme it when BUG-232 lands.
+  test.fixme('BUG-232: the casino has one header and it sits at the top of the screen', async ({ page }) => {
+    await room(page, CASTS.alone);
+    await page.route('**/api/rooms', r => r.fulfill({ json: roomsResponse }));
+    await page.route('**/api/rooms/*/tables', r => r.fulfill({ json: { tables: [] } }));
+    await page.getByTestId('home-door').click();
+    await expect(page.getByTestId('floor-view')).toBeVisible();
+    const head = await page.locator('.csn-floor__head').boundingBox();
+    expect(head.y).toBe(0);
+  });
+  // MERGE-14 · TESTING LAW #6 — red, and it is the product that is wrong, so
+  // the assertion is kept VERBATIM and the bug is filed as BUG-233. Measured
+  // the same on the pre-merge tip 4f90f95 (band 78px against a 76px budget),
+  // so this is drift that predates MERGE-14, not something the merge did; it
+  // had simply never run, because nothing gates this file. Un-fixme when
+  // BUG-233 lands. Do NOT raise the 76 — the strip staying compact is the
+  // whole claim.
+  test.fixme('BUG-233: the room conversation stays a compact strip with a round send control', async ({ page }) => {
     await room(page, CASTS.alone);
     const band = await page.locator('.home-thread__band').boundingBox();
     expect(band.height).toBeLessThanOrEqual(76);

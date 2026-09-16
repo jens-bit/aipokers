@@ -80,6 +80,22 @@ and three `desk3-casino*` screenshots. No product code, no new dependencies.
   to be loosened — it is the whole claim.
   *(Filed on the branch as BUG-219; renumbered at MERGE-14 because AGENT-4 had
   already spent 219 on main, and the two fixme titles were renamed with it.)*
+- **And SPEC-1's warning, acted on at MERGE-14.** SPEC-1 reported that three
+  more spec files still reached for the deleted toggle, doors and board. They
+  do, and nothing gates any of them: `playwright.home2.config.js` matches only
+  `scripts/home2.spec.js`, and CI's one Playwright step is `e2e/home.spec.js
+  -g BUG-55`. Run in full they were **12 red** — `home.spec.js` 4, all 6 of
+  `appearance.spec.js`, `show-home-journeys.spec.js` 2 — and each was settled
+  the way SPEC-1 settled its own: re-expressed where the claim survived the
+  one-room casino (appearance's three board contrast targets onto the ticker
+  that inherited them; the journeys' `data-room` onto the one floor, as UI-3
+  had already done for the same journey in jsdom; N3's no-dead-space budget
+  onto the element that now ends the phone column), retired with a comment
+  naming UI-3 where it did not (the board's panel ordering, the board shell's
+  own header). Two were neither: the casino header no longer sitting at y=0 is
+  BUG-232's stacking seen from another angle, kept verbatim as a `test.fixme`,
+  and BUG-60's 78px conversation strip turned out to fail identically on the
+  pre-merge tip `4f90f95` — filed as **BUG-233**, kept verbatim, fixme'd.
 
 ## TABLE-2 — the opponent card stacks correctly, the STATS tab gets bars — local candidate (2026-09-16)
 

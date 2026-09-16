@@ -103,11 +103,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(floor).toBeVisible();
     await expect(floor.getByTestId('the-floor')).toBeVisible();
     await palette(page, mode);
-    const firstLiveRow = floor.locator('.csn-live__row').first();
+    // MERGE-14 · UI-3 job A deleted the two-panel board — `.csn-live__row`,
+    // `.csn-tonight` and their "Nothing has finished tonight yet." — so the
+    // three board targets are re-expressed rather than dropped: this test is
+    // about whether the casino's own type is READABLE in each palette, and the
+    // ticker is where the board's names and money went (CasinoTicker.jsx says
+    // so in its own header). One line instead of three rows, measured the same
+    // way. The row-ordering claims those rows also carried are not this test's
+    // business; `scripts/casino2.spec.js` owns them now.
+    const ticker = page.getByTestId('casino-ticker');
     const contrastTargets = [
-      ['board player names', firstLiveRow.getByText('Ozymandias, The Grinder', { exact: true })],
-      ['board stakes', firstLiveRow.getByText('$10/$20', { exact: true })],
-      ['board empty history', floor.getByText('Nothing has finished tonight yet.', { exact: true })],
+      ['ticker line', ticker],
     ];
     const captions = floor.locator('.csn-felt58__stake');
     await expect(captions).toHaveCount(felts.length);
@@ -118,7 +124,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
         ['desktop room title', header.locator('h1')],
         ['desktop room details', header.locator('.dsk-top__room p')],
         ['desktop back control', header.getByRole('button', { name: 'Back home', exact: true })],
-        ['desktop active floor control', header.getByRole('button', { name: 'Floor', exact: true })],
+        // MERGE-14 · the Floor|Board toggle went with the board (UI-3 job A);
+        // DesktopTopBar's room header has no view control left to read.
       );
     }
     const contrast = [];

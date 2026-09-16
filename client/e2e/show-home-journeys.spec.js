@@ -303,15 +303,20 @@ test('HOME-3 Upstairs floor → Watch twice and nested Profile CHAT return to th
   await openHome(page);
   await page.getByTestId('home-door').click();
   await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
-  await page.getByTestId('casino-view-toggle').getByRole('button', { name: 'Board', exact: true }).click();
-  await page.getByRole('button', { name: /^upstairs,/ }).click();
+  // MERGE-14 · UI-3 job A: one floor, always open. The Floor|Board toggle and
+  // the `upstairs,` room door this walked through are deleted, and the upstairs
+  // table (still its fixture name) now sits on the one floor with everything
+  // else — so `data-room` stays `floor` throughout. Same re-expression UI-3
+  // already made for this journey in jsdom, see `App.homeJourneys.test.jsx`.
+  // The claim under test is untouched: Watch twice, and come back each time to
+  // the room you left.
   for (let trip = 0; trip < 2; trip += 1) {
     const floor = page.getByTestId('floor-view');
-    await expect(floor).toHaveAttribute('data-room', 'upstairs');
+    await expect(floor).toHaveAttribute('data-room', 'floor');
     await floor.getByRole('button', { name: /Watch table home3-upstairs/ }).click();
     await expectPublicWatch(page, UPSTAIRS_TABLE, ['A', 'K', '7'], '$640');
     await page.getByRole('button', { name: 'Leave table' }).click();
-    await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs');
+    await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
   }
   await expect(page.getByTestId('floor-view').getByRole('button', { name: /Watch table home3-upstairs/ })).toBeVisible();
   await checkpoint(page, 'home-3-phone-upstairs-return');
@@ -321,7 +326,7 @@ test('HOME-3 Upstairs floor → Watch twice and nested Profile CHAT return to th
   await page.getByRole('button', { name: 'Back to chat', exact: true }).click();
   await expect(page.getByPlaceholder('Whisper to him…')).toHaveValue('Keep my place upstairs.');
   await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs');
+  await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
   await page.getByRole('button', { name: 'Back home', exact: true }).click();
   await expect(page.getByTestId('home-screen')).toBeVisible();
   expectClean(fixture);
@@ -333,10 +338,11 @@ test('HOME-3 desktop Upstairs Watch uses its floor return and the explicit Home 
   await openHome(page);
   await page.getByTestId('home-door').click();
   await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
-  await page.getByRole('button', { name: 'Board', exact: true }).click();
-  await page.getByRole('button', { name: /^upstairs,/ }).click();
+  // MERGE-14 · same as the phone journey above: UI-3 job A deleted the board
+  // and the room doors, so the upstairs table is on the one floor and the
+  // desktop return this test is about ("BACK TO THE FLOOR") returns to it.
   const floor = page.getByTestId('floor-view');
-  await expect(floor).toHaveAttribute('data-room', 'upstairs');
+  await expect(floor).toHaveAttribute('data-room', 'floor');
   await floor.getByRole('button', { name: /Watch table home3-upstairs/ }).click();
   const table = page.getByTestId('desk-casino-table');
   await expect(table).toBeVisible();
@@ -346,7 +352,7 @@ test('HOME-3 desktop Upstairs Watch uses its floor return and the explicit Home 
   const leavesBefore = await page.evaluate(() => window.__homeJourneyWire.filter(message => message.type === 'leave').length);
   await table.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }).click();
   await expect(table).toHaveCount(0);
-  await expect(floor).toHaveAttribute('data-room', 'upstairs');
+  await expect(floor).toHaveAttribute('data-room', 'floor');
   await expect.poll(() => page.evaluate(() => window.__homeJourneyWire.filter(message => message.type === 'leave').length)).toBeGreaterThan(leavesBefore);
   await expect(floor.getByRole('button', { name: /Watch table home3-upstairs/ })).toBeVisible();
   await checkpoint(page, 'home-3-desktop-upstairs-return');
