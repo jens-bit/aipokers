@@ -1,5 +1,42 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## 0.18.0 candidate — one room, a floor he can stand on, and books that add up (2026-09-16)
+
+Five branches merged as MERGE-14 onto the 0.17.0 candidate, gated after each
+one: **AGENT-5** (a deploy floor with a named remedy, two of an owner's agents
+at one table, the worn-out ceremony), **TABLE-2** carrying the whole UI-3 →
+TABLE-1 → TABLE-2 lineage (one casino room, real monitors, money that says
+what it is, a felt that stops jumping), **SPEC-1** (the casino gate rewritten
+for the one room), **CHIPS-1** (an audit that seeds its own database) and
+**ECON-1** (the four economy assumptions, measured). Their own sections are
+below. No new dependencies.
+
+**The merge MERGE-12 aborted, landed.** Its saved resolution was reused rather
+than re-derived: `client/src/lib/wallet.js` and the three files around it come
+out blob-for-blob identical to what MERGE-12 resolved. The wallet conflict it
+hit did not recur — MONEY-2's rewrite is in `src/server/wallet.js` and
+`agentProfiles.js`, UI-3 job C's is in `client/src/lib/wallet.js`, and the two
+never touch the same line. MONEY-2's debit path is the base and UI-3's TAKE
+reaches it through `/collect`'s existing `{ amount, all }`, verified on the
+merged route rather than assumed from a clean `git merge`.
+
+**Bug numbers, sorted.** `fix/ui-3` was cut before MONEY-2 merged and counted
+its own bugs from 215, so four entries collided with MONEY-2's and one more
+with AGENT-4's. MERGE-12 planned a renumbering for these and died before it
+landed; AGENT-4 spent 219-223 in the meantime, so the numbers that stuck are
+new ones. UI-3's 215/216/217/218 become **BUG-229/230/231/228**, SPEC-1's 219
+becomes **BUG-232**, and TABLE-1's duplicate rake entry folds into main's own
+**BUG-218**, which stays OPEN — the merge unblocks that job (both halves are
+in one tree now) but nobody has written the client half, and `grep -ril rake
+client/src` still finds nothing. Every renamed entry took its tests with it.
+
+**Gate, on the merged tip.** `npm test` 184/184, `npm run test:client`
+236/236 files, `npm run test:e2e` 7/7, `npm run talk:eval` 232/232,
+`npm run smoke:browser` 8/8, `npx playwright test e2e/desk.spec.js` 53 passed
+2 skipped, `npm run test:home2` 20/20, `node scripts/audit-chips.js` exit 0.
+One BUG-34 native abort (`verify-pace.js`, exit 3221226505) on the first
+`test:all` of the run; green on one retry, and green on every run after.
+
 ## A chip audit that survives your own machine — local candidate (2026-09-16, CHIPS-1)
 
 On `fix/chips-audit`, branched off `main` at the 0.17.0 candidate, not yet
@@ -71,7 +108,13 @@ What the rule protected is now a DEFAULT: deploying spreads them across felts,
 and `together: true` on the deploy body gathers them. Past the floor cap the
 preference gives way and he sits beside his own man, which is strictly better
 than being sent home. Four suites that encoded the old rule are rewritten under
-testing law #5, each case saying what it used to assert and why.
+testing law #5, each case saying what it used to assert and why. One thing the
+rule had been hiding is filed open as **BUG-227**: `floorChannel.heroAgentIdFor`
+answers "the owner's agent at this table" as though there were one, so an owner
+with two men on one felt sees one of them moving on the floor screen. Not a
+money or correctness fault — seat, session, thread, ceremony, buy-in and WATCH
+are all per agent — and left open deliberately, because one message per table
+per owner is the channel's shape and changing it is a protocol question.
 
 **He notices his housemate** — once per session, in his own voice, through a new
 `housemate` kind that `talk:eval` picks up and audits on its own.
