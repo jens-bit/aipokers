@@ -1190,3 +1190,41 @@
 .watch-felt--overlay .read-sheet {
   padding-bottom: 220px;
 }
+
+/* ── AGENT-5 job H · THE NIGHT THAT ENDED BECAUSE HE WAS SPENT ──────────────
+   The ceremony drew YOU LOST off the chip result for a man who had simply run
+   out of reserve. The figure was true and the story was wrong. On this one
+   ending the headline is WORN OUT, his own sentence carries the remedy, and
+   the money drops to a footnote — it is still there, because what happened to
+   his stack is still a thing that happened. */
+.watch-ceremony[data-reason='worn'] .watch-ceremony__head {
+  color: var(--sys-gold, var(--gold-reward));
+}
+
+/* His line, with the number in it. The only prose on the block that is his
+   rather than the floor's, so it takes the body face and sentence case — the
+   same treatment .watch-ceremony__hand gives the hand name. */
+.watch-ceremony__note {
+  max-width: 280px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--sys-text, var(--text-primary));
+}
+
+/* The money, demoted. Same elements, smaller: an owner who wants the figure
+   still has it, and nobody reads it first. */
+.watch-ceremony[data-reason='worn'] .watch-ceremony__delta-amt { font-size: 15px; }
+.watch-ceremony[data-reason='worn'] .watch-ceremony__stack { font-size: 13px; }
+.watch-ceremony[data-reason='worn'] .watch-ceremony__delta { opacity: 0.75; }
+
+/* "up" / "down" in front of the figure, because the big word above it is no
+   longer saying which. */
+.watch-ceremony__scope {
+  font-family: var(--sys-font-label, "Oswald", sans-serif);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sys-muted, var(--text-muted));
+}

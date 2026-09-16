@@ -1926,7 +1926,25 @@ export class Table {
   // the floor) and the copy that goes to this table's sockets (for the
   // ceremony) can never disagree.
   _sessionEndFor(seat, { reason, finalStack, buyIn, sessionHands }) {
+    // AGENT-5 job H: a session that ended WORN carries the remedy, and it is
+    // the same sentence job A puts at the door — one voice for "he cannot
+    // start" and "he had to stop", because they are the same fact at two
+    // different moments and an owner reading two different stories about one
+    // reserve has been told the product is confused.
+    let note = null;
+    if (reason === 'worn' && this.agentIds[seat]) {
+      try {
+        note = restRefusalFor(this.agentIds[seat], this.agentUserIds[seat], {
+          displayName: this.pending[seat]?.displayName ?? null,
+        })?.message ?? null;
+      } catch (err) {
+        // A ceremony must never fail to arrive because a remedy could not be
+        // phrased. The reason alone still tells the truth.
+        console.error('[table] worn remedy failed:', err.message);
+      }
+    }
     return sessionEndRecord({
+      note,
       sessionId: this.seatSessionIds[seat] ?? null,
       agentId: this.agentIds[seat],
       userId: this.agentUserIds[seat],
