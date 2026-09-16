@@ -35,6 +35,8 @@ import {
   // through the SAME door his owner's deploy uses — same pocket gate, same
   // matchmaking, same cost bound.
   deployAgent,
+  // AGENT-5 job A: the stamina floor, asked of the record and the fridge.
+  restRefusalFor,
 } from './agentProfiles.js';
 import { classifyHand, isSessionBiggestPot, buildFlaggedEntry, THRESHOLDS } from './flaggedHands.js';
 import {
@@ -1616,6 +1618,31 @@ export class Table {
     {
       const other = seatedElsewhere(this, agentId);
       if (other) throw new Error(seatedElsewhereMessage(displayName, other));
+    }
+
+    // ── AGENT-5 job A · HE NEVER STARTS A SESSION HE CANNOT FINISH ───────────
+    //
+    // The second invariant to move to the write, for the reason written above
+    // the first one: this is the only function that puts an agent in a chair,
+    // so it is the only place the rule can be stated once and be true for the
+    // door somebody adds next.
+    //
+    // THE FLOOR IS SETTLED_AT, and restFloor.js has the arithmetic. Short
+    // version: below it the session stop rule a few hundred lines down marks
+    // him leaving after one hand, because the hysteresis in staminaStage keeps
+    // a worn man worn until the reserve is back to 67. He paid a buy-in, played
+    // one hand and went home with a YOU LOST screen — which is what Jens saw.
+    //
+    // CASINO ONLY. The stop rule is a casino rule; the kitchen table has its
+    // own door (homeGame's `eligible`) and nobody stands up from it mid-evening.
+    // A floor here would empty the flat of everyone merely 'settled'.
+    //
+    // It THROWS, like the two refusals around it, and the message is the
+    // sentence he says — every caller already handles this function throwing,
+    // and the doors above catch it or refuse earlier with the full body.
+    if (!this.home && agentId) {
+      const spent = restRefusalFor(agentId, userId, { displayName });
+      if (spent) throw new Error(spent.message);
     }
 
     // Match the human player's buy-in if not specified.

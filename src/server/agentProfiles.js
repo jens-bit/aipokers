@@ -26,6 +26,9 @@ import { recordOwnerHand, ownerHandsContext } from '../agent/ownerHands.js';
 // resting gives back — the only thing in the system that can make an agent
 // who never leaves the flat reach 'worn' and go to sleep.
 import { staminaStageNow, worseStage, staminaPercent, restStamina, spendStamina, feedStamina } from '../agent/stamina.js';
+// AGENT-5 jobs A + B — the floor a casino seat costs at the door, the
+// arithmetic behind it and the sentence that names the remedy.
+import { restRefusal, restPlan, DEPLOY_FLOOR } from './restFloor.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 // GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
 // only enforced here — see the note at the top of that file for why the two
@@ -2266,6 +2269,52 @@ export function staminaOf(agent, { now = Date.now(), resting = true } = {}) {
   if (resting) restStamina(agent, { now });
   const left = staminaPercent(agent, { now, resting });
   return { left, stage: staminaStageNow(agent, { now, resting }) };
+}
+
+/**
+ * AGENT-5 job A — IS HE FIT TO SIT DOWN, AND IF NOT, WHAT FIXES IT.
+ *
+ * The record-and-wallet half of restFloor.js, which is pure and holds neither.
+ * Returns null when he may take a casino seat, and otherwise the refusal with
+ * the remedy, the number and LIFE-2's action pair on it.
+ *
+ * `null` IS ALSO THE ANSWER FOR AN AGENT NOBODY HAS A RECORD OF. A House
+ * regular, a bare Table in a unit test, a seat with no owner — none of them has
+ * a reserve, and a gate that refused what it cannot measure would stop the
+ * whole cast sitting down. Same shape `seatOf` uses for the one-table rule and
+ * for the same reason: a lookup must never be the thing that empties a felt.
+ *
+ * The reserve is read RESTED, because a man being asked whether he can start a
+ * session is by definition not in a seat yet, and the number that decides it
+ * has to be the one he actually has now rather than the one he stood up with.
+ */
+export function restRefusalFor(agentId, userId, { displayName = null, now = Date.now() } = {}) {
+  if (!agentId) return null;
+  const owner = String(userId ?? 'anon');
+  const profile = getOrCreate(owner);
+  const agent = profile.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const wallet = walletFor(owner);
+  ensureFridge(wallet);
+  return restRefusal({
+    left: staminaPercent(agent, { now, resting: true }),
+    snacks: fridgeCountOf(wallet, 'snack'),
+    nature: agent.nature ?? null,
+    displayName: displayName || agent.name || null,
+  });
+}
+
+/** The same question with no sentence attached, for a caller that only gates. */
+export function restPlanFor(agentId, userId, { now = Date.now() } = {}) {
+  const owner = String(userId ?? 'anon');
+  const agent = getOrCreate(owner).agents.find((a) => a.id === agentId);
+  if (!agent) return restPlan({ left: 100 });
+  const wallet = walletFor(owner);
+  ensureFridge(wallet);
+  return restPlan({
+    left: staminaPercent(agent, { now, resting: true }),
+    snacks: fridgeCountOf(wallet, 'snack'),
+  });
 }
 
 // Set the agent's mood record wholesale (used by table.js after applying
@@ -5086,6 +5135,35 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
         memoryContext: getAgentMemoryContext(agent),
         alreadyPlaying: true,
         room: roomForBigBlind(seatedAt.bigBlind)?.id ?? agent.headingTo ?? null,
+      } };
+    }
+  }
+
+  // ── AGENT-5 jobs A + B · REFUSED AT THE DOOR, WITH THE FIX ATTACHED ───────
+  //
+  // seatAI holds the invariant (it is the only function that seats anybody), but
+  // a backstop that throws a string is a worse answer than a door that refuses
+  // in his own voice and hands the owner one tap. So the same question is asked
+  // HERE, where there is a body to put it in.
+  //
+  // PLACED BELOW the "already at a live table" fast path, so a client polling
+  // deploy during the session he is finishing gets his table back rather than
+  // being told he is tired — he is IN a seat; the floor is about starting one.
+  // And ABOVE the pocket gate and the charge, so a refused deploy costs nothing
+  // and moves nothing: this is the cheapest thing the function can do, which is
+  // the same placement rule the guest gate below it is written under.
+  {
+    const spent = restRefusalFor(agent.id, userId, { displayName: agent.name });
+    if (spent) {
+      return { status: 409, body: {
+        ...spent,
+        // The one word a client that knows nothing about this branch can still
+        // render. Everything else is additive.
+        message: spent.message,
+        fatigue: visibleFatigue(agent),
+        agentId: agent.id,
+        agentName: agent.name,
+        moment: { text: spent.message, mood: agent.mood?.state ?? 'neutral', at: Date.now() },
       } };
     }
   }

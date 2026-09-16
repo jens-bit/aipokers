@@ -46,6 +46,10 @@ export const WANT_ACTIONS = Object.freeze(['rest', 'feed', 'chips', 'deploy', 'l
 
 export const ACTION_BY_KIND = Object.freeze({
   rest:    'rest',
+  // AGENT-5 job A. Not an ask kind — nothing in wants.js raises it — but the
+  // door's stamina refusal needs the same verb behind it, and a second mapping
+  // for the same word is how two surfaces come to disagree about one button.
+  turn_in: 'rest',
   deploy:  'deploy',
   back_in: 'deploy',
   nemesis: 'deploy',
@@ -101,6 +105,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'Ask me about tonight. Good shift, that.',
     food:    "Something to eat. I've been at it for hours.",
     nemesis: "Send me. I'll still be there when he isn't.",
+    turn_in:   "Not tonight. I need my head straight first.",
+    housemate: "You're on my shift.",
   }),
   Hothead: Object.freeze({
     rest:    "I'm cooked. Get me off this felt.",
@@ -111,6 +117,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'You missed it. Ask me what happened.',
     food:    'Feed me before I bite somebody.',
     nemesis: 'Send me. Tonight.',
+    turn_in:   "I'd only do something stupid. Let me sleep.",
+    housemate: "Of all the tables. Fine.",
   }),
   Professor: Object.freeze({
     rest:    'My arithmetic is going. Rest me now.',
@@ -121,6 +129,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'Sit down. I want to walk you through one.',
     food:    "I can't count hungry. Is there anything in?",
     nemesis: "Send me. I've worked him out.",
+    turn_in:   "Send me now and I misread everything. Later.",
+    housemate: "Interesting. I know exactly how you play.",
   }),
   Rock: Object.freeze({
     rest:    "I'm knackered. Let me sleep.",
@@ -131,6 +141,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'I had a hand tonight. Ask me.',
     food:    "Is there food in? I'm not fussy.",
     nemesis: 'Send me. I know what I fold against him.',
+    turn_in:   "No. Bed first, cards after.",
+    housemate: "You. Don't get in my way.",
   }),
   Gambler: Object.freeze({
     rest:    'Even I know when to stop. Sit me out.',
@@ -141,6 +153,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'You have to hear about this hand.',
     food:    "I could eat. What's in the fridge?",
     nemesis: 'Send me. I fancy it.',
+    turn_in:   "Even I'd punt that off. Wake me later.",
+    housemate: "Ha. This should be fun.",
   }),
   Shark: Object.freeze({
     rest:    "I'm missing things. Take me off.",
@@ -151,6 +165,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'Ask me about tonight. I had him from the flop.',
     food:    "Feed me. I'm off my game hungry.",
     nemesis: "Send me. He's mine.",
+    turn_in:   "I'd miss things like this. Give me a few hours.",
+    housemate: "I know your tells. All of them.",
   }),
   Sphinx: Object.freeze({
     rest:    'Enough. Sit me out.',
@@ -161,6 +177,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'Something happened tonight. Ask.',
     food:    'I could eat.',
     nemesis: "Send me. I'll be there.",
+    turn_in:   "Not yet. Wake me.",
+    housemate: "You.",
   }),
   Showman: Object.freeze({
     rest:    'Curtain down. I need a lie-in.',
@@ -171,6 +189,8 @@ export const NATURE_WANT_LINES = Object.freeze({
     brag:    'Ask me about tonight. Go on, ask me.',
     food:    "Feed me and I'll tell you about the river.",
     nemesis: 'Send me. People should see this.',
+    turn_in:   "No show tonight. I'm going to lie down.",
+    housemate: "Two of us. The crowd gets a story.",
   }),
 });
 
