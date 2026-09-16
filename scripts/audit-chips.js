@@ -17,13 +17,27 @@
 //
 // ── Three things to know before reading a number off this ────────────────────
 //
-// 1. IT NEVER WRITES. It opens SQLite readonly and does not go through
-//    store.js at all, because store.js's conn() applies the schema and imports
-//    data/agents.json on first use. An audit that migrates the thing it is
-//    auditing is not an audit. Consequence: the DB must already exist; this
-//    tool will not create or upgrade one.
+// 1. IT NEVER WRITES TO A DATABASE YOU GIVE IT. Pointed at a real file with
+//    --db, it opens SQLite readonly and does not go through store.js at all,
+//    because store.js's conn() applies the schema and imports data/agents.json
+//    on first use. An audit that migrates the thing it is auditing is not an
+//    audit. Consequence: that file must already exist; this tool will not
+//    create or upgrade one.
 //
-// 2. A TABLE STACK IS NOT PERSISTED. `live` is zero from a cold read of a
+// 2. WITH NO --db, IT NEVER TOUCHES YOUR DATABASE AT ALL. The default target
+//    is a scratch SQLite file this script builds and seeds itself, in a temp
+//    directory, and deletes when it exits. CHIPS-1: a developer's real local
+//    data/app.db accumulates fixture agents from every Playwright spec anyone
+//    has ever pointed at a running `npm start` (home2.spec.js, verify-*.js —
+//    they draft through the real /api/agents/build, there is no test-only
+//    path) with nothing that ever cleans them up. Three tabs each lost time
+//    to a red run that was that leftover local data, not a bug. Making the
+//    default self-contained means `node scripts/audit-chips.js` answers "did
+//    the reconciliation engine mint or lose a chip" and nothing about whose
+//    laptop it runs on. --db is still how you point it at a real file,
+//    including your own data/app.db, when that's the question you're asking.
+//
+// 3. A TABLE STACK IS NOT PERSISTED. `live` is zero from a cold read of a
 //    database, because nothing anywhere stores what an agent has in front of
 //    him — see read-me-claude/MONEY_AUDIT.md §4. Running against a file, the
 //    script says how many agents CLAIM to be playing and prices the chips it
@@ -31,21 +45,22 @@
 //    call auditChips() in-process and hand it the live table registry: that is
 //    what the conservation tests do.
 //
-// 3. THE LEDGER IS CAPPED AT 100 ENTRIES (LEDGER_CAP, src/server/wallet.js).
+// 4. THE LEDGER IS CAPPED AT 100 ENTRIES (LEDGER_CAP, src/server/wallet.js).
 //    A long-lived pocket silently forgets its own beginning, so `diff` on an
 //    old household is evidence of nothing on its own. `ledgerCapped` is
 //    printed beside it for exactly that reason; trust `diff` only on a
 //    household whose ledgers are all short.
 //
 // Usage:
-//   node scripts/audit-chips.js                     # ./data/app.db
-//   node scripts/audit-chips.js --db path/to/app.db
+//   node scripts/audit-chips.js                     # a fresh scratch db, seeded by this script
+//   node scripts/audit-chips.js --db path/to/app.db  # a real database, e.g. your local data/app.db
 //   node scripts/audit-chips.js --json
 //
-// NEVER point this at production. It cannot write, but it reads whole ledgers
+// NEVER point --db at production. It cannot write, but it reads whole ledgers
 // into memory and prints balances; run it on a copy.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -269,14 +284,58 @@ function parse(text, fallback) {
   try { return JSON.parse(text); } catch { return fallback; }
 }
 
+// ── The scratch database ──────────────────────────────────────────────────────
+//
+// Not store.js's schema, and deliberately not trying to be — this file is
+// never anything but a throwaway fixture for the audit's own self-check, so
+// it carries only the four tables readOwners()/readHouseBank() actually
+// query. One owner, hand-balanced, so a passing run demonstrates the
+// arithmetic on real (if synthetic) numbers rather than on an empty database
+// that would pass by having nothing to add up.
+
+const SCRATCH_OWNER = 'scratch-owner';
+
+function seedScratchDb(file) {
+  const Database = require('better-sqlite3');
+  const d = new Database(file);
+  try {
+    d.exec(`
+      CREATE TABLE profiles (owner_id TEXT PRIMARY KEY);
+      CREATE TABLE wallets (
+        owner_id TEXT PRIMARY KEY,
+        balance INTEGER NOT NULL DEFAULT 0,
+        earned INTEGER NOT NULL DEFAULT 0,
+        ledger TEXT NOT NULL DEFAULT '[]',
+        starting_grant_claimed INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE agents (owner_id TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+    `);
+    const ts = Date.UTC(2026, 0, 1);
+    d.prepare('INSERT INTO profiles (owner_id) VALUES (?)').run(SCRATCH_OWNER);
+    d.prepare(
+      'INSERT INTO wallets (owner_id, balance, earned, ledger, starting_grant_claimed) VALUES (?, ?, ?, ?, ?)',
+    ).run(SCRATCH_OWNER, 5_000, 0, JSON.stringify([{ type: 'seed', amount: 5_000, ts }]), 0);
+    const agent = {
+      id: 'scratch-agent', name: 'Scratch Hero', status: 'idle', activeTableId: null,
+      pocket: { balance: 1_000, ledger: [{ type: 'seed', amount: 1_000, ts }] },
+      ledger: [{ type: 'grant', amount: 6_000, ts }],
+    };
+    d.prepare('INSERT INTO agents (owner_id, id, data) VALUES (?, ?, ?)').run(SCRATCH_OWNER, agent.id, JSON.stringify(agent));
+    d.prepare("INSERT INTO meta (key, value) VALUES ('house_bank', ?)").run('0');
+  } finally {
+    d.close();
+  }
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 const money = (n) => (n === null || n === undefined ? '     —' : n.toLocaleString('en-US'));
 const pad = (s, w) => String(s).padStart(w);
 
-function report(result, { file }) {
+function report(result, { file, scratch = false }) {
   const lines = [];
-  lines.push(`chip audit — ${file}`);
+  lines.push(`chip audit — ${file}${scratch ? '  (fresh scratch database, seeded by this script)' : ''}`);
   lines.push('');
   lines.push([
     pad('owner', 28), pad('safe', 12), pad('pockets', 12), pad('live', 12),
@@ -352,9 +411,26 @@ function report(result, { file }) {
   lines.push('');
 
   const broken = result.owners.filter((o) => o.diff !== 0 && !o.ledgerCapped);
-  lines.push(broken.length === 0
-    ? 'books: every uncapped ledger explains its own balances.'
-    : `books: ${broken.length} owner(s) hold chips their ledger does not explain:`);
+  if (broken.length === 0) {
+    lines.push('books: every uncapped ledger explains its own balances.');
+  } else if (scratch) {
+    lines.push(`books: ${broken.length} owner(s) hold chips their ledger does not explain, in a`);
+    lines.push('  database THIS SCRIPT JUST BUILT AND SEEDED ITSELF. There is no old local');
+    lines.push('  test data here to blame — the reconciliation engine, or something on this');
+    lines.push('  branch, is minting or losing chips. That is a real bug. Fix the code.');
+  } else {
+    lines.push(`books: ${broken.length} owner(s) hold chips their ledger does not explain, in`);
+    lines.push(`  ${file}.`);
+    lines.push('  This file was NOT built by this script, so an unexplained owner here can be');
+    lines.push('  a real bug, or it can be the fossil of an old manual fixture run — every');
+    lines.push('  Playwright spec that drafts an agent against a running `npm start` drafts it');
+    lines.push('  through the real /api/agents/build, into whatever data/app.db sits in that');
+    lines.push('  terminal\'s cwd, and nothing ever cleans those owners up. To tell which: run');
+    lines.push('  `node scripts/audit-chips.js` with no --db. That builds and audits a clean');
+    lines.push('  scratch database and only ever fails on a genuine bug. If that run is green');
+    lines.push('  and this one is red, the owners below are old local data, not a branch');
+    lines.push('  problem.');
+  }
   for (const o of broken) {
     lines.push(`  ${o.ownerId}: balances ${money(o.safe + o.pockets)}, ledger ${money(o.ledger)}, ` +
       `unexplained ${money(o.diff)}`);
@@ -367,13 +443,33 @@ const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.ar
 if (isMain) {
   const argv = process.argv.slice(2);
   const at = argv.indexOf('--db');
-  const file = at !== -1 ? argv[at + 1] : path.join(process.cwd(), 'data', 'app.db');
+  const explicitDb = at !== -1;
   const asJson = argv.includes('--json');
 
-  if (!fs.existsSync(file)) {
-    console.error(`No database at ${file}.`);
-    console.error('This tool is read-only and will not create or migrate one — point --db at an existing app.db.');
-    process.exit(1);
+  let file;
+  let scratchDir = null;
+  const cleanup = () => {
+    if (scratchDir) { try { fs.rmSync(scratchDir, { recursive: true, force: true }); } catch { /* best effort */ } }
+  };
+
+  if (explicitDb) {
+    file = argv[at + 1];
+    if (!file) {
+      console.error('--db needs a path, e.g. --db data/app.db');
+      process.exit(1);
+    }
+    if (!fs.existsSync(file)) {
+      console.error(`No database at ${file}.`);
+      console.error('This tool is read-only and will not create or migrate one — point --db at an existing app.db.');
+      process.exit(1);
+    }
+  } else {
+    // CHIPS-1: no --db means "audit the reconciliation engine itself", not
+    // "audit whatever happens to be in this developer's data/ directory" —
+    // see note 2 at the top of this file.
+    scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'audit-chips-scratch-'));
+    file = path.join(scratchDir, 'app.db');
+    seedScratchDb(file);
   }
 
   let owners;
@@ -381,18 +477,20 @@ if (isMain) {
     owners = readOwners(file);
   } catch (err) {
     console.error(`Cannot read ${file}: ${err.message}`);
+    cleanup();
     process.exit(1);
   }
 
   let bank = null;
   try { bank = readHouseBank(file); } catch { /* reported as "none" below */ }
   const result = auditChips(owners, { houseBank: bank });
-  if (asJson) console.log(JSON.stringify({ file, ...result }, null, 2));
-  else console.log(report(result, { file }));
+  if (asJson) console.log(JSON.stringify({ file, scratch: !explicitDb, ...result }, null, 2));
+  else console.log(report(result, { file, scratch: !explicitDb }));
 
   // A non-zero exit is reserved for books that genuinely do not balance, so
   // this can sit in a check later. A capped ledger is not a failure.
   const bad = result.owners.some((o) => o.diff !== 0 && !o.ledgerCapped);
+  cleanup();
   process.exit(bad ? 1 : 0);
 }
 

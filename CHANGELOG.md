@@ -1,5 +1,35 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## A chip audit that survives your own machine — local candidate (2026-09-16, CHIPS-1)
+
+On `fix/chips-audit`, branched off `main` at the 0.17.0 candidate, not yet
+merged. One file changed plus its test; no new dependencies.
+
+`node scripts/audit-chips.js` defaulted to the caller's local `data/app.db`,
+which on a dev machine accumulates fixture agents from every Playwright spec
+anyone has pointed at a running `npm start` — they draft through the real
+`/api/agents/build`, not a test-only path, and nothing ever cleans them up.
+Three tabs separately hit a red run that was that leftover data, not a bug,
+and each had to stop and prove it wasn't theirs. Considered and rejected: a
+marker written at fixture-creation time — infeasible with ~45 independent
+Playwright specs drafting through the real product API rather than a shared
+fixture helper, so a marker would need threading into every one of them and
+silently stops working the moment a new spec forgets it.
+
+With no `--db`, the script now builds and seeds its own scratch SQLite
+database — one hand-balanced owner, so the self-check proves the arithmetic
+rather than passing on an empty database with nothing to add up — and never
+touches the caller's `data/app.db`. `--db path/to/app.db` still audits a real
+file when that's the actual question. The report wording now says two
+different things depending on which failed: the scratch database failing
+means the reconciliation engine (or this branch) is genuinely minting or
+losing chips; `--db` against a real file failing can be a real bug or old
+local fixture data, and names the one-command way to tell them apart.
+Regression: `src/server/auditChipsCli.test.js`, spawning the CLI for real —
+the default proven to ignore a deliberately dirty `data/app.db` in its cwd,
+and `--db` against a database with chips minted from nowhere proven to still
+fail and name the owner.
+
 ## 0.17.0 candidate — the doors he walked through, and the verbs that meant it (2026-09-16)
 
 One branch, seven commits, `f01f8c8..HEAD`. Merged as MERGE-13, gated after

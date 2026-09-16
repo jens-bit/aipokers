@@ -8,7 +8,8 @@
 //
 // What is asserted is the arithmetic, not the CLI: given plain wallet and agent
 // records, does the reconciliation say what the money is. The database half is
-// exercised by the conservation suite, which drives real deploys.
+// exercised by the conservation suite, which drives real deploys, and the CLI
+// itself (argv, exit codes, the scratch default) by auditChipsCli.test.js.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
