@@ -2284,10 +2284,21 @@ export function staminaOf(agent, { now = Date.now(), resting = true } = {}) {
  * whole cast sitting down. Same shape `seatOf` uses for the one-table rule and
  * for the same reason: a lookup must never be the thing that empties a felt.
  *
- * The reserve is read RESTED, because a man being asked whether he can start a
- * session is by definition not in a seat yet, and the number that decides it
- * has to be the one he actually has now rather than the one he stood up with.
+ * WHETHER HE IS RESTING IS ASKED, NOT ASSUMED. The first cut read the reserve
+ * with `resting: true` on the reasoning that a man being asked whether he can
+ * start a session is by definition not in a seat — which is false for the one
+ * seat that does not set `activeTableId`. An agent at the kitchen table was
+ * being credited every hour he had spent PLAYING at it, so three hours of home
+ * poker read as three hours of sleep and the floor let him straight through.
+ * That is presentAgent's own `seatedNow` trap, caught by verify-rest-floor.js.
+ * The predicate is visibleFatigue's, for the same reason it is factored out
+ * there: the gate and the card must not measure one man two ways.
  */
+function seatedAnywhere(agent) {
+  return !!(agent?.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
+    || !!liveTables?.homeTableOf?.(agent.id);
+}
+
 export function restRefusalFor(agentId, userId, { displayName = null, now = Date.now() } = {}) {
   if (!agentId) return null;
   const owner = String(userId ?? 'anon');
@@ -2297,7 +2308,7 @@ export function restRefusalFor(agentId, userId, { displayName = null, now = Date
   const wallet = walletFor(owner);
   ensureFridge(wallet);
   return restRefusal({
-    left: staminaPercent(agent, { now, resting: true }),
+    left: staminaPercent(agent, { now, resting: !seatedAnywhere(agent) }),
     snacks: fridgeCountOf(wallet, 'snack'),
     nature: agent.nature ?? null,
     displayName: displayName || agent.name || null,
@@ -2312,7 +2323,7 @@ export function restPlanFor(agentId, userId, { now = Date.now() } = {}) {
   const wallet = walletFor(owner);
   ensureFridge(wallet);
   return restPlan({
-    left: staminaPercent(agent, { now, resting: true }),
+    left: staminaPercent(agent, { now, resting: !seatedAnywhere(agent) }),
     snacks: fridgeCountOf(wallet, 'snack'),
   });
 }

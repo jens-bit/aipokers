@@ -142,14 +142,25 @@ export function restPlan({ left = 100, snacks = 0 } = {}) {
     return { ok: true, left: num(left), deficit: 0, snacksNeeded: 0, hours: 0, kind: null, stock };
   }
   const hours = hoursFor(deficit);
+  const needed = snacksFor(deficit);
+  // WHICH REMEDY HE ASKS FOR. Two questions, in this order:
+  //
+  //   1. IS IT ALREADY IN THE FRIDGE? Then it is food, whatever the clock
+  //      says. The owner has already paid for those snacks; telling him to
+  //      wait an hour instead of pressing the button on the thing he bought is
+  //      the product arguing with him. (verify-rest-floor.js found this: after
+  //      two of three snacks he was told to go and have a lie down, with the
+  //      third one sitting on the shelf.)
+  //   2. OTHERWISE THE CLOCK DECIDES, per REST_WINS_HOURS above — a short wait
+  //      is sleep, a long one is worth going shopping for.
+  const kind = (stock >= needed || hours > REST_WINS_HOURS) ? 'food' : 'rest';
   return {
     ok: false,
     left: num(left),
     deficit,
-    snacksNeeded: snacksFor(deficit),
+    snacksNeeded: needed,
     hours,
-    // See REST_WINS_HOURS. A short wait is sleep; a long one is food.
-    kind: hours <= REST_WINS_HOURS ? 'rest' : 'food',
+    kind,
     // Only meaningful on the food branch, and only as "can the shelf cover it".
     stock,
   };

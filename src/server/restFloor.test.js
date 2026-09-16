@@ -68,14 +68,28 @@ test('AGENT-5 job A: two snacks leave him short, which is the bug in one line', 
   assert.equal(restRefusal({ left: 50, nature: 'Rock' }) === null, false);
 });
 
-test('AGENT-5 job A: sleep wins a short wait, food wins a long one', () => {
+test('AGENT-5 job A: with an empty shelf, sleep wins a short wait and food a long one', () => {
   // The cut is REST_WINS_HOURS, which at 22/hour lands at a reserve of 23.
   const cut = DEPLOY_FLOOR - REST_WINS_HOURS * RECOVER_PER_HOUR;
   assert.equal(cut, 23);
-  assert.equal(restPlan({ left: cut }).kind, 'rest');
-  assert.equal(restPlan({ left: cut - 1 }).kind, 'food');
-  assert.equal(restPlan({ left: 66 }).kind, 'rest');
-  assert.equal(restPlan({ left: 0 }).kind, 'food');
+  assert.equal(restPlan({ left: cut, snacks: 0 }).kind, 'rest');
+  assert.equal(restPlan({ left: cut - 1, snacks: 0 }).kind, 'food');
+  assert.equal(restPlan({ left: 66, snacks: 0 }).kind, 'rest');
+  assert.equal(restPlan({ left: 0, snacks: 0 }).kind, 'food');
+});
+
+test('AGENT-5 job A: a shelf that already covers it wins over the clock', () => {
+  // The case verify-rest-floor.js caught: two of three snacks eaten, the third
+  // one on the shelf, and he was told to go and have a lie down instead.
+  const short = restPlan({ left: 50, snacks: 0 });
+  assert.equal(short.kind, 'rest');
+  assert.equal(short.snacksNeeded, 1);
+  const stocked = restPlan({ left: 50, snacks: 1 });
+  assert.equal(stocked.kind, 'food');
+  assert.equal(
+    restRefusal({ left: 50, snacks: 1, nature: 'Rock' }).message,
+    "Is there food in? I'm not fussy. One snack should do it.",
+  );
 });
 
 // ── the sentence ────────────────────────────────────────────────────────────
