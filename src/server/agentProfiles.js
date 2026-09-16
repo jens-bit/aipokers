@@ -71,6 +71,7 @@ import {
   birthAttributes,
   effectiveAttrs,
   restedFatigue,
+  FATIGUE_RECOVERY_HOURS,
 
   logAttrChange,
   firstWordsFor,
@@ -2539,6 +2540,10 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     fedAt: agent.lastSnackAt ?? null,
     celebrating: isCelebrating(lastSessionResult(agent)),
     fatigue,
+    // AGENT-4 job B: the rest bench, drawn at last. `isRestBenched` is the
+    // same reading the deploy gate uses, so the room and the door cannot
+    // disagree about whether he is asleep.
+    resting: isRestBenched(agent),
     unseenRecap: !!agent.unseenRecap,
   });
 
@@ -3212,6 +3217,29 @@ export function fatigueNow(agent, { now = Date.now() } = {}) {
   return restedFatigue(agent?.fatigue ?? 'fresh', hours);
 }
 
+/**
+ * AGENT-4 job C — THE READING THE OWNER IS ACTUALLY LOOKING AT.
+ *
+ * `fatigueNow` is the SESSION half and `staminaStageNow` is the RESERVE half,
+ * and what every surface draws is the worse of the two — presentAgent's own
+ * line, and the rule LIFE-1 wrote it under: neither number may hide the other.
+ * Three call sites had that expression spelled out longhand and a fourth (the
+ * fridge) asked only the reserve, which is how food came to be refused to a
+ * man showing one dot.
+ *
+ * One function, so the thing an owner sees and the thing a gate decides on
+ * cannot be two different numbers again.
+ */
+export function visibleFatigue(agent, { now = Date.now() } = {}) {
+  if (!agent) return 'fresh';
+  const seated = !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
+    || !!liveTables?.homeTableOf?.(agent.id);
+  return worseStage(
+    fatigueNow(agent, { now }),
+    staminaStageNow(agent, { now, resting: !seated }),
+  );
+}
+
 // ── Computing the one want ──────────────────────────────────────────────────
 
 /**
@@ -3526,9 +3554,12 @@ export function giveItemTo(agent, userId, item) {
   // The reserve is read RESTED here on purpose: an agent being handed food is
   // by definition not in a seat, and asking whether the snack would help has
   // to use the number he actually has, not the one he had an hour ago.
+  // AGENT-4 job C: the reserve AND the word the owner can see. Asking only the
+  // first is the threshold that refused food at one dot — see itemHelp.
   const help = itemHelp(item, {
     mood: agent.mood,
     staminaLeft: staminaPercent(agent, { resting: true }),
+    stage: visibleFatigue(agent),
   });
   if (!help.any) {
     return { ok: false, status: 400, body: {
@@ -3571,6 +3602,32 @@ export function giveItemTo(agent, userId, item) {
   // charge does — so a snack can genuinely help a sleeping agent up, but only
   // by getting him all the way back to rested.
   const fed = help.feeds ? feedStamina(agent, staminaEffectOf(item)) : null;
+  // ── AGENT-4 job C · EATING IS A BREAK, SO IT MOVES THE DOT ────────────────
+  //
+  // The reserve was only ever HALF of what the owner is looking at. The card
+  // draws `worseStage(session fatigue, reserve stage)`, and feeding a man back
+  // to a full reserve while the session half still says 'worn' leaves him at
+  // one dot with nothing left to give him — which is the state in which the
+  // fridge used to refuse. Widening the gate without this would have been
+  // worse than the bug: it would accept the snack, consume the stock and
+  // change nothing visible.
+  //
+  // So food credits the session ladder too, and it does it by moving
+  // `restedAt` BACK rather than by writing a stage. restedFatigue already
+  // walks him one step toward 'fresh' per FATIGUE_RECOVERY_HOURS away from the
+  // table; a snack buys two of those hours, so the existing curve does the
+  // arithmetic, the hours he had already banked are not thrown away, and there
+  // is no new state to keep consistent. It is bounded by the ladder's own
+  // floor at 'fresh'.
+  //
+  // NOT A SKILL EFFECT, so fridge.js rule 2 holds: `effectiveAttrs` derives
+  // fatigue from the hand count of the seat he is in and never reads this
+  // field, so a man fed at home sits down exactly as sharp as he would have.
+  // This only moves what the owner is told about a man who is at home.
+  if (help.feeds) {
+    const restedAt = Number.isFinite(agent.restedAt) ? agent.restedAt : Date.now();
+    agent.restedAt = restedAt - FATIGUE_RECOVERY_HOURS * 3_600_000;
+  }
   recordOwnerEvent(agent, 'item_given', { item });
 
   // SERVER-5 job 1: when he last ate. Hunger is measured from this, and being
@@ -3975,6 +4032,7 @@ function ownerChatScene(agent, table = null) {
     id: agent.id,
     nature: agent.nature, studying: !!agent.study,
     fatigue: worseStage(restedFatigue(agent.fatigue ?? 'fresh', sinceRest), staminaStageNow(agent)),
+    resting: isRestBenched(agent),   // AGENT-4 job B
     unseenRecap: !!agent.unseenRecap,
     broke: agent.pocket?.mode !== 'auto' && Number.isFinite(agent.pocket?.balance) && isBroke(agent.pocket.balance),
     tilted: (agent.mood?.heat ?? 0) >= SULK_HEAT,
@@ -4714,6 +4772,209 @@ export function giveItemFrom(agent, userId, item) {
   emitAgentChange(userId);
   emitWantChange(userId, agent.id, null);
   return { status: 200, body: given.body };
+}
+
+// ── AGENT-4 job B · YES PERFORMS THE VERB ───────────────────────────────────
+//
+// THE FINDING. "At low stamina the agent is asked to rest and replies 'Fine,
+// give me a minute', and then never rests." LIFE-2 gave every ask a VERB
+// (wantVoice.ACTION_BY_KIND, five of them) and UI-3 made it tappable, so the
+// sentence and the button were both real. What was behind the button was not.
+// POST /want's yes performed exactly two of the five:
+//
+//   feed    giveItemTo — a real item, off a real shelf.          performed
+//   rest    benchForRest — sets `restBench`, cuts the seat.      performed
+//   chips   nothing. `needs: 'fund'` and the want marked yes.    NOT performed
+//   deploy  nothing. `needs: 'deploy'` and the want marked yes.  NOT performed
+//   listen  nothing. `needs: 'thread'` and the want marked yes.  NOT performed
+//
+// `needs` is a ROUTING INSTRUCTION — it tells the client which screen to open.
+// It was standing in for the act itself, so three of the five verbs answered
+// "yes" and changed nothing on the server at all. And rest, which did change
+// something, changed nothing an OWNER COULD SEE: `restBench` gates deploy and
+// is drawn nowhere, the routine ladder reads SLEEPS off fatigue rather than off
+// the bench, and the reserve was already refilling on its own lazy clock. So
+// the man agreed and the flat looked identical. Jens: "I guess if he does
+// something, then it's okay, but for now he doesn't."
+//
+// ── What this function is ───────────────────────────────────────────────────
+//
+// The one place a want's yes is carried out, so the five verbs cannot drift
+// into five shapes. It returns one of:
+//
+//   { ok: true,  body }            the state changed; `body` rides the response
+//   { ok: false, refusal }         it could not be done, and he SAYS SO — the
+//                                  want is left exactly where it was, in the
+//                                  shape FRIDGE-1 rule 3 already used for an
+//                                  empty shelf: `answered: null` and a `needs`
+//                                  naming the door the owner can open
+//   { ok: false, status, body }    a real error, passed through untouched
+//
+// A REFUSAL IS NOT A NO. He still wants the thing; what he says is the
+// specific obstacle ("There is nothing in the safe") rather than a cheerful
+// agreement to something that did not happen. `lastMoment` is what carries
+// that, because it is the field the room already reads his last line out of.
+//
+// ── Ordering ────────────────────────────────────────────────────────────────
+//
+// THE STATE CHANGE COMMITS BEFORE THE REPLY IS EARNED. The caller marks the
+// want answered only after this function returns ok, and saves once, after
+// both — so there is no window in which he has agreed to something that did
+// not happen. Within a verb, the line he says is written after the thing it
+// describes, never before it.
+function performWantAction(agent, userId, want, { now = Date.now() } = {}) {
+  const kind = want?.kind ?? 'beer';
+  const verb = wantAction(kind);
+  const who = agent.name || 'He';
+
+  // He says the obstacle. Same field, same shape as every other line of his.
+  const says = (text) => {
+    agent.lastMoment = { text, mood: agent.mood?.state ?? 'neutral', at: now };
+    return agent.lastMoment;
+  };
+
+  switch (verb) {
+    // ── feed ────────────────────────────────────────────────────────────────
+    // Unchanged behaviour, moved here so all five verbs read in one place.
+    case 'feed': {
+      const given = giveItemTo(agent, userId, want.item || DEFAULT_ITEM);
+      if (given.ok) return { ok: true, body: given.body };
+      // FRIDGE-1 rule 3: an empty fridge is not a punishment and not an error.
+      if (given.body?.outOfStock) {
+        return { ok: false, refusal: {
+          needs: 'stock',
+          item: given.body.item,
+          price: given.body.price,
+          fridge: given.body.fridge,
+          moment: says(`${who}: "${given.body.error}."`),
+        } };
+      }
+      return { ok: false, status: given.status, body: given.body };
+    }
+
+    // ── rest ────────────────────────────────────────────────────────────────
+    // He goes to bed, and the reserve clock starts from the moment he did.
+    case 'rest': {
+      const benched = benchForRest(agent, userId);
+      // Recovery is credited for time OUT of a seat, so the clock may only be
+      // stamped once he is actually out of one. `pending` is benchCutSeat
+      // saying he is finishing the hand he has money in — he is not resting
+      // yet, and restStamina here would pay him for the hand he is playing.
+      // presentAgent stamps it on the first projection after he stands up.
+      if (!benched.pending) restStamina(agent, { now });
+      return { ok: true, body: benched };
+    }
+
+    // ── chips ───────────────────────────────────────────────────────────────
+    // Out of the safe and into his pocket, on the same rail POST /reload uses.
+    // Conservation-safe by construction: `walletFund` MOVES chips between two
+    // balances the audit already counts, and saveStore writes the profile and
+    // the wallet in one transaction.
+    case 'chips': {
+      const wallet = walletFor(userId);
+      const pocket = ensurePocket(agent);
+      pocket.agentId = agent.id;
+      const minBuyIn = (liveTables?.getDefaultBlinds?.()?.bigBlind ?? 20) * 100;
+      const shortBy = Math.max(0, minBuyIn - Math.max(0, Math.floor(Number(pocket.balance) || 0)));
+      if (shortBy <= 0) {
+        // He asked and the world answered while the screen was open. Not a
+        // refusal — there is simply nothing left to do.
+        return { ok: true, body: { funded: 0, pocket: pocketProjection(pocket) } };
+      }
+      const funded = walletFund(wallet, pocket, { amount: shortBy });
+      if (!funded.ok) {
+        return { ok: false, refusal: {
+          needs: 'fund',
+          required: shortBy,
+          available: Math.max(0, Math.floor(Number(wallet.balance) || 0)),
+          moment: says(`${who}: "There is nothing in the safe to stake me with."`),
+        } };
+      }
+      appendLedger(agent, { ts: now, type: 'fund', amount: funded.moved, tableId: null });
+      mirrorBankroll(agent);
+      return {
+        ok: true,
+        body: {
+          funded: funded.moved,
+          pocket: pocketProjection(pocket),
+          wallet: walletProjection(wallet, getOrCreate(userId).agents),
+          moment: says(`${who}: "That will do. Thanks."`),
+        },
+      };
+    }
+
+    // ── deploy ──────────────────────────────────────────────────────────────
+    // He asked to be put in, so he is put in — through `deployAgent`, which is
+    // the same door the casino screen uses and therefore runs the same pocket
+    // gate, the same admission gate, the same matchmaking and the same cost
+    // bound. A second, simpler path would have drifted from it inside a week,
+    // and it is the one function in the codebase allowed to take a buy-in.
+    //
+    // No room is requested. The ask is "put me in", not "put me in the back
+    // room", so his pocket picks the rung exactly as an unqualified deploy does.
+    case 'deploy': {
+      const out = deployAgent(userId, agent.id, { body: {} });
+      if (out.status === 200) {
+        return { ok: true, body: {
+          deployed: true,
+          tableId: out.body?.tableId ?? null,
+          room: out.body?.room ?? null,
+        } };
+      }
+      // Every refusal deployAgent can give is already a sentence written for an
+      // owner — a broke pocket, a full floor, a night already spent. He says
+      // the one he was actually given rather than a generic apology.
+      const reason = String(out.body?.message || out.body?.error || 'I cannot get a seat right now.');
+      return { ok: false, refusal: {
+        needs: 'deploy',
+        room: want.room ?? null,
+        reason,
+        moment: says(`${who}: "${reason}"`),
+      } };
+    }
+
+    // ── listen ──────────────────────────────────────────────────────────────
+    // The only one of the five whose answer is a conversation. Performing it
+    // means he actually SAYS the thing: the line goes into his thread, where it
+    // is durable and readable later, and the unread-recap nudge is answered.
+    // Without this, "Hear him out" opened a thread he had not said anything in.
+    case 'listen': {
+      const sessionId = latestSessionFor(agent.id);
+      const line = openerForAgent(agent);
+      if (!sessionId || !line) {
+        return { ok: false, refusal: {
+          needs: 'thread',
+          moment: says(`${who}: "Nothing worth telling yet. Ask me after a session."`),
+        } };
+      }
+      const id = appendThreadLine({
+        sessionId,
+        agentId: agent.id,
+        ownerId: userId,
+        kind: ThreadKind.HIM,
+        who: agent.name,
+        text: line,
+        ts: now,
+        source: ThreadSource.HOME,
+        from: agent.id,
+        to: THREAD_OWNER,
+      });
+      if (id == null) {
+        return { ok: false, refusal: {
+          needs: 'thread',
+          moment: says(`${who}: "Not now. Ask me again in a minute."`),
+        } };
+      }
+      agent.unseenRecap = false;
+      return { ok: true, body: { told: true, sessionId, line, moment: says(line) } };
+    }
+
+    default:
+      // A kind with no verb behind it. Nothing to perform and nothing to
+      // refuse — wantVoice.wantAction returns null only for a kind that has no
+      // owner-facing action at all.
+      return { ok: true, body: null };
+  }
 }
 
 /**
@@ -5717,37 +5978,37 @@ export function installAgentProfileRoutes(app) {
     }
 
     // ── yes ────────────────────────────────────────────────────────────────
-    // The beer is the one answer that can fail on its own terms — an empty
-    // fridge, or a mood with nothing left to cool. It is settled BEFORE the
-    // want is marked answered, so a refusal leaves the want exactly where it
-    // was rather than silently eating it.
-    let performed = null;
-    // SERVER-5 job 5: food answers exactly like the beer, because it IS the
-    // beer's shape — an item out of the fridge, one effect, one button. The
-    // only difference is which shelf it comes off, and `want.item` carries
-    // that, so this branch needed a kind added to it and nothing else.
-    if (kind === 'beer' || kind === 'food') {
-      const given = giveItemTo(agent, userId, want.item || DEFAULT_ITEM);
-      // FRIDGE-1 rule 3: an empty fridge is not a punishment and not an error.
-      // Yes to a want he cannot be given opens the FRIDGE — the same shape as
-      // `needs: 'deploy'` and `needs: 'fund'`, and the want stays exactly where
-      // it is, unanswered, because he still wants the beer.
-      if (!given.ok && given.body?.outOfStock) {
-        return res.json({
-          answered: null,
-          kind,
-          needs: 'stock',
-          item: given.body.item,
-          price: given.body.price,
-          fridge: given.body.fridge,
-          want: wantView(agent, { now, wallet: walletFor(userId) }),
-        });
-      }
-      if (!given.ok) return res.status(given.status).json(given.body);
-      performed = given.body;
-    } else if (kind === 'rest') {
-      performed = benchForRest(agent, userId);
+    //
+    // AGENT-4 job B: YES PERFORMS THE VERB. All five of them, in
+    // `performWantAction` — which is the whole of the change here. What used to
+    // be in this spot handled `beer`/`food` and `rest` and let the other three
+    // kinds fall through to `want.answered = 'yes'` with nothing done, so
+    // chips, deploy and listen were answered and never performed.
+    //
+    // The order is the load-bearing part and it is unchanged from the beer's:
+    // the act is settled BEFORE the want is marked answered, so a verb that
+    // could not be carried out leaves the want exactly where it was rather than
+    // silently eating it. There is no window in which he has agreed to
+    // something that did not happen.
+    const done = performWantAction(agent, userId, want, { now });
+    if (!done.ok) {
+      // A real error, in giveItemTo's own vocabulary. Passed through untouched.
+      if (done.status) return res.status(done.status).json(done.body);
+      // He could not be given the thing, and he SAYS WHICH THING — an empty
+      // shelf, an empty safe, a floor with no seats on it. `answered: null` and
+      // a `needs` naming the door the owner can open, which is the shape
+      // FRIDGE-1 rule 3 already established for the fridge. The want survives,
+      // because he still wants it.
+      saveStore(userId);
+      emitAgentChange(userId);
+      return res.json({
+        answered: null,
+        kind,
+        ...done.refusal,
+        want: wantView(agent, { now, wallet: walletFor(userId) }),
+      });
     }
+    const performed = done.body;
 
     want.answered = 'yes';
     want.answeredAt = now;
@@ -5900,6 +6161,37 @@ export function installAgentProfileRoutes(app) {
     // seat, at the table, by chargeSeatBuyIn. Queue is a reservation.
     const refused = admitToFelt(userId, agent);
     if (refused) return res.status(refused.status).json(refused.body);
+
+    // ── AGENT-4 job A · AND THE SAME SEAT GATE DEPLOY RUNS ───────────────────
+    //
+    // MONEY-2 gave this route deploy's MONEY gate and not deploy's SEAT gate,
+    // and the seat gate is the one that matters here, because of what the two
+    // lines below do: this route writes `activeTableId` and `status = 'playing'`
+    // for a table that does not exist yet. Run it on an agent who is already
+    // sitting at a casino table and the record stops describing where he is —
+    // it points at a reservation while he is dealt in somewhere else.
+    //
+    // That is not a second seat (addSpectator's own guard refuses the WATCH
+    // that follows), and it is worse than it looks for being quiet: the card
+    // says he is walking into a room he will never reach, the WATCH the client
+    // sends next fails with an error the owner did not cause, and the record
+    // stays wrong until the next deploy repairs it from the felt.
+    //
+    // THE FELT IS THE AUTHORITY, so this asks the felt — `tableOfAgent`, the
+    // same authority seating.js gives every other door — and refuses in
+    // deploy's own words, naming the table he is at, because "no" does not
+    // tell an owner anything he can act on.
+    {
+      const seatedAt = liveTables?.tableOfAgent?.(agent.id) ?? null;
+      if (seatedAt) {
+        return res.status(409).json({
+          error: 'alreadySeated',
+          message: seatedElsewhereMessage(agent.name, seatedAt),
+          tableId: seatedAt.tableId,
+          room: roomForBigBlind(seatedAt.bigBlind)?.id ?? null,
+        });
+      }
+    }
 
     const pocket = ensurePocket(agent);
     pocket.agentId = agent.id;

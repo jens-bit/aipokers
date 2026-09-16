@@ -152,14 +152,31 @@ export function staminaEffectOf(itemId) {
  * still technically above the floor. A first cut of this used the floor and
  * verify-personality-layer.js caught the drift.
  *
+ * AGENT-4 job C — AND IT IS ASKED ABOUT THE NUMBER THE OWNER CAN SEE.
+ *
+ * `staminaLeft` alone was the wrong question, and it is the threshold that
+ * produced "He's fine. Save it." at a single dot. The dot is not the reserve.
+ * What the card draws is `worseStage(session fatigue, reserve stage)` — the
+ * WORSE of two readings, so that neither can hide the other — while this gate
+ * consulted only the second of them. An agent who came off a long session
+ * reads 'worn' and shows one dot with a reserve at 100, and the fridge, asking
+ * a different number, told his owner he was fine.
+ *
+ * So `stage` is the reading the owner is looking at, and food helps whenever
+ * that reading is below rested OR the reserve is below full. The two together
+ * are the honest definition of "not at maximum", which is the only state in
+ * which a refusal is correct.
+ *
  * @param mood        his mood record, { state, heat }
  * @param staminaLeft his reserve, 0-100 (100 when a caller has none to give)
+ * @param stage       the three-state word the owner sees, or null if unknown
  */
-export function itemHelp(itemId, { mood = null, staminaLeft = 100 } = {}) {
+export function itemHelp(itemId, { mood = null, staminaLeft = 100, stage = null } = {}) {
   if (!isItem(itemId)) return { any: false, cools: false, feeds: false, reason: 'unknown item' };
   const left = Number.isFinite(Number(staminaLeft)) ? Number(staminaLeft) : 100;
+  const tired = left < 100 || (typeof stage === 'string' && stage !== '' && stage !== 'fresh');
   const cools = heatEffectOf(itemId) < 0 && isSoothable(mood);
-  const feeds = staminaEffectOf(itemId) > 0 && left < 100;
+  const feeds = staminaEffectOf(itemId) > 0 && tired;
   const any = cools || feeds;
   return {
     any, cools, feeds,

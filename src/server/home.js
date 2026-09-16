@@ -191,7 +191,11 @@ export const DEFAULT_ROUTINE = Routine.COUNTS;
  *      which meant the one state an owner most wants to SEE — he is steaming —
  *      was invisible the moment he stood up from the felt. Heat at or above
  *      SULK_HEAT is sulking; so is having no way to buy in.
- *   6. worn        → SLEEPS.
+ *   6. worn | resting → SLEEPS. AGENT-4 job B: `resting` is the rest bench —
+ *      the owner said yes to "sit him out" and it took effect. Same pose, and
+ *      it sits on the same rung rather than above SULKS because a broke or
+ *      steaming man is still broke or steaming while he sleeps, and that is
+ *      the louder thing to draw.
  *   7. unseenRecap → WAITS. Quietest of the four: it is a nudge, not a state.
  *   8. otherwise   → where his nature's idle cycle stands at this instant.
  *
@@ -212,6 +216,13 @@ export function routineFor({
   fedAt = null,
   celebrating = false,
   fatigue = 'fresh',
+  // AGENT-4 job B: he was PUT to bed — the owner said yes to "sit him out" and
+  // the bench took effect. Being sent to sleep and being too tired to stand up
+  // are the same pose, so they share a routine; what they do not share is a
+  // cause, and only one of them is something the owner did. Without this the
+  // rest verb was invisible: `restBench` gated deploy and was drawn nowhere, so
+  // an owner who agreed to rest him watched him go on pacing.
+  resting = false,
   unseenRecap = false,
   slot = 0,
   now = Date.now(),
@@ -219,21 +230,21 @@ export function routineFor({
   if (where !== Where.HOME) return null;
   const key = routineKey({
     id, nature, atHomeTable, studying, broke, tilted, fedAt, celebrating,
-    fatigue, unseenRecap, slot, now,
+    fatigue, resting, unseenRecap, slot, now,
   });
   return { key, label: ROUTINE_LABELS[key] };
 }
 
 function routineKey({
   id, nature, atHomeTable, studying, broke, tilted, fedAt, celebrating,
-  fatigue, unseenRecap, slot, now,
+  fatigue, resting, unseenRecap, slot, now,
 }) {
   if (atHomeTable) return Routine.PLAYS;
   if (studying) return Routine.TAPE;
   if (isEating(fedAt, now)) return Routine.EATS;
   if (celebrating) return Routine.CELEBRATES;
   if (broke || tilted) return Routine.SULKS;
-  if (fatigue === 'worn') return Routine.SLEEPS;
+  if (resting || fatigue === 'worn') return Routine.SLEEPS;
   if (unseenRecap) return Routine.WAITS;
   return idleRoutine({ id, nature, slot, now });
 }

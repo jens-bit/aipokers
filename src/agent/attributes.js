@@ -377,12 +377,31 @@ export function natureForProfile(profile) {
 // Each group moves one axis. Two distinct groups is the bar for guessing at all:
 // one word ("aggressive") is a mood, two ("aggressive", "bluffs a lot") is a
 // style.
+// AGENT-4 job E - THE WORD FOR SHOVING WAS NOT IN HERE AT ALL.
+//
+// "all I want him to play is all in, all the time" hit ZERO of the seven
+// groups below, so `natureHintFor` returned null, `draftProfile` returned
+// `ready: false`, and the draft route answered with DRAFT_FALLBACK_LINE
+// without ever calling the model. The most explicit instruction a person can
+// give about a poker player was indistinguishable from "banana telephone
+// mountain" - measured, both produced the same reply and the same zero agents.
+//
+// The tokens go on TWO axes rather than into a new one, and that is the honest
+// reading rather than a trick to clear the two-signal bar: shoving every hand
+// is a statement about how HARD he plays and about HOW MANY hands he plays,
+// and those are the two axes. A man who jams every pot is maximally aggressive
+// and maximally loose, and saying so in one word is what the sentence does.
+//
+// Word-bounded on purpose. "ship" alone is inside "relationship" and
+// "championship", and a draft is prose somebody typed at a phone keyboard.
+const SHOVE = String.raw`\ball[-\s]?ins?\b|\bshove|\bshoving\b|\bjam\b|\bjams\b|\bjamming\b|\bship it\b|\bshipping it\b|\bpush(es|ing)? all|\bopen[-\s]?shov`;
+
 const DRAFT_SIGNALS = [
-  { axis: 'aggression', re: /aggress|relentless|pressure|attack|pushy|punish/i,          profile: { aggression: 85, tightness: 35 } },
+  { axis: 'aggression', re: new RegExp(String.raw`aggress|relentless|pressure|attack|pushy|punish|` + SHOVE, 'i'),     profile: { aggression: 85, tightness: 35 } },
   { axis: 'bluff',      re: /bluff|deceiv|unreadab|mix it up|unpredictab|trick/i,        profile: { bluffFreq: 55, aggression: 65 } },
   { axis: 'tight',      re: /tight|patien|conservat|careful|selectiv|nitty|\bwait/i,     profile: { tightness: 82, aggression: 45 } },
   { axis: 'discipline', re: /disciplin|stick to|by the book|rules|system|methodic|fold/i, profile: { discipline: 85 } },
-  { axis: 'loose',      re: /loose|gambl|wild|reckless|swing|degen|yolo/i,               profile: { discipline: 30, tightness: 25, bluffFreq: 45 } },
+  { axis: 'loose',      re: new RegExp(String.raw`loose|gambl|wild|reckless|swing|degen|yolo|any two|` + SHOVE, 'i'), profile: { discipline: 30, tightness: 25, bluffFreq: 45 } },
   { axis: 'grind',      re: /grind|all night|long session|marathon|endur|steady/i,       profile: { discipline: 68, tightness: 55 } },
   { axis: 'maths',      re: /math|equity|pot odds|calculat|precis|solver|\bgto\b/i,      profile: { discipline: 75, tightness: 65 } },
 ];
