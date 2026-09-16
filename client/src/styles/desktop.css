@@ -2193,11 +2193,15 @@
 
 /* JOB C: a hand name ("king-high straight flush") is longer than a street
    name ever was — give it room to shrink and end in an ellipsis rather than
-   pushing the equity column out of the glass. */
+   pushing the equity column out of the glass.
+   TABLE-1 job A: 150px was a guess; handName()'s own longest output (the
+   two-pair phrase, e.g. "two pair, threes and sevens") measures ~203px at
+   this strip's 14px mono. 210px is that plus a few px of air, so the name a
+   real hand actually produces never gets cut. */
 .dtb__hero-hand-name {
   display: inline-block;
   min-width: 0;
-  max-width: 150px;
+  max-width: 210px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2320,10 +2324,11 @@
    desk strip (Street, Stack, Equity) already uses — see .dsk-label /
    .dtb__hero-num. */
 /* BUG-212 at MERGE-8: a column in the pill, not a row under it — see the
-   comment in OwnerHero.jsx for why the hero cannot afford the height. 150px
-   is the same ceiling `.dtb__hero-hand-name` gives the strip's own reading. */
+   comment in OwnerHero.jsx for why the hero cannot afford the height. 210px
+   is the same ceiling TABLE-1 job A gives `.dtb__hero-hand-name` — handName()'s
+   own longest output, not a guess. */
 .owner-hero__desk-street {display:flex;flex-direction:column;gap:2px;}
-.owner-hero__desk-street .dtb__hero-num {display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.owner-hero__desk-street .dtb__hero-num {display:block;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 /* DkWatchScreenM: the shared phone felt in a desktop coordinate space. */
 .dsk-casino-table-viewport {width:100%;height:100%;min-height:0;display:flex;align-items:center;justify-content:center;}

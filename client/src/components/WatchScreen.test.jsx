@@ -479,14 +479,27 @@ describe('W3-2 the panel', () => {
   // the screen and the one list there ever was — the record — is a glass layer
   // over its lower 70%. What W3-2/W4-2 protect is that NOTHING ELSE has crept
   // back under the felt, and that is asserted directly.
+  //
+  // TABLE-1 job A (Testing law #5): ActionNarrator used to contribute no DOM
+  // node at all when it had nothing to say, so a hand with no narration line
+  // (this fixture's) never showed it in the shell this test enumerates. It sat
+  // between the felt (flex:1) and the composer, so that absence was also the
+  // felt's own height — and the felt (and everything positioned by a fixed
+  // offset or a percentage of it: the hero strip, its stamina/heat row, the
+  // pot, the board) visibly shifted every time a narration line appeared or
+  // disappeared. It is mounted always now, at one reserved height, so the
+  // shell always has it — the rule this test protects (nothing but the
+  // header, the felt, the narrator and the composer) is unchanged; only the
+  // narrator's own presence is no longer conditional on having something to
+  // say.
   it('W4-2: there is no tab bar under the felt at all', () => {
     const { container } = renderWatch(midHandGame);
     expect(container.querySelector('.watch-tabs')).toBeNull();
     expect(container.querySelector('.watch-sheet')).toBeNull();
-    // Header, felt, composer. Nothing else.
+    // Header, felt, narrator, composer. Nothing else.
     const shell = [...container.querySelector('.watch-screen').children]
       .map((el) => el.className.split(' ')[0]);
-    expect(shell).toEqual(['watch-screen__header', 'watch-felt', 'watch-composer']);
+    expect(shell).toEqual(['watch-screen__header', 'watch-felt', 'action-narrator', 'watch-composer']);
   });
 
   it('W3-2: RANGE, HISTORY and ANALYSIS are gone, not hidden', () => {

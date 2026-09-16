@@ -144,10 +144,18 @@
 /* JOB C: a flex item's own min-width defaults to auto, which is its content's
    natural width — without this, a long name ("aces full of kings") could not
    actually shrink to make room for the position pill beside it, so it either
-   overflowed or crowded `.watch-felt__hero-pos` out instead of truncating. */
+   overflowed or crowded `.watch-felt__hero-pos` out instead of truncating.
+   TABLE-1 job A: 150px was measured against a guess at the longest name, and
+   handName()'s own longest output — the two-pair phrase, e.g. "two pair,
+   threes and sevens" — renders at ~194px in this font. Truncating a real hand
+   at 150px meant the box's own reason for existing (reading what your agent
+   is holding) failed on exactly the hands worth reading. 200px is that
+   longest string plus a few px of air, so the ellipsis never actually fires
+   any more — it stays as a guard against a string this evaluator has never
+   produced, not as this row's normal behaviour. */
 .watch-hero__hand-name {
   min-width: 0;
-  max-width: 150px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
