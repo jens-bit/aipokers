@@ -546,6 +546,12 @@ function stakesForRequest(body, pocketBalance) {
       status: 409,
       body: {
         error: 'cantAfford',
+        // AGENT-5 job D: a code and four numbers is not a refusal an owner can
+        // act on. Two remedies, and they are the only two there are: put more
+        // in his pocket, or send him somewhere cheaper.
+        message: `${asked.label} is ${asked.buyIn.toLocaleString()} a seat and he has `
+          + `${Math.max(0, Math.floor(Number(pocketBalance) || 0)).toLocaleString()}. `
+          + 'Fund him, or send him to a smaller room.',
         buyIn: asked.buyIn,
         rung: asked.rung,
         label: asked.label,
@@ -960,7 +966,10 @@ export function admitToFelt(userId, agent) {
     emitAgentChange(owner);
     notifyBrokeOnce(owner, agent);
     return { status: 402, body: {
-      error: "His pocket is empty. He's at the bar — your call.",
+      // AGENT-5 job D: "your call" is not a remedy, it is a shrug. The thing
+      // the owner can do is on the next line of the body already (`required`);
+      // this says it in words, in the same verb notify.js's button uses.
+      error: "His pocket is empty. He's at the bar. Fund him and he goes back in.",
       broke: true,
       pocket: pocketProjection(pocket),
       required: ENTRY_BUYIN,
@@ -2514,9 +2523,12 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   // of at SETTLED_AT and flickers in and out of the kitchen game for ever.
   // That flicker is precisely the "never seen an agent sleep" symptom.
   if (!seatedNow) restStamina(agent, { now: Date.now() });
-  fatigue = worseStage(fatigue, staminaStageNow(agent, {
-    now: Date.now(), resting: !seatedNow,
-  }));
+  // AGENT-5 job D: through visibleFatigue, which was factored out of THIS
+  // expression by AGENT-4 and then left with the original still spelled out
+  // beside it. Both halves are handed in, so nothing is re-derived and nothing
+  // is re-asked of liveTables — the change is that there is now one definition
+  // of what an owner sees instead of a definition and a copy of it.
+  fatigue = visibleFatigue(agent, { fatigue, seated: seatedNow });
   if (presence !== 'playing' && agent.fatigue !== fatigue) agent.fatigue = fatigue;
   const effective = presence === 'playing'
     ? Object.fromEntries(ATTR_KEYS.map((k) => [k, live[k]]))
@@ -3290,13 +3302,21 @@ export function fatigueNow(agent, { now = Date.now() } = {}) {
  * One function, so the thing an owner sees and the thing a gate decides on
  * cannot be two different numbers again.
  */
-export function visibleFatigue(agent, { now = Date.now() } = {}) {
+export function visibleFatigue(agent, { now = Date.now(), fatigue = null, seated = null } = {}) {
   if (!agent) return 'fresh';
-  const seated = !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
-    || !!liveTables?.homeTableOf?.(agent.id);
+  // AGENT-5 job D: the two facts a caller may already hold, taken rather than
+  // re-derived. presentAgent knows the session half exactly — it has the live
+  // seat's own sessionHands — and knows whether he is seated, and asking
+  // liveTables a second time for what it has just been asked is how the two
+  // answers get a chance to differ. Absent, both are worked out here, which is
+  // what every other caller wants.
+  const inSeat = seated == null
+    ? !!(agent.activeTableId && liveTables?.hasTable?.(agent.activeTableId))
+      || !!liveTables?.homeTableOf?.(agent.id)
+    : !!seated;
   return worseStage(
-    fatigueNow(agent, { now }),
-    staminaStageNow(agent, { now, resting: !seated }),
+    fatigue ?? fatigueNow(agent, { now }),
+    staminaStageNow(agent, { now, resting: !inSeat }),
   );
 }
 
@@ -4087,11 +4107,13 @@ function ownerChatScene(agent, table = null) {
     ? liveTables.hasTable?.(agent.activeTableId)
     : true);
   if (casinoTableExists) return { atHome: false, description: 'at the casino, waiting for a game' };
-  const sinceRest = Number.isFinite(agent.restedAt) ? (Date.now() - agent.restedAt) / 3_600_000 : Infinity;
   const routine = routineFor({
     id: agent.id,
     nature: agent.nature, studying: !!agent.study,
-    fatigue: worseStage(restedFatigue(agent.fatigue ?? 'fresh', sinceRest), staminaStageNow(agent)),
+    // AGENT-5 job D: the same one reading. This branch is only reached with no
+    // casino table and no kitchen table, so `seated` is false by construction —
+    // stated rather than left for visibleFatigue to re-establish.
+    fatigue: visibleFatigue(agent, { seated: false }),
     resting: isRestBenched(agent),   // AGENT-4 job B
     unseenRecap: !!agent.unseenRecap,
     broke: agent.pocket?.mode !== 'auto' && Number.isFinite(agent.pocket?.balance) && isBroke(agent.pocket.balance),
@@ -5065,8 +5087,22 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   if (visitRefusal) return visitRefusal;
   // AGENTS-2: retired is retired. And an agent who has been called in does not
   // get a second seat on the way out.
-  if (agent.archived) return { status: 410, body: { error: 'agentRetired' } };
-  if (agent.retiring) return { status: 409, body: { error: 'agentRetiring' } };
+  // AGENT-5 job D: both of these were a status code and a machine word, which
+  // leaves a client to invent the sentence and an owner to read whatever it
+  // invented. The code stays — clients branch on it — and a sentence that names
+  // the way out rides beside it.
+  if (agent.archived) {
+    return { status: 410, body: {
+      error: 'agentRetired',
+      message: `${agent.name || 'He'} is retired. Build a new agent to take his seat.`,
+    } };
+  }
+  if (agent.retiring) {
+    return { status: 409, body: {
+      error: 'agentRetiring',
+      message: `${agent.name || 'He'} is on his way out. Wait for his last hand, or cancel the retirement.`,
+    } };
+  }
 
   ensureMemory(agent);
   ensureProfile(agent);
@@ -5082,9 +5118,16 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   if (!seatedNow && isRestBenched(agent)) {
     return { status: 409, body: {
       error: 'agentResting',
-      message: `${agent.name || 'He'} is sitting this one out. He asked, and you said yes.`,
-      fatigue: fatigueNow(agent),
+      // AGENT-5 job D: and what ENDS it. "He asked and you said yes" is a fact
+      // about the past; the bench clears itself the moment he reads 'fresh',
+      // which is the same floor and the same arithmetic job A refuses on, so
+      // the same remedy is offered rather than a second story about rest.
+      message: `${agent.name || 'He'} is sitting this one out. He asked, and you said yes. `
+        + (restRefusalFor(agent.id, userId, { displayName: agent.name })?.message
+          ?? 'He is rested now — put him in.'),
+      fatigue: visibleFatigue(agent),
       restingUntil: 'fresh',
+      ...(restPlanFor(agent.id, userId).ok ? {} : { stamina: { floor: DEPLOY_FLOOR } }),
     } };
   }
 

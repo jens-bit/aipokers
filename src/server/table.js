@@ -3188,6 +3188,15 @@ export class Table {
       // The worse of the two readings — see stamina.js worseStage. At the
       // casino this is almost always the session's own stage, which is why
       // nothing about a casino night reads differently than it did.
+      //
+      // AGENT-5 job D audited this line and deliberately LEFT IT. It looks like
+      // the longhand visibleFatigue replaced in agentProfiles, and it is not:
+      // neither half here is read off the record. `eff.fatigue` is THIS SEAT's
+      // live reading at the hand count this table is holding, and `reserveStage`
+      // is what chargeAgentStamina just RETURNED from the write it has this
+      // instant made. Routing it through visibleFatigue would re-read a record
+      // that was written two statements ago and lose the seat, which is a worse
+      // answer reached by a tidier-looking route.
       const stage = worseStage(eff.fatigue, reserveStage);
       try {
         noteAgentFatigue(agentId, this.agentUserIds[seat], {
