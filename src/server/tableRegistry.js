@@ -220,8 +220,12 @@ export function getLiveGame(tableId, { agentId, includeHole = false } = {}) {
 // MATCH-1: userId now DISQUALIFIES any table already holding one of that
 // owner's agents, and `room` (a rooms.js room id) keeps the replacement on the
 // same floor rather than wherever the action happens to be.
-export function findJoinableTable({ profile = null, agentId = null, userId = null, room = null } = {}) {
-  return pickTableToJoin(tables.values(), { profile, agentId, userId, room });
+export function findJoinableTable({
+  profile = null, agentId = null, userId = null, room = null, together = false,
+} = {}) {
+  // AGENT-5 job F: `together` rides straight through to the ranking. This
+  // module holds no policy about it — see matchmaking.js's header.
+  return pickTableToJoin(tables.values(), { profile, agentId, userId, room, together });
 }
 
 export function getOrCreateTable(tableId, opts = {}) {

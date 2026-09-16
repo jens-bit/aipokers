@@ -33,23 +33,36 @@ const NEUTRAL = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 }
 // deploy creates a fresh one instead.
 export const JOIN_MIN_SCORE = Number(process.env.MATCHMAKING_MIN_SCORE ?? 25);
 
-// MATCH-1: two agents of the same owner never sit at the same casino table.
+// ── AGENT-5 jobs E + F · TWO OF HIS MAY SIT TOGETHER, BUT NOT BY DEFAULT ────
 //
-// MATCH-2 did the opposite — it paid a bonus to keep an owner's agents
-// together — and the playtest that followed is the reason this reverses. A
-// stable of four sharing one felt is a man playing himself: the pots move
-// chips from his left hand to his right, every read in the room is a read on
-// somebody he already owns, and the one thing the casino is FOR — his
-// character meeting somebody else's — never happens. Worse, the table looks
-// busy while nothing is at stake, which is the most expensive kind of nothing:
-// six seats of model calls buying no game.
+// MATCH-2 paid a bonus to keep an owner's agents together. MATCH-1 reversed it
+// into an outright REFUSAL, on the playtest reading that a stable of four
+// sharing one felt is a man playing himself: the pots move chips from his left
+// hand to his right, every read in the room is a read on somebody he already
+// owns, and the one thing the casino is FOR — his character meeting somebody
+// else's — never happens.
 //
-// So it is a REFUSAL, not a penalty. A soft ranking would still seat them
-// together on a quiet floor, which is exactly the floor where it matters most.
-// The home game is where an owner's agents play each other, and it is a
-// different table with different rules (no pocket, no record, no room) —
-// joinBlocker refuses those by name a few lines below.
-const OWNER_ALREADY_HERE = 'another agent of the same owner is already here';
+// JENS HAS OVERRULED THE REFUSAL (AGENT-5 job E). Two of his agents CAN sit at
+// the same table. No collusion guard and no special-cased play: they are two
+// players, and the engine has never known or cared who owns a seat.
+//
+// What survives is the OBSERVATION, which was always the better half of the
+// argument, and it survives as a RANKING rather than as a wall (job F):
+//
+//   default        a table already seating one of his own ranks LAST, and
+//                  deployAgent opens a fresh table in preference to it while
+//                  the floor has room. So deploying four agents spreads them,
+//                  which is the behaviour MATCH-1 was protecting.
+//   together:true  the same tables rank FIRST — an explicit per-deploy ask, so
+//                  "put these two in the same game" is one flag on the request
+//                  rather than a setting somebody has to go and find.
+//
+// The difference from MATCH-1 is what happens on a floor with nowhere else to
+// go: a refusal sent him home, a ranking seats him beside his stablemate. That
+// is strictly the better of the two answers, and it is the one Jens asked for.
+//
+// The home game is still refused by name below — it is a different table with
+// different rules (no pocket, no record, no room), not a crowded casino felt.
 
 // A table with fewer hands than this left in its session cap would give a
 // joiner a pointless few-hand stay, so it is skipped.
@@ -147,9 +160,9 @@ export function joinBlocker(table, { agentId, userId = null } = {}) {
   if (!(table.autoPlay || table.isAiOnly?.())) return 'not server-driven';
   if (table.seatedCount?.() < 1) return 'empty';
   if (agentId && (table.agentIds ?? []).includes(agentId)) return 'agent already seated';
-  // MATCH-1. Above the remaining-hands check on purpose: "your own man is
-  // sitting there" is the more useful reason to log when both are true.
-  if (seatsAgentOf(table, userId)) return OWNER_ALREADY_HERE;
+  // AGENT-5 job E: MATCH-1's `if (seatsAgentOf(table, userId)) return ...` was
+  // here. A stablemate is no longer a blocker at all — see the header.
+  // pickTableToJoin ranks on it instead of refusing on it.
   const remaining = (table.maxHands ?? 0) - (table.handsThisSession ?? 0);
   if (remaining < MIN_REMAINING_HANDS) return `only ${remaining} hand(s) left in the session`;
   return null;
@@ -170,14 +183,24 @@ export function scoreTableForJoin(table, joinerProfile) {
 // concentrates into one lively felt instead of drifting into several quiet
 // ones. `candidates` is any iterable of Tables.
 //
-// MATCH-1: `userId` no longer buys a bonus — it disqualifies every table one
-// of that owner's agents is already sitting at (see joinBlocker). `room` is
-// the room the deploy is FOR, as a room id from rooms.js, and it sorts ahead
-// of the action score: a man turned away from his stablemate's table should
-// find another one in the same room, not be sent up a floor because the game
-// happens to look livelier there. It is a preference and not a filter — a
-// seat in the wrong room still beats standing up an empty table nobody joins.
-export function pickTableToJoin(candidates, { profile = null, agentId = null, userId = null, room = null } = {}) {
+// `room` is the room the deploy is FOR, as a room id from rooms.js, and it
+// sorts ahead of everything else: a man who cannot have his first choice of
+// table should find another one in the same room, not be sent up a floor
+// because the game happens to look livelier there. It is a preference and not
+// a filter — a seat in the wrong room still beats standing up an empty table
+// nobody joins.
+//
+// AGENT-5 job F: `together` is the second key, directly under the room. False
+// (the default) pushes a table already seating one of this owner's agents to
+// the BOTTOM of the ranking; true pulls it to the top. It is never a filter
+// either way — see the header for why a wall was the wrong shape.
+//
+// The returned entry carries `stablemate`, which is what lets deployAgent tell
+// "the only table left" from "a table he would be sharing with his own man",
+// and what the deploy response reports back to the owner.
+export function pickTableToJoin(candidates, {
+  profile = null, agentId = null, userId = null, room = null, together = false,
+} = {}) {
   const joiner = profile ? normalizeProfile(profile) : NEUTRAL;
   const ranked = [];
   for (const table of candidates ?? []) {
@@ -190,10 +213,16 @@ export function pickTableToJoin(candidates, { profile = null, agentId = null, us
       score,
       seated: table.seatedCount(),
       sameRoom: room != null && roomForBigBlind(table.bigBlind)?.id === room ? 1 : 0,
+      stablemate: seatsAgentOf(table, userId),
     });
   }
   if (ranked.length === 0) return null;
-  ranked.sort((a, b) => (b.sameRoom - a.sameRoom) || (b.score - a.score) || (b.seated - a.seated));
+  const mate = (e) => (e.stablemate ? 1 : 0) * (together ? 1 : -1);
+  ranked.sort((a, b) =>
+    (b.sameRoom - a.sameRoom)
+    || (mate(b) - mate(a))
+    || (b.score - a.score)
+    || (b.seated - a.seated));
   return ranked[0];
 }
 

@@ -688,17 +688,11 @@ export class Table {
     return this.seatOfStablemate(userId, { except }) !== -1;
   }
 
-  // The sentence an owner is shown when MATCH-1 refuses him. It NAMES THE
-  // STABLEMATE, for the same reason seatedElsewhereMessage names the felt: an
-  // owner who is refused has to be told the fact that explains the refusal and
-  // the one he can act on. "another of your agents is already at this table"
-  // named neither man, started mid-sentence, and read as a fault in the product
-  // rather than as a rule of the game — which is exactly how Jens read it.
-  stablemateMessage(seat, displayName) {
-    const mate = this.pending?.[seat]?.displayName || 'One of your agents';
-    const who = displayName || 'He';
-    return `${mate} is already at this table, and two of your agents never play each other here. ${who} needs a table of his own.`;
-  }
+  // AGENT-5 job E: `stablemateMessage` was here — the sentence an owner was
+  // shown when MATCH-1 refused him. There is no refusal left for it to be the
+  // sentence of. `seatOfStablemate` above survives it, because job G needs to
+  // know the same fact for the opposite reason: not to stop him sitting down,
+  // but so he can say something when he notices who he is sitting next to.
   defaultBuyIn() { return this.bigBlind * 100; }
 
   // The stack a seat carries into the next hand.
@@ -1076,16 +1070,12 @@ export class Table {
         return null;
       }
     }
-    // MATCH-1: two agents of the same owner never sit at the same CASINO
-    // table. The matchmaker refuses these before they get here, but the
-    // matchmaker is not the only door into a seat, and a rule that only holds
-    // on one path is not a rule. Refusing with null is exactly what a full
-    // table does, so every caller already handles it: the deploy opens a
-    // table of its own instead.
-    //
-    // The home game is the exception, and it is the whole point of the home
-    // game — see homeGame.js, which seats a household this way on purpose.
-    if (!this.home && this.seatsAgentOfOwner(userId, { except: agentId })) return null;
+    // AGENT-5 job E: MATCH-1's stablemate refusal was here — "two agents of the
+    // same owner never sit at the same CASINO table". JENS HAS OVERRULED IT.
+    // Two of his agents may share a felt; nothing about how the hand is played
+    // changes, because the engine has never known who owns a seat. What
+    // remains is matchmaking's DEFAULT to spread them (job F), which is a
+    // ranking in pickTableToJoin rather than a door that says no.
 
     const seat = this.seatAI({
       displayName: displayName || 'Agent',
@@ -2163,25 +2153,20 @@ export class Table {
       return attachSeat;
     }
 
-    // MATCH-1: WATCH is the other door into a seat — the first watcher seats
-    // its agent, the second seats another, and that is how a table assembles
-    // itself with nobody deploying. The same law applies to it: not two of one
-    // owner's agents at one casino table. It throws rather than returning a
-    // seat, because a WATCH that quietly attached the watcher to somebody
-    // else's seat would be a worse answer than an error the client can show.
-    // MONEY-1 job 5: HIM first, then his stablemates. These are two different
-    // rules and they had one message between them — an owner told "another of
-    // your agents is already at this table" about the agent who is standing at
-    // the table has been told something that is not true.
+    // MONEY-1 job 5: WATCH is the other door into a seat — the first watcher
+    // seats its agent, the second seats another, and that is how a table
+    // assembles itself with nobody deploying. HE may still only be in one seat
+    // at a time. It throws rather than returning a seat, because a WATCH that
+    // quietly attached the watcher to somebody else's seat would be a worse
+    // answer than an error the client can show.
+    //
+    // AGENT-5 job E: the SECOND check that stood here — AGENT-4's named
+    // stablemate refusal — is gone. Two of one owner's agents may sit at one
+    // casino table now, so WATCH seating the second one is a thing that is
+    // allowed to happen.
     {
       const other = seatedElsewhere(this, agentId);
       if (other) throw new Error(seatedElsewhereMessage(displayName, other));
-    }
-    // AGENT-4 job D: the same rule, and a sentence that says what it is. The
-    // stablemate is named, because "another of your agents" names nobody.
-    {
-      const mate = this.seatOfStablemate(userId, { except: agentId });
-      if (!this.home && mate !== -1) throw new Error(this.stablemateMessage(mate, displayName));
     }
 
     // MONEY-1 job 3 — WATCH IS A DOOR INTO A SEAT, SO IT PAYS LIKE ONE.

@@ -5248,10 +5248,26 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
   let sessionStarted = false;
 
   // MATCH-1: chosen AFTER the pocket gate below, not before it, because the
-  // matchmaker now needs to know which ROOM this deploy is for — a man turned
-  // away from his own stablemate's table is offered another table in the same
+  // matchmaker now needs to know which ROOM this deploy is for — a man who
+  // cannot have his first-choice table is offered another one in the same
   // room, and the room is whatever his pocket buys into.
   let candidate = null;
+
+  // ── AGENT-5 job F · SPREAD BY DEFAULT, TOGETHER ON REQUEST ────────────────
+  //
+  // THE NATURAL HOME WAS ALREADY HERE. `POST /api/agents/:id/deploy` takes a
+  // body, `rungRequested(body)` already reads a destination out of it, and a
+  // deploy is per-agent — which makes "and put him with the others" one more
+  // field on the request somebody is already sending. No settings screen, no
+  // new endpoint, and nothing to remember between deploys: an owner putting
+  // four agents in sends four deploys and decides once per deploy.
+  //
+  // Job E removed the rule that two of an owner's agents may not share a felt.
+  // Without a default in its place the matchmaker would do the opposite of
+  // what the rule protected — it ranks fuller tables higher, so four deploys
+  // in a row would pile onto one table. So: FALSE spreads, TRUE gathers, and
+  // the answer travels back on the response as `together` / `withStablemate`.
+  const together = body?.together === true || body?.together === 'true';
 
   // ── WALLET-1: the pocket gate ─────────────────────────────────────────────
   // The pocket picks the stakes and decides whether he sits down at all.
@@ -5286,12 +5302,27 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     candidate = liveTables.findJoinableTable?.({
       profile: agent.profile ?? null,
       agentId: agent.id,
-      // MATCH-1: this is the refusal, not a preference. Every table already
-      // seating one of this owner's agents is out of the running, and the
-      // deploy either finds another one in the same room or opens one.
+      // AGENT-5 job F: a PREFERENCE now, not a refusal. `userId` is what lets
+      // the ranking know which tables already seat one of his own; `together`
+      // decides whether that sorts them to the top or the bottom.
       userId,
+      together,
       room: roomForBigBlind(stakes.bigBlind)?.id ?? null,
     });
+
+    // SPREADING MEANS PREFERRING A FRESH FELT, not merely ranking one lower.
+    // The ranking alone is not enough: on a floor with one open table, the one
+    // table is both the worst candidate and the only one, so a pure ranking
+    // would seat him next to his stablemate every time and the default would
+    // do nothing. Dropping the candidate here is what turns "ranked last" into
+    // "opens his own", and it only happens while the floor HAS room — past the
+    // cap the shared table is a better answer than being sent home, which is
+    // exactly where MATCH-1's refusal was worse than this.
+    if (!together && candidate?.stablemate
+      && liveTables.countAutonomousTables?.() < liveTables.MAX_CONCURRENT_TABLES) {
+      console.log(`[agents] ${agent.name} could join ${candidate.table.tableId}, but one of his own is there — opening a table of his own`);
+      candidate = null;
+    }
     // An explicit destination is a constraint. Default matchmaking can still
     // choose another affordable room, but a requested rung cannot move him.
     if (rungRequested(body) && candidate?.table && candidate.table.bigBlind !== stakes.bigBlind) {
@@ -5483,6 +5514,14 @@ export function deployAgent(userId, agentId, { requeue = false, body = null } = 
     sessionStarted,
     joinedExisting,
     seat,
+    // AGENT-5 job F: which of the two happened, stated rather than inferred.
+    // `together` is what was ASKED for and `withStablemate` is what he GOT —
+    // they come apart in both directions (ask to gather with nobody to gather
+    // with; spread on a floor with no room to spread into) and a client that
+    // had to guess would guess wrong on exactly the interesting cases.
+    together,
+    withStablemate: !!(liveTables && tableId
+      && liveTables.getTable?.(tableId)?.seatsAgentOfOwner?.(userId, { except: agent.id })),
     // SERVER-4: where he actually ended up. With `rung` this is what was asked
     // for; without it, it is what his pocket chose for him — and either way the
     // client no longer has to infer a room from blinds.

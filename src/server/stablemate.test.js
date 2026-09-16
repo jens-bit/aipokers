@@ -1,32 +1,29 @@
-// src/server/stablemate.test.js — AGENT-4 job D
+// src/server/stablemate.test.js — AGENT-4 job D, rewritten by AGENT-5 job E
 //
-// "another of your agents is already at this table"
+// ── TESTING LAW #5, STATED UP FRONT ─────────────────────────────────────────
 //
-// ── What the string is, and what it is not ──────────────────────────────────
+// This file used to assert MATCH-1's rule: "two agents of one owner never
+// share a casino table". JENS HAS EXPLICITLY OVERRULED THAT RULE. The product
+// is not wrong here — the rule is one we no longer want, which is the one
+// circumstance in which a red test gets rewritten rather than the code fixed.
 //
-// Jens reported seeing "Another of your agents is already unstable." in prod.
-// The literal word "unstable" appears nowhere in the source; the only sentence
-// in the codebase of that shape is `table.js`'s MATCH-1 refusal, which is what
-// this file is about.
+// What the rule was for is not lost, it has moved: matchmaking now SPREADS an
+// owner's agents by default and gathers them only when a deploy asks
+// (`together: true`, AGENT-5 job F). The difference is that a preference can
+// be overridden by the man who owns the agents, and a wall could not.
 //
-// THE CONDITION. `addSpectator` and `joinAgentSession` both refused on
-// `!this.home && this.seatsAgentOfOwner(userId)` — true when ANY seat at this
-// casino table holds an agent belonging to that owner. MATCH-1's rule is "not
-// two of ONE OWNER'S agents at ONE table", so the question it needs answered is
-// about the owner's OTHER agents, and this predicate counted the man being
-// seated among his own obstacles. Both call sites returned early when he was
-// already seated here, so it was correct BY ACCIDENT rather than by
-// construction — and a third caller would have been told that an agent was
-// blocked by himself. That is the half of Jens's reading that was a real fault:
-// the sentence can be produced about a man who is his only candidate for it.
+// ── What survives, and why this file still exists ───────────────────────────
 //
-// THE SENTENCE. It named nobody. Not which agent is already there, not which
-// agent is being refused, and it began mid-sentence. MONEY-1 fixed exactly this
-// failure on the sibling refusal (`seatedElsewhereMessage` names the felt,
-// because "no" tells an owner nothing he can act on) and left this one behind.
+// `seatOfStablemate` outlived the refusal it was written for. AGENT-4 fixed a
+// real fault in it — the predicate counted the man being seated among his own
+// obstacles, so it could say "one of yours is here" about somebody who was his
+// only candidate for it — and that fault would be just as real in its new use.
+// Job G asks the same question for the opposite reason: not to stop him
+// sitting down, but so that he can SAY something when he notices who he is
+// sitting next to. A man greeting himself is the same bug wearing a hat.
 //
-// Both are fixed here: the predicate takes the agent it is being asked on
-// behalf of, and the sentence names the stablemate and says what the rule is.
+// So: the predicate is still asserted here, hard. The refusal built on it is
+// asserted GONE.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,7 +37,7 @@ function table(opts = {}) {
   return t;
 }
 
-// ── the condition ───────────────────────────────────────────────────────────
+// ── the predicate ───────────────────────────────────────────────────────────
 
 test('BUG-222: a man is never his own stablemate', () => {
   const t = table();
@@ -50,7 +47,7 @@ test('BUG-222: a man is never his own stablemate', () => {
     'the only agent of his at this table IS him');
   assert.equal(t.seatsAgentOfOwner('jens', { except: 'a1' }), false);
 
-  // And asked about somebody else, the rule still holds.
+  // And asked about somebody else, it finds him.
   assert.equal(t.seatOfStablemate('jens', { except: 'a2' }), 0);
   assert.equal(t.seatsAgentOfOwner('jens', { except: 'a2' }), true);
 });
@@ -69,8 +66,7 @@ test('BUG-222: it finds the stablemate wherever he is sitting', () => {
 });
 
 test('BUG-222: an unowned seat is not a stablemate', () => {
-  // The House regulars carry a userId of null. A table full of them must never
-  // refuse an owner's first agent.
+  // The House regulars carry a userId of null.
   const t = table();
   t.seatAI({ displayName: 'Doyle', buyIn: 2_000 });
   t.seatAI({ displayName: 'Granite', buyIn: 2_000 });
@@ -78,53 +74,53 @@ test('BUG-222: an unowned seat is not a stablemate', () => {
   assert.equal(t.joinAgentSession({ agentId: 'a1', userId: 'jens', displayName: 'Ace', buyIn: 2_000 }), 2);
 });
 
-// ── the sentence ────────────────────────────────────────────────────────────
+// ── the refusal that used to be built on it ─────────────────────────────────
 
-test('BUG-222: the refusal names the stablemate and states the rule', () => {
-  const t = table();
-  t.seatAI({ agentId: 'a1', userId: 'jens', displayName: 'Ace', buyIn: 2_000 });
-
-  const ws = { readyState: 1, OPEN: 1, send() {} };
-  assert.throws(
-    () => t.addSpectator(ws, { agentId: 'a2', userId: 'jens', displayName: 'Deuce' }),
-    (err) => {
-      const line = err.message;
-      // The old string named nobody and began mid-sentence.
-      assert.doesNotMatch(line, /another of your agents/i, `still the old copy: "${line}"`);
-      assert.match(line, /Ace/, 'the agent who is already there');
-      assert.match(line, /Deuce/, 'and the one being refused');
-      assert.match(line, /^[A-Z]/, 'it is a sentence');
-      assert.match(line, /table of his own/, 'and it says what to do about it');
-      return true;
-    },
-  );
-  assert.equal(t.seatedCount(), 1, 'and nobody was seated on the way out');
-});
-
-test('BUG-222: the sentence still works when the seat has no display name', () => {
-  const t = table();
-  t.seatAI({ agentId: 'a1', userId: 'jens', buyIn: 2_000 });
-  const line = t.stablemateMessage(0, null);
-  assert.ok(line.trim().length > 0);
-  assert.match(line, /^[A-Z]/);
-  assert.doesNotMatch(line, /undefined|null/);
-});
-
-// ── the rule it enforces is unchanged ───────────────────────────────────────
-
-test('BUG-222: two of one owner still never share a casino table', () => {
+test('AGENT-5 job E: two of one owner DO share a casino table now', () => {
+  // Was: "BUG-222: two of one owner still never share a casino table", which
+  // asserted `null`. Rewritten under testing law #5 — see the header.
   const t = table();
   t.seatAI({ agentId: 'a1', userId: 'jens', displayName: 'Ace', buyIn: 2_000 });
   assert.equal(
     t.joinAgentSession({ agentId: 'a2', userId: 'jens', displayName: 'Deuce', buyIn: 2_000 }),
-    null,
-    'MATCH-1 stands',
+    1,
+    'the door no longer refuses a stablemate',
   );
-  assert.equal(t.seatedCount(), 1);
+  assert.equal(t.seatedCount(), 2);
 });
 
-test('BUG-222: and the kitchen table is still the exception', () => {
-  // The home game seats a household on purpose — see homeGame.js.
+test('AGENT-5 job E: WATCH seats the second one instead of throwing', () => {
+  // Was: "BUG-222: the refusal names the stablemate and states the rule".
+  const t = table();
+  t.seatAI({ agentId: 'a1', userId: 'jens', displayName: 'Ace', buyIn: 2_000 });
+
+  const ws = { readyState: 1, OPEN: 1, send() {} };
+  const seat = t.addSpectator(ws, { agentId: 'a2', userId: 'jens', displayName: 'Deuce' });
+  assert.equal(seat, 1, 'he takes the chair rather than an error');
+  assert.equal(t.seatedCount(), 2);
+});
+
+test('AGENT-5 job E: no collusion guard came with it', () => {
+  // The brief is explicit: no collusion guard, no special-cased play. Two of
+  // one owner's agents are two players. Asserted as an ABSENCE, because an
+  // absence is exactly the kind of thing that gets quietly added back.
+  const t = table();
+  t.seatAI({ agentId: 'a1', userId: 'jens', displayName: 'Ace', buyIn: 2_000 });
+  t.seatAI({ agentId: 'a2', userId: 'jens', displayName: 'Deuce', buyIn: 2_000 });
+
+  // Nothing on the table marks the pair, and nothing about the seats differs
+  // from a table of two strangers.
+  assert.equal(t.aiSeats[0], true);
+  assert.equal(t.aiSeats[1], true);
+  assert.equal(t.seatLeaving[0], false);
+  assert.equal(t.seatLeaving[1], false);
+  assert.equal(typeof t.stablemateMessage, 'undefined',
+    'the refusal sentence is gone, not merely unused');
+});
+
+test('AGENT-5 job E: and the kitchen table is unchanged', () => {
+  // It was always the exception; it is now simply the same as everywhere else,
+  // which is a smaller product rather than a bigger one.
   const t = table({ tableId: 'home-jens', home: true, homeOwnerId: 'jens' });
   t.seatAI({ agentId: 'a1', userId: 'jens', displayName: 'Ace', buyIn: 2_000 });
   const seat = t.joinAgentSession({ agentId: 'a2', userId: 'jens', displayName: 'Deuce', buyIn: 2_000 });
