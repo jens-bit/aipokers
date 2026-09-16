@@ -940,8 +940,6 @@ export function WatchFelt({
     // Desktop kitchen Watch has a room title instead of the phone's agent
     // header. Preserve its formerly visible winner identity (Jens's win clarity).
     : ordinaryWin ? (ownerVariant === 'desktop' || awardSeat !== heroSeat ? `${seatName(awardSeat, game.seats)} WON` : 'WON') : null;
-  var displayedPot = settled ? result.pot : pot;
-
   useFlyTo(feltRef, { muck: muckRef, pot: potRef },
     [mucking, sweep, slots.length, live, settled]);
 
@@ -1063,16 +1061,25 @@ export function WatchFelt({
         });
       })()}
 
-      {(!settled || majorWin) && (
+      {/* TABLE-1 job C: majorWin used to keep this pill up (just dimmed to
+          .25 opacity) so the winner's card could grow out of it, and on a
+          shorter felt the celebrating card's own top (celebration.css's
+          clamp) can land close enough to this pill that the pot's own figure
+          is still legible sitting right behind the win card's — the same
+          number, printed twice, one of them ghosted. The win card already
+          states the pot ("WON 110 BB · $10,976"), so once the hand is
+          settled the pill has nothing left to say that isn't said twice —
+          ordinaryWin already drops it outright; majorWin now does too. */}
+      {!settled && (
         <div className="watch-felt__pot">
           <div className="watch-felt__pot-pill" ref={potRef}>
             <span className="watch-felt__pot-label">POT</span>
             {/* "The pot pill grows one step per band", so a table that has been
                 betting big looks different from one that has been limping
                 before you read a figure. */}
-            {!between && <PotChip band={potBand(displayedPot, game ? game.bigBlind : null)} w={13} />}
+            {!between && <PotChip band={potBand(pot, game ? game.bigBlind : null)} w={13} />}
             <span className={'watch-felt__pot-amt' + (between ? ' is-between' : '')}>
-              {between ? '—' : potMoney(displayedPot)}
+              {between ? '—' : potMoney(pot)}
             </span>
           </div>
         </div>

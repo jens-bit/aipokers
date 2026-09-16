@@ -151,4 +151,17 @@ describe('BUGS-A job 12 · the felt names the hand', () => {
     render(<WatchScreen {...base} game={midHandGame} />);
     expect(pill()).toBeNull();
   });
+
+  it('TABLE-1 job C: a major win drops the pot pill instead of printing the same figure twice', () => {
+    // The pot pill used to stay up at .25 opacity once the celebrating card
+    // came up — the same amount, drawn twice, one of them ghosted behind the
+    // other. The win card already says the pot; there is nothing left for
+    // the standing pill to say once the hand is settled.
+    const game = settled({ type: 'showdown', pot: 3000, winners: [{ seat: 0, amount: 3000 }], showdown: [{ seat: 0, holeCards: ['Ks', 'Kd'] }] });
+    const { rerender } = render(<WatchScreen {...base} game={{ ...game, street: 'river', result: null }} />);
+    expect(document.querySelector('.watch-felt__pot')).not.toBeNull();
+    rerender(<WatchScreen {...base} game={game} />);
+    expect(pillText()).toContain('WON 150 BB');
+    expect(document.querySelector('.watch-felt__pot')).toBeNull();
+  });
 });
