@@ -8,12 +8,13 @@
 .watch-agent-sheet__views button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .watch-agent-sheet__empty { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
 .watch-agent-sheet .thread-sheet__body { padding-bottom: 8px; scroll-padding-block: 8px; }
-.watch-agent-sheet .watch-agent-stats dl > div:last-child { scroll-margin-bottom: 8px; }
+.watch-agent-sheet .watch-agent-stats .attr-cluster > div:last-child { scroll-margin-bottom: 8px; }
 .watch-agent-sheet .thread-row__text,
 .dsk-panel--watch.is-conversation .thread-row__text { min-width: 0; overflow-wrap: anywhere; }
 .watch-agent-stats { color: var(--text-primary); font-size: 13px; }
 .watch-agent-stats__stack { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0 12px; }
-.watch-agent-stats dl { margin: 0; }
-.watch-agent-stats dl > div { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 0; border-top: 1px solid var(--v5-edge-up); }
-.watch-agent-stats dt small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 11px; }
-.watch-agent-stats dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* TABLE-2 job B: the four skills are the profile's own AttrCluster now, not
+   a <dl> of bare figures — its rows come from agent-profile.css
+   (.profile-overview__skills etc., imported by WatchAgentStats.jsx) and
+   attributes.css (.attr-cluster / .attr-bar), the same two sheets the
+   profile itself draws from. Nothing skill-shaped is styled here any more. */

@@ -144,10 +144,18 @@
 /* JOB C: a flex item's own min-width defaults to auto, which is its content's
    natural width — without this, a long name ("aces full of kings") could not
    actually shrink to make room for the position pill beside it, so it either
-   overflowed or crowded `.watch-felt__hero-pos` out instead of truncating. */
+   overflowed or crowded `.watch-felt__hero-pos` out instead of truncating.
+   TABLE-1 job A: 150px was measured against a guess at the longest name, and
+   handName()'s own longest output — the two-pair phrase, e.g. "two pair,
+   threes and sevens" — renders at ~194px in this font. Truncating a real hand
+   at 150px meant the box's own reason for existing (reading what your agent
+   is holding) failed on exactly the hands worth reading. 200px is that
+   longest string plus a few px of air, so the ellipsis never actually fires
+   any more — it stays as a guard against a string this evaluator has never
+   produced, not as this row's normal behaviour. */
 .watch-hero__hand-name {
   min-width: 0;
-  max-width: 150px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -855,6 +863,15 @@
   align-items: center;
   gap: 6px;
 }
+/* TABLE-1 job E: the same caption `.chip-stack__label` gives a stack, so a
+   bet chip reads as a bet rather than as a bare, unexplained figure. */
+.bet-spot__label {
+  font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--felt-ink);
+}
 .bet-spot__amt {
   font-family: var(--sys-font-mono, "JetBrains Mono", monospace);
   font-size: 10.5px;
@@ -1176,6 +1193,19 @@
 .watch-felt--overlay .watch-hero {
   z-index: 10;
   pointer-events: none;
+}
+/* TABLE-2 job A: BUG-133's rule was written for the THREAD sheet — a
+   conversation about himself, where his own hand staying visible above it
+   is the point. Reading an OPPONENT is the opposite case: the card being
+   opened is about somebody else, and the hero has no business floating over
+   it. Without this, his cards, his floating hands and the "Est. pot share"
+   rope drew on top of the opponent's card, and his speech bubble ran under
+   the card's own Close button. `.watch-hero`'s un-boosted z-index (5) sits
+   below `.read-sheet`'s own (8, watch.css) — restoring it, rather than
+   inventing a new number, is what puts the opened card above every felt
+   element again. */
+.watch-felt--overlay.watch-felt--reading .watch-hero {
+  z-index: 5;
 }
 .watch-felt--overlay .watch-hero__body {
   pointer-events: none;

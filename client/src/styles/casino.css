@@ -17,15 +17,13 @@
   50%      { opacity: 0.6; }
 }
 
-/* A doorway and a ticker line are buttons, and base.css uppercases and tracks
-   every button in the app — which turned "the floor" into "T H E  F L O O R"
-   and the shut room's price into a shout. Being tappable is not a reason to
-   change the type: reset the chrome and let each element's own style stand. */
-.csn-door,
-.csn-board__line,
-.csn-live__row,
-.csn-tonight__row,
-.csn-room-door,
+/* A ticker line and a stake chip are buttons, and base.css uppercases and
+   tracks every button in the app — which turned "the floor" into
+   "T H E  F L O O R" and the shut stake's price into a shout. Being tappable
+   is not a reason to change the type: reset the chrome and let each
+   element's own style stand. */
+.csn-ticker,
+.csn-stake,
 .csn-felt {
   -webkit-appearance: none;
   appearance: none;
@@ -35,131 +33,12 @@
   letter-spacing: normal;
 }
 
-.csn-door:focus-visible,
-.csn-board__line:focus-visible,
-.csn-live__row:focus-visible,
-.csn-tonight__row:focus-visible,
-.csn-room-door:focus-visible,
+.csn-ticker:focus-visible,
+.csn-stake:focus-visible,
 .csn-felt:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-
-/* DESK-2 — on the desk the casino IS the body: board 31's frame is the shell's
-   top bar across the top, the building on the stage, and the ticker in the
-   rail. The doorways stretch with the stage — the crowd's trapezoid is a
-   proportion rather than a pixel count, so the perspective holds at any width.
-
-   The tray is deliberately untouched: it is the decision, it belongs under the
-   thing being decided, and it sits at the foot of the stage on both platforms. */
-.csn--desk {
-  height: 100%;
-  display: flex;
-  flex-direction: row;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.csn-desk__stage {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* The stairs are a motif with a fixed number of steps, not a stretchable band:
-   six treads across 358px read as stairs, and the same six across 890px read as
-   six grey blocks. They keep the width they were drawn at. The DOORWAYS still
-   stretch — the crowd's trapezoid is a proportion, so the perspective holds. */
-.csn--desk .csn-rooms > div[aria-hidden] { max-width: 358px; }
-
-/* FIX-6 job 5 — THREE WIDE CARDS SIDE BY SIDE.
- *
- * The phone stacks the doorways because it has one column, and a doorway you
- * scroll past is still a doorway. At 1440 the whole building fits across, so
- * stacking it is the phone's layout with air poured down both sides — and the
- * ROOM is the unit this place is organised by, which is an argument for seeing
- * all of them at once rather than one and a half.
- *
- * Equal columns and equal heights (DESK_DOOR_H, in CasinoScreen.jsx): a row
- * whose cards differ in height reads as a broken grid, where a column whose
- * doorways differ in height reads as a building. The hot room still says so
- * with its badge, its shimmering felt and its gold rim. */
-.csn--desk .csn-rooms__row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  align-items: stretch;
-}
-/* More than three rungs would wrap rather than squeeze: the ladder is three
-   today and this is what it does if it ever is not. */
-@media (max-width: 1279px) {
-  .csn--desk .csn-rooms__row { gap: 10px; }
-}
-
-/* The rail borrows the shell's width (.dsk-panel, 520) and keeps the casino's
-   own ground, because the building is darker than the rest of the desk and a
-   rail in the shell's grey would read as a different room. */
-.csn-desk__rail {
-  min-height: 0;
-  overflow: hidden;
-  background: var(--bg-primary);
-  /* FIX-6 job 5: the fund sheet is `position: absolute; inset: 0` and it opens
-     in here now, so this is the box it fills. */
-  position: relative;
-}
-
-/* A sheet in the rail (FIX-6 job 5). It is a panel in a column: no glass, no
-   rounded lip, no bottom-sheet animation, and it scrolls inside the rail rather
-   than growing it. The phone's sheet is untouched. */
-.csn-desk__rail .home-sheet--rail {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.csn-desk__rail .home-sheet--rail .home-sheet__panel {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 10px 16px 16px;
-  scrollbar-width: none;
-}
-.csn-desk__rail .home-sheet--rail .home-sheet__panel::-webkit-scrollbar { display: none; }
-/* The list already scrolls the rail; a second scroller inside it at 46vh is a
-   scrollbar inside a scrollbar. */
-.csn-desk__rail .home-sheet--rail .home-sheet__panel ul {
-  max-height: none !important;
-  overflow: visible !important;
-}
-
-/* By the stairs, as a column rather than a card: it is the rail now, so it has
-   no edges of its own and its lines scroll instead of being cut at five. */
-.csn-desk__rail .csn-board {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-}
-.csn-desk__rail .csn-board__head {
-  flex-shrink: 0;
-  height: 46px;
-  padding: 0 16px;
-}
-.csn-desk__rail .csn-board__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: none;
-  padding: 8px 16px 14px;
-}
-.csn-desk__rail .csn-board__body::-webkit-scrollbar { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .csn svg[style*="casino-bob"],
@@ -169,46 +48,32 @@
 }
 
 
-/* ── CASINO-2 job 2 · the board, split by tense ─────────────────────────────
+/* ── UI-3 job A · one line at the very top ──────────────────────────────────
  *
- * One object on a wall with two halves in it, so the frame belongs to the
- * board and each half only draws its own rows. The gold plate and the census
- * are mood-floor3's CasinoBoard, verbatim; what hangs under them is LIVE NOW
- * over TONIGHT, which is mood-nav's pair.
- *
- * The seam between them is a gold hairline rather than the white one that
- * separates rows inside a half: crossing from a pot being built to a hand that
- * is over is a change of TENSE, and it has to read as a bigger step than the
- * step from one live pot to the next. */
-.csn-board {
+ * What used to be a two-panel board on a wall inside a room is one line above
+ * the room, because there is no wall left to hang two panels on. The biggest
+ * pot in the air, or failing that the biggest thing that finished tonight, or
+ * a quiet floor saying so — the same ranking the board always used, in one
+ * row instead of ten. */
+.csn-ticker {
   flex-shrink: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg-secondary);
-  border: 1px solid color-mix(in srgb, var(--gold-reward) 18%, transparent);
-}
-
-.csn-board__head {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 11px;
-  border-bottom: 1px solid color-mix(in srgb, var(--gold-reward) 13%, transparent);
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gold-reward) 18%, transparent);
+  background: var(--bg-secondary);
+  text-align: left;
+  cursor: pointer;
 }
-
-.csn-board__body,
-.csn-live,
-.csn-tonight {
-  display: flex;
-  flex-direction: column;
-}
-
-.csn-tonight { border-top: 1px solid color-mix(in srgb, var(--gold-reward) 16%, transparent); }
+.csn-ticker--quiet { cursor: default; justify-content: center; }
+.csn-ticker[data-hot] { border-bottom-color: color-mix(in srgb, var(--error) 30%, transparent); }
 
 /* The tick beside a pot that just grew. It arrives rather than appears — a
    number that pops in at full opacity reads as a layout shift, and one that
    rises the two pixels a chip does reads as money going in. */
-.csn-live__tick { animation: casino-tick 0.22s ease-out both; }
+[data-testid^="ticker-tick-"] { animation: casino-tick 0.22s ease-out both; }
 
 @keyframes casino-tick {
   from { opacity: 0; transform: translateY(3px); }
@@ -216,90 +81,22 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .csn-live__tick { animation: none; }
+  [data-testid^="ticker-tick-"] { animation: none; }
 }
 
-/* ── CASINO-2 job 3 · the sign, and the three doors under it ────────────────
+/* ── UI-3 job A · choosing a stake ───────────────────────────────────────────
  *
- * THE MARQUEE. Bulbs over the words on a gold plate, chasing left to right.
- * They chase rather than blink together because a row flashing in unison is a
- * warning light and a row that runs is an invitation — and because a marquee
- * that pulses as one object would beat against the LIVE dot two rows below it,
- * which is the one thing on this screen that IS meant to pulse.
- *
- * It is deliberately not a pill: no capsule, no fill. This screen's pills are
- * live state — a net, a HOT badge, a count — and they change all evening. The
- * sign is the one thing on it that does not. */
-.csn-marquee {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 3px 9px 4px;
-  border: 1px solid color-mix(in srgb, var(--gold-reward) 42%, transparent);
-  border-radius: 3px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--gold-reward) 10%, transparent) 0%, color-mix(in srgb, var(--gold-reward) 2%, transparent) 100%);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--gold-reward) 14%, transparent), inset 0 0 12px color-mix(in srgb, var(--gold-reward) 6%, transparent);
-  max-width: 100%;
-}
-
-.csn-marquee__bulbs {
-  display: flex;
-  gap: 4px;
-  padding-left: 1px;
-}
-
-.csn-marquee__bulbs i {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--gold-reward) 28%, transparent);
-  animation: casino-bulb 2.1s ease-in-out infinite;
-}
-
-.csn-marquee__word {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.1;
-  white-space: nowrap;
-  color: var(--text-primary);
-  text-shadow: 0 0 14px color-mix(in srgb, var(--gold-reward) 34%, transparent);
-}
-
-/* An unlit sign over a building with nothing in it. More honest than a bright
-   one, and it is what a dark marquee has always meant. */
-.csn-marquee[data-lit="false"] {
-  border-color: color-mix(in srgb, var(--text-primary) 10%, transparent);
-  background: none;
-  box-shadow: none;
-}
-.csn-marquee[data-lit="false"] .csn-marquee__word {
-  color: var(--text-muted);
-  text-shadow: none;
-}
-.csn-marquee[data-lit="false"] .csn-marquee__bulbs i {
-  animation: none;
-  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
-}
-
-@keyframes casino-bulb {
-  0%, 70%, 100% { background: color-mix(in srgb, var(--gold-reward) 26%, transparent); box-shadow: none; }
-  22%           { background: var(--gold-reward); box-shadow: 0 0 6px color-mix(in srgb, var(--gold-reward) 90%, transparent); }
-}
-
-/* THE THREE DOORS. A row, never a column and never a scroller: three is the
-   ladder, they all fit at 390, and a door you have to swipe to find is a door
-   you will not use. */
-.csn-doors {
+ * What is left of the doorway once there is nowhere left to walk into: a row
+ * of chips, one per stake the ladder runs, each naming what it costs and how
+ * many are already there. */
+.csn-stakes {
   flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
-.csn-room-door {
+.csn-stake {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -311,29 +108,25 @@
   text-align: left;
   min-width: 0;
 }
+.csn-stake[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 46%, transparent); }
 
-.csn-room-door__name {
+.csn-stake__label {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-family: "Oswald", "Helvetica Neue", sans-serif;
-  font-size: 7.5px;
-  font-weight: 600;
-  letter-spacing: 0.11em;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.csn-room-door__stakes {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
   color: var(--text-primary);
 }
 
-.csn-room-door__in {
+.csn-stake__buyin {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.csn-stake__in {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 8px;
   color: var(--text-muted);
@@ -341,39 +134,57 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.csn-room-door__in b { color: var(--accent); font-weight: 400; }
+.csn-stake__in b { color: var(--accent); font-weight: 400; }
 
-/* Yours is in there. The teal edge is the same one the tall doorway uses for
-   the same fact, so the two say it the same way at two sizes. */
-.csn-room-door[data-mine] { border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
+.csn-stake__hot {
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  color: var(--gold-reward);
+}
 
-/* And hot, which is the only thing on a door that changes on its own. */
-.csn-room-door[data-hot] {
+/* Shut — his pocket cannot cover it. A fact stated in words, never a lock. */
+.csn-stake[data-shut] {
+  color: var(--text-muted);
+}
+.csn-stake[data-hot] {
   border-color: color-mix(in srgb, var(--gold-reward) 50%, transparent);
   background: color-mix(in srgb, var(--gold-reward) 7%, transparent);
 }
-.csn-room-door[data-hot] .csn-room-door__name { color: var(--gold-reward); }
-.csn-room-door__ember {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--gold-reward);
-  box-shadow: 0 0 6px var(--gold-reward);
-  animation: pulse 2s infinite;
-  flex-shrink: 0;
+
+/* The deploy panel: "placing X", a way to stand down, and the stakes. */
+.csn-deploy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-
-/* On the desk the doors have a whole stage to sit across, so they take it:
-   three signs over the room, larger type, and the width is the stage's. */
-.csn--desk .csn-doors { gap: 12px; }
-.csn--desk .csn-room-door { padding: 9px 12px 10px; }
-.csn--desk .csn-room-door__name { font-size: 9px; }
-.csn--desk .csn-room-door__stakes { font-size: 14px; }
-.csn--desk .csn-room-door__in { font-size: 9.5px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .csn-marquee__bulbs i,
-  .csn-room-door__ember { animation: none; }
+.csn-deploy__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.csn-deploy__label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.csn-deploy__cancel {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 9px;
+  border: 1px solid var(--edge);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-family: "Oswald", "Helvetica Neue", sans-serif;
+  font-size: 9px;
+  cursor: pointer;
 }
 
 /* ── CASINO-2 job 4 · your table, once per man ──────────────────────────────
@@ -498,13 +309,10 @@
 }
 .csn-your__dot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-/* On the desk the felt is CENTRED under doors that stretch. A 900px-wide page
-   is a felt with its ring pulled apart, so it keeps a felt's width — but left
-   against a full-width row of doors that reads as a column that ran out rather
-   than as an object with air around it. The doors are signs and stretch
-   happily; the felt is the thing you are looking at, so it sits in the middle
-   of the stage. */
-.csn--desk .csn-your {
+/* On the desk the felt is CENTRED. A 900px-wide page is a felt with its ring
+   pulled apart, so it keeps a felt's width rather than stretching to fill a
+   row that reads as a column that ran out. */
+.csn--desk-room .csn-your {
   max-width: 640px;
   width: 100%;
   /* auto on all four sides, not just the sides. The felt is capped, and 1440x900
@@ -550,26 +358,6 @@
   background: var(--bg-secondary);
 }
 
-/* JOB 5: the tiny room indicator, one dot per room, the current one filled —
-   the same shape a carousel's page dots always take. */
-.csn-floor__rooms {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.csn-floor__rooms i {
-  display: block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
-}
-.csn-floor__rooms i.is-current {
-  background: var(--accent);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 70%, transparent);
-}
-
 .csn-floor__back {
   flex-shrink: 0;
   font-family: "Oswald", "Helvetica Neue", sans-serif;
@@ -581,35 +369,6 @@
   border: none;
   padding: 0;
   cursor: pointer;
-}
-
-/* BUGS-C job 12 · Floor | Board, one choice rather than two buttons. */
-.csn-view-toggle {
-  flex-shrink: 0;
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
-}
-
-.csn-view-toggle__btn {
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: none;
-  background: none;
-  font-family: "Oswald", "Helvetica Neue", sans-serif;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.csn-view-toggle__btn.is-active {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--text-primary);
 }
 
 .csn-floor__body {
@@ -900,14 +659,20 @@
 }
 .csn-floor--desk .csn-floor__board::-webkit-scrollbar { display: none; }
 
-/* A room, on the desk. The building's own shell (.csn--desk) sets height:100%
-   because the desk's stage does not hand its child a height through flex the
-   way the phone's column does — the room needs the same, or it lays out at
-   zero and its absolutely-positioned contents have nothing to fill. */
+/* A room, on the desk. The desk's stage does not hand its child a height
+   through flex the way the phone's column does, so this sets height:100%
+   itself — or it lays out at zero and its absolutely-positioned contents
+   have nothing to fill.
+   UI-3 job A: the ticker and Your table sit above the floor now (CasinoScreen
+   renders them as its own siblings before `<FloorView>`), and `.csn-floor`'s
+   base rule is `position: absolute; inset: 0` so it can fill a phone screen
+   on its own. On the desk that would draw it OVER those siblings instead of
+   below them — the same fix the phone already needed, given here too. */
 .csn--desk-room {
   height: 100%;
   min-height: 0;
 }
+.csn--desk-room > .csn-floor { position: relative; inset: auto; flex: 1; min-height: 0; }
 
 /* The box the plan is measured against. It has no padding of its own on
    purpose: the scrolling column above it has 14px gutters, and clientWidth
@@ -930,17 +695,6 @@
 .csn-floor--desk .csn-floor58 {
   border-radius: 5px;
   box-shadow: 0 26px 70px rgba(0, 0, 0, 0.6);
-}
-
-/* N3/F07: the phone board has two separate panels before the room doors. */
-.csn-board--separated { background: none; border: 0; overflow: visible; }
-.csn-board--separated .csn-board__body { gap: 10px; }
-.csn-board--separated .csn-live,
-.csn-board--separated .csn-tonight {
-  background: var(--bg-secondary);
-  border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent);
-  border-radius: 10px;
-  overflow: hidden;
 }
 
 /* F18: the same room moves toward the chosen felt. The existing header changes

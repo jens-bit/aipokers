@@ -42,7 +42,9 @@ it('BUG-146: an unconfirmed wallet disables funding controls while Cancel and Ba
   renderSheet({ disabled: true, onCancel, onConfirm });
   expect(screen.getByRole('button', { name: 'Give him chips' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Call him in' })).toBeDisabled();
-  expect(screen.getByRole('spinbutton')).toBeDisabled();
+  expect(screen.getByRole('button', { name: /Take his chips|Take all of it/ })).toBeDisabled();
+  // UI-3 job C: two spinbuttons now, give and take, both stand down.
+  for (const field of screen.getAllByRole('spinbutton')) expect(field).toBeDisabled();
   expect(screen.getByRole('checkbox')).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Back' })).toBeEnabled();
   expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
@@ -52,8 +54,12 @@ it('BUG-146: an unconfirmed wallet disables funding controls while Cancel and Ba
 });
 
 // The choices live in the sheet body; the confirm button lives in the footer.
+// UI-3 job C added a second amount field (take), so the give one needs its
+// own stable name — the accessible name is "Amount to give"/"Amount to
+// take" even though the visible label also states each one's ceiling.
 const body = () => within(document.querySelector('.wal-sheet__body'));
-const amountField = () => screen.getByLabelText(/Amount/i);
+const amountField = () => screen.getByLabelText('Amount to give');
+const takeAmountField = () => screen.getByLabelText('Amount to take');
 const giveButton = () => within(document.querySelector('.wal-sheet__foot'))
   .getByRole('button', { name: 'Give him chips' });
 
@@ -67,17 +73,20 @@ describe('WUI-2 — where he stands', () => {
 
   it('shows his pocket now, the stakes it buys, and what you have to give', () => {
     renderSheet();
-    expect(screen.getByText('Pocket now')).toBeInTheDocument();
+    expect(screen.getByText('His pocket now')).toBeInTheDocument();
     expect(screen.getByText('$2,100')).toBeInTheDocument();
     expect(screen.getByText('PLAYS $10/$20')).toBeInTheDocument();
-    expect(screen.getByText('Wallet')).toBeInTheDocument();
+    // UI-3 job C: "Wallet" is "The safe" everywhere else in the product
+    // (SafeSheet.jsx) — a second name for the same balance is exactly the
+    // ambiguity job C exists to remove.
+    expect(screen.getByText('The safe')).toBeInTheDocument();
     expect(screen.getByText('$2,340.50')).toBeInTheDocument();
   });
 
   it('omits the wallet figure when this deployment has none', () => {
     renderSheet({ wallet: null });
-    expect(screen.queryByText('Wallet')).not.toBeInTheDocument();
-    expect(screen.getByText('Pocket now')).toBeInTheDocument();
+    expect(screen.queryByText('The safe')).not.toBeInTheDocument();
+    expect(screen.getByText('His pocket now')).toBeInTheDocument();
   });
 });
 
@@ -154,7 +163,9 @@ describe('WALLET-7 — two verbs, not four modes', () => {
     await user.clear(amountField());
     expect(giveButton()).toBeDisabled();
 
-    await user.type(amountField(), '2500');
+    // Within the default wallet fixture's $2,340.50 — this is about zero and
+    // empty, not the safe's own ceiling, which has its own test above.
+    await user.type(amountField(), '2000');
     expect(giveButton()).toBeEnabled();
   });
 
@@ -203,10 +214,15 @@ describe('WALLET-7 — the one toggle', () => {
 describe('WALLET-7 — giving him chips', () => {
   beforeEach(() => { telegram.signIn(); });
 
+  // UI-3 job C: GIVE cannot ask for more than the safe holds, so these three
+  // — about the give/refill/edit mechanics, not the cap — sit a flush safe
+  // behind the sheet. The cap itself gets its own tests, below.
+  const flushWallet = { ...wallet, balance: 50_000 };
+
   it('sends the verb, the amount and the size he is set at', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
-    renderSheet({ onConfirm });
+    renderSheet({ onConfirm, wallet: flushWallet });
 
     await user.click(giveButton());
     expect(onConfirm).toHaveBeenCalledWith({ verb: 'give', amount: 5000, cap: 5000, refill: false });
@@ -215,7 +231,7 @@ describe('WALLET-7 — giving him chips', () => {
   it('carries the refill toggle rather than a second mode', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
-    renderSheet({ onConfirm });
+    renderSheet({ onConfirm, wallet: flushWallet });
 
     await user.click(screen.getByRole('checkbox'));
     await user.click(giveButton());
@@ -225,13 +241,28 @@ describe('WALLET-7 — giving him chips', () => {
   it('sends an edited amount, not the default', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();
-    renderSheet({ onConfirm });
+    renderSheet({ onConfirm, wallet: flushWallet });
 
     await user.clear(amountField());
     await user.type(amountField(), '7500');
     await user.click(giveButton());
 
     expect(onConfirm).toHaveBeenCalledWith({ verb: 'give', amount: 7500, cap: 7500, refill: false });
+  });
+
+  it('BUG-230: will not give more than the safe holds', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    // The default wallet fixture holds $2,340.50; his roll is set at $5,000.
+    renderSheet({ onConfirm });
+
+    expect(screen.getByText(/The safe only holds \$2,340\.50/)).toBeInTheDocument();
+    expect(giveButton()).toBeDisabled();
+    await user.clear(amountField());
+    await user.type(amountField(), '2000');
+    expect(giveButton()).toBeEnabled();
+    await user.click(giveButton());
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'give', amount: 2000, cap: 2000, refill: false });
   });
 
   it('cancels without funding anything', async () => {
@@ -252,6 +283,48 @@ describe('WALLET-7 — giving him chips', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(onCancel).toHaveBeenCalled();
+  });
+});
+
+describe('UI-3 job C — taking his chips, a genuine third verb', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('BUG-230: opens on his whole pocket, principal included', () => {
+    renderSheet();
+    expect(takeAmountField()).toHaveValue(2100);
+    expect(body().getByRole('button', { name: /Take all of it — \$2,100/ })).toBeInTheDocument();
+  });
+
+  it('takes an edited amount up to, but not past, his pocket', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    renderSheet({ onConfirm });
+
+    await user.clear(takeAmountField());
+    await user.type(takeAmountField(), '400');
+    const take = body().getByRole('button', { name: 'Take $400' });
+    await user.click(take);
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'take', amount: 400 });
+  });
+
+  it('is not offered when his pocket is empty — there is nothing to take', () => {
+    renderSheet({ agent: brokeAgent });
+    expect(screen.queryByLabelText('Amount to take')).toBeNull();
+    expect(screen.queryByText('Or take his chips')).toBeNull();
+  });
+
+  it('never ends his session — that is what calling him in is for', () => {
+    renderSheet({ agent: cutPlayingAgent });
+    const copy = screen.getByText(/He keeps his seat/);
+    expect(copy).toHaveTextContent('not calling him in');
+  });
+
+  it('a take is a real transfer, routed through fundAgent like give and call in', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    renderSheet({ onConfirm });
+    await user.click(body().getByRole('button', { name: /Take all of it/ }));
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'take', amount: 2100 });
   });
 });
 

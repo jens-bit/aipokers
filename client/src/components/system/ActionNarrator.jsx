@@ -43,9 +43,17 @@ export function actionNarration(game, { mySeat = -1, flipped } = {}) {
   }
 }
 
+// TABLE-1 job A: this sits between the felt (flex:1) and the composer, so its
+// own height is the felt's height — returning null here used to mean "no
+// box at all" between a quiet table and one with something to say, and the
+// felt (and everything positioned by percentage inside it: the hero strip,
+// the stamina/heat dots, the pot, the board) resized and shifted by the
+// difference every time a hand settled. The box is mounted always now, at its
+// one reserved height, and only its CONTENTS — the status role and the line —
+// come and go.
 export function ActionNarrator({ game, mySeat = -1, flipped }) {
   const line = actionNarration(game, { mySeat, flipped });
-  if (!line) return null;
+  if (!line) return <div className="action-narrator" aria-hidden="true" />;
   const key = `${game.tableId}:${game.handNumber}:${narrationSettled(game, flipped) ? 'result' : game.lastAction?.seq}`;
   return <div className="action-narrator" role="status" aria-live="polite" aria-atomic="true">
     <span key={key} data-action-line={key}>{line}</span>

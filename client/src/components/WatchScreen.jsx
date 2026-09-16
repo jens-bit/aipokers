@@ -717,6 +717,12 @@ export function WatchFelt({
   var pot       = game ? (game.pot || 0) : 0;
   var community = game ? (game.community || []) : [];
   var result    = settled ? game.result : null;
+  // TABLE-1 job D: preflop has no board yet, so the five backs `boardSlots`
+  // pads in for it used to draw a full dealt board where there was none —
+  // the flop itself just hadn't landed. `between` already fades the whole
+  // row to nothing for the gap between hands; this is that same "there is no
+  // board to see" reading for the gap before the flop.
+  var noBoardYet = live && community.length === 0;
 
   var revealed = {};
   if (result && result.showdown) {
@@ -972,8 +978,6 @@ export function WatchFelt({
     // Desktop kitchen Watch has a room title instead of the phone's agent
     // header. Preserve its formerly visible winner identity (Jens's win clarity).
     : ordinaryWin ? (ownerVariant === 'desktop' || awardSeat !== heroSeat ? `${seatName(awardSeat, game.seats)} WON` : 'WON') : null;
-  var displayedPot = settled ? result.pot : pot;
-
   useFlyTo(feltRef, { muck: muckRef, pot: potRef },
     [mucking, sweep, slots.length, live, settled]);
 
@@ -981,7 +985,11 @@ export function WatchFelt({
     <div ref={feltRef}
       className={'watch-felt' + (geom ? ' watch-felt--boxed' : ' watch-felt--fill')
         + (majorWin ? ' is-major-result' : '') + (watchedResult ? ' is-result-moment' : '')
-        + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')}
+        + (metaLine ? ' watch-felt--metaline' : '') + (overlay ? ' watch-felt--overlay' : '')
+        // TABLE-2 job A: reading an OPPONENT is its own case, distinct from
+        // BUG-133's "keep his own cards visible above the glass" rule — see
+        // the selector this drives in watch6.css.
+        + (selectedSeat != null ? ' watch-felt--reading' : '')}
       style={feltStyle} data-pace={pace} data-watch-hero-seat={heroSeat}>
       {pMeta.glow > 0 && <div className="watch-felt__glow" />}
       <div className="watch-felt__arc" />
@@ -1039,8 +1047,12 @@ export function WatchFelt({
                 here the chips stop pretending to be the number. */}
             {!geom && (
               <div data-award-seat={o.seat} className={'watch-felt__seat-pile' + (o.folded ? ' is-folded' : '')} aria-hidden>
+                {/* TABLE-1 job E: the hero's pile has read "STACK" beside its
+                    figure since WATCH-10; an opponent's read as a bare number
+                    next to a chip glyph. Same fact, two readings — this is
+                    the hero's own caption, not a new one. */}
                 <ChipStack band={o.band} w={11} cap={SEAT_PILE_CHIPS}
-                  className="is-seat" amt={potMoney(o.stack)} />
+                  className="is-seat" label="STACK" amt={potMoney(o.stack)} />
               </div>
             )}
             {/* And the bet spot in front of his pair. At street end it sweeps
@@ -1048,7 +1060,9 @@ export function WatchFelt({
             {!geom && (o.bet > 0 || o.sweeping) && (
               <div className={'watch-felt__seat-bet' + (o.sweeping ? ' is-sweeping' : '')}
                 data-fly={o.sweeping ? 'pot' : null} data-fly-var="--sweep">
-                <BetSpot band={o.betBand} w={12}
+                {/* TABLE-1 job E: an unlabelled figure on a chip read as
+                    stack or bet with no way to tell which — this is a bet. */}
+                <BetSpot band={o.betBand} w={12} label="BET"
                   amt={o.bet > 0 ? groupChips(o.bet) : null} />
               </div>
             )}
@@ -1095,16 +1109,25 @@ export function WatchFelt({
         });
       })()}
 
-      {(!settled || majorWin) && (
+      {/* TABLE-1 job C: majorWin used to keep this pill up (just dimmed to
+          .25 opacity) so the winner's card could grow out of it, and on a
+          shorter felt the celebrating card's own top (celebration.css's
+          clamp) can land close enough to this pill that the pot's own figure
+          is still legible sitting right behind the win card's — the same
+          number, printed twice, one of them ghosted. The win card already
+          states the pot ("WON 110 BB · $10,976"), so once the hand is
+          settled the pill has nothing left to say that isn't said twice —
+          ordinaryWin already drops it outright; majorWin now does too. */}
+      {!settled && (
         <div className="watch-felt__pot">
           <div className="watch-felt__pot-pill" ref={potRef}>
             <span className="watch-felt__pot-label">POT</span>
             {/* "The pot pill grows one step per band", so a table that has been
                 betting big looks different from one that has been limping
                 before you read a figure. */}
-            {!between && <PotChip band={potBand(displayedPot, game ? game.bigBlind : null)} w={13} />}
+            {!between && <PotChip band={potBand(pot, game ? game.bigBlind : null)} w={13} />}
             <span className={'watch-felt__pot-amt' + (between ? ' is-between' : '')}>
-              {between ? '—' : potMoney(displayedPot)}
+              {between ? '—' : potMoney(pot)}
             </span>
           </div>
         </div>
@@ -1125,7 +1148,7 @@ export function WatchFelt({
       )}
 
       <div className={'watch-felt__board' + (between ? ' is-between' : '')}>
-        {boardSlots.map(function(c, i) {
+        {!noBoardYet && boardSlots.map(function(c, i) {
           var isLanding = pace === 'showdown' && animateLanding && i === landed - 1;
           var cls = 'watch-felt__card' + (isLanding ? ' watch-felt__card--landing' : '');
           return (
@@ -1199,7 +1222,8 @@ export function WatchFelt({
         {(heroBetOut || heroSweeping) && (
           <div className={'watch-felt__hero-bet' + (heroSweeping ? ' is-sweeping' : '')}>
             <span data-fly={heroSweeping ? 'pot' : null} data-fly-var="--sweep">
-              <BetSpot band={betBand(heroContrib, pot)} w={22}
+              {/* TABLE-1 job E: labelled the same way his stack is. */}
+              <BetSpot band={betBand(heroContrib, pot)} w={22} label="BET"
                 amt={heroContrib > 0 ? groupChips(heroContrib) : null} />
             </span>
           </div>

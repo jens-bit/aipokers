@@ -1,9 +1,20 @@
+// client/src/screens/CasinoScreen.play.test.jsx — CASINO-PLAY, UI-3 job A
+//
+// A real agent can join or start a table straight from the floor. UI-3 job A
+// removed the room the owner used to have to be standing in first (there is
+// one floor now, always open) and the room-navigation cases this file used
+// to assert (leaving to another room, toggling to the board mid-flight) are
+// gone with the thing they described — there is nowhere left to navigate TO.
+// What survives is the deploy mechanics themselves: the exact buy-in shown
+// before the request, the stale-response guard on leaving the screen, the
+// agent picker, funding, and the error/retry states.
+
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CasinoScreen } from './CasinoScreen.jsx';
 import { DesktopHome } from '../components/desktop/DesktopHome.jsx';
 import { restingAgent, playingAgent } from '../test/fixtures/agents.js';
-import { backRoom, felt, upstairsRoom } from '../test/fixtures/rooms.js';
+import { backRoom, felt } from '../test/fixtures/rooms.js';
 import { fetchMock, telegram } from '../test/harness.js';
 
 const milo = { ...restingAgent, id: 'milo', name: 'Milo', pocket: { balance: 12000, mode: 'allowance' } };
@@ -22,13 +33,7 @@ function route(agents = [milo], tables = []) {
 
 beforeEach(() => {
   telegram.signIn();
-  sessionStorage.setItem('agentic_casino_room', quiet.id);
-  sessionStorage.setItem('agentic_casino_view', 'floor');
   route();
-});
-afterEach(() => {
-  sessionStorage.removeItem('agentic_casino_room');
-  sessionStorage.removeItem('agentic_casino_view');
 });
 
 describe('CASINO-PLAY: a real agent can join or start from the floor', () => {
@@ -40,45 +45,19 @@ describe('CASINO-PLAY: a real agent can join or start from the floor', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Send Milo to play' }));
     view.unmount();
     render(<p>Back at Home</p>);
-    sessionStorage.setItem('agentic_casino_room', upstairsRoom.id);
     await act(async () => finish(deployed));
     expect(onDeployed).not.toHaveBeenCalled();
     expect(screen.getByText('Back at Home')).toBeVisible();
-    expect(sessionStorage.getItem('agentic_casino_room')).toBe(upstairsRoom.id);
     expect(fetchMock.posts).toHaveLength(1);
   });
 
-  it.each(['another room', 'the same floor again'])('a delayed deployment respects navigation to %s', async destination => {
-    let finish;
-    fetchMock.route('/api/rooms', { rooms: [upstairsRoom, quiet] });
-    fetchMock.route(/\/api\/rooms\/[^/]+\/tables$/, { tables: [] });
-    fetchMock.route('/deploy', () => new Promise(resolve => { finish = resolve; }), { method: 'POST' });
-    const onDeployed = vi.fn();
-    render(<CasinoScreen onDeployed={onDeployed} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Send Milo to play' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Board', exact: true }));
-    const room = destination === 'another room' ? upstairsRoom : quiet;
-    fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${room.name},`) }));
-    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', room.id);
-    await act(async () => finish(deployed));
-    expect(onDeployed).not.toHaveBeenCalled();
-    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', room.id);
-    expect(sessionStorage.getItem('agentic_casino_room')).toBe(room.id);
-    expect(screen.queryByTestId('casino-play-status')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Send Milo to play' })).toBeEnabled();
-    expect(fetchMock.posts).toHaveLength(1);
-  });
-
-  it('a late funding refusal does not open a sheet over the board the owner chose', async () => {
+  it('a funding refusal opens his chips, on the same floor the owner is already looking at', async () => {
     let finish;
     fetchMock.route('/deploy', () => new Promise(resolve => { finish = resolve; }), { method: 'POST' });
     render(<CasinoScreen onDeployed={vi.fn()} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Send Milo to play' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Board', exact: true }));
     await act(async () => finish({ status: 402, body: { error: 'cantAfford' } }));
-    expect(screen.getByRole('button', { name: 'Board', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.queryByRole('dialog', { name: 'Fund Milo' })).toBeNull();
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Fund Milo' })).toBeVisible();
     expect(fetchMock.posts).toHaveLength(1);
   });
 
@@ -180,7 +159,7 @@ describe('CASINO-PLAY: a real agent can join or start from the floor', () => {
     const onSpectate = vi.fn();
     render(<CasinoScreen onSpectate={onSpectate} />);
     fireEvent.click(await screen.findByRole('button', { name: kind === 'owned' ? 'Watch Milo at this table' : `Watch table ${tableId}` }));
-    if (kind === 'owned') expect(onSpectate).toHaveBeenCalledWith(tableId, { roomId: quiet.id, agent: owner });
+    if (kind === 'owned') expect(onSpectate).toHaveBeenCalledWith(tableId, { agent: owner });
     else expect(onSpectate).toHaveBeenCalledWith(tableId);
     expect(fetchMock.posts).toHaveLength(0);
   });
@@ -189,7 +168,6 @@ describe('CASINO-PLAY: a real agent can join or start from the floor', () => {
     const onPlace = vi.fn();
     render(<DesktopHome onPlace={onPlace} />);
     fireEvent.click(await screen.findByTestId('home-door'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Board', exact: true }));
     fireEvent.click(await screen.findByRole('button', { name: 'SEND HIM TO PLAY', exact: true }));
     expect(onPlace).toHaveBeenCalledWith(expect.objectContaining({ id: 'milo' }));
   });

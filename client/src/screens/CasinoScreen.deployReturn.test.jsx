@@ -1,9 +1,17 @@
-// FIRST-HOUSE-2: deploying into an upper room must not lose that room on Back.
-// Use the real casino and desktop shell; only their network responses are fixtures.
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// client/src/screens/CasinoScreen.deployReturn.test.jsx — FIRST-HOUSE-2, UI-3 job A
+//
+// FIRST-HOUSE-2 was about not losing the room a man had just been deployed
+// into on Back. UI-3 job A deletes the thing that could be lost — there is
+// one floor now, always open, so "which room to return to" is no longer a
+// question this screen has to answer. What is still worth pinning is the
+// part of the mechanism that survives underneath: `onDeployed` hands back
+// the ROOM the server actually queued him into (his real stakes), even when
+// that differs from what the owner tapped or the response shapes the number
+// differently — the callers this screen reports to (DesktopHome's own
+// bookkeeping, `casinoReturnRoomId`) still read that argument.
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CasinoScreen } from './CasinoScreen.jsx';
-import { DesktopHome } from '../components/desktop/DesktopHome.jsx';
 import { restingAgent } from '../test/fixtures/agents.js';
 import { backRoom, felt, roomsResponse, upstairsRoom } from '../test/fixtures/rooms.js';
 import { fetchMock, telegram } from '../test/harness.js';
@@ -14,8 +22,6 @@ const queued = room => ({ tableId: `table-${room.id}`, agentId: funded.id, agent
 
 beforeEach(() => {
   telegram.signIn();
-  sessionStorage.setItem('agentic_casino_room', 'floor');
-  sessionStorage.setItem('agentic_casino_view', 'floor');
   fetchMock.route('/api/agents', { agents: [funded] });
   fetchMock.route('/api/rooms', roomsResponse);
   fetchMock.route(/\/api\/rooms\/([^/]+)\/tables$/, ({ url }) => {
@@ -27,75 +33,43 @@ beforeEach(() => {
   fetchMock.route('/thread', { lines: [], sessionId: 'home' });
   fetchMock.route('/hands', { recentHands: [] });
 });
-afterEach(() => {
-  sessionStorage.removeItem('agentic_casino_room');
-  sessionStorage.removeItem('agentic_casino_view');
-});
 
-async function deployInto(room, scope = screen) {
-  const door = await scope.findByRole('button', { name: new RegExp(`^${room.name},`) });
-  fireEvent.click(door);
+async function dealIntoStake(label) {
+  const stake = await screen.findByRole('button', { name: new RegExp(`^${label.replace(/[$/]/g, '\\$&')}`) });
+  fireEvent.click(stake);
 }
 
-describe('FIRST-HOUSE-2: the deployed table keeps its room', () => {
-  it.each([upstairsRoom, backRoom])('desktop returns to $id after deployment, replacing earlier spectator context', async room => {
-    const onDeployed = vi.fn();
-    const props = { onDeployed, onSpectate: vi.fn(), onLeave: vi.fn() };
-    const view = render(<DesktopHome {...props} />);
-    const home = await screen.findByTestId('home-screen');
-    fireEvent.click(within(home).getByRole('button', { name: 'The door — the casino', exact: true }));
-    const floor = await screen.findByTestId('floor-view');
-    expect(floor).toHaveAttribute('data-room', 'floor');
-    fireEvent.click(await within(floor).findByRole('button', { name: /Watch table table-floor/ }));
-    const watchedTable = await screen.findByTestId('desk-casino-table');
-    fireEvent.click(within(watchedTable).getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
-    expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
-
-    fetchMock.route('/queue', queued(room), { method: 'POST' });
-    view.rerender(<DesktopHome {...props} deployAgent={funded} />);
-    await deployInto(room, within(view.container.querySelector('.dsk-stage')));
-    await waitFor(() => expect(onDeployed).toHaveBeenCalledOnce());
-    await screen.findByTestId('desk-casino-table');
-    view.rerender(<DesktopHome {...props} />);
-    fireEvent.click(within(screen.getByTestId('desk-casino-table')).getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
-    const returnedFloor = await screen.findByTestId('floor-view');
-    expect(returnedFloor).toHaveAttribute('data-room', room.id);
-    expect(await within(returnedFloor).findByRole('button', { name: new RegExp(`Watch table table-${room.id}`) })).toBeInTheDocument();
-  });
-
-  it.each([upstairsRoom, backRoom])('phone casino remount restores the deployed $id room', async room => {
-    const onDeployed = vi.fn();
-    fetchMock.route('/queue', queued(room), { method: 'POST' });
-    const view = render(<CasinoScreen deployAgent={funded} onDeployed={onDeployed} />);
-    await deployInto(room);
-    await waitFor(() => expect(onDeployed).toHaveBeenCalledOnce());
-    view.unmount();
-    render(<CasinoScreen />);
-    expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', room.id);
-  });
-
+describe('FIRST-HOUSE-2: the deployed table hands back its real room', () => {
   it.each([
     ['room', queued(upstairsRoom)],
     ['nested stakes', { tableId: 'table-upstairs', stakes: upstairsRoom.stakes }],
     ['top-level blinds', { tableId: 'table-upstairs', smallBlind: 25, bigBlind: 50 }],
-  ])('uses the queued %s rather than an outdated requested doorway when the response differs', async (_, payload) => {
+  ])('uses the queued %s rather than the requested stake when the response differs', async (_, payload) => {
     const onDeployed = vi.fn();
     fetchMock.route('/queue', payload, { method: 'POST' });
     render(<CasinoScreen deployAgent={funded} onDeployed={onDeployed} />);
-    await deployInto(backRoom);
+    await dealIntoStake(backRoom.stakes.label);
     await waitFor(() => expect(onDeployed).toHaveBeenCalledOnce());
     expect(onDeployed.mock.calls[0][2].id).toBe('upstairs');
-    expect(sessionStorage.getItem('agentic_casino_room')).toBe('upstairs');
   });
 
-  it('a rejected deployment keeps the previous room and the agent in the tray', async () => {
+  it('a rejected deployment keeps the agent in the tray', async () => {
     const onDeployed = vi.fn();
     fetchMock.route('/queue', { status: 409, body: { error: 'cantAfford' } }, { method: 'POST' });
     render(<CasinoScreen deployAgent={funded} onDeployed={onDeployed} />);
-    await deployInto(backRoom);
+    await dealIntoStake(backRoom.stakes.label);
     await waitFor(() => expect(fetchMock.posts.some(request => request.url.includes('/queue'))).toBe(true));
     expect(onDeployed).not.toHaveBeenCalled();
-    expect(sessionStorage.getItem('agentic_casino_room')).toBe('floor');
     expect(screen.getByText(`placing ${funded.name}`)).toBeInTheDocument();
+  });
+
+  // The floor never needed to be told which room to reopen — it always shows
+  // every table, including his. A deploy just has to leave the table on it.
+  it('the deployed table is on the floor once he is in, with no room to remember', async () => {
+    fetchMock.route('/queue', queued(upstairsRoom), { method: 'POST' });
+    render(<CasinoScreen deployAgent={funded} onDeployed={vi.fn()} />);
+    await dealIntoStake(backRoom.stakes.label);
+    await screen.findByTestId('floor-view');
+    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
   });
 });

@@ -127,7 +127,22 @@ describe('CASINO-2 job 5 · the room', () => {
   it('has a bar and a set of stairs in it, because that is what makes it a room', () => {
     render(<TheFloor felts={[felt()]} />);
     expect(screen.getByText('THE BAR')).toBeInTheDocument();
-    expect(screen.getByText('THE BOARD')).toBeInTheDocument();
+    expect(screen.getByText('HOME')).toBeInTheDocument();
+  });
+
+  // UI-3 job A: the board that used to be bolted beside the stairs is gone,
+  // so tapping them is the one thing left they do — go home.
+  it('the staircase goes home when tapped', async () => {
+    const onHome = vi.fn();
+    const user = userEvent.setup();
+    render(<TheFloor felts={[felt()]} onHome={onHome} />);
+    await user.click(screen.getByRole('button', { name: /go home/i }));
+    expect(onHome).toHaveBeenCalledTimes(1);
+  });
+
+  it('with nowhere to send him, the stairs are scenery, not a button', () => {
+    render(<TheFloor felts={[felt()]} />);
+    expect(screen.queryByRole('button', { name: /go home/i })).not.toBeInTheDocument();
   });
 
   it('the bar is empty unless somebody of yours is actually standing at it', () => {

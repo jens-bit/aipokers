@@ -277,40 +277,41 @@ function FloorBar({ standing = [] }) {
 }
 
 /**
- * The stairs, and the board bolted beside them.
+ * THE STAIRCASE — UI-3 job A.
  *
- * A picture of the board, not the board: the real one is under the room on the
- * phone and beside it on the desk. What this says is WHERE it is — by the
- * stairs, on the wall, in the room — which is the thing a list of headlines
- * cannot say about itself.
+ * The board that used to be bolted beside these stairs is gone (there is one
+ * room now, and no wall left to hang it on), so the stairs go back to being
+ * only what they always also were: the one piece of furniture in the room
+ * that says how to leave it. Tapping them goes home — the plainest reading of
+ * a staircase there is, and the fix for a building that used to have three
+ * rooms and now has none to walk between.
  */
-function FloorStairs({ lines = 0 }) {
-  return (
-    <div className="csn-floor58__stairs" aria-hidden>
-      <div className="csn-floor58__treads">
-        {[9, 14, 19, 24, 29, 34].map((h, i) => (
-          <span key={h} style={{
-            height: h,
-            background: `linear-gradient(180deg, color-mix(in srgb, var(--gold-reward) ${(0.06 + i * 0.02) * 100}%, transparent) 0%, color-mix(in srgb, var(--text-primary) 2%, transparent) 100%)`,
-          }} />
-        ))}
-      </div>
-      <div className="csn-floor58__plaque" style={{ border: `1px solid color-mix(in srgb, ${M_GOLD} 23.92%, transparent)` }}>
-        <span style={{ fontFamily: OSWALD, fontSize: 6, fontWeight: 600, letterSpacing: '0.14em', color: M_GOLD }}>
-          THE BOARD
-        </span>
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="csn-floor58__rule"
-            style={{
-              background: i === 0 && lines > 0 ? `color-mix(in srgb, ${M_GOLD} 53.33%, transparent)` : 'var(--surface-strong)',
-              width: i ? `${72 - i * 18}%` : '100%',
-            }}
-          />
-        ))}
-      </div>
+function FloorStairs({ onHome = null }) {
+  const treads = (
+    <div className="csn-floor58__treads" aria-hidden>
+      {[9, 14, 19, 24, 29, 34].map((h, i) => (
+        <span key={h} style={{
+          height: h,
+          background: `linear-gradient(180deg, color-mix(in srgb, var(--gold-reward) ${(0.06 + i * 0.02) * 100}%, transparent) 0%, color-mix(in srgb, var(--text-primary) 2%, transparent) 100%)`,
+        }} />
+      ))}
     </div>
+  );
+  const plaque = (
+    <span className="csn-floor58__plaque" style={{ border: `1px solid color-mix(in srgb, ${M_GOLD} 23.92%, transparent)` }}>
+      <span style={{ fontFamily: OSWALD, fontSize: 6, fontWeight: 600, letterSpacing: '0.14em', color: M_GOLD }}>
+        HOME
+      </span>
+    </span>
+  );
+
+  if (!onHome) {
+    return <div className="csn-floor58__stairs">{treads}{plaque}</div>;
+  }
+  return (
+    <button type="button" className="csn-floor58__stairs" aria-label="The staircase — go home" onClick={onHome}>
+      {treads}{plaque}
+    </button>
   );
 }
 
@@ -322,10 +323,11 @@ function FloorStairs({ lines = 0 }) {
  * @param mineAt   { [tableId]: agent } — your own men, by the table they are at
  * @param standing your agents in this room who are at no felt
  * @param onWatch  (tableId) => watch it
+ * @param onHome   (tableId) => go home; wired to the staircase (UI-3 job A)
  * @param width    the room's drawn width; the plan is scaled to it
  */
 export function TheFloor({
-  felts = [], mineAt = {}, standing = [], boardLines = 0, onWatch = null, width = FLOOR_W, height = FLOOR_H, zoom = null, onZoom = null,
+  felts = [], mineAt = {}, standing = [], onWatch = null, onHome = null, width = FLOOR_W, height = FLOOR_H, zoom = null, onZoom = null,
 }) {
   const k = width / FLOOR_W;
   const shown = felts.slice(0, FLOOR_CAP);
@@ -382,7 +384,7 @@ export function TheFloor({
           <span key={i} className="csn-floor58__carpet" style={{ top: 40 + i * 42 }} />
         ))}
 
-        <FloorStairs lines={boardLines} />
+        <FloorStairs onHome={onHome} />
 
         {shown.map((felt, i) => {
           const agent = mineAt[felt.tableId] ?? null;

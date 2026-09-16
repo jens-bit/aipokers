@@ -1,16 +1,37 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { FridgeSheet } from './FridgeSheet.jsx';
+import { FridgeSheet, STOCK } from './FridgeSheet.jsx';
 import { fetchMock, telegram } from '../../test/harness.js';
 const fridge = { items: [{ id: 'beer', label: 'Beer', count: 0, price: 12 }, { id: 'snack', label: 'Snack', count: 2, price: 8 }] };
+const sentenceFor = (id) => STOCK.find(s => s.id === id).sentence;
 beforeEach(() => { telegram.signIn(); fetchMock.route('/api/fridge', fridge); });
-it('HOME-CARE-1: the fridge explains the beer tradeoff before stocking', async () => {
+// UI-3 job D replaces HOME-CARE-1's always-visible essay with arrows-only
+// rows and a one-sentence explanation that only exists once the owner taps
+// the item — this test is rewritten (not weakened: it asserts the essay is
+// ABSENT by default, and present only on demand) to match that decision.
+it('UI-3 job D: the fridge shows arrows, not an essay, until the item is tapped', async () => {
   render(<FridgeSheet variant="rail" onClose={() => {}}/>);
   await waitFor(() => expect(screen.getByRole('button', { name: 'Buy 6 beer' })).toBeEnabled());
-  const care = screen.getByText(/A beer cools/);
-  expect(care).toHaveTextContent('temporarily lowers discipline and makes bluffs more likely in his next casino session');
-  expect(screen.getByTestId('fridge-shelf-snack')).toHaveTextContent('gentler cooling');
+  const beerShelf = screen.getByTestId('fridge-shelf-beer');
+  const snackShelf = screen.getByTestId('fridge-shelf-snack');
+  // No essay anywhere, until something is tapped.
+  expect(screen.queryByText(sentenceFor('beer'))).not.toBeInTheDocument();
+  expect(screen.queryByText(sentenceFor('snack'))).not.toBeInTheDocument();
+  // Arrows only, one per real effect, in the scheme's colors.
+  expect(within(beerShelf).getByLabelText('heat down')).toBeInTheDocument();
+  expect(within(beerShelf).getByLabelText('discipline down')).toBeInTheDocument();
+  expect(within(beerShelf).queryByLabelText('stamina up')).not.toBeInTheDocument();
+  expect(within(snackShelf).getByLabelText('stamina up')).toBeInTheDocument();
+  expect(within(snackShelf).getByLabelText('heat down')).toBeInTheDocument();
+  expect(within(snackShelf).queryByLabelText(/discipline/)).not.toBeInTheDocument();
+  // Tapping the beer item reveals its one sentence, and only its own.
+  await userEvent.click(within(beerShelf).getByRole('button', { name: /^BEER:/ }));
+  expect(within(beerShelf).getByText(sentenceFor('beer'))).toBeInTheDocument();
+  expect(screen.queryByText(sentenceFor('snack'))).not.toBeInTheDocument();
+  // Tapping it again closes it back up.
+  await userEvent.click(within(beerShelf).getByRole('button', { name: /^BEER:/ }));
+  expect(screen.queryByText(sentenceFor('beer'))).not.toBeInTheDocument();
   expect(fetchMock.requestsMatching('/api/fridge/stock')).toHaveLength(0);
 });
 it('BUG-64: an empty fridge can be restocked from the safe, six at a time', async () => {

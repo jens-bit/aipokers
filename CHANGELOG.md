@@ -58,6 +58,124 @@ stated a fact and left the owner holding nothing now name the remedy.
 `npm run test:e2e` 7/7, `npm run talk:eval` 232/232, `npm run test:home2`
 20/20, `node scripts/audit-chips.js` exit 0 on a fresh scratch DB.
 
+## TABLE-2 — the opponent card stacks correctly, the STATS tab gets bars — local candidate (2026-09-16)
+
+- **The opened card sits above the felt (JOB A).** Tapping an opponent drew
+  his read card underneath the hero's own floating hands, his hole cards and
+  the "Est. pot share" rope, and his speech bubble ran under the card's
+  Close button. Root cause: BUG-133's "his cards, hands and strip stay above
+  the read glass" rule boosted the hero above every overlay sheet, including
+  a read of somebody else, when it was written for the thread sheet (a
+  conversation about the owner's own agent) specifically. `WatchFelt` now
+  distinguishes the two with `watch-felt--reading` (driven by the
+  `selectedSeat` it already tracks) and un-boosts the hero for that case, so
+  the opponent's card — already at a higher z-index — wins as it should have
+  all along. Regression: `client/e2e/table2-jobA.spec.js`.
+- **The in-game STATS tab reads like the profile (JOB B).** The four skills
+  it shares with the agent's profile page (READS, FOCUS, DISCIPLINE,
+  DECEPTION) were bare `41/100` figures instead of the profile's own sliders
+  with a range band — along with STAMINA and COMPOSURE, which the profile's
+  Skills section has never shown. `WatchAgentStats` now renders
+  `AgentProfileOverview`'s own `AttrCluster`, reading the same four skills
+  from the same `normalizeAttrs`/`agent.attrLog` data, with the profile's own
+  CSS. Stack at this table stays a plain figure above it. Desktop's Stats
+  tab reuses the same component, so it is fixed there too.
+
+## TABLE-1 — the in-hand felt stops jumping, labels the felt evenly — local candidate (2026-09-16)
+
+- **The screen stops jumping (JOB A).** `ActionNarrator` used to contribute
+  no DOM node at all when it had nothing to narrate, then a real ~29px box
+  the moment a hand settled or an action landed. It sits between the felt
+  (flex:1) and the composer, so that difference was the felt's own height —
+  and everything positioned against the felt (the hero strip, its
+  stamina/heat row, the pot, the board) shifted by the same amount every
+  time. It is mounted always now, at one reserved height. The hand-name
+  column's own reserved width also grows from a guessed 150px to the real
+  measured width of handName()'s longest output ("two pair, threes and
+  sevens"), so the one hand worth reading in full no longer gets cut.
+  Regression: `client/e2e/table1-jobA.spec.js` drives a hand through every
+  street plus an opponent check, a hero call and (separately) a hero fold,
+  asserting the stamina/heat row's bounding box never moves.
+- **Job B not reproduced.** The reported title-cased duplicate hand name
+  ("Two Pair, J's & 10's" beside the readable lowercase copy) does not exist
+  anywhere in the code — the strip has exactly one hand-name reading, already
+  in the readable, unabbreviated form the report asked to keep. Nothing
+  changed for this job; see BUGS.md.
+- **The win card, not the pot, states the pot (JOB C).** The standing pot
+  pill used to stay up through a major win, dimmed but legible, printing the
+  same figure the celebrating card already states a few px above it —
+  ordinaryWin already dropped the pill outright on settle; majorWin now does
+  too, so the amount is only ever said once.
+- **Preflop draws no board (JOB D).** The board row always rendered five
+  card backs, including at preflop where there is no board at all yet. It
+  now draws nothing until the flop, the same "there is no board to see"
+  reading between-hands already gets. The flop/turn/river staged reveal is
+  unchanged.
+- **Both sides of the felt read the same way (JOB E).** An opponent's chip
+  pile and every bet spot (his and the hero's) are labelled STACK / BET the
+  same way the hero's stack already was, instead of a bare figure on one
+  side and a labelled block on the other.
+- **His own room shows his own cards (JOB F).** Opening an agent's profile
+  mid-hand now draws his live hole cards over his figure when he is dealt in
+  — `agent.liveGame.heroHole`, already on the wire and owner-gated, just
+  never drawn here.
+- **Job G blocked, not fixed.** The felt-doesn't-draw-the-rake request
+  (MONEY-2's real BUG-218, on `origin/main`) cannot be done on this branch:
+  the rake feature itself has not merged into `fix/ui-3` yet, and this
+  branch's own BUG-218 is already a different, closed UI-3 bug (renumbered
+  to BUG-228 at MERGE-14). See BUG-218 in BUGS.md.
+
+## UI-3 — one room, real monitors, readable money, want he can act on — local candidate (2026-09-15)
+
+- **The casino is a single room (JOB A).** The three doorways (the floor,
+  upstairs, the back room), the Floor|Board toggle and the swipe between
+  rooms are gone. Every live table is on the one floor at once, each showing
+  its own stakes — a 10/20 and a 50/100 table share the same space. The
+  ticker (what used to be the two-panel board) is one line pinned to the very
+  top of the screen. A staircase inside the room takes the owner home when
+  tapped. Placing a man is now a stake picked from a row of chips instead of
+  a room walked into — the same law 4 (a stake he cannot afford is shut and
+  says the price) and the same one-tap deal FIX-6 job 2 gave the doorway it
+  replaces. Fixes BUG-231 (entering the casino auto-targeted an empty room
+  and said nothing was running while games were live elsewhere) — renumbered
+  from a local 217 at MERGE-14 (MONEY-2 had it), and from a local 214
+  before that, since main's own BUG-214 (below, MERGE-10) landed first.
+- **The desk's other monitors show the real game (JOB B).** Every live
+  agent's tile in the Standup panel now draws from his own real table state
+  (AGE-37's `liveGame`, the same projection the home television already
+  plays from) instead of going blank the moment he is not the one being
+  watched. Fixes BUG-229.
+- **Money you can read and move (JOB C).** Every agent's own NET P&L now
+  shows beside his stack — on the agent view's DEPLOY button, in the roster
+  row, and in the give sheet — and every figure names itself in words rather
+  than leaning on a hover title a phone can never show. The give sheet gets
+  a real second direction: TAKE any amount up to his whole pocket, including
+  all of it, not just "collect winnings"; GIVE now refuses to ask the safe
+  for more than it holds instead of allowing a request it cannot honour.
+  Both directions still go through the existing wallet functions only.
+  Fixes BUG-230.
+- **The fridge loses its essay (JOB D).** The item list no longer carries a
+  sentence per item or a standing paragraph at the foot. Each item shows
+  what it does as arrows only — stamina up in green, heat down in blue (a
+  new `--cool` token; nothing in the palette was blue before), discipline
+  down in red — and the one-sentence explanation now appears only once the
+  owner taps the item, for that item alone.
+- **His want is tappable (JOB E).** `.want.action`/`.want.actionLabel`
+  landed on main partway through this job (MERGE-10, LIFE-2 job 1 below),
+  so this is the client tap that job deliberately left to "another tab".
+  The first pill in his speech bubble at home and in his own line on the
+  agent view now reads as his real action — "Sit him out", "Give him
+  chips", "Put him in", "Open the fridge", "Hear him out" — instead of a
+  generic Yes. Answering still goes through the same wiring as before; a
+  want with no actionLabel keeps the plain Yes.
+- **The room answers (JOB F).** Typing "hi" to the room already fanned a
+  reply out to everybody standing in it, through the existing talk turn
+  (SERVER-4/THREAD-2) — this draws it, as a speech bubble over the body
+  that said it, through the room's existing one-bubble queue. Fixes
+  BUG-228 (found only in a real browser: the one agent a small household
+  keeps dealt in against the House could never clear his own table seat's
+  bubble-blocker box, so his reply never drew at all).
+
 ## 0.17.0 candidate — the doors he walked through, and the verbs that meant it (2026-09-16)
 
 One branch, seven commits, `f01f8c8..HEAD`. Merged as MERGE-13, gated after

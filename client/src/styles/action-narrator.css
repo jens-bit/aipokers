@@ -1,2 +1,11 @@
-.action-narrator { flex-shrink:0; box-sizing:border-box; width:100%; min-height:28px; padding:6px 14px; border-top:1px solid color-mix(in srgb, var(--text-primary) 7%, transparent); background:var(--glass-panel,color-mix(in srgb, var(--bg-secondary) 94%, transparent)); color:var(--text-secondary); font:400 11px/16px Inter,sans-serif; letter-spacing:normal; text-transform:none; overflow-wrap:anywhere; }
-.dsk-casino-table__scene > .action-narrator { padding:7px 20px; font-size:13px; line-height:18px; }
+/* TABLE-1 job A: a fixed `height`, not a `min-height` floor — this box sits
+   between the flex:1 felt and the composer, so any height IT takes on is
+   height the felt loses. A floor let an empty box and a one-line box differ
+   by however tall the line was, and that difference was the felt (and the
+   hero strip, the stamina/heat dots, the pot and the board inside it, all
+   positioned by percentage or by a fixed offset from the felt's own edges)
+   visibly jumping every time a hand settled. One line always fits inside 28px
+   at this font size; a line that somehow ran to two would clip rather than
+   grow the box, which is the trade this box makes on purpose. */
+.action-narrator { flex-shrink:0; box-sizing:border-box; width:100%; height:28px; overflow:hidden; padding:6px 14px; border-top:1px solid color-mix(in srgb, var(--text-primary) 7%, transparent); background:var(--glass-panel,color-mix(in srgb, var(--bg-secondary) 94%, transparent)); color:var(--text-secondary); font:400 11px/16px Inter,sans-serif; letter-spacing:normal; text-transform:none; overflow-wrap:anywhere; }
+.dsk-casino-table__scene > .action-narrator { height:32px; padding:7px 20px; font-size:13px; line-height:18px; }

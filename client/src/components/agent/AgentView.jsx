@@ -4,12 +4,13 @@ import { NotYet } from '../ftu/NotYet.jsx';
 import { useState } from 'react';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { ghostHands, SEAT_GRIP } from '../system/GhostHands.jsx';
+import { PlayingCard, parseCard } from '../system/PlayingCard.jsx';
 import { NamePill } from '../home/atoms.jsx';
 import { MoodChip } from '../floor/atoms.jsx';
 import { identityOf } from '../../lib/identity.js';
-import { ANSWERS, answerWant } from '../home/WantToast.jsx';
+import { answersFor, answerWant } from '../home/WantToast.jsx';
 import { FundSheet } from '../wallet/FundSheet.jsx';
-import { fetchWallet, fundAgent, money, pocketOf, stakesFor } from '../../lib/wallet.js';
+import { fetchWallet, fundAgent, money, pnlTone, pocketOf, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { ReplayCard } from '../replay/ReplayCard.jsx';
 import { FridgeSheet } from '../home/FridgeSheet.jsx';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
@@ -34,6 +35,16 @@ function ProposalDetails({proposal,profile}) {
 export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, send, inputRef, feedRef, onBack, onOpenProfile, onDeploy, onWatch, onCarry, onReplay, onAccept, accepting, desktop = false, externalError = '' }) {
   const identity = identityOf(agent);
   const bodySize = desktop ? 132 : 178;
+  // TABLE-1 job F: this is the one place the room hands the owner his own
+  // agent, mid-hand, with nothing of the felt in view — the figure was
+  // already drawn here, and what he is holding was not. liveGame.heroHole
+  // rides the same `/api/agents` call this view already reads (table.js's
+  // liveGameView gates it on `includeHole`, which presentAgent only sets true
+  // for the owner), so this is not a new subscription or a new endpoint —
+  // it is a field this call already carries that nothing here had drawn.
+  const heroHole = Array.isArray(agent.liveGame?.heroHole) && agent.liveGame.heroHole.length === 2
+    ? agent.liveGame.heroHole.map(parseCard)
+    : null;
   const [want, setWant] = useState(agent.want ?? null);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState('');
@@ -100,15 +111,39 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
     <div className="agent-view__stage" data-testid="agent-stage">
       <div className="agent-view__glow" style={{ background: `radial-gradient(ellipse at 50% 74%, ${identity.glow.c}14, transparent 68%)` }} />
       <div className="agent-view__shadow" />
-      <div className="agent-view__body"><NamePill name={agent.name} nickname={agent.nickname} fatigue={agent.fatigue} heat={heat} accent="#EDEDED"/><div className="agent-view__breath">{face(bodySize)}<svg className="agent-view__hands" width={bodySize} height={bodySize} viewBox="0 0 80 80" aria-hidden>{ghostHands({ pose: 'rest', size: bodySize, grip: SEAT_GRIP })}</svg></div></div>
+      <div className="agent-view__body"><NamePill name={agent.name} nickname={agent.nickname} fatigue={agent.fatigue} heat={heat} accent="#EDEDED"/><div className="agent-view__breath">{face(bodySize)}<svg className="agent-view__hands" width={bodySize} height={bodySize} viewBox="0 0 80 80" aria-hidden>{ghostHands({ pose: 'rest', size: bodySize, grip: SEAT_GRIP })}</svg>
+        {/* TABLE-1 job F: his own two cards, face up — the server only sends
+            heroHole to the authenticated owner, so a card drawn here is
+            always one this viewer is entitled to (WatchHero's own rule). */}
+        {heroHole && <span className="agent-view__hole" data-testid="agent-view-hole" aria-label="His cards">
+          {heroHole.map((c, i) => <span key={i} className="agent-view__hole-card" style={{ transform: `rotate(${i ? 6 : -6}deg)` }}>
+            <PlayingCard rank={c.rank} suit={c.suit} w={desktop ? 36 : 44} h={desktop ? 50 : 61} />
+          </span>)}
+        </span>}
+      </div></div>
       {agent.drinking === true && <div className="agent-view__bottle" aria-label="Drinking"><i/><b/><span/></div>}
       {(want || lastLine) && <div className="agent-view__speech">
         <div className={`agent-view__bubble${want ? ' is-want' : ''}`}>{want?.text || lastLine}</div>
-        {want && <div className="agent-view__answers">{ANSWERS.map(a => <button key={a.id} type="button" disabled={!!busy} onClick={() => answer(a.id)}>{a.label}</button>)}</div>}
+        {want && <div className="agent-view__answers">{answersFor(want).map(a => <button key={a.id} type="button" disabled={!!busy} onClick={() => answer(a.id)}>{a.label}</button>)}</div>}
       </div>}
     </div>
     <div className="agent-view__actions">
-      <button type="button" className="agent-view__deploy" disabled={!onDeploy || live} onClick={() => onDeploy(currentAgent)}><b>DEPLOY</b><span>{stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}</span></button>
+      <button type="button" className="agent-view__deploy" disabled={!onDeploy || live} onClick={() => onDeploy(currentAgent)}>
+        <b>DEPLOY</b>
+        <span>
+          {stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}
+          {/* UI-3 job C: his NET, not just his stack — a pocket and what he
+              has actually made are two different numbers. A `title` alone is
+              invisible on a phone (nothing to hover), so the word itself has
+              to sit on the button, same as FundSheet's "his net" line. */}
+          {Number.isFinite(pocket?.pnl) && (
+            <>
+              <b className={`agent-view__net agent-view__net--${pnlTone(pocket.pnl)}`}> {signedMoney(pocket.pnl)}</b>
+              <small className="agent-view__net-label"> net</small>
+            </>
+          )}
+        </span>
+      </button>
       <button type="button" aria-label="Give chips" onClick={openFunds}><Icon name="chips"/><span>GIVE CHIPS</span></button>
       <button type="button" aria-label="Carry" disabled={!atHome || !onCarry} onClick={() => onCarry(currentAgent)}><Icon name="carry"/><span>CARRY</span></button>
       <button type="button" aria-label="Profile" onClick={() => onOpenProfile?.(currentAgent)}><Icon name="profile"/><span>PROFILE</span></button>

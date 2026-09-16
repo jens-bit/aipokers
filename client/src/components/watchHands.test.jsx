@@ -344,19 +344,32 @@ describe('HANDS-1: chips are things on a felt', () => {
     for (const p of piles) expect(p.querySelectorAll('.chip').length).toBeGreaterThan(0);
   });
 
+  // TABLE-1 job E: an opponent's pile read as a bare number beside a chip
+  // glyph while the hero's read as a labelled block — one fact, two readings.
+  it('TABLE-1 job E: an opponent\'s pile reads STACK too, the same way the hero\'s does', () => {
+    const { container } = renderWatch(midHandGame);
+    const piles = container.querySelectorAll('.watch-felt__seat .watch-felt__seat-pile');
+    for (const p of piles) expect(p.querySelector('.chip-stack__label').textContent).toBe('STACK');
+  });
+
   it('puts a bet out as chips in front of the cards, with the figure beside them', () => {
     // The hero is 40 into this street; nobody else has put anything in yet.
     const { container } = renderWatch(midHandGame);
     const his = container.querySelector('.watch-felt__hero-bet');
     expect(his.querySelectorAll('.chip').length).toBeGreaterThan(0);
     expect(his.querySelector('.bet-spot__amt').textContent).toBe('40');
+    // TABLE-1 job E: a bet chip is labelled BET, on both sides of the felt —
+    // an unlabelled figure on a chip could have been read as more stack.
+    expect(his.querySelector('.bet-spot__label').textContent).toBe('BET');
     expect(container.querySelectorAll('.watch-felt__seat-bet')).toHaveLength(0);
 
     const { container: c2 } = renderWatch({
       ...midHandGame,
       seats: midHandGame.seats.map((s, i) => (i === 1 ? { ...s, contribThisStreet: 40 } : s)),
     });
-    expect(c2.querySelector('.watch-felt__seat-bet .bet-spot__amt').textContent).toBe('40');
+    const theirs = c2.querySelector('.watch-felt__seat-bet');
+    expect(theirs.querySelector('.bet-spot__amt').textContent).toBe('40');
+    expect(theirs.querySelector('.bet-spot__label').textContent).toBe('BET');
   });
 
   // "Every spot travels together — one sweep, not four animations."

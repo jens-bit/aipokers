@@ -159,7 +159,14 @@ export function RosterRow({ agent, index, onOpen }) {
           {whereabouts.detail && <span className="roster__routine">{whereabouts.detail}</span>}</span>
         </span>
         <span className="roster__numbers">
-          <span className={`roster__result${result.value > 0 ? ' is-up' : result.value < 0 ? ' is-down' : ''}`} title={result.label}>{signedMoney(result.value)}</span>
+          {/* UI-3 job C: a figure says what it is in words. This was already
+              one of the row's four facts — his net, current session while
+              he's at a felt or his last one otherwise — but the only place
+              that said so was a hover title nobody on a phone ever sees. */}
+          <span className="roster__result-line">
+            <small>NET</small>
+            <span className={`roster__result${result.value > 0 ? ' is-up' : result.value < 0 ? ' is-down' : ''}`} title={result.label}>{signedMoney(result.value)}</span>
+          </span>
           <span className="roster__pocket"><small>POCKET</small><span>{pocket === null ? '—' : money(pocket)}</span></span>
         </span>
         <svg className="roster__chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M9 6l6 6-6 6"/></svg>

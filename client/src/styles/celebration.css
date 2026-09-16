@@ -40,8 +40,9 @@
 .watch-felt.is-major-result .seat-ghost,
 .watch-felt.is-major-result .watch-felt__seat-pile,
 .watch-felt.is-major-result .watch-felt__hero-stack,
-.watch-felt.is-major-result .watch-felt__board,
-.watch-felt.is-major-result .watch-felt__pot { opacity:.25; }
+.watch-felt.is-major-result .watch-felt__board { opacity:.25; }
+/* TABLE-1 job C: the pot pill itself no longer mounts once majorWin is up —
+   see WatchScreen.jsx — so there is nothing left here to dim. */
 .hand-pot-award { position:absolute; top:calc(var(--wv-pot) + 12px); left:50%; width:24px; height:24px; transform:translate(-50%,-50%); z-index:10; pointer-events:none; }
 .hand-pot-award__chips { display:block; animation:hand-pot-slide 720ms cubic-bezier(.2,.65,.35,1) 220ms both; }
 @keyframes hand-pot-punch { 0%{transform:scale(.82)} 55%{transform:scale(1.12)} 100%{transform:scale(1)} }

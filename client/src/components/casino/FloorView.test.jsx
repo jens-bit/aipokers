@@ -1,17 +1,19 @@
-// client/src/components/casino/FloorView.test.jsx — BUGS-A job 7, CASINO-2 job 5
+// client/src/components/casino/FloorView.test.jsx — BUGS-A job 7, CASINO-2 job 5, UI-3 job A
 //
-// A doorway you can walk through. The rules under test are about HONESTY as
-// much as about wiring: the room may only draw a table it actually knows
-// about, and it must say how many it could not name.
+// A room you no longer walk into a doorway to reach. The rules under test are
+// about HONESTY as much as about wiring: the room may only draw a table it
+// actually knows about, and it must say how many it could not name.
 //
 // Two eras, both still live. The pure helpers below are BUGS-A's — what the
 // client could name from the room payload alone — and they are still the
 // answer when no felts have arrived. Everything after them is CASINO-2 job 5:
 // once every table in a room is on the wire, the room stops being a list and
-// becomes a place.
+// becomes a place. UI-3 job A deleted the swipe between three such rooms —
+// there is only one now, so `room` here is CasinoScreen's merged venue and
+// `onClose`/`toggle`/`roomIndex` are gone with the building they belonged to.
 
 import { describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { FloorView, liveTablesIn, unnamedCount, tableIdOf, feltsForRoom } from './FloorView.jsx';
@@ -19,9 +21,7 @@ import { felt, myFelt } from '../../test/fixtures/rooms.js';
 
 const room = (over = {}) => ({
   id: 'floor',
-  name: 'the floor',
-  rung: 0,
-  stakes: { smallBlind: 10, bigBlind: 20, buyIn: 800, label: '$10/$20' },
+  name: 'The floor',
   tables: 3,
   seated: 44,
   hot: [],
@@ -31,37 +31,38 @@ const room = (over = {}) => ({
 
 const agent = (id, name, over = {}) => ({ id, name, activeTableId: null, ...over });
 
-describe('CASINO-PLAY: the entry action preserves the populated floor canvas', () => {
-  it.each([false, true])('moves the quiet-floor action into the existing board area when tables arrive (desktop=%s)', async desktop => {
+describe('CASINO-PLAY: the deploy panel keeps one stable position', () => {
+  // It used to move from the empty room's own space into the rail the
+  // instant the first felt arrived — a different parent in the tree, so
+  // React unmounted and remounted it. An owner mid-tap on it when a table
+  // appeared lost the tap: the node `findByRole` (or his own finger) was
+  // holding a reference to was gone before the click landed. One position,
+  // always, closes that race.
+  it.each([false, true])('never moves parents when tables arrive (desktop=%s)', async desktop => {
     const onPlay = vi.fn();
     const props = { room: room({ tables: 1 }), desktop,
-      play: <button onClick={onPlay}>Send Milo to play</button>,
-      board: <div data-testid="floor-board">The latest hands</div>,
-      toggle: <button>Board</button>,
+      deployPanel: <button onClick={onPlay}>Send Milo to play</button>,
     };
     const view = render(<FloorView {...props} />);
-    expect(screen.getByRole('button', { name: 'Send Milo to play' }).closest('.csn-floor__room')).toBeTruthy();
+    const before = screen.getByRole('button', { name: 'Send Milo to play' });
+    expect(before.closest('.csn-floor__board')).toBeTruthy();
     view.rerender(<FloorView {...props} felts={[felt()]} />);
     const play = screen.getByRole('button', { name: 'Send Milo to play' });
-    expect(play.closest('.csn-floor__room')).toBeNull();
+    expect(play).toBe(before);
     expect(play.closest('.csn-floor__board')).toBeTruthy();
     expect(screen.getByTestId('the-floor').closest('.csn-floor__room')).toBeTruthy();
-    if (desktop) expect(screen.getByTestId('floor-board')).toBeVisible();
-    else expect(screen.queryByTestId('floor-board')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Board' })).toBeVisible();
     await userEvent.click(play);
     expect(onPlay).toHaveBeenCalledOnce();
   });
 
-  it('keeps the phone board when no placement action is available, and clears the lower area during a pinch zoom', () => {
+  it('clears the deploy panel during a pinch zoom', () => {
     const table = felt();
-    const props = { room: room({ tables: 1 }), felts: [table], board: <div data-testid="floor-board">The latest hands</div> };
+    const props = { room: room({ tables: 1 }), felts: [table], deployPanel: <button>Send Milo to play</button> };
     const view = render(<FloorView {...props} />);
-    expect(screen.getByTestId('floor-board')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Send Milo to play' })).toBeVisible();
     const originalFloor = screen.getByTestId('the-floor');
-    view.rerender(<FloorView {...props} play={<button>Send Milo to play</button>} zoom={table} />);
+    view.rerender(<FloorView {...props} zoom={table} />);
     expect(screen.queryByRole('button', { name: 'Send Milo to play' })).toBeNull();
-    expect(screen.queryByTestId('floor-board')).toBeNull();
     expect(screen.getByTestId('the-floor')).toBe(originalFloor);
   });
 });
@@ -145,7 +146,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
       <FloorView
         room={room({ tables: 2 })}
         felts={[felt({ tableId: 't1' }), felt({ tableId: 't2' })]}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     expect(container.querySelectorAll('.csn-felt58')).toHaveLength(2);
@@ -153,19 +154,20 @@ describe('CASINO-2 job 5 · the room, from above', () => {
 
   it('and it is a ROOM, not a list of its tables', () => {
     const { container } = render(
-      <FloorView room={room()} felts={[felt()]} onClose={() => {}} />,
+      <FloorView room={room()} felts={[felt()]} onHome={() => {}} />,
     );
     // The furniture is the point: the bar is why "not playing" has somewhere to
-    // be, and the stairs are why the building has floors.
+    // be, and the stairs are why the building has floors — UI-3 job A: and
+    // now the only door out of it.
     expect(screen.getByTestId('the-floor')).toBeInTheDocument();
     expect(screen.getByText('THE BAR')).toBeInTheDocument();
-    expect(screen.getByText('THE BOARD')).toBeInTheDocument();
+    expect(screen.getByText('HOME')).toBeInTheDocument();
     // Bodies on the rim, at floor scale.
     expect(container.querySelectorAll('.csn-tiny').length).toBeGreaterThan(0);
   });
 
   it('the only text on a felt is its stake', () => {
-    render(<FloorView room={room()} felts={[felt({ blinds: '10/20' })]} onClose={() => {}} />);
+    render(<FloorView room={room()} felts={[felt({ blinds: '10/20' })]} onHome={() => {}} />);
     const drawn = document.querySelector('.csn-felt58');
     expect(drawn.textContent).toBe('10/20');
   });
@@ -173,17 +175,19 @@ describe('CASINO-2 job 5 · the room, from above', () => {
   it('a busy room says how many more it holds rather than shrinking them', () => {
     const many = Array.from({ length: 9 }).map((_, i) => felt({ tableId: `t${i}` }));
     const { container } = render(
-      <FloorView room={room({ tables: 9 })} felts={many} onClose={() => {}} />,
+      <FloorView room={room({ tables: 9 })} felts={many} onHome={() => {}} />,
     );
     expect(container.querySelectorAll('.csn-felt58')).toHaveLength(6);
-    expect(screen.getByText(/3 more tables running in here than the room has space to draw/))
+    expect(screen.getByText(/3 more tables running than the room has space to draw/))
       .toBeInTheDocument();
   });
 
-  it('names the room, the stakes and what is in it', () => {
-    render(<FloorView room={room({ tables: 3, seated: 44 })} felts={[felt()]} onClose={() => {}} />);
-    expect(screen.getByText('the floor')).toBeInTheDocument();
-    expect(screen.getByText('$10/$20 · 44 in · 3 tables')).toBeInTheDocument();
+  // UI-3 job A: stakes are a fact about each table now, not the room, so the
+  // header states only the census.
+  it('names the room and the census — stakes are on the tables, not the room', () => {
+    render(<FloorView room={room({ tables: 3, seated: 44 })} felts={[felt()]} onHome={() => {}} />);
+    expect(screen.getByText('The floor')).toBeInTheDocument();
+    expect(screen.getByText('44 in · 3 tables')).toBeInTheDocument();
   });
 
   it('puts your own man\'s table first, however quiet it is', () => {
@@ -192,7 +196,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         room={room({ tables: 3 })}
         felts={[felt({ tableId: 'loud', pot: 9_000, hot: true }), myFelt({ tableId: 'his', pot: 0 })]}
         agents={[agent('agent_grinder', 'The Grinder', { activeTableId: 'his' })]}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     const drawn = [...container.querySelectorAll('.csn-felt58')].map((el) => el.dataset.table);
@@ -203,7 +207,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
     const onWatch = vi.fn();
     const user = userEvent.setup();
     render(
-      <FloorView room={room()} felts={[felt({ tableId: 't9' })]} onWatch={onWatch} onClose={() => {}} />,
+      <FloorView room={room()} felts={[felt({ tableId: 't9' })]} onWatch={onWatch} onHome={() => {}} />,
     );
     await user.click(screen.getByRole('button', { name: /Watch table t9/ }));
     expect(onWatch).toHaveBeenCalledWith('t9');
@@ -218,7 +222,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         felts={[myFelt({ tableId: 'his' })]}
         agents={[agent('agent_grinder', 'The Grinder', { activeTableId: 'his' })]}
         onWatch={onWatch}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     await user.click(screen.getByRole('button', { name: /Watch The Grinder at this table/ }));
@@ -231,7 +235,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         room={room()}
         felts={[myFelt({ tableId: 'his' })]}
         agents={[agent('agent_grinder', 'The Grinder', { activeTableId: 'his' })]}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     // Not a card is drawn in here — his or anybody's. A hand happens at a
@@ -247,7 +251,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         room={room()}
         felts={[myFelt({ tableId: 'his' })]}
         agents={[agent('agent_grinder', 'The Grinder', { activeTableId: 'his' })]}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     expect(container.querySelector('.csn-felt58[data-mine="true"]')).not.toBeNull();
@@ -260,7 +264,7 @@ describe('CASINO-2 job 5 · the room, from above', () => {
         room={room()}
         felts={[felt({ tableId: 'someone-elses' })]}
         agents={[agent('a1', 'The Clock', { activeTableId: null })]}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     // The ref stands four anonymous bodies at the bar; there is no "who is at
@@ -269,31 +273,25 @@ describe('CASINO-2 job 5 · the room, from above', () => {
     expect(document.querySelector('.csn-floor58__standing')).not.toBeNull();
   });
 
-  it('the board by the stairs comes into the room with you', () => {
-    render(
-      <FloorView
-        room={room()}
-        felts={[felt()]}
-        board={<div data-testid="the-board">by the stairs</div>}
-        onClose={() => {}}
-      />,
-    );
-    expect(screen.getByTestId('the-board')).toBeInTheDocument();
-    // And the room says where that board hangs: on the wall by the stairs.
-    expect(screen.getByText('THE BOARD')).toBeInTheDocument();
-  });
-
-  it('leaves by the way it came in', async () => {
+  it('the staircase inside the room goes home when tapped', async () => {
+    const onHome = vi.fn();
     const user = userEvent.setup();
-    const onClose = vi.fn();
-    render(<FloorView room={room()} felts={[felt()]} onClose={onClose} />);
-    await user.click(screen.getByRole('button', { name: 'Back to the casino' }));
-    expect(onClose).toHaveBeenCalledTimes(1);
+    render(<FloorView room={room()} felts={[felt()]} onHome={onHome} />);
+    await user.click(screen.getByRole('button', { name: /go home/i }));
+    expect(onHome).toHaveBeenCalledTimes(1);
   });
 
-  it('is full width on the desk, with the board as a right column', () => {
+  it('leaves by the header, too', async () => {
+    const user = userEvent.setup();
+    const onHome = vi.fn();
+    render(<FloorView room={room()} felts={[felt()]} onHome={onHome} />);
+    await user.click(screen.getByRole('button', { name: 'Back home' }));
+    expect(onHome).toHaveBeenCalledTimes(1);
+  });
+
+  it('is full width on the desk, with the deploy panel as a right column', () => {
     const { container } = render(
-      <FloorView room={room()} felts={[felt()]} desktop board={<div>b</div>} onClose={() => {}} />,
+      <FloorView room={room()} felts={[felt()]} desktop deployPanel={<div>b</div>} onHome={() => {}} />,
     );
     // Not a rail sheet: it replaces the building rather than sitting beside it.
     expect(container.querySelector('.csn-floor--desk')).not.toBeNull();
@@ -308,7 +306,7 @@ describe('CASINO-2 job 5 · when the floor has not said', () => {
       <FloorView
         room={room({ hot: ['t9'], biggestPot: { tableId: 't9', pot: 4180 } })}
         felts={[]}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     expect(screen.getByText('#t9')).toBeInTheDocument();
@@ -322,7 +320,7 @@ describe('CASINO-2 job 5 · when the floor has not said', () => {
         room={room()}
         felts={[]}
         agents={[agent('a1', 'The Clock', { activeTableId: 't3' })]}
-        onClose={() => {}}
+        onHome={() => {}}
       />,
     );
     expect(screen.getByText('The Clock is in here')).toBeInTheDocument();
@@ -330,25 +328,25 @@ describe('CASINO-2 job 5 · when the floor has not said', () => {
   });
 
   it('never pretends the room is only as big as what it drew', () => {
-    render(<FloorView room={room({ tables: 8, hot: ['t9'] })} felts={[]} onClose={() => {}} />);
-    expect(screen.getByText('7 more tables in here the floor has not named.')).toBeInTheDocument();
+    render(<FloorView room={room({ tables: 8, hot: ['t9'] })} felts={[]} onHome={() => {}} />);
+    expect(screen.getByText('7 more tables the floor has not named.')).toBeInTheDocument();
   });
 
   it('counts the felts too, not just the fallback rows', () => {
     render(
-      <FloorView room={room({ tables: 8 })} felts={[felt({ tableId: 'a' })]} onClose={() => {}} />,
+      <FloorView room={room({ tables: 8 })} felts={[felt({ tableId: 'a' })]} onHome={() => {}} />,
     );
-    expect(screen.getByText('7 more tables in here the floor has not named.')).toBeInTheDocument();
+    expect(screen.getByText('7 more tables the floor has not named.')).toBeInTheDocument();
   });
 
   it('a busy room with nothing named says so, rather than reading as empty', () => {
-    render(<FloorView room={room({ tables: 3 })} felts={[]} onClose={() => {}} />);
-    expect(screen.getByText(/has not named a table in here yet/)).toBeInTheDocument();
+    render(<FloorView room={room({ tables: 3 })} felts={[]} onHome={() => {}} />);
+    expect(screen.getByText(/has not named a table yet/)).toBeInTheDocument();
   });
 
   it('a genuinely empty room says THAT instead', () => {
-    render(<FloorView room={room({ tables: 0, seated: 0 })} felts={[]} onClose={() => {}} />);
-    expect(screen.getByText('Nothing is running in here right now.')).toBeInTheDocument();
+    render(<FloorView room={room({ tables: 0, seated: 0 })} felts={[]} onHome={() => {}} />);
+    expect(screen.getByText('Nothing is running right now.')).toBeInTheDocument();
   });
 });
 
@@ -376,46 +374,6 @@ describe('BUG-103 · a floor that arrives after the room opens', () => {
   });
 });
 
-describe('JOB 5 · swipe the floors', () => {
-  const drag = (el, x0, x1) => {
-    fireEvent.touchStart(el, { touches: [{ clientX: x0, clientY: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientX: (x0 + x1) / 2, clientY: 100 }] });
-    fireEvent.touchMove(window, { touches: [{ clientX: x1, clientY: 100 }] });
-    fireEvent.touchEnd(window);
-  };
-
-  it('shows one dot per room, the open one lit, and none when there is only one', () => {
-    const { rerender } = render(<FloorView room={room()} roomIndex={0} roomCount={3} onSwipeLeft={() => {}} onSwipeRight={() => {}} />);
-    const dots = document.querySelectorAll('.csn-floor__rooms i');
-    expect(dots).toHaveLength(3);
-    expect(dots[0]).toHaveClass('is-current');
-    expect(dots[1]).not.toHaveClass('is-current');
-    expect(screen.getByRole('img', { name: 'Room 1 of 3' })).toBeInTheDocument();
-
-    rerender(<FloorView room={room()} roomIndex={0} roomCount={1} />);
-    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
-  });
-
-  it('a swipe left calls onSwipeLeft, a swipe right calls onSwipeRight', () => {
-    const onSwipeLeft = vi.fn(), onSwipeRight = vi.fn();
-    render(<FloorView room={room()} roomIndex={1} roomCount={3} onSwipeLeft={onSwipeLeft} onSwipeRight={onSwipeRight} />);
-    const surface = screen.getByTestId('floor-view');
-    drag(surface, 250, 150);
-    expect(onSwipeLeft).toHaveBeenCalledTimes(1);
-    drag(surface, 150, 260);
-    expect(onSwipeRight).toHaveBeenCalledTimes(1);
-  });
-
-  it('the desk has no dots — CasinoScreen never sends it a room count', () => {
-    // CasinoScreen never passes roomCount/onSwipeLeft for a desktop FloorView
-    // (it gates both on `desktop` itself) — this is that call shape.
-    render(<FloorView room={room()} desktop />);
-    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
-  });
-
-  it('a zoomed table shows neither the dots nor the toggle — it is not the room view any more', () => {
-    render(<FloorView room={room()} roomIndex={0} roomCount={3} zoom={{ blinds: '10/20' }} toggle={<button>Board</button>} />);
-    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Board' })).toBeNull();
-  });
-});
+// UI-3 job A deleted the swipe between rooms along with the rooms — there is
+// one floor now and nothing to swipe to. See CasinoScreen.test.jsx for the
+// deep-link resolution that used to seed which room a swipe opened on.

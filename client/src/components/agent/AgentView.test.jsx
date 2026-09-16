@@ -60,6 +60,22 @@ it('AGENT-1: opens board 42 with the large character, four real actions and a qu
   expect(await screen.findByRole('dialog', { name: 'Fund Loose Cannon' })).toBeInTheDocument();
 });
 
+it('BUG-230: DEPLOY states his net alongside his pocket, not just his stack', async () => {
+  const up = { ...agent, pocket: { balance: 2000, pnl: 340 } };
+  const { rerender } = show({ agent: up });
+  const deploy = await screen.findByRole('button', { name: /deploy/i });
+  expect(deploy).toHaveTextContent('+$340');
+  expect(deploy.querySelector('.agent-view__net--up')).toBeTruthy();
+  // The word itself, not only a hover title — a title is invisible on a
+  // phone, which is where this button actually lives.
+  expect(deploy.querySelector('.agent-view__net-label')).toHaveTextContent('net');
+
+  rerender(<AgentThread agent={{ ...agent, pocket: { balance: 900, pnl: -1200 } }} companion onDeploy={() => {}} onCarry={() => {}} onOpenProfile={() => {}} onBack={() => {}} />);
+  const redeploy = screen.getByRole('button', { name: /deploy/i });
+  expect(redeploy).toHaveTextContent('−$1,200');
+  expect(redeploy.querySelector('.agent-view__net--down')).toBeTruthy();
+});
+
 it('AGENT-1: an away agent can be watched but cannot be carried from the casino', async () => {
   const away = { ...agent, activeTableId: 't1', status: 'playing', location: { where: 'table', tableId: 't1' } };
   const onWatch = vi.fn();
@@ -67,6 +83,25 @@ it('AGENT-1: an away agent can be watched but cannot be carried from the casino'
   await userEvent.click(screen.getByRole('button', { name: 'Watch live game' }));
   expect(onWatch).toHaveBeenCalledWith(away);
   expect(screen.getByRole('button', { name: 'Carry' })).toBeDisabled();
+});
+
+it('TABLE-1 job F: opening his room mid-hand shows his own two cards, not just his figure', async () => {
+  const live = { ...agent, activeTableId: 't1', status: 'playing', location: { where: 'table', tableId: 't1' },
+    liveGame: { tableId: 't1', street: 'flop', pot: 480, board: ['Ah', 'Kd', '2c'], heroHole: ['Jh', 'Jd'], dealtIn: true } };
+  show({ agent: live });
+  const hole = await screen.findByTestId('agent-view-hole');
+  expect(hole.querySelectorAll('svg')).toHaveLength(2);
+});
+
+it('TABLE-1 job F: draws nothing when he is not owned, not dealt in, or not holding two cards', async () => {
+  show({ agent }); // resting at home: no liveGame at all
+  expect(screen.queryByTestId('agent-view-hole')).not.toBeInTheDocument();
+
+  const noHole = { ...agent, activeTableId: 't1', status: 'playing', location: { where: 'table', tableId: 't1' },
+    liveGame: { tableId: 't1', street: 'flop', pot: 480, board: ['Ah', 'Kd', '2c'], heroHole: null, dealtIn: true } };
+  const { unmount } = show({ agent: noHole });
+  expect(screen.queryByTestId('agent-view-hole')).not.toBeInTheDocument();
+  unmount();
 });
 
 it('BUG-61: a refused want remains answerable and reports the failure', async () => {
@@ -86,6 +121,16 @@ it('AGENT-1: accepting a deploy want uses the server answer and opens the casino
   await userEvent.click(await screen.findByRole('button', { name: 'Yes' }));
   await waitFor(() => expect(onDeploy).toHaveBeenCalledTimes(1));
   expect(screen.queryByText('Let me back in.')).not.toBeInTheDocument();
+});
+it('UI-3 job E: his line ends in his own action, not a generic Yes', async () => {
+  fetchMock.route('/api/agents/a1/want', { ok: true, needs: 'deploy' });
+  const onDeploy = vi.fn();
+  const want = { kind: 'back_in', text: 'Let me back in.', action: 'deploy', actionLabel: 'Put him in' };
+  show({ agent: { ...agent, want }, onDeploy });
+  expect(await screen.findAllByText('Let me back in.')).toHaveLength(1);
+  expect(screen.queryByRole('button', { name: 'Yes' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Put him in' }));
+  await waitFor(() => expect(onDeploy).toHaveBeenCalledTimes(1));
 });
 it('BUG-61: an unfulfilled request opens the fridge and is still there when it closes', async () => {
   const want = { text: 'A beer?' };

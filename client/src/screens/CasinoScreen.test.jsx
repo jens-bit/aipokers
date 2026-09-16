@@ -1,39 +1,26 @@
-// client/src/screens/CasinoScreen.test.jsx — CASINO-1
+// client/src/screens/CasinoScreen.test.jsx — CASINO-1, UI-3 job A
 //
 // The casino is the only place a deploy happens, so the gate on it is the
-// thing worth proving. Board 27's law 4: a room he cannot afford is shut and
-// says the price — a fact about his pocket, never a paywall — and the only
-// thing that opens it is his chips.
+// thing worth proving. Board 27's law 4 survives UI-3 job A unchanged: a
+// stake he cannot afford is shut and says the price — a fact about his
+// pocket, never a paywall — and the only thing that opens it is his chips.
 //
-// Also asserted here: the building joins three live sources without any of
-// them being able to take it down, your own agents appear in the doorway of
-// the room they are sitting in, and the ticker's tap reaches a felt.
+// UI-3 job A deleted the building (three doorways, a Floor|Board toggle, a
+// swipe between rooms) and replaced it with a single floor showing every
+// live table at once, each carrying its own stakes. What used to be
+// "CASINO-1 the building" below is now about that one floor; the doorway,
+// toggle and swipe describe blocks are gone with the thing they tested.
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { CasinoScreen, canAfford, defaultRoom, isRoomHot, hotFocus } from './CasinoScreen.jsx';
+import { CasinoScreen, canAfford, defaultRoom, isRoomHot } from './CasinoScreen.jsx';
 import {
-  rooms, hotRooms, roomsResponse, floorRoom, upstairsRoom, backRoom, casinoEvent, felt, myFelt,
+  rooms, hotRooms, floorRoom, upstairsRoom, backRoom, casinoEvent, felt, myFelt,
 } from '../test/fixtures/rooms.js';
 import { playingAgent, restingAgent } from '../test/fixtures/agents.js';
 import { fetchMock, telegram } from '../test/harness.js';
-
-// BUGS-C job 12: the casino opens on the floor by default now, remembered for
-// the session in sessionStorage. Every describe block below that asserts on
-// the BUILDING (doorways, the board, the sign) seeds 'board' as the starting
-// view — the fact under test in each of those is the building's own
-// behaviour, not which of the two the screen opens on (that is job 12's own
-// describe block, further down). Cleared after every test so one test's
-// choice cannot leak into the next.
-function startOnBoard() {
-  try { sessionStorage.setItem('agentic_casino_view', 'board'); } catch { /* n/a */ }
-}
-afterEach(() => {
-  try { sessionStorage.removeItem('agentic_casino_view'); } catch { /* n/a */ }
-  try { sessionStorage.removeItem('agentic_casino_room'); } catch { /* n/a */ }
-});
 
 const POCKET = { mode: 'allowance', cap: 5000, broke: false, collectable: 0, pnl: 0 };
 const withPocket = (agent, balance, over = {}) => ({
@@ -49,10 +36,6 @@ const richCannon = withPocket(restingAgent, 6_000);
 
 function routeFloor({ agents = [], rooms: floor = rooms, events = [], felts = [] } = {}) {
   fetchMock.route('/api/rooms', { rooms: floor, hotWindowMs: 20_000 });
-  // CASINO-2: the felts inside those rooms. Registered after /api/rooms because
-  // routes match newest-first and this URL starts with that one. With no socket
-  // in these tests this REST path is the whole of ROOM_TABLES, which is exactly
-  // the fallback the hook is meant to have.
   fetchMock.route(
     /\/api\/rooms\/([^/]+)\/tables$/,
     ({ url }) => {
@@ -69,26 +52,10 @@ function renderCasino(props = {}) {
   return render(<CasinoScreen {...props} />);
 }
 
-// JOB 5: one finger, past useHorizontalSwipe's own threshold. Named for the
-// direction the ROOM moves, matching the hook's own convention.
-function swipeLeft(el) {
-  fireEvent.touchStart(el, { touches: [{ clientX: 260, clientY: 200 }] });
-  fireEvent.touchMove(window, { touches: [{ clientX: 200, clientY: 200 }] });
-  fireEvent.touchMove(window, { touches: [{ clientX: 180, clientY: 200 }] });
-  fireEvent.touchEnd(window);
-}
-function swipeRight(el) {
-  fireEvent.touchStart(el, { touches: [{ clientX: 120, clientY: 200 }] });
-  fireEvent.touchMove(window, { touches: [{ clientX: 180, clientY: 200 }] });
-  fireEvent.touchMove(window, { touches: [{ clientX: 200, clientY: 200 }] });
-  fireEvent.touchEnd(window);
-}
+const stake = (label) => screen.getByRole('button', { name: new RegExp(`^${label.replace(/[$/]/g, '\\$&')}`) });
 
-const door = (name) => screen.getByRole('button', { name: new RegExp(`^${name},`) });
-
-it('N3: the casino conversation follows the carousel agent and sends to him',async()=>{
+it('N3: the casino conversation follows the carousel agent and sends to him', async () => {
   telegram.signIn();
-  startOnBoard();
   const bal={...fundedCannon,id:'bal',name:'Bal',unseenRecap:false}, agg={...fundedCannon,id:'agg',name:'Agg',unseenRecap:false};
   routeFloor({agents:[bal,agg]});
   fetchMock.route('/thread',({url})=>({lines:[{id:1,kind:'him',text:url.includes('/bal/')?'Watch this one.':'My turn.',ts:Date.now()}]}));
@@ -131,131 +98,54 @@ describe('CASINO-1 what counts as hot', () => {
     const room = { hot: ['tbl-hot'] };
     expect(isRoomHot(room, new Set(['tbl-hot']))).toBe(true);
     expect(isRoomHot(room, new Set(['tbl-other']))).toBe(false);
-    // No ticker yet: the server said so recently, so the door glows.
+    // No ticker yet: the server said so recently, so the chip glows.
     expect(isRoomHot(room, new Set())).toBe(true);
     expect(isRoomHot({ hot: [] }, new Set(['tbl-hot']))).toBe(false);
-  });
-
-  it('names the pot and whose it is', () => {
-    const focus = hotFocus(hotRooms, new Set(['tbl-hot']), [
-      { ...playingAgent, activeTableId: 'tbl-hot' },
-    ]);
-    expect(focus.tableId).toBe('tbl-hot');
-    expect(focus.pot).toBe(4_180);
-    expect(focus.agent.name).toBe('The Grinder');
-  });
-
-  it('and is null on a quiet floor', () => {
-    expect(hotFocus(rooms, new Set(), [])).toBeNull();
   });
 });
 
 // ── The screen ──────────────────────────────────────────────────────────────
 
-describe('CASINO-1 the building', () => {
-  beforeEach(() => { telegram.signIn(); startOnBoard(); });
-
-  // CASINO-2 job 3 split the doorway in two. AT REST the rooms are three small
-  // doors under the sign — the building's own organisation, the only navigation
-  // on the screen, and 60px rather than 152 because a door you are walking
-  // through is not a decision. The TALL doorway is the DEPLOY choice and is
-  // asserted with somebody in the tray, below, where it now lives.
-  it('draws one door per room, in ladder order, under the sign', async () => {
-    routeFloor();
-    const { container } = renderCasino();
-
-    await waitFor(() => expect(container.querySelectorAll('.csn-room-door')).toHaveLength(3));
-    expect([...container.querySelectorAll('.csn-room-door')].map((d) => d.dataset.room))
-      .toEqual(['floor', 'upstairs', 'backroom']);
-    expect(screen.getByText('THE FLOOR')).toBeInTheDocument();
-    expect(screen.getByText('UPSTAIRS')).toBeInTheDocument();
-    // A row of signs, not a row of sentences: the article goes when what is
-    // left is still more than one word.
-    expect(screen.getByText('BACK ROOM')).toBeInTheDocument();
-  });
-
-  it('each door says what it costs to sit and how many are in there', async () => {
-    routeFloor();
+describe('UI-3 job A · one floor, at rest', () => {
+  it('shows every table on one floor, with no doorway anywhere', async () => {
+    routeFloor({ felts: [felt({ tableId: 't1', room: 'floor' }), felt({ tableId: 't2', room: 'upstairs' })] });
     renderCasino();
 
-    await screen.findByText('THE FLOOR');
-    expect(screen.getByText('10/20')).toBeInTheDocument();
-    expect(screen.getByText('25/50')).toBeInTheDocument();
-    expect(screen.getByText('50/100')).toBeInTheDocument();
-    expect(screen.getByText('17 in')).toBeInTheDocument();
-    // A room always exists; the quiet back room reports zeroes.
-    expect(screen.getByText('0 in')).toBeInTheDocument();
+    const view = await screen.findByTestId('floor-view');
+    expect(view.dataset.room).toBe('floor');
+    expect(view.querySelectorAll('.csn-felt58')).toHaveLength(2);
+    expect(document.querySelector('.csn-room-door')).toBeNull();
+    expect(document.querySelector('.csn-door')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Board', exact: true })).toBeNull();
   });
 
-  it('and marks the room one of yours is in', async () => {
-    routeFloor({ agents: [withPocket(playingAgent, 3_000)] });
-    const { container } = renderCasino();
-
-    await waitFor(() => {
-      const floor = container.querySelector('.csn-room-door[data-room="floor"]');
-      expect(floor.dataset.mine).toBe('true');
-      expect(within(floor).getByText(/1 yours/)).toBeInTheDocument();
-    });
-    expect(container.querySelector('.csn-room-door[data-room="upstairs"]').dataset.mine)
-      .toBeUndefined();
-  });
-
-  it('the sign over the door is lit, and dark over a building with nothing in it', async () => {
-    routeFloor();
-    const { container } = renderCasino();
-    await waitFor(() => expect(container.querySelector('.csn-marquee').dataset.lit).toBe('true'));
-    expect(screen.getByText('The casino')).toBeInTheDocument();
-  });
-
-  it('the tall doorways are the deploy choice, and they arrive with the tray', async () => {
-    routeFloor({ agents: [fundedCannon] });
-    const { container } = renderCasino({ deployAgent: fundedCannon });
-
-    await waitFor(() => expect(container.querySelectorAll('.csn-door')).toHaveLength(3));
-    expect([...container.querySelectorAll('.csn-door')].map((d) => d.dataset.room))
-      .toEqual(['floor', 'upstairs', 'backroom']);
-    expect(screen.getByText('the back room')).toBeInTheDocument();
-  });
-
-  it('says how many are in the building and how many are yours', async () => {
+  it('says how many are on the floor and how many are yours', async () => {
     routeFloor({ agents: [playingAgent] });
     renderCasino();
-    // 17 + 9 + 0 seats filled, one of them yours and actually in a hand.
-    expect(await screen.findByText('26 playing · 1 of yours in')).toBeInTheDocument();
+    // 17 + 9 + 0 seats filled across the whole ladder, 4 + 2 + 0 tables.
+    expect(await screen.findByText('26 in · 6 tables')).toBeInTheDocument();
   });
 
-  it('puts your agent in the doorway of the room he is sitting in', async () => {
-    // With the tray, because that is where the tall doorway lives since
-    // CASINO-2 job 3 — and it is the moment the fact matters most: you are
-    // about to put another man somewhere, and one of yours is already there.
-    routeFloor({ agents: [fundedCannon, withPocket(playingAgent, 3_000, { pnl: 1_240 })] });
-    const { container } = renderCasino({ deployAgent: fundedCannon });
-
-    await waitFor(() => {
-      const floor = container.querySelector('.csn-door[data-room="floor"]');
-      // BUGS-A job 1: the doorway chip carries his whole name.
-      expect(within(floor).getByText('The Grinder')).toBeInTheDocument();
-    });
-    // He plays at 10/20, so upstairs has nobody of yours in it.
-    const upstairs = container.querySelector('.csn-door[data-room="upstairs"]');
-    expect(within(upstairs).queryByText('The Grinder')).not.toBeInTheDocument();
-  });
-
-  it('a floor that never answers says so instead of drawing an empty room', async () => {
+  it('a floor that never answers says so instead of drawing an empty one', async () => {
     fetchMock.route('/api/agents', { agents: [] });
     fetchMock.route('/api/rooms', { status: 500, body: {} });
     fetchMock.route('/api/events', { events: [], lastId: 0 });
     renderCasino();
 
-    expect(await screen.findByText('The floor has not opened yet.')).toBeInTheDocument();
+    expect(await screen.findByText('Nothing is running right now.')).toBeInTheDocument();
   });
 
-  // CASINO-2 job 2 replaced "tapping a ticker line spectates that table". The
-  // rule it encoded is one the split reverses on purpose: a ticker line is a
-  // hand that is OVER, and sending it to a live felt was the board offering to
-  // watch something that had already finished. The tap that reaches a felt is
-  // LIVE NOW's, and it is a better one — it goes to the pot being built rather
-  // than to whatever table a two-minute-old headline happened to name.
+  // The bug this kills: entering used to auto-target one specific room, so a
+  // table live in a different one read as "nothing running". There is no
+  // room left to mis-target — the floor always shows every table there is.
+  it('BUG-231: a table live anywhere on the ladder shows up, with no room to mis-target', async () => {
+    routeFloor({ felts: [felt({ tableId: 'tbl-upstairs', room: 'upstairs', pot: 900 })] });
+    renderCasino();
+
+    expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
+    expect(screen.getByText('$900')).toBeInTheDocument();
+  });
+
   it('tapping a live pot watches that felt', async () => {
     const onSpectate = vi.fn();
     routeFloor({ felts: [felt({ tableId: 'tbl-a', pot: 8_400 })] });
@@ -267,7 +157,7 @@ describe('CASINO-1 the building', () => {
     expect(onSpectate).toHaveBeenCalledWith('tbl-a');
   });
 
-  it('and tapping one of your own finished hands replays it', async () => {
+  it('and tapping one of your own finished hands replays it, once nothing is live', async () => {
     const onReplay = vi.fn();
     routeFloor({
       agents: [playingAgent],
@@ -284,44 +174,60 @@ describe('CASINO-1 the building', () => {
     expect(onReplay).toHaveBeenCalledWith(expect.objectContaining({ id: 7, handNumber: 41 }));
   });
 
-  it('a hot felt asks for you, and the ask is one action', async () => {
+  it('a hot table is on the ticker at the very top of the screen', async () => {
     const onSpectate = vi.fn();
-    routeFloor({ rooms: hotRooms, agents: [{ ...playingAgent, activeTableId: 'tbl-hot' }] });
+    routeFloor({ felts: [felt({ tableId: 'tbl-hot', hot: true, pot: 4_180 })] });
     const user = userEvent.setup();
     renderCasino({ onSpectate });
 
-    expect(await screen.findByText('$4,180 in the middle, upstairs')).toBeInTheDocument();
-    expect(screen.getByText('The Grinder is in the hand')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Watch him' }));
+    expect(await screen.findByText('HOT · WATCH')).toBeInTheDocument();
+    await user.click(screen.getByTestId('casino-ticker'));
     expect(onSpectate).toHaveBeenCalledWith('tbl-hot');
   });
 
-  it('with nobody to place there is no tray, and no room is shut', async () => {
+  it('with nobody to place there is no tray, and no stake is shut', async () => {
     routeFloor();
-    const { container } = renderCasino();
+    renderCasino();
 
-    await waitFor(() => expect(container.querySelectorAll('.csn-room-door')).toHaveLength(3));
-    expect(container.querySelector('.csn-tray')).toBeNull();
-    // Not one tall doorway either: with nothing to place there is no choice to
-    // give a third of the screen to, and a room's price is a fact about a
-    // pocket that is not in the room.
-    expect(container.querySelectorAll('.csn-door')).toHaveLength(0);
-    expect(container.querySelector('[data-shut]')).toBeNull();
+    await screen.findByTestId('floor-view');
+    expect(document.querySelector('.csn-tray')).toBeNull();
+    expect(document.querySelector('.csn-stakes')).toBeNull();
+    expect(document.querySelector('[data-shut]')).toBeNull();
+  });
+
+  it('the staircase inside the room goes home when tapped', async () => {
+    const onBack = vi.fn();
+    routeFloor({ felts: [felt()] });
+    const user = userEvent.setup();
+    renderCasino({ onBack });
+
+    await screen.findByTestId('floor-view');
+    await user.click(screen.getByRole('button', { name: /go home/i }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  // UI-3 job A: an old room id (a stale deep link, or a session left over
+  // from before this change) must resolve to the one floor rather than
+  // erroring or targeting a room that is no longer a destination.
+  it('an old room id still lands cleanly on the one floor', async () => {
+    routeFloor();
+    renderCasino({ initialRoomId: 'upstairs' });
+    expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
   });
 });
 
 // ── CASINO-2 job 4 · your table ─────────────────────────────────────────────
+// Unrelated to which room is on screen — UI-3 job A leaves this block exactly
+// where CASINO-2 job 4 put it, just no longer gated behind having walked in.
 
 describe('CASINO-2 job 4 · your table, once per man', () => {
-  beforeEach(() => { telegram.signIn(); startOnBoard(); });
-
   const atFelt = {
     ...playingAgent,
     activeTableId: 'tbl-mine',
     liveGame: { ...playingAgent.liveGame, tableId: 'tbl-mine' },
   };
 
-  it('draws his real game off the felts, at the foot of the screen', async () => {
+  it('draws his real game off the felts', async () => {
     routeFloor({ agents: [atFelt], felts: [myFelt({ pot: 940 })] });
     renderCasino();
 
@@ -350,9 +256,7 @@ describe('CASINO-2 job 4 · your table, once per man', () => {
 
 // ── Deploy ──────────────────────────────────────────────────────────────────
 
-describe('CASINO-1 deploy', () => {
-  beforeEach(() => { telegram.signIn(); });
-
+describe('UI-3 job A deploy: choosing a stake instead of a room', () => {
   it('you arrive with him in the tray, not in a picker', async () => {
     routeFloor({ agents: [fundedCannon] });
     renderCasino({ deployAgent: fundedCannon });
@@ -364,36 +268,31 @@ describe('CASINO-1 deploy', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 
-  it('law 4: a room his pocket cannot cover is shut and says the price', async () => {
+  it('law 4: a stake his pocket cannot cover is shut and says the price', async () => {
     routeFloor({ agents: [fundedCannon] });
     renderCasino({ deployAgent: fundedCannon });
 
     await screen.findByText('placing Loose Cannon');
-    expect(door('upstairs')).toHaveAttribute('data-shut', 'true');
-    expect(door('the back room')).toHaveAttribute('data-shut', 'true');
-    expect(door('the floor')).not.toHaveAttribute('data-shut');
+    expect(stake('$25/$50')).toHaveAttribute('data-shut', 'true');
+    expect(stake('$50/$100')).toHaveAttribute('data-shut', 'true');
+    expect(stake('$10/$20')).not.toHaveAttribute('data-shut');
 
-    expect(within(door('upstairs')).getByText('$5,000')).toBeInTheDocument();
-    expect(within(door('the back room')).getByText('$10,000')).toBeInTheDocument();
+    expect(within(stake('$25/$50')).getByText('$5,000 buy-in')).toBeInTheDocument();
+    expect(within(stake('$50/$100')).getByText('$10,000 buy-in')).toBeInTheDocument();
   });
 
-  it('BUG-45: a bigger pocket opens the room above', async () => {
+  it('BUG-45: a bigger pocket opens the stake above', async () => {
     routeFloor({ agents: [richCannon] });
     renderCasino({ deployAgent: richCannon });
 
     await screen.findByText('placing Loose Cannon');
-    expect(door('upstairs')).not.toHaveAttribute('data-shut');
-    // The heading exists before rooms load and the selection effect runs.
-    // Wait for that specific decision, including when this test runs alone.
+    expect(stake('$25/$50')).not.toHaveAttribute('data-shut');
     expect(await screen.findByText('pocket $6,000 · buy-in at 25/50 is $5,000')).toBeInTheDocument();
   });
 
-  // FIX-6 job 2 replaces the old rule here. It used to be "picking an open room
-  // re-states the decision in the tray" — a doorway SELECTED and the tray
-  // CONFIRMED. The want already asked the question ("put me in?") and the owner
-  // already answered it, so the confirmation was asking it a second time. The
-  // doorway is the deal now, and the test says so rather than being loosened.
-  it('tapping an open room deals him into it — one tap, no second confirmation', async () => {
+  // FIX-6 job 2's rule survives the doorway it was written about: tapping an
+  // open stake deals him into it — one tap, no second confirmation.
+  it('tapping an open stake deals him into it — one tap, no second confirmation', async () => {
     routeFloor({ agents: [richCannon] });
     fetchMock.route('/queue', { tableId: 'tbl-new', agentId: 'agent_cannon' }, { method: 'POST' });
     const onDeployed = vi.fn();
@@ -401,7 +300,7 @@ describe('CASINO-1 deploy', () => {
     renderCasino({ deployAgent: richCannon, onDeployed });
 
     await screen.findByText('pocket $6,000 · buy-in at 25/50 is $5,000');
-    await user.click(door('the floor'));
+    await user.click(stake('$10/$20'));
 
     await waitFor(() => expect(onDeployed).toHaveBeenCalled());
     const post = fetchMock.posts.find((c) => c.url.includes('/queue'));
@@ -409,18 +308,16 @@ describe('CASINO-1 deploy', () => {
     expect(onDeployed.mock.calls[0][2].id).toBe('floor');
   });
 
-  it('tapping a shut room opens his chips — the only thing that opens it', async () => {
+  it('tapping a shut stake opens his chips — the only thing that opens it', async () => {
     routeFloor({ agents: [fundedCannon] });
     fetchMock.route('/queue', { tableId: 'tbl-new' }, { method: 'POST' });
     const user = userEvent.setup();
     renderCasino({ deployAgent: fundedCannon });
 
     await screen.findByText('placing Loose Cannon');
-    await user.click(door('the back room'));
+    await user.click(stake('$50/$100'));
 
     expect(await screen.findByRole('dialog', { name: 'Fund Loose Cannon' })).toBeInTheDocument();
-    // FIX-6 job 2: one tap deals him in, and a shut door is the one doorway
-    // that is not a deal. Law 4 survives the shortcut.
     expect(fetchMock.posts.filter((c) => c.url.includes('/queue'))).toHaveLength(0);
   });
 
@@ -432,11 +329,7 @@ describe('CASINO-1 deploy', () => {
     expect(screen.queryByRole('button', { name: 'Deal him in' })).toBeNull();
   });
 
-  // The tray's own button is not the confirmation the doorway lost — it is the
-  // same one action, for the room the tray already opened on. It stays because
-  // a man arriving from a want has a rung his pocket buys and no opinion about
-  // which doorway to look at.
-  it('Deal him in POSTs the deploy for the room the tray opened on, and hands back the table', async () => {
+  it('Deal him in POSTs the deploy for the stake the tray opened on, and hands back a room', async () => {
     routeFloor({ agents: [richCannon] });
     fetchMock.route('/queue', {
       tableId: 'tbl-new', agentId: 'agent_cannon', agentName: 'Loose Cannon',
@@ -477,225 +370,4 @@ describe('CASINO-1 deploy', () => {
     await user.click(screen.getByRole('button', { name: 'Stop placing him' }));
     expect(onCancelDeploy).toHaveBeenCalled();
   });
-});
-
-
-// ── BUGS-A job 7 ────────────────────────────────────────────────────────────
-
-// BUGS-A job 7's claim was "a doorway is a place you LOOK INTO" and it opened
-// a sheet listing what the client could name in there. CASINO-2 job 5 makes it
-// a place you WALK INTO: the felts on its floor, drawn from job 1. Every claim
-// below is the same one on the new surface.
-describe('CASINO-2 job 5 · a doorway is a place you walk into', () => {
-  beforeEach(() => { telegram.signIn(); startOnBoard(); });
-
-  it('tapping a room with nobody in the tray takes you into it', async () => {
-    const user = userEvent.setup();
-    routeFloor({
-      agents: [withPocket(playingAgent, 3_000)],
-      felts: [myFelt({ tableId: 'tbl-fixture', pot: 4_180 })],
-    });
-    renderCasino();
-
-    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
-
-    const view = await screen.findByTestId('floor-view');
-    expect(view.dataset.room).toBe('floor');
-    expect(within(view).getByText('the floor')).toBeInTheDocument();
-    // The room drawn as a ROOM — felts on a floor with bodies on their rims,
-    // the bar along the wall — and not as a list of its tables.
-    expect(view.querySelectorAll('.csn-felt58')).toHaveLength(1);
-    expect(within(view).getByText('THE BAR')).toBeInTheDocument();
-    // The money is on the board that came into the room with you, which is the
-    // point of bringing the board: the felts themselves carry only their stake.
-    expect(within(view).getByText('$4,180')).toBeInTheDocument();
-  });
-
-  it('and the building is gone while you are in it — a room is not a sheet', async () => {
-    const user = userEvent.setup();
-    routeFloor({ felts: [felt()] });
-    renderCasino();
-
-    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
-    await screen.findByTestId('floor-view');
-    expect(screen.queryByTestId('your-tables')).toBeNull();
-    expect(document.querySelectorAll('.csn-room-door')).toHaveLength(0);
-  });
-
-  it('tapping a felt in there spectates it', async () => {
-    const user = userEvent.setup();
-    const onSpectate = vi.fn();
-    routeFloor({ felts: [felt({ tableId: 'tbl-fixture' })] });
-    renderCasino({ onSpectate });
-
-    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
-    const view = await screen.findByTestId('floor-view');
-    await user.click(within(view).getByRole('button', { name: /Watch table tbl-fixture/ }));
-
-    expect(onSpectate).toHaveBeenCalledWith('tbl-fixture');
-    // App replaces this screen with Watch. Keep the room and view ready for
-    // the return instead of changing the owner's destination to the board.
-    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
-    expect(sessionStorage.getItem('agentic_casino_room')).toBe('floor');
-    expect(sessionStorage.getItem('agentic_casino_view')).toBe('floor');
-  });
-
-  it('and the way back out is the way you came in', async () => {
-    const user = userEvent.setup();
-    routeFloor({ felts: [felt()] });
-    renderCasino();
-
-    await user.click(await screen.findByRole('button', { name: /^the floor,/ }));
-    await screen.findByTestId('floor-view');
-    await user.click(screen.getByRole('button', { name: 'Back to the casino' }));
-
-    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
-    expect(await screen.findByText('THE FLOOR')).toBeInTheDocument();
-  });
-
-  it('with an agent in the tray a doorway seats him rather than taking you in', async () => {
-    const user = userEvent.setup();
-    routeFloor({ agents: [richCannon] });
-    fetchMock.route('/queue', { tableId: 'tbl-new', agentId: 'agent_cannon' }, { method: 'POST' });
-    const onDeployed = vi.fn();
-    renderCasino({ deployAgent: richCannon, onDeployed });
-
-    await screen.findByText('placing Loose Cannon');
-    await user.click(screen.getByRole('button', { name: /^the floor,/ }));
-
-    expect(screen.queryByTestId('floor-view')).toBeNull();
-    await waitFor(() => expect(onDeployed).toHaveBeenCalled());
-  });
-});
-
-// ── BUGS-C job 12 · the casino opens on the floor ───────────────────────────
-
-describe('BUGS-C job 12: the floor first', () => {
-  it.each([
-    { saved: 'upstairs', initialRoomId: 'floor' },
-    { saved: 'removed-room', initialRoomId: null },
-  ])('HOME-3: an explicit room or a current fallback handles saved $saved', async ({ saved, initialRoomId }) => {
-    sessionStorage.setItem('agentic_casino_view', 'floor');
-    sessionStorage.setItem('agentic_casino_room', saved);
-    routeFloor();
-    renderCasino({ initialRoomId });
-    expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
-  });
-
-  beforeEach(() => { telegram.signIn(); });
-
-  it('BUGS-C-12: initial casino render mounts the floor, not the building', async () => {
-    routeFloor();
-    renderCasino();
-
-    const view = await screen.findByTestId('floor-view');
-    // The room with the biggest pot in the air, absent anything hotter — the
-    // same room the "a felt goes hot" card would point at.
-    expect(view.dataset.room).toBe('floor');
-    expect(document.querySelectorAll('.csn-room-door')).toHaveLength(0);
-  });
-
-  it('BUGS-C-12: the toggle switches to the board, and back', async () => {
-    const user = userEvent.setup();
-    routeFloor();
-    renderCasino();
-
-    await screen.findByTestId('floor-view');
-    await user.click(await screen.findByRole('button', { name: 'Board' }));
-
-    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
-    expect(await screen.findByText('THE FLOOR')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Floor' }));
-    expect(await screen.findByTestId('floor-view')).toBeInTheDocument();
-  });
-
-  // JOB 5: swipe the floors, phone only. The rungs are the room list's own
-  // order (floor, upstairs, back room) — the same order the retired door list
-  // always offered them in.
-  it('JOB 5: a swipe left moves to the next room and remembers it for the session', async () => {
-    routeFloor();
-    renderCasino();
-
-    const view = await screen.findByTestId('floor-view');
-    expect(view).toHaveAttribute('data-room', 'floor');
-    expect(screen.getByRole('img', { name: 'Room 1 of 3' })).toBeInTheDocument();
-
-    swipeLeft(view);
-    await waitFor(() => expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs'));
-    expect(screen.getByRole('img', { name: 'Room 2 of 3' })).toBeInTheDocument();
-    // Deep links: the same session memory a tapped door already wrote to.
-    expect(sessionStorage.getItem('agentic_casino_room')).toBe('upstairs');
-
-    swipeLeft(screen.getByTestId('floor-view'));
-    await waitFor(() => expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'backroom'));
-
-    // No wraparound: the back room is the last rung.
-    swipeLeft(screen.getByTestId('floor-view'));
-    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'backroom');
-
-    swipeRight(screen.getByTestId('floor-view'));
-    await waitFor(() => expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'upstairs'));
-  });
-
-  it('JOB 5: the desk keeps its own doors — no dots, no swipe', async () => {
-    routeFloor();
-    renderCasino({ desktop: true });
-
-    const view = await screen.findByTestId('floor-view');
-    expect(document.querySelector('.csn-floor__rooms')).toBeNull();
-    swipeLeft(view);
-    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
-  });
-
-  it('BUGS-C-12: remembers the last choice for the session', async () => {
-    const user = userEvent.setup();
-    routeFloor();
-    const { unmount } = renderCasino();
-
-    await user.click(await screen.findByRole('button', { name: 'Board' }));
-    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
-    unmount();
-
-    // A fresh mount of the same session — the casino tab, left and returned to.
-    renderCasino();
-    await screen.findByText('THE FLOOR');
-    expect(screen.queryByTestId('floor-view')).toBeNull();
-  });
-
-  it('BUGS-C-12: with nobody in the tray, tapping a doorway from the board still walks you in', async () => {
-    const user = userEvent.setup();
-    routeFloor();
-    renderCasino();
-
-    await user.click(await screen.findByRole('button', { name: 'Board' }));
-    await waitFor(() => expect(screen.queryByTestId('floor-view')).toBeNull());
-
-    await user.click(await screen.findByRole('button', { name: /^upstairs,/ }));
-    const view = await screen.findByTestId('floor-view');
-    expect(view.dataset.room).toBe('upstairs');
-  });
-});
-
-
-it('BUG-104: room context and Floor/Board controls share the desktop header', async () => {
-  telegram.signIn();
-  routeFloor({felts:[felt()]});
-  const header=document.createElement('header');document.body.appendChild(header);
-  const view=renderCasino({desktop:true,shellHeader:true,headerTarget:header});
-  try {
-    await screen.findByTestId('floor-view');
-    expect(await within(header).findByRole('heading',{name:'the floor',exact:true})).toBeVisible();
-    expect(view.container.querySelector('.csn-floor__head')).toBeNull();
-    expect(screen.getAllByTestId('casino-view-toggle')).toHaveLength(1);
-    await userEvent.click(within(header).getByRole('button',{name:'Board',exact:true}));
-    expect(within(header).getByRole('heading',{name:'The casino',exact:true})).toBeVisible();
-    expect(screen.queryByTestId('floor-view')).toBeNull();
-    await userEvent.click(door('upstairs'));
-    expect(within(header).getByRole('heading',{name:'upstairs',exact:true})).toBeVisible();
-    await userEvent.click(within(header).getByRole('button',{name:'Board',exact:true}));
-    await userEvent.click(within(header).getByRole('button',{name:'Floor',exact:true}));
-    expect(screen.getByTestId('floor-view')).toHaveAttribute('data-room','upstairs');
-    view.unmount();expect(header).toBeEmptyDOMElement();
-  } finally { view.unmount(); header.remove(); }
 });

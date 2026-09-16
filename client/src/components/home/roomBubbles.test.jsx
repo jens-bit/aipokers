@@ -322,6 +322,25 @@ it('HOME-2: only the student at the TV retains his own fixture exception',()=>{
   expect(layout([says(student,'One more look')],[student],geometry)).toHaveLength(1);
 });
 
+// UI-3 job F: found in a real browser, not read off the diff — a household's
+// one agent stays dealt in against the House most of the night (BUG-211), his
+// seat sits inside the table's own blocker box, and without this his reply to
+// something typed in the room could never clear it and never drew, ever, no
+// matter how long the room was watched. Same reasoning as the TV carve-out
+// two tests up: his own seat is not what the table rule protects the board
+// from.
+it('UI-3 job F: a body dealt in at the table gets the same carve-out the TV gives its own watcher', () => {
+  const { flat } = PHONE_ROOM;
+  const seated = { ...body('seated', flat.table.cx, flat.table.cy + flat.table.ry + 30, { size: 50 }), dealt: true };
+  expect(layout([says(seated, 'Still here.')], [seated])).toHaveLength(1);
+});
+
+it('UI-3 job F: a body merely standing near the table keeps the ordinary block', () => {
+  const { flat } = PHONE_ROOM;
+  const standing = body('standing', flat.table.cx, flat.table.cy + flat.table.ry + 30, { size: 50 });
+  expect(layout([says(standing, 'Still here.')], [standing])).toHaveLength(0);
+});
+
 describe('HOME-2: recap display memory belongs to the household',()=>{
   const recap=eventId=>Object.freeze({...says(Q,'Table closed while I was away',true),eventId});
   const useRecap=({owner,event=1,bodies=[Q]})=>useRoomBubbles([recap(event)],bodies,PHONE_ROOM,owner);

@@ -22,10 +22,19 @@ it('SHOW-4: an ordinary opponent win has the authored card with his name and exa
   expect(container.querySelector('.watch-hero .ghost-hands [data-pose]')).toHaveAttribute('data-pose','rest');
 });
 
+// TABLE-1 job C (Testing law #5): the standing pot pill this test used to
+// read no longer mounts once a major win is up — it printed the same figure
+// the win card already states, dimmed but still legible, which on a short
+// felt read as the pot bleeding through behind the card. What this test
+// actually protects — that the real amount survives the engine resetting
+// game.pot to 0 after the hand — is resultCelebration()'s job: `amount` comes
+// from game.result.winners, never from game.pot, so it was never at risk from
+// the reset this test is named for. .watch-felt__won-amt is where that
+// survival is now visible.
 it('SHOW-4: a paid major pot retains its real amount and chip band after engine pot resets',()=>{
   const {container}=render(<WatchFelt game={done()} mySeat={0}/>);
-  expect(container.querySelector('.watch-felt__pot-amt')).toHaveTextContent('$3,000');
-  expect(container.querySelector('.pot-chip')).toHaveAttribute('data-band','big');
+  expect(container.querySelector('.watch-felt__pot')).toBeNull();
+  expect(container.querySelector('.watch-felt__won-amt')).toHaveTextContent('$3,000');
 });
 
 it.each([false,true])('SHOW-4: an opponent major win sounds its bursts and a hero bust=%s sounds the falling name',bust=>{

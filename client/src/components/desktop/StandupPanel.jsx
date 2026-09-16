@@ -32,6 +32,10 @@ function TileStack({ games, highlightId, watchedId, onOpenTable, game, lastDecis
             key={agent.id}
             agentName={agent.name}
             game={isWatched ? game : null}
+            // UI-3 job B: every live agent carries his own real table state
+            // (AGE-37) whether or not the owner is watching him — a monitor
+            // for a man nobody is watching still shows his actual hand.
+            liveGame={isWatched ? null : agent.liveGame}
             lastDecision={isWatched ? lastDecision : null}
             highlighted={highlightId === agent.id || isWatched}
             dimmed={highlightId != null && highlightId !== agent.id && !isWatched}
