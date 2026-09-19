@@ -394,12 +394,14 @@ test("WATCH-8: a seat that changes hands does not inherit the last agent's fatig
     'the memo is keyed on who is sitting there, not only on the hand count');
 });
 
-test('SERVER-3: a human seat gets no ring, because nothing would enforce it', () => {
+test('BUG-268: a human seat gets the same enforced deadline on its state and ring', () => {
   const { table, sockets } = seatedTable();
   table.maybeStartHand({ clientDriven: true });
   const state = sockets[0].of('state').at(-1).state;
-  assert.equal(state.actionTimer, null,
-    'a deadline the server will not act on is worse than no ring');
+  assert.equal(state.actionTimer.seat, table.game.toAct);
+  assert.equal(state.actionTimer.totalMs, 15_000);
+  assert.equal(state.actionTimer.deadlineTs, table.actionTimer.deadlineTs);
+  assert.ok(table._humanActionTimer, 'the advertised deadline has a server timeout');
 });
 
 test('SERVER-3: the same seat acting twice across a street gets a new clock', () => {

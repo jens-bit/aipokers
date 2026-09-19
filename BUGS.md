@@ -1,5 +1,57 @@
 # Bug Report — Railbird
 
+## Further document-led recovery — 2026-09-19
+
+Current report: `read-me-claude/RAILBIRD_DOCUMENT_RECOVERY.md` on the review branch.
+
+### BUG-267 — human disconnect destroys the hand — FIXED in review
+Authenticated reconnect grace retains the exact seat/hand/chips for 30 seconds.
+Explicit leave and expired grace retire through legal settlement; a later stay
+does not inherit an expired reconnect marker.
+
+### BUG-268 — human timer has no server authority — FIXED in review
+The server owns a 15-second check-or-fold deadline. Reconnect cannot reset it,
+stale timers cannot act on another turn, and App no longer sends a competing
+automatic action. SitStrip describes check versus fold accurately.
+
+### BUG-269 — capped history loses active buy-in receipts — FIXED in review
+Durable private receipts survive history rollover/reload and close exactly once,
+including zero-stack results. Failed admission and reads do not mutate pockets.
+Already-erased legacy receipts require independent evidence, not reconstruction.
+
+### BUG-270 — human JOIN injects unfunded casino chips — FIXED in review
+A real signed regression admitted an arbitrary two-million-chip stack. Human
+JOIN now requires an authorized Home practice table before creation or mutation;
+casino human funding remains a product contract to define.
+
+### BUG-271 — opponent ReadSheet loses saved appearance — FIXED in review
+The summary retains public identity and the sheet resolves the same hood/glow
+as the felt. Distinct characters are checked at phone and desktop widths.
+
+### BUG-272 — result history spoils staged runout — FIXED in review
+Live and persisted result lines publish at award before roster retirement,
+with immediate unwatched results and exactly-once forced closure preserved.
+
+### BUG-273 — review claims unused opponent reads caused a play — COPY FIXED; POLICY GAP OPEN
+The wording now reports evidence availability. Paired measurements confirm
+the free policy still does not consume opponent reads or discipline deviation
+dice; implementing those hooks remains substantive, measured follow-up work.
+
+### BUG-274 — raw recent hands are readable without owner verification — FIXED in review
+The recent-hand route now authenticates and checks the requested owner before
+reading private cards/reasoning. Signed regressions prove missing/wrong-owner
+rejection and preservation of the actual owner's complete hand record.
+Five older client callers now attach the owner credential; gated UI regressions
+preserve the legitimate conversation/history/replay journeys.
+
+### BUG-275 — first-session Home mounting timeout — OBSERVED, NOT REPRODUCED
+One integrated browser case timed out before Home appeared (197/198 overall).
+The original artifact had no usable DOM/network evidence. Failure-only
+diagnostics were added with the same five-second assertion and no retries.
+The full traced first-session group then passed 25/25; the affected journey
+took 1.9s. Cause remains unknown. Do not count this as a diagnosed product fix
+or discard the initial failure; evidence is in the current document-recovery report.
+
 ## Playability audit — 2026-09-19
 
 Current work and final validation: `read-me-claude/RAILBIRD_PLAYABILITY_AUDIT.md`

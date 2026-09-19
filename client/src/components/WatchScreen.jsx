@@ -1421,6 +1421,7 @@ export function seatSummary(game, seat) {
     // The read sheet writes its own dollar, so this is the digits only —
     // grouped by lib/wallet either way, never by the device's locale.
     stack: s.stack != null ? groupChips(s.stack) : null,
+    identity: s.identity ?? null,
     accent: s.accentColor || '#00D4AA',
     mood: moodStateOf(s),
     heat: moodHeatOf(s),

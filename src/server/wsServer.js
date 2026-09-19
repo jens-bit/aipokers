@@ -250,8 +250,11 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             if (!isOwner(authRequest(msg), ownerId)) throw new Error('Unauthorized owner');
             if (msg.agentId && !getAgentProfile(msg.agentId, ownerId)) throw new Error('Not your agent owner');
             const protectedServer = process.env.TELEGRAM_BOT_TOKEN || process.env.DEV_API_SECRET;
-            const table = kitchenFor(msg, { canStart: true })
-              ?? getOrCreateTable(msg.tableId, { smallBlind: msg.smallBlind, bigBlind: msg.bigBlind, maxSeats: msg.maxSeats });
+            const table = kitchenFor(msg, { canStart: true });
+            // Human chips are kitchen practice chips, not a funded casino
+            // balance. Never admit a caller-supplied stack into a table whose
+            // agents can cash it out, including the legacy wantAI entry path.
+            if (!table) throw new Error('Human play is available at your Home table. Casino tables are for agents.');
             const seat = table.seatPlayer(ws, {
               // BUG-50: public player ids cannot be replayed to steal a seat.
               playerId: protectedServer ? `${ownerId}:${msg.playerId}` : msg.playerId,
@@ -465,13 +468,13 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
 
     ws.on('close', () => {
       const table = tables.get(ws.tableId);
-      if (table) table.removeConnection(ws);
+      if (table) table.removeConnection(ws, { reconnect: true });
       floor.unsubscribe(ws);
     });
 
     ws.on('error', () => {
       const table = tables.get(ws.tableId);
-      if (table) table.removeConnection(ws);
+      if (table) table.removeConnection(ws, { reconnect: true });
       floor.unsubscribe(ws);
     });
   });

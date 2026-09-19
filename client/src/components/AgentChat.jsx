@@ -15,7 +15,9 @@ export function AgentChat({ agent, onBack, onDeploy, onReady }) {
   }, []);
 
   useEffect(() => {
-    fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`)
+    fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`, {
+      headers: { 'x-telegram-init-data': getTelegramInitData() },
+    })
       .then((r) => r.json())
       .then(() => {
         // WIRE-1 / RAISE-2: his opener, written by the server. The hands are

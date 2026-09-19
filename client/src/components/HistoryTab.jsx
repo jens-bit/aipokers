@@ -60,7 +60,9 @@ function AgentSection({ agent }) {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(getUserId())}`)
+    fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(getUserId())}`, {
+      headers: { 'x-telegram-init-data': getTelegramInitData() },
+    })
       .then((r) => r.json())
       .then((data) => setHands(data.recentHands || []))
       .catch(() => setLoadError(true));

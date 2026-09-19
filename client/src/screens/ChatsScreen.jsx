@@ -651,7 +651,9 @@ export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, compa
         .map(message => ({ ...message, _seeded: true }));
     };
     Promise.all([
-      fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`).then((r) => r.json()),
+      fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`, {
+        headers: { 'x-telegram-init-data': getTelegramInitData() },
+      }).then((r) => r.json()),
       loadAttrLog(agent, userId),
       loadFlagged(agent, userId),
     ])

@@ -24,7 +24,7 @@
 
 delete process.env.ANTHROPIC_API_KEY;
 
-import test, { before, after } from 'node:test';
+import test, { before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -162,6 +162,15 @@ before(async () => {
     store.saveWallet(owner, { ownerId: owner, balance: 0, ledger: [] });
     store.saveProfile(owner, { userId: owner, chat: [], agents: ids.map(agent) });
   }
+});
+
+beforeEach(async () => {
+  // Each assertion starts on its own floor. Earlier cases can otherwise fill
+  // the last chair at the preferred table; "together" is a preference and
+  // cannot seat a second agent at a full table. Random House ranking made
+  // that shared-fixture contamination intermittent.
+  const registry = await import('./tableRegistry.js');
+  registry.resetRegistry('next independent deploy preference case');
 });
 
 after(async () => {

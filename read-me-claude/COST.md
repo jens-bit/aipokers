@@ -50,24 +50,29 @@ the verdict.
 this block cacheable at all is to inflate it past 4096 tokens with content
 that does nothing — there is no legitimate 3,805-token addition to "you are
 playing No-Limit Hold'em, respond with this JSON shape." Padding it anyway,
-priced on Haiku 4.5 ($1.00 / $5.00 per million tokens, in/out):
+using this report's recorded Haiku 4.5 rates ($1.00 / $5.00 per million
+tokens, in/out). The arithmetic below was corrected on 19 September 2026;
+provider prices and cache thresholds were not revalidated in that correction:
 
 - A cache **write** is billed at a premium over the base input rate — 1.25x
   for the default 5-minute TTL (Anthropic's published multiplier; not
   encoded in this repo since a write has never happened on this path). Padding
   291 → 4096 tokens means writing ~3,805 tokens nobody asked for, at
-  1.25 × $1.00/M ≈ **$0.0000048 per write** for the padding alone — trivial in
-  isolation, but it is pure loss with nothing behind it.
+  3,805 × 1.25 × $1.00/M = **$0.00475625 per write** for the padding alone.
+  The entire padded prefix costs 4,096 × 1.25 / 1,000,000 = **$0.00512**
+  to write, versus **$0.000291** for the original uncached prefix.
 - A cache **read** is billed at `CACHED_INPUT_MULTIPLIER = 0.1` (already in
   `pricing.js` — the one number here this repo actually encodes, because it
   is the number that would matter if a cache ever existed). Reading the
   padded 4096-token block instead of paying full price saves
-  ~4096 × 0.9 × $1.00/M ≈ **$0.0000037 per read** relative to sending it
-  uncached.
-- Break-even is roughly 1.3 reads to recoup the write premium on the padding
-  alone — cheap in call count, because every number in this paragraph is
-  cheap. Haiku is $1/M tokens; nothing about this prompt was ever going to
-  cost real money.
+  4,096 × 0.9 × $1.00/M = **$0.0036864 per read** relative to sending that
+  same padded prefix uncached. That is not the actual alternative: the
+  original prefix is only 291 tokens.
+- **Padding has no break-even against the original prompt.** A cached read
+  of the padded prefix costs 4,096 × 0.1 / 1,000,000 = **$0.0004096**, more
+  than the original uncached **$0.000291** on every call, after an already
+  more expensive initial write. The former “1.3 reads” claim compared against
+  an unnecessary padded uncached prompt and does not justify padding.
 
 **Calls per five minutes per agent** (the other half of "can a cache even
 stay warm"): a watched table deals on `HAND_PAUSE_MS` (default 8000ms)

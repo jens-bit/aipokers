@@ -83,10 +83,11 @@ const TABLE = {
 };
 
 /** Everything the app asks for, from a fixture — and a socket that plays a hand. */
-async function stub(page, { talk = [], owned = false, agentOverrides = {} } = {}) {
-  const roster = owned ? HOUSEHOLD.map((a,i)=>i===0 ? {...a,activeTableId:TABLE.tableId,location:loc('table',{tableId:TABLE.tableId,room:'floor'}),liveGame:{tableId:TABLE.tableId,pot:TABLE.pot,board:TABLE.community}} : a) : HOUSEHOLD.map(a => ({ ...a }));
+async function stub(page, { talk = [], owned = false, agentOverrides = {}, table = TABLE } = {}) {
+  const roster = owned ? HOUSEHOLD.map((a,i)=>i===0 ? {...a,activeTableId:table.tableId,location:loc('table',{tableId:table.tableId,room:'floor'}),liveGame:{tableId:table.tableId,pot:table.pot,board:table.community}} : a) : HOUSEHOLD.map(a => ({ ...a }));
   roster[0] = { ...roster[0], ...agentOverrides };
   await page.route('**/api/agents?**', (r) => r.fulfill({ json: { agents: roster } }));
+  await page.route(/\/api\/agents\/a[12]\?/, (r) => r.fulfill({ json: { agent: roster.find(agent => r.request().url().includes(`/agents/${agent.id}?`)) } }));
   await page.route('**/api/agents/*/study**', (r) => r.fulfill({ json: { study: null, book: [], count: 0 } }));
   await page.route('**/api/agents/*/thread**', (r) => r.fulfill({ json: { sessionId: 's1', count: 0, lines: [] } }));
   await page.route('**/api/home/thread**', (r) => r.fulfill({ json: { sessionId: 'home', count: 0, lines: [] } }));
@@ -156,7 +157,7 @@ async function stub(page, { talk = [], owned = false, agentOverrides = {} } = {}
     ScriptedSocket.OPEN = 1;
     ScriptedSocket.prototype.OPEN = 1;
     window.WebSocket = ScriptedSocket;
-  }, [roster, owned ? null : HOME_GAME, TABLE, talk]);
+  }, [roster, owned ? null : HOME_GAME, table, talk]);
 }
 
 /** Open the room, tap the kitchen table, and wait for six seats on the felt. */
@@ -177,6 +178,33 @@ async function felt(page, opts = {}) {
     () => document.querySelectorAll('.watch-felt__seat .seat-ghost__backs').length === 5,
     null, { timeout: 15_000 },
   );
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test(`BUG-271: opponent read keeps the felt identity at ${viewport.width}`, async ({ page }, testInfo) => {
+    const identities = [
+      { name: 'Doyle_v3', hood: 'moss', glow: 'gold', color: '#C9A227' },
+      { name: 'Granite', hood: 'indigo', glow: 'ice', color: '#7FA8C9' },
+    ];
+    const table = { ...TABLE, seats: TABLE.seats.map((seat, index) => index === 1 || index === 2
+      ? { ...seat, identity: { hood: identities[index - 1].hood, glow: identities[index - 1].glow } }
+      : seat) };
+    await felt(page, { owned: true, viewport, table });
+    for (const identity of identities) {
+      const opponent = page.getByRole('button', { name: `${identity.name} — read`, exact: true });
+      await expect(opponent.locator('.floor-ghost')).toHaveAttribute('data-hood', identity.hood);
+      await opponent.click();
+      const sheet = page.getByRole('dialog', { name: `${identity.name} — read`, exact: true });
+      await expect(sheet.locator('.mood-ghost')).toHaveAttribute('data-hood', identity.hood);
+      await expect(sheet.locator('.mood-ghost radialGradient stop').first()).toHaveAttribute('stop-color', identity.color);
+      await expect(sheet).toHaveCSS('opacity', '1');
+      await expect(sheet.getByText('NO EVIDENCE YET')).toBeVisible();
+      await expect(page.locator('.watch-hero__cards')).toContainText('6');
+      await page.screenshot({ path: testInfo.outputPath(`opponent-read-${identity.hood}-${viewport.width}.png`) });
+      await sheet.getByRole('button', { name: 'Close read' }).click();
+      await expect(sheet).not.toBeVisible();
+    }
+  });
 }
 
 for (const height of [590, 844]) test(`BUG-241: private panel fits one third and keeps the hand visible at 390x${height}`, async ({ page }, testInfo) => {

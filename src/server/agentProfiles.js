@@ -140,7 +140,7 @@ import {
   emptyWallet, emptyPocket, ensurePocket,
   stakesFor, isBroke, canAffordTable, buyInFor,
   fund as walletFund, collect as walletCollect, autoRefill,
-  debitBuyIn, creditCashOut, takeRake,
+  debitBuyIn, creditCashOut, takeRake, openStayFor,
   modeForRequest, callIn as walletCallIn, sweepRecall,
   walletProjection, pocketProjection, benchCutSeat,
   collectMoment, callInMoment, brokeMoment, appendEntry,
@@ -877,30 +877,10 @@ function mirrorBankroll(agent) {
 // back off one. Nothing else in the product is allowed to put chips in front of
 // an owner's agent, and nothing else is allowed to take them back.
 //
-// THE OPEN STAY IS THE LOCK. A pocket's own ledger already records a `buyin`
-// with a tableId when he sits and a `cashout` with the same tableId when he
-// leaves, so "is he currently bought in here" is a question the record can
-// answer without a second bookkeeping structure to keep in sync. That is what
-// makes the pair idempotent: a second cash-out for a stay that is already
-// settled finds nothing open and pays nothing, which is the guard the
-// /finish-then-close path needed (it used to credit twice).
-
-/**
- * The buy-in this pocket has outstanding at `tableId`, or 0 when the stay is
- * settled or never happened. Walks backwards so a pocket that has visited the
- * same table twice reports the CURRENT stay.
- */
-function openStayFor(pocket, tableId) {
-  const ledger = pocket?.ledger;
-  if (!Array.isArray(ledger) || !tableId) return 0;
-  for (let i = ledger.length - 1; i >= 0; i--) {
-    const e = ledger[i];
-    if (e?.tableId !== tableId) continue;
-    if (e.type === 'cashout') return 0;
-    if (e.type === 'buyin') return Math.max(0, -Math.floor(Number(e.amount) || 0));
-  }
-  return 0;
-}
+// THE OPEN STAY IS THE LOCK. wallet.js persists the paid receipt until cashout
+// or refund closes it, independently of the bounded display ledger (BUG-269).
+// A second cashout finds nothing open and pays nothing. Legacy receipts are
+// migrated only when the old ledger still proves an unsettled buy-in.
 
 /**
  * MONEY-2 job 1 — THE ADMISSION GATE, in one place.
@@ -1013,9 +993,8 @@ export function chargeSeatBuyIn(agentId, userId, { amount, tableId } = {}) {
 
   // ALREADY ADMITTED — and there is exactly ONE way of knowing.
   //
-  //   an open stay      his pocket ledger holds a buyin for this table with no
-  //                     cashout after it. He is bought in right now, and the
-  //                     ledger is the receipt that says so.
+  //   an open stay      his pocket retains the paid receipt for this table.
+  //                     A reservation alone is never evidence of payment.
   //
   // MONEY-2 job 1 — THE THIRD FAUCET WAS THE SECOND WAY OF KNOWING.
   //
@@ -1033,7 +1012,7 @@ export function chargeSeatBuyIn(agentId, userId, { amount, tableId } = {}) {
   // nothing asked it to.
   //
   // So: the record is a cache of where he is, never a receipt for what he paid.
-  // Only the ledger is the receipt.
+  // Only a paid receipt proves the admission.
   //
   // Reported as a refusal rather than a no-op debit so the caller can tell the
   // difference between "he is in" and "he just paid".
@@ -6592,8 +6571,11 @@ export function installAgentProfileRoutes(app) {
 
   // GET /api/agents/:agentId/hands?userId=...
   // Returns the agent's recent-hands log and aggregate stats.
-  app.get('/api/agents/:agentId/hands', (req, res) => {
+  app.get('/api/agents/:agentId/hands', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.query.userId || 'anon');
+    // BUG-274: raw recent hands contain private cards and decision reasoning.
+    // Authentication alone is insufficient; match the requested owner too.
+    if (!isOwner(req, userId)) return res.status(403).json({ error: 'Not your agent' });
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);

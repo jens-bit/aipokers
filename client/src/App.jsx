@@ -523,7 +523,9 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   const loadLatestAgentHand = useCallback(async (agentId) => {
     if (!agentId) return;
     try {
-      const res = await fetch(agentHandsApiUrl(agentId));
+      const res = await fetch(agentHandsApiUrl(agentId), {
+        headers: { 'x-telegram-init-data': getTelegramInitData() },
+      });
       if (!res.ok) throw new Error('hands request failed');
       const data = await res.json();
       const hand = data.recentHands?.[0] || null;
@@ -548,50 +550,8 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     lastResultKeyRef.current = null;
   }, [activeAgentId]);
 
-  // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
-  const TIMER_TOTAL = 15;
-  const [timerLeft, setTimerLeft] = useState(TIMER_TOTAL);
-  const timerFiredRef = useRef(false);
-  const actRef = useRef(act);
-  useEffect(() => { actRef.current = act; });
-
-  const handIsActive = !!game && game.toAct !== null &&
-    game.street !== Streets.COMPLETE && game.street !== Streets.WAITING;
-  const isMyTurn = handIsActive && game.toAct === mySeat;
-  const timerKey = `${game?.handNumber ?? 0}-${game?.toAct ?? -1}`;
-
-  // Reset to full duration whenever the acting seat changes
-  useEffect(() => {
-    setTimerLeft(TIMER_TOTAL);
-    timerFiredRef.current = false;
-  }, [timerKey]);
-
-  // Tick down while a hand is active (shows countdown for whichever seat is acting)
-  useEffect(() => {
-    if (!handIsActive) return;
-    const id = setInterval(() => setTimerLeft((p) => Math.max(0, p - 1)), 1000);
-    return () => clearInterval(id);
-  }, [handIsActive, timerKey]);
-
-  // Auto-act when the timer hits 0 on the human player's turn.
-  //
-  // SIT-1 · AT THE KITCHEN TABLE IT CHECKS IF IT CAN. Board 29, 52·Y2, states
-  // the rule in as many words — "timeout checks if it can and folds if it
-  // cannot; either way you are dealt in next hand" — and SitStrip prints it on
-  // the strip, so a timeout that always folded made the screen's own sentence
-  // untrue. Throwing away a free look at the turn is also not what a man who
-  // put his phone down meant to do.
-  //
-  // Only at home. In the casino a timeout is a fold and stays one: that table
-  // is somebody else's money and its own tree; changing what a lapsed clock
-  // does there is not this tree's to decide.
-  useEffect(() => {
-    if (!isMyTurn || timerLeft !== 0 || timerFiredRef.current) return;
-    timerFiredRef.current = true;
-    const canCheck = config?.sitting
-      && (legalActions ?? []).some((a) => a && a.type === 'check');
-    actRef.current?.({ type: canCheck ? 'check' : 'fold' });
-  }, [timerLeft, isMyTurn]);
+  // BUG-268: the server owns action deadlines and legal timeout actions.
+  // Watch/SitStrip display game.actionTimer; App only sends explicit input.
 
   // Closing the spectator view means "stop watching", not "recall the agent".
   // POSTing /finish here reset status to idle and cleared activeTableId while
@@ -1128,7 +1088,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
             {error} · tap to dismiss
           </div>
         )}
-        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} isSpectator={!!config?.isSpectator} mode={config?.isSpectator ? 'spectator' : config?.wantAI ? 'vs-ai' : 'vs-human'} lastDecision={lastDecision} />
+        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} isSpectator={!!config?.isSpectator} mode={config?.isSpectator ? 'spectator' : config?.wantAI ? 'vs-ai' : 'vs-human'} lastDecision={lastDecision} />
         {config?.isSpectator && (
           <AnalysisPanel
             chatMessages={chatMessages}
@@ -1261,7 +1221,7 @@ function formatAgentAmount(amount) {
   return amount == null ? '--' : amount;
 }
 
-function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal, isSpectator, mode, lastDecision }) {
+function TableView({ game, mySeat, buyIn, onRename, isSpectator, mode, lastDecision }) {
   const viewSeat = Number.isInteger(mySeat) ? mySeat : 0;
   const seatCount = Math.max(game?.seats?.length || 2, 2);
   const opponentSeatIndex = (viewSeat + 1) % seatCount;

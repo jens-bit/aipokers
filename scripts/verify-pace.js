@@ -33,6 +33,8 @@ import http from 'node:http';
 import { WebSocket } from 'ws';
 
 const { createServer } = await import('../src/server/wsServer.js');
+const registry = await import('../src/server/tableRegistry.js');
+const { readThread } = await import('../src/server/thread.js');
 const { ClientMsg, ServerMsg } = await import('../src/server/protocol.js');
 const { setPersistEnabled } = await import('../src/server/opponentStats.js');
 const {
@@ -57,6 +59,14 @@ createServer({ server: httpServer, defaultBlinds: { smallBlind: 10, bigBlind: 20
 await new Promise((res) => httpServer.listen(0, '127.0.0.1', res));
 const port = httpServer.address().port;
 console.log(`[verify] server up on ws://127.0.0.1:${port}`);
+
+// BUG-270: humans play with practice chips at Home. Provision those tables
+// inside the trusted fixture; public JOIN may no longer create an unfunded
+// casino table. The signed sockets still exercise the real admission path.
+function practiceTable(tableId) {
+  return registry.getOrCreateTable(tableId, { home: true, homeOwnerId: 'anon',
+    smallBlind: 10, bigBlind: 20 });
+}
 
 // A socket that remembers everything it was sent, with arrival times.
 function openSocket(name) {
@@ -134,6 +144,7 @@ async function jamHand(a, b) {
 console.log('\n— unwatched: the hand resolves at machine speed —');
 {
   const tableId = 'pace-unwatched';
+  practiceTable(tableId);
   const a = await openSocket('A');
   const b = await openSocket('B');
   a.send({ type: ClientMsg.JOIN, tableId, playerId: 'pa', buyIn: 2000, displayName: 'A' });
@@ -161,6 +172,7 @@ console.log('\n— unwatched: the hand resolves at machine speed —');
 console.log('\n— watched: the staged beat —');
 {
   const tableId = 'pace-watched';
+  const table = practiceTable(tableId);
   const a = await openSocket('A');
   const b = await openSocket('B');
   a.send({ type: ClientMsg.JOIN, tableId, playerId: 'wa', buyIn: 2000, displayName: 'A' });
@@ -172,9 +184,21 @@ console.log('\n— watched: the staged beat —');
   await waitFor(spec, (m) => m.type === ServerMsg.WATCHING, 5000);
   await sleep(200);
 
+  table.agentIds[0] = 'pace-result-thread';
+  table.agentUserIds[0] = 'anon';
+  table.seatSessionIds[0] = 'pace-result-session';
   const start = await jamHand(a, b);
+  check('BUG-272: persisted history does not name the winner during runout',
+    readThread('pace-result-session', { owner: true }).every(line => line.category !== 'result'));
+  check('BUG-272: the live result thread waits for award',
+    a.of(ServerMsg.THREAD_LINE).every(entry => entry.msg.line.category !== 'result'));
   const result = await waitFor(spec, (m) => m.type === ServerMsg.HAND_RESULT, 20000);
   check('the hand completes', !!result);
+  check('BUG-272: the result is persisted exactly once at award',
+    readThread('pace-result-session', { owner: true }).filter(line => line.category === 'result').length === 1);
+  const resultLines = a.of(ServerMsg.THREAD_LINE).filter(entry => entry.msg.line.category === 'result');
+  check('BUG-272: the pushed result follows the same award', resultLines.length === 1
+    && resultLines[0].at >= a.of(ServerMsg.HAND_RESULT)[0]?.at);
 
   const paces = spec.of(ServerMsg.PACE);
   const ladder = paces.map((e) => e.msg.pace);
@@ -235,6 +259,7 @@ console.log('\n— watched: the staged beat —');
 console.log('\n— pace rides every snapshot —');
 {
   const tableId = 'pace-snapshot';
+  practiceTable(tableId);
   const a = await openSocket('A');
   const b = await openSocket('B');
   a.send({ type: ClientMsg.JOIN, tableId, playerId: 'sa', buyIn: 2000, displayName: 'A' });
@@ -263,6 +288,7 @@ console.log('\n— pace rides every snapshot —');
 console.log('\n— the owner’s spectator sees his agent’s eyes —');
 {
   const tableId = 'pace-hero';
+  practiceTable(tableId);
   const spec = await openSocket('S');
   spec.send({ type: ClientMsg.WATCH, tableId, displayName: 'His Agent' });
   const watching = await waitFor(spec, (m) => m.type === ServerMsg.WATCHING, 5000);

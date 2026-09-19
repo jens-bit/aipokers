@@ -644,18 +644,26 @@ console.log('\n' + COSTS_BANNER);
   check('frustrated is not steaming',
     attrCostsForHand({ decisions: [decision({ action: { type: 'bet' }, attr: { moodState: 'frustrated' } })] }).length === 0);
 
-  // READS: briefed, and folded at a price that called anyway.
+  // READS: the context proves availability, not that it drove the action.
   const reads = attrCostsForHand({
     decisions: [decision({ action: { type: 'fold' }, equity: 0.44, potOdds: 0.25, attr: { seenEquity: 0.44, readSubjects: ['The Regular'] } })],
     won: false,
   });
-  check('READS is charged when a briefed read was ignored',
+  check('READS records an available read alongside the existing fold/price trigger',
     reads.length === 1 && reads[0].key === 'READS' && /The Regular/.test(reads[0].line));
-  check('a read he played WITH is a line too, marked cost:false', (() => {
+  check('BUG-273: a fold note does not invent that the policy ignored a read',
+    reads[0].line === 'a read on The Regular was available when he folded');
+  check('an available read on a winning hand is a line too, marked cost:false', (() => {
     const r = attrCostsForHand({
       decisions: [decision({ action: { type: 'call' }, attr: { readSubjects: ['The Regular'] } })], won: true,
     });
     return r.length === 1 && r[0].key === 'READS' && r[0].cost === false;
+  })());
+  check('BUG-273: winning does not prove that a supplied read caused the action', (() => {
+    const d = decision({ action: { type: 'call' }, attr: { readSubjects: ['The Regular'] } });
+    const before = JSON.stringify(d);
+    const r = attrCostsForHand({ decisions: [d], won: true });
+    return r[0].line === 'a read on The Regular was available during this hand' && JSON.stringify(d) === before;
   })());
 
   // One line per key per hand, oldest first.

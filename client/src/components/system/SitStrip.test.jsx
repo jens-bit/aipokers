@@ -79,6 +79,22 @@ describe('the strip', () => {
     expect(onAct).not.toHaveBeenCalled();
   });
 
+  it('BUG-268: a timeout folds when checking is not a legal choice', () => {
+    const onAct = vi.fn();
+    render(<SitStrip game={game({ currentBet: 80 })} mySeat={1}
+      legalActions={[{ type: 'fold' }, { type: 'call', amount: 80 }]}
+      secs={12} onAct={onAct} />);
+    expect(screen.getByText('12s · timeout folds for you')).toBeInTheDocument();
+    expect(screen.queryByText(/timeout checks/)).not.toBeInTheDocument();
+    expect(onAct).not.toHaveBeenCalled();
+  });
+
+  it('BUG-268: an incomplete legal offer promises no client-invented timeout action', () => {
+    render(<SitStrip game={game()} mySeat={1} legalActions={[]} secs={12} onAct={() => {}} />);
+    expect(screen.getByText('YOUR TURN')).toBeInTheDocument();
+    expect(screen.queryByText(/timeout/)).not.toBeInTheDocument();
+  });
+
   it('disables a verb the server has not offered, rather than hiding it', () => {
     render(
       <SitStrip game={game({ currentBet: 80 })} mySeat={1}

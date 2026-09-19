@@ -1,6 +1,48 @@
-import { test, expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 import { agent } from './show-home-fixtures.js';
 import { rooms } from '../src/test/fixtures/rooms.js';
+
+// A boot failure occurs before the journey checks its fixture errors. Retain
+// that evidence without retrying navigation or extending the Home deadline.
+const test = base.extend({
+  sessionDiagnostics: [async ({ page }, use, testInfo) => {
+    const started = Date.now(), requests = [], active = new Map(), errors = [], consoleErrors = [];
+    page.on('pageerror', error => errors.push(error.stack || error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    page.on('request', request => {
+      const url = new URL(request.url());
+      const entry = { path: url.origin + url.pathname, method: request.method(),
+        type: request.resourceType(), startedMs: Date.now() - started };
+      requests.push(entry); active.set(request, entry);
+    });
+    page.on('response', response => {
+      const entry = active.get(response.request());
+      if (entry) entry.status = response.status();
+    });
+    page.on('requestfinished', request => {
+      const entry = active.get(request);
+      if (entry) entry.finishedMs = Date.now() - started;
+    });
+    page.on('requestfailed', request => {
+      const entry = active.get(request);
+      if (entry) { entry.failedMs = Date.now() - started; entry.error = request.failure()?.errorText; }
+    });
+    await use();
+    if (testInfo.status === testInfo.expectedStatus) return;
+    await testInfo.attach('first-session-network', { contentType: 'application/json',
+      body: JSON.stringify({ url: page.url(), errors, consoleErrors, requests }, null, 2) });
+    // A closed/crashed page must not replace the original assertion failure.
+    await Promise.allSettled([
+      page.evaluate(() => ({ readyState: document.readyState, html: document.documentElement.outerHTML,
+        telegramPresent: !!window.Telegram?.WebApp, credentialPresent: !!window.Telegram?.WebApp?.initData,
+        wire: window.__firstSessionWire?.map(({ type, tableId, agentId }) => ({ type, tableId, agentId })) }))
+        .then(snapshot => testInfo.attach('first-session-page', { contentType: 'application/json', body: JSON.stringify(snapshot, null, 2) })),
+      page.screenshot({ path: testInfo.outputPath('first-session-failure.png'), timeout: 5000 }),
+    ]);
+  }, { auto: true }],
+});
 
 // Real Home, table sheet and Watch components; only their network is scripted.
 // HOME_STATE and WATCHING/STATE match home-clarity's fixture. No engine/model

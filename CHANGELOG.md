@@ -1,5 +1,16 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Document-led recovery — human play, receipts and truthful results (2026-09-19)
+
+Human kitchen play survives short disconnects and uses a server-owned 15-second
+check-or-fold deadline. Explicit departure settles the hand safely; unfunded
+human casino JOINs are refused. Active buy-in receipts survive history rollover
+and reload. Opponent sheets retain saved appearance, and hand-result history
+waits for the staged award. Review copy no longer claims unused reads caused
+an action. Raw recent-hand history now requires owner verification before
+returning private cards or reasoning. See `read-me-claude/RAILBIRD_DOCUMENT_RECOVERY.md` for regressions,
+document coverage, validation, limitations and the local fixture incident.
+
 ## Playability audit — companion decisions and activity (2026-09-19)
 
 On `codex/railbird-recovery-audit`, continuing the recovery. Owned-agent Watch
