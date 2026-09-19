@@ -115,7 +115,7 @@ describe('DesktopHome roster', () => {
     expect(watch).toHaveBeenCalledWith(expect.objectContaining({ id: playingAgent.id }));
     expect(await screen.findByTestId('desk-casino-table')).toHaveAccessibleName(`${playingAgent.name} at the table`);
     expect(screen.queryByTestId('home-tv')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop watching', exact: true }));
     expect(await screen.findByTestId('home-tv')).toBeInTheDocument();
     expect(leave).toHaveBeenCalledOnce();
   });
@@ -168,7 +168,7 @@ describe('DesktopHome roster', () => {
       .toHaveTextContent('The Grinder took $100 uncontested.');
     expect(screen.getByText('The last pot was yours.')).toBeInTheDocument();
     expect(leave).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop watching', exact: true }));
     expect(await screen.findByTestId('home-tv')).toBeInTheDocument();
     expect(leave).toHaveBeenCalledOnce();
   });

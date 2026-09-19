@@ -279,7 +279,7 @@ for (const { w, h } of WIDTHS) {
     await page.locator('.guest-hero .guest-hero__cta').click();
     // draftHim() scrolls to it — `toBeVisible` alone is satisfied before that
     // scroll settles, and the screenshot would still be the hero at the top.
-    await expect(page.getByTestId('draft-input')).toBeInViewport({ timeout: 20_000 });
+    await expect(page.getByTestId('draft-input')).toBeInViewport({ ratio: 1, timeout: 20_000 });
     await page.screenshot({ path: shot(`guest-draft-${w}`) });
     expect(errors, `console errors on guest-draft @ ${w}: ${errors.join('\n')}`).toEqual([]);
   });

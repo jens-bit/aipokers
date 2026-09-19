@@ -94,7 +94,7 @@ test('BUG-172: desktop away-frame and TV taps open the named live table, includi
   await page.getByTestId('home-frame-tv-0').click();
   await expect(page.getByTestId('desk-casino-table')).toHaveAccessibleName('Bal at the table');
   await expect(page.locator('.watch-felt')).toBeVisible();
-  await page.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
   await expect(page.getByTestId('home-tv')).toBeVisible();
   const changed = roster.map((agent, i) => i !== 2 ? agent : { ...agent,
     activeTableId: 'casino-bluff', location: { ...agent.location, where: 'table', tableId: 'casino-bluff', room: 'backroom' },

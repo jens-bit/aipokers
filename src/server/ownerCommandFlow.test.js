@@ -50,6 +50,144 @@ async function say(content, extra = {}, headers = {}) {
   return { status: response.status, body: await response.json() };
 }
 
+test('BUG-260: exact proposal acceptance saves a bounded private receipt and retries cannot apply twice or accept a replacement', async () => {
+  agent.memory = { computed: { leaks: { foldedAsEquityFavorite: 3 } } };
+  const proposal = profiles.maybeCreateProposal(agent);
+  const proposalId = String(proposal.id ?? proposal.createdAt);
+  const accept = async id => {
+    const response = await fetch(`${base}/api/agents/${agent.id}/proposal/accept`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: owner, proposalId: id,
+        suggestedPatch: { profileDelta: { aggression: 99 } } }) });
+    return { status: response.status, body: await response.json() };
+  };
+  let broadcasts = 0; profiles.setAgentChangeListener(() => { broadcasts++; });
+  try {
+    const missing = await accept(undefined);
+    assert.equal(missing.status, 409);
+    assert.equal(agent.profile.tightness, 60);
+    const first = await accept(proposalId);
+    assert.equal(first.status, 200);
+    assert.equal(first.body.profile.tightness, 52);
+    assert.equal(first.body.profile.aggression, 45, 'client patch is never authority');
+    assert.equal(first.body.proposal, null);
+    assert.equal(first.body.ownerCommandRevision, 1);
+    assert.match(first.body.proposalAcceptance.reply, /60%.*52%/);
+    assert.doesNotMatch(first.body.proposalAcceptance.reply, /next time.*sit/i, 'an agent already home needs no deferred-session caveat');
+    assert.equal(agent.chatHistory.at(-1).content, first.body.proposalAcceptance.reply);
+    assert.equal(broadcasts, 1);
+    const again = await accept(proposalId);
+    assert.equal(again.status, 200);
+    assert.equal(again.body.profile.tightness, 52);
+    assert.equal(agent.chatHistory.length, 1, 'retry does not add a duplicate acknowledgement');
+    assert.equal(broadcasts, 1);
+    const replacement = profiles.maybeCreateProposal(agent);
+    assert.notEqual(String(replacement.id ?? replacement.createdAt), proposalId);
+    await accept(proposalId);
+    assert.equal(agent.proposal, replacement);
+    assert.equal(agent.profile.tightness, 52);
+    assert.equal((await accept('other-proposal')).status, 409);
+    assert.equal(profiles.presentAgent(agent, { owner: false }).lastProposalAcceptance, undefined);
+  } finally { profiles.setAgentChangeListener(null); }
+});
+
+test('BUG-260: a seated acceptance explains next-seating activation and preserves the current strategy snapshot', async () => {
+  agent.memory = { computed: { leaks: { foldedAsEquityFavorite: 3 } } };
+  const proposal = profiles.maybeCreateProposal(agent);
+  assert.equal(profiles.deployAgent(owner, agent.id, { body: { rung: 0 } }).status, 200);
+  const table = registry.tableOfAgent(agent.id), seat = table.seatOfAgent(agent.id);
+  table._maybeRunAiTurn = async () => {};
+  table._clearTimers();
+  const currentProfile = structuredClone(table.agentProfiles[seat]), currentStrategy = table.aiStrategy[seat];
+  // The live chair remains authoritative if an old stored pointer is lost.
+  agent.activeTableId = null;
+  const accept = async () => {
+    const response = await fetch(`${base}/api/agents/${agent.id}/proposal/accept`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: owner, proposalId: proposal.id }) });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const accepted = await accept();
+  assert.match(accepted.proposalAcceptance.reply, /next time I sit down/i);
+  assert.equal(agent.profile.tightness, 52);
+  assert.notEqual(agent.strategy, currentStrategy);
+  assert.deepEqual(table.agentProfiles[seat], currentProfile, 'acceptance never reloads an active session policy');
+  assert.equal(table.aiStrategy[seat], currentStrategy);
+  assert.deepEqual((await accept()).proposalAcceptance, accepted.proposalAcceptance, 'retry keeps the original truthful receipt');
+  table.closeTable('acceptance timing test');
+  assert.equal(profiles.deployAgent(owner, agent.id, { body: { rung: 0 } }).status, 200);
+  const next = registry.tableOfAgent(agent.id), nextSeat = next.seatOfAgent(agent.id);
+  next._maybeRunAiTurn = async () => {};
+  next._clearTimers();
+  assert.equal(next.agentProfiles[nextSeat].tightness, 52, 'the next seating uses the saved strategy');
+  assert.equal(next.aiStrategy[nextSeat], agent.strategy);
+});
+
+test('BUG-260: a kitchen chair also explains next-seating activation without moving chips or its current policy', async () => {
+  agent.memory = { computed: { leaks: { foldedAsEquityFavorite: 3 } } };
+  const proposal = profiles.maybeCreateProposal(agent);
+  const table = registry.getOrCreateTable(`home-${owner}`, { home: true, homeOwnerId: owner, maxSeats: 2 });
+  const seat = table.seatAI({ agentId: agent.id, userId: owner, displayName: agent.name,
+    strategy: agent.strategy, agentProfile: agent.profile, buyIn: 2000 });
+  table.seatAI({ displayName: 'Kitchen companion', buyIn: 2000 });
+  table._maybeRunAiTurn = async () => {};
+  table.maybeStartHand(); table._clearTimers();
+  assert.ok(table.handInProgress());
+  assert.equal(agent.activeTableId, null, 'kitchen membership is not a casino session pointer');
+  profiles.presentAgent(agent, { owner: true }); // Normalize the ordinary owner projection before comparing the pocket.
+  const seated = structuredClone(table.agentProfiles[seat]), pocket = structuredClone(agent.pocket);
+  const response = await fetch(`${base}/api/agents/${agent.id}/proposal/accept`, { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: owner, proposalId: proposal.id }) });
+  assert.equal(response.status, 200);
+  assert.match((await response.json()).proposalAcceptance.reply, /next time I sit down/i);
+  assert.equal(agent.profile.tightness, 52);
+  assert.deepEqual(table.agentProfiles[seat], seated);
+  assert.deepEqual(agent.pocket, pocket);
+});
+
+test('BUG-264: a real completed casino session returns a private report when an existing conversation reopens', async () => {
+  agent.chatHistory = [{ role: 'user', content: 'Play carefully.' }, { role: 'assistant', content: 'I will pick my spots.' }];
+  await say('play 10/20');
+  const table = registry.tableOfAgent(agent.id);
+  const sessionId = table.sessionIdAtSeat(table.agentIds.indexOf(agent.id));
+  table.closeTable('owner report test');
+  const reopened = await (await fetch(`${base}/api/agents/${agent.id}?userId=${owner}`)).json();
+  const reports = reopened.chatHistory.filter(m => m.reportKind === 'session');
+  assert.equal(reports.length, 1, 'a new session result must survive alongside the earlier conversation');
+  assert.equal(reports[0].reportId, sessionId);
+  assert.match(reports[0].content, /0 hands.*\$0/i);
+  assert.deepEqual(store.loadProfile(owner).agents[0].chatHistory.at(-1), reports[0], 'the report is durable, not just this process projection');
+  assert.equal(reopened.chatHistory[0].content, 'Play carefully.');
+  await fetch(`${base}/api/agents/${agent.id}/seen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: owner }) });
+  table.closeTable('already closed');
+  const again = await (await fetch(`${base}/api/agents/${agent.id}?userId=${owner}`)).json();
+  assert.equal(again.chatHistory.filter(m => m.reportKind === 'session').length, 1);
+  assert.equal(again.unseenRecap, false, 'reading/reopening never republishes an acknowledged result');
+  assert.equal(profiles.presentAgent(agent, { owner: false }).chatHistory, undefined);
+});
+
+test('BUG-264: completed study reports its actual read once in the saved private conversation', async () => {
+  agent.chatHistory = [{ role: 'user', content: 'Look at his sizing.' }, { role: 'assistant', content: 'I will watch it.' }];
+  agent.sessionFlagged = [{ handNumber: 42, flagType: 'badBeat', pot: 900, holeCards: ['Ah', 'Kd'], won: false,
+    streets: [], opponents: [{ seat: 1, playerId: 'p_granite', displayName: 'Granite' }],
+    opponentShowdownCards: [{ seat: 1, holeCards: ['7h', '7s'] }] }];
+  const started = await say('study hand 42');
+  assert.equal(started.body.command.status, 'done');
+  assert.equal(agent.chatHistory.filter(m => m.reportKind === 'study').length, 0, 'starting has not earned a read');
+  const studying = { ...agent.study, pending: { ...agent.study.pending } };
+  const learned = tape.finishStudy(agent.id, owner);
+  assert.ok(learned?.text);
+  const reopened = await (await fetch(`${base}/api/agents/${agent.id}?userId=${owner}`)).json();
+  const reports = reopened.chatHistory.filter(m => m.reportKind === 'study');
+  assert.equal(reports.length, 1);
+  assert.match(reports[0].content, /hand #42/);
+  assert.ok(reports[0].content.includes(learned.text), 'the reply repeats the earned read, not a generated claim');
+  assert.deepEqual(store.loadProfile(owner).agents[0].chatHistory.at(-1), reports[0]);
+  assert.equal(reopened.chatHistory[0].content, 'Look at his sizing.');
+  tape.finishStudy(agent.id, owner, { pending: studying.pending, handNumber: 42, startedAt: studying.startedAt });
+  assert.equal(agent.chatHistory.filter(m => m.reportKind === 'study').length, 1, 'a repeated completion cannot duplicate its report');
+  assert.equal(profiles.presentAgent(agent, { owner: false }).chatHistory, undefined);
+});
+
 test('BUG-251: owner chooses stakes in chat and gets one actual seat and one buy-in', async () => {
   const ask = await say('go to the casino');
   assert.equal(ask.status, 200);

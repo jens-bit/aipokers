@@ -150,15 +150,19 @@ test('BUG-257 / LIFE-1: his comment about the owner\'s play reaches only the pri
   setLineListener(line => table.deliverThreadLine(line));
   t.after(() => { setLineListener(null); table._clearTimers(); });
   table.maybeStartHand({ clientDriven: true });
-  // A fold after the flop is the case that earns a line — a fold preflop is
-  // deliberately not an event.
+  // Both opponents fold on the flop so Stone actually wins the hand this
+  // comment describes. Leaving the visitor in produced a random showdown
+  // winner; if the visitor won, there was correctly no owner-hand comment.
+  // The visitor remains connected, so every private-delivery guard is tested.
   play(table, (seat, street) => {
-    if (seat === 1 && street !== 'preflop') return Actions.FOLD;
+    if (seat !== 0 && street !== 'preflop') return Actions.FOLD;
     return Actions.CHECK;
   });
 
   const hand = stored().ownerHands[0];
   assert.equal(hand.ownerFolded, true);
+  assert.equal(hand.iWon, true, 'the commenting agent won this hand');
+  assert.equal(hand.showdown, false, 'the owner and visitor both folded');
   assert.ok(hand.ownerActions.some(action => action.type === Actions.FOLD && action.street !== 'preflop'));
   const expected = ownerHandComment(hand);
   assert.ok(expected && /fold|had|chips|hope you had it/i.test(expected), `no comment about the owner's actual play: ${expected}`);

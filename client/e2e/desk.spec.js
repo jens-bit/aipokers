@@ -941,7 +941,7 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     await expect(page.locator('.watch-hero .mood-ghost')).toHaveAttribute('data-hood',owned?'sand':'oxblood');
     await expect(page.locator('.watch-hero radialGradient stop').first()).toHaveAttribute('stop-color',owned?'#C9A227':'#7FA8C9');
     await page.screenshot({path:'../artifacts/casino31-'+(owned?'owned':'public')+(width===1920?'-1920':'')+'.png'});
-    await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+    await page.getByRole('button',{name:owned?'Stop watching':'BACK TO THE FLOOR',exact:true}).click();
     await expect(page.getByTestId('floor-view')).toBeVisible();
     // SPEC-1: `data-room` was the rung you came from, and BACK TO THE FLOOR
     // had to put you back in THAT room rather than in whichever one the casino

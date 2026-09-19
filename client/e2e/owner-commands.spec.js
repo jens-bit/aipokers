@@ -83,6 +83,58 @@ async function connect(page) {
 }
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test(`BUG-264: a completed study reports into the open private conversation and keeps its draft at ${viewport.width}`, async ({ page }, testInfo) => {
+    await rpc('flagged', { agent: ID });
+    await page.setViewportSize(viewport); await connect(page); await page.goto('/');
+    await page.locator(`.home-one[data-agent="${ID}"]`).click();
+    const chat = page.locator('.agent-view');
+    const composer = chat.getByPlaceholder('Whisper to him…');
+    let chatRequests = 0;
+    page.on('request', request => { if (new URL(request.url()).pathname === '/api/agents/chat' && request.method() === 'POST') chatRequests++; });
+    await composer.fill('study hand 42'); await chat.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(chat.locator('.agent-view__thread').getByText('I am studying hand 42. I will have the read when the tape finishes.', { exact: true })).toBeVisible();
+    await composer.fill('What would you do differently?');
+    await expect.poll(async () => (await state()).reports.filter(m => m.reportKind === 'study').length, { timeout: 7000 }).toBe(1);
+    const report = (await state()).reports.find(m => m.reportKind === 'study');
+    await expect(chat.locator('.agent-view__thread').getByText(report.content, { exact: true })).toBeVisible({ timeout: 12000 });
+    expect(chatRequests).toBe(1, 'the completion adds no generated chat request');
+    await expect(composer).toHaveValue('What would you do differently?');
+    await expect(chat.locator('.agent-view__thread').getByText(report.content, { exact: true })).toHaveCount(1);
+    await page.screenshot({ path: testInfo.outputPath(`study-report-${viewport.width}.png`) });
+  });
+
+  test(`BUG-260: accepting a proposal retries safely and restores the saved change at ${viewport.width}`, async ({ page }, testInfo) => {
+    await rpc('proposal', { agent: ID });
+    await page.setViewportSize(viewport); await connect(page);
+    let accepts = 0, generatedChat = 0;
+    page.on('request', request => { if (new URL(request.url()).pathname === '/api/agents/chat' && request.method() === 'POST') generatedChat++; });
+    await page.route('**/proposal/accept', async route => {
+      if (++accepts === 1) return route.fulfill({ status: 503, json: { error: 'Temporarily unavailable' } });
+      const url = new URL(route.request().url());
+      const response = await route.fetch({ url: `${backend}${url.pathname}${url.search}` });
+      await route.fulfill({ response });
+    });
+    await page.goto('/');
+    await page.locator(`.home-one[data-agent="${ID}"]`).click();
+    const chat = page.locator('.agent-view');
+    await chat.getByRole('button', { name: 'Accept change', exact: true }).click();
+    await expect(chat.getByRole('alert')).toHaveText(/Could not save.*Try/);
+    expect((await state()).profile.tightness).toBe(60);
+    await chat.getByRole('button', { name: 'Accept change', exact: true }).click();
+    await expect(chat.getByText('Strategy change saved. Tightness: 60% → 52%.', { exact: true })).toBeVisible();
+    await expect(chat.getByRole('button', { name: 'Accept change', exact: true })).toHaveCount(0);
+    await expect(chat.getByRole('alert')).toHaveCount(0);
+    expect((await state()).profile.tightness).toBe(52);
+    expect((await state()).proposal).toBeNull();
+    expect(accepts).toBe(2); expect(generatedChat).toBe(0);
+    await page.screenshot({ path: testInfo.outputPath(`proposal-accepted-${viewport.width}.png`) });
+    await page.reload();
+    await page.locator(`.home-one[data-agent="${ID}"]`).click();
+    await expect(page.locator('.agent-view').getByText('Strategy change saved. Tightness: 60% → 52%.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Accept change', exact: true })).toHaveCount(0);
+    expect(generatedChat).toBe(0);
+  });
+
   test(`BUG-251: owner talks through stakes, funding, actual seat and return at ${viewport.width}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport); await connect(page); await page.goto('/');
     await expect(page.getByTestId('home-screen')).toBeVisible();

@@ -34,10 +34,11 @@ export function DeskCasinoTable({ game, agent, mySeat, lastDecision, notice, onB
           selectedSeat={selectedSeat} onSelectSeat={seat=>setSelectedSeat(selectedSeat===seat?null:seat)}
           overlay={selectedSeat==null?null:<ReadSheet entry={readFor(game,selectedSeat)} seat={seatSummary(game,selectedSeat)} onClose={()=>setSelectedSeat(null)}/>}/>
         <ActionNarrator game={game} mySeat={mySeat} />
-        <button type="button" className="dsk-casino-table__back" aria-label="BACK TO THE FLOOR" onClick={onBack}>‹ BACK TO THE FLOOR</button>
+        <button type="button" className="dsk-casino-table__back" aria-label={agent && !seated ? 'Stop watching' : 'BACK TO THE FLOOR'}
+          title={agent && !seated ? 'Your agent keeps playing.' : undefined} onClick={onBack}>‹ {agent && !seated ? 'STOP WATCHING' : 'BACK TO THE FLOOR'}</button>
         <span className="dsk-casino-table__name" data-watch-status style={{background:'var(--v5-panel)',padding:'2px 6px',borderRadius:4,pointerEvents:'auto'}}>Watching{name && !agent ? ` ${name}` : ''}</span>
         {notice && <div className="dsk-casino-table__notice" role="status">{notice}</div>}
-        {onSitOut && phaseOf(game)==='between' && <button type="button" className="dsk-casino-table__sit-out" onClick={onSitOut}>Sit out</button>}
+        {!agent && onSitOut && phaseOf(game)==='between' && <button type="button" className="dsk-casino-table__sit-out" onClick={onSitOut}>Sit out</button>}
       </div>
     </section>
   </div>;

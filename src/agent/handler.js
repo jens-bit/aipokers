@@ -22,13 +22,14 @@
 //   RAISE → { type: 'raise', min: <total>, max: <total> }
 //
 // Public return shape:
-//   { action, reasoning, say, usage, model, provider, costUsd }
+//   { action, reasoning, say, fallback?, usage?, model?, provider?, costUsd? }
 // `reasoning` is what he THINKS — one line in his own voice, capped and
 // solver-proofed by src/agent/voice.js (PACE-1c), not an explanation of his
 // process. MODEL-1b added the last four: every decision carries what it cost,
 // returned as well as logged so the arena can total a run without scraping
-// stdout. The fallback paths (no key, parse failure, API error) return only
-// { action, reasoning } — there was no call, so there is no usage to report.
+// stdout. Fallback actions carry explicit provenance. Missing configuration
+// and failed requests have no receipt; an unusable response retains the
+// actual response usage even though the compiled policy chooses the action.
 //
 // COST-1 added `say`, and it is optional in both directions: the model may
 // omit it, and it is usually null. It is the line he says OUT LOUD, at the
@@ -40,13 +41,15 @@
 // that second call (generateAiChatLine, below) and this is what replaces it in
 // the moment; handTalk.js writes the rest of it once per hand.
 
-import { complete, isConfigured, providerIdFor } from './providers/index.js';
+import { complete, isConfigured } from './providers/index.js';
 import { costOf, formatUsd } from './providers/pricing.js';
 import { formatOpponentRead } from './reads.js';
-import { perceiveEquity } from './attributes.js';
+import { perceivedMath } from './perceivedMath.js';
+export { perceivedMath } from './perceivedMath.js';
 import { voiceLine, capWords, isSolverSpeak, VOICE_MAX_WORDS } from './voice.js';
 import { moodBriefingHint } from './mood.js';
 import { estimateTokens } from './tokenEstimate.js';
+import { chooseFromPolicy } from './policyPlay.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -87,27 +90,6 @@ Never talk like a solver: no bet sizes in blinds, no percentages, no "range",
 Talk about the hand, the opponent, or the moment instead.
 
 Maximum ${VOICE_MAX_WORDS} words. One sentence or two short ones.`;
-}
-
-// What he THINKS the maths are, as opposed to what they are.
-//
-// Exported because two callers need the identical number: this module, which
-// writes it into the briefing, and table.js, which records it on the decision
-// so the hand review can say afterwards that he misjudged the spot and by how
-// much. Recomputing it in two places with two seeds would let the review
-// disagree with the hand it is reviewing.
-//
-// The seed is the hand, the seat and the cards — never a clock and never a
-// counter — so the arena's mirrored deck draws the same misjudgment on both
-// halves, and a replayed hand misjudges it the same way twice.
-export function perceivedMath(gs) {
-  const seed = `${gs?.handNumber ?? 0}:${gs?.seat ?? 0}:${gs?.street}:${(gs?.holeCards ?? []).join('')}:${(gs?.community ?? []).join('')}`;
-  const focus = gs?.attrs?.FOCUS ?? null;
-  return {
-    seed,
-    equity:  perceiveEquity(gs?.equity,  focus, `${seed}:eq`),
-    potOdds: perceiveEquity(gs?.potOdds, focus, `${seed}:po`),
-  };
 }
 
 // Build the per-turn user message describing the current game state.
@@ -241,14 +223,12 @@ Decision:`;
 
 // Coerce a parsed action+amount into a validated game action, with safe fallbacks.
 function validateAction(actionType, amount, gs) {
-  const safe = gs.canCheck ? { type: 'check' } : { type: 'call' };
   switch (actionType) {
     case 'fold':
       return { type: 'fold' };
     case 'check':
       if (!gs.canCheck) {
-        console.warn('[agent] illegal check (there is a bet) → call');
-        return { type: 'call' };
+        throw new Error('model returned a check while facing a bet');
       }
       return { type: 'check' };
     case 'call':
@@ -261,18 +241,29 @@ function validateAction(actionType, amount, gs) {
       if (gs.canBet && Number.isFinite(amount)) {
         return { type: 'bet', amount: Math.max(gs.minBet, Math.min(gs.maxBet, Math.round(amount))) };
       }
-      console.warn('[agent] illegal bet → safe');
-      return safe;
+      throw new Error('model returned an unavailable bet or missing amount');
     case 'raise':
       if (gs.canRaise && Number.isFinite(amount)) {
         return { type: 'raise', amount: Math.max(gs.minRaise, Math.min(gs.maxRaise, Math.round(amount))) };
       }
-      console.warn('[agent] illegal raise → safe');
-      return safe;
+      throw new Error('model returned an unavailable raise or missing amount');
     default:
-      console.warn(`[agent] unknown action "${actionType}" → safe`);
-      return safe;
+      throw new Error(`model returned unknown action "${actionType}"`);
   }
+}
+
+// BUG-261: losing the language model must not discard the poker policy. The
+// same compiled legal offer and dice choose the action, without another call.
+// Keep provenance separate from the character's sentence and from billing.
+function policyFallback(gs, reason) {
+  const { action, reasoning, say } = chooseFromPolicy(gs);
+  return { action, reasoning, say, fallback: { policy: true, reason } };
+}
+
+// Arena records from before BUG-261 encoded this fact in their sentence.
+// New decisions use metadata so character speech never has to name an API.
+export function isFallbackDecision(decision) {
+  return !!decision?.fallback || /fallback|no API key|parse failure/i.test(decision?.reasoning || '');
 }
 
 // COST-1: the optional spoken line. Same two guarantees the reasoning gets —
@@ -295,7 +286,6 @@ function parseSay(raw) {
 
 // Parse the model's text output into { action, reasoning, say }.
 function parseDecision(text, gs) {
-  const safeAction = gs.canCheck ? { type: 'check' } : { type: 'call' };
   try {
     const json = text.replace(/```json\n?|```\n?/g, '').trim();
     const parsed = JSON.parse(json);
@@ -328,8 +318,8 @@ function parseDecision(text, gs) {
 
     return { action, reasoning: spoken.line, say: parseSay(parsed.say) };
   } catch (err) {
-    console.warn('[agent] parse failed:', err.message, '| raw:', text.slice(0, 80));
-    return { action: safeAction, reasoning: 'parse failure — defaulting to a safe action', say: null };
+    console.warn('[agent] parse failed:', err.message, '| raw:', String(text ?? '').slice(0, 80));
+    return policyFallback(gs, 'invalidResponse');
   }
 }
 
@@ -406,11 +396,8 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
   );
 
   if (!isConfigured(model, provider)) {
-    console.error(`[agent] ${providerIdFor(model, provider)} not configured for ${model} — using safe fallback`);
-    return {
-      action: gameState.canCheck ? { type: 'check' } : { type: 'fold' },
-      reasoning: 'no API key configured — defaulting to a safe action',
-    };
+    console.error(`[agent] model ${model} not configured — using compiled policy fallback`);
+    return policyFallback(gameState, 'unconfigured');
   }
 
   console.log(`[agent] ${gameState.street} — pot ${gameState.pot}, calling ${model}...`);
@@ -426,22 +413,19 @@ export async function getAgentAction(gameState, strategy, memoryContext = '', op
       transport: opts.transport ?? null,
     });
 
-    const { action, reasoning, say } = parseDecision(res.text, gameState);
+    const decision = parseDecision(res.text, gameState);
     // MODEL-1b: every decision carries its cost. The usage is returned as well
     // as logged so the arena can total it without scraping stdout.
     const { inputTokens: inp, outputTokens: out, cachedInputTokens: cached } = res.usage;
     const usd = costOf(res.usage, model, res.provider);
     console.log(
-      `[agent] → ${JSON.stringify(action)}  ` +
+      `[agent] → ${JSON.stringify(decision.action)}  ` +
       `(${res.provider}/${model} in:${inp} out:${out} cached:${cached} ${formatUsd(usd, 6)}) ` +
       `[est. static:${staticTokens} dynamic:${dynamicTokens}]`,
     );
-    return { action, reasoning, say, usage: res.usage, model, provider: res.provider, costUsd: usd };
+    return { ...decision, usage: res.usage, model, provider: res.provider, costUsd: usd };
   } catch (err) {
     console.error('[agent] API error:', err.message);
-    return {
-      action: gameState.canCheck ? { type: 'check' } : { type: 'fold' },
-      reasoning: `api error fallback (${err.message.slice(0, 60)})`,
-    };
+    return policyFallback(gameState, 'providerError');
   }
 }

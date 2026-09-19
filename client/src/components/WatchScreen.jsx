@@ -83,6 +83,7 @@ import { BustedName, HandFireworks, resultCelebration, useCelebrationAudio } fro
 import { PotAward, useWinnerSpeech } from './system/PotAward.jsx';
 import { ActionNarrator } from './system/ActionNarrator.jsx';
 import { WatchGuide } from './onboarding/WatchGuide.jsx';
+import { useAgentReturn } from '../hooks/useAgentReturn.js';
 
 // ---- helpers ---------------------------------------------------------------
 
@@ -1558,6 +1559,7 @@ export function WatchScreen({
   var agentId = config ? config.agentId : null;
   var publicWatch = !seated && !agentId;
   const privateAgent = String(guideOwner.id) === String(agentId) ? guideOwner.agent : null;
+  const agentReturn = useAgentReturn({ agent: privateAgent, game, mySeat, sessionEnd, seated });
   const privateSeed = useRef(null);
   useEffect(function() {
     if (!agentId) return;
@@ -2162,6 +2164,7 @@ export function WatchScreen({
   } else if (threadOpen && privateChatInPlace && agentId) {
     agentPanel = <WatchAgentSheet agent={privateAgent} name={agentName || 'Your agent'}
       seat={heroSeatRow} chat={agentThread} pending={agentLoading}
+      agentReturn={agentReturn}
       view={agentView} onView={setAgentView} onClose={() => setThreadOpen(false)}/>;
   } else if (threadOpen) {
     // Everything the felt has no room for lives in the sheet's own furniture:
@@ -2200,7 +2203,7 @@ export function WatchScreen({
   if (error && !game) {
     return <div className="watch-screen">
       <div className="watch-screen__header">
-        <button type="button" className="watch-screen__back" onClick={onLeave} aria-label="Leave table">‹</button>
+        <button type="button" className="watch-screen__back" onClick={onLeave} aria-label={seated ? 'Leave table' : 'Stop watching'}>‹</button>
         <span className="watch-screen__title">Table unavailable</span>
       </div>
       <WatchAccessNotice message={error} onBack={onBackToFloor || onLeave}/>
@@ -2218,19 +2221,25 @@ export function WatchScreen({
       <div className="watch-screen__header">
         <button type="button" className="watch-screen__back"
           onClick={threadOpen && privateChatInPlace ? () => setThreadOpen(false) : onLeave}
-          aria-label={threadOpen && privateChatInPlace ? 'Close agent panel' : 'Leave table'}>
+          aria-label={threadOpen && privateChatInPlace ? 'Close agent panel' : seated ? 'Leave table' : 'Stop watching'}
+          title={!seated ? 'Stop watching. Your agent keeps playing.' : undefined}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
+          {!seated && !(threadOpen && privateChatInPlace) && <span className="watch-screen__stop-label">Stop watching</span>}
         </button>
-        <span className="watch-screen__title" data-watch-status>
-          {publicWatch ? 'Watching' : (config?.displayName || 'Watching')}
-        </span>
-        {!seated && !publicWatch && <MoodChip mood={mood} small />}
-        <StateTag state={state} compact />
+        <div className="watch-screen__identity">
+          <span className="watch-screen__title" data-watch-status>
+            {publicWatch ? 'Watching' : (config?.displayName || 'Watching')}
+          </span>
+          <div className="watch-screen__status">
+            {!seated && !publicWatch && <MoodChip mood={mood} small />}
+            <StateTag state={state} compact />
+          </div>
+        </div>
         {(onOpenThread || privateChatInPlace) && <MuteToggle compact/>}
-        <div style={{ flex: 1 }} />
+        <div className="watch-screen__header-space" style={{ flex: 1 }} />
         <button
           type="button"
           className="watch-screen__chat"

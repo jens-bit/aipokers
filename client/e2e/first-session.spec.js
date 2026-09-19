@@ -40,6 +40,7 @@ async function installSession(page, { guest = false, running = true, legacy = fa
     blinds: '10/20', smallBlind: 10, bigBlind: 20, seated: 2, pot: 20, board: ['5c', '4h', '8c'],
     seats: [{ seat: 0, name: 'Granite', stack: 2000 }, { seat: 1, name: 'Moss', stack: 2000 }] }] : [];
   const atCasino = { ...AGENT, activeTableId: casinoTableId,
+    attrs: { READS: 41, FOCUS: 40, DISCIPLINE: 44, DECEPTION: 42, STAMINA: 50, COMPOSURE: 50 },
     chatHistory: privateChat ? [{ role: 'user', content: 'x'.repeat(280) }] : [],
     location: { where: 'table', tableId: casinoTableId, room: rooms[0].id },
     liveGame: { tableId: casinoTableId, blinds: '10/20', pot: 20, street: 'flop' } };
@@ -54,8 +55,10 @@ async function installSession(page, { guest = false, running = true, legacy = fa
   await page.route('**/api/**', async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname;
     requests.push({ path, method: request.method(), userId: url.searchParams.get('userId') });
-    if (casino && request.method() === 'POST' && path === `/api/agents/${AGENT.id}/deploy`) {
+    const expectedEntry = casino === 'join' && page.viewportSize().width < 1100 ? 'queue' : 'deploy';
+    if (casino && request.method() === 'POST' && path === `/api/agents/${AGENT.id}/${expectedEntry}`) {
       expect(request.postDataJSON()).toMatchObject({ rung: rooms[0].rung });
+      if (expectedEntry === 'queue') expect(request.postDataJSON()).toMatchObject({ userId: ownerId, stakes: rooms[0].stakes });
       record = atCasino;
       return route.fulfill({ json: { tableId: casinoTableId, agentId: AGENT.id, agentName: AGENT.name,
         room: rooms[0].id, smallBlind: rooms[0].stakes.smallBlind, bigBlind: rooms[0].stakes.bigBlind,
@@ -227,7 +230,7 @@ async function advanceToTable(page) {
   await expectHint(page, COPY.table);
 }
 async function returnFromWatch(page) {
-  const name = page.viewportSize().width >= 1100 ? 'Back to the room' : 'Leave table';
+  const name = page.viewportSize().width >= 1100 ? 'Back to the room' : 'Stop watching';
   await page.getByRole('button', { name, exact: true }).click();
   await expect(page.getByTestId('home-table')).toBeVisible();
 }
@@ -410,17 +413,33 @@ for (const { viewport, guest = false, casino = 'start' } of [
     const floor = page.getByTestId('floor-view');
     await expect(floor).toBeVisible();
     if (casino === 'join') await expect(page.getByTestId('the-floor')).toBeVisible();
-    const play = page.getByTestId('casino-play');
-    await expect(play).toBeVisible(); await expect(play).toContainText(AGENT.name);
-    await expect(play).toBeInViewport({ ratio: 1 });
     await expectReadOnly(page, fixture, { allowWatch: false });
-    await page.screenshot({ path: testInfo.outputPath('quiet-floor-play.png') });
-    await play.getByRole('button', { name: `Send ${AGENT.name} to play`, exact: true }).click();
+    if (casino === 'join' && viewport.width < 1100) {
+      // The populated phone floor gives the room most of the screen. The
+      // named companion above it is the visible entry to the stake tray.
+      const companion = page.getByTestId('your-tables');
+      await expect(companion).toContainText(AGENT.name);
+      const send = companion.getByRole('button', { name: /^Send him to play$/i });
+      await expect(send).toBeInViewport({ ratio: 1 });
+      await page.screenshot({ path: testInfo.outputPath('populated-floor-play-entry.png') });
+      await send.click();
+      await expect(page.getByTestId('casino-deploy')).toContainText(AGENT.name);
+      const deal = page.getByRole('button', { name: 'Deal him in', exact: true });
+      await expect(deal).toBeInViewport({ ratio: 1 });
+      await expectReadOnly(page, fixture, { allowWatch: false });
+      await deal.click();
+    } else {
+      const play = page.getByTestId('casino-play');
+      await expect(play).toBeVisible(); await expect(play).toContainText(AGENT.name);
+      await expect(play).toBeInViewport({ ratio: 1 });
+      await page.screenshot({ path: testInfo.outputPath('quiet-floor-play.png') });
+      await play.getByRole('button', { name: `Send ${AGENT.name} to play`, exact: true }).click();
+    }
     const felt = page.locator('.watch-felt').filter({ visible: true });
     await expect(felt).toBeVisible();
     await expect.poll(() => fixture.requests.filter(request => request.method === 'POST').length).toBe(1);
     expect(fixture.requests.filter(request => request.method === 'POST')).toEqual([
-      expect.objectContaining({ path: `/api/agents/${AGENT.id}/deploy` }),
+      expect.objectContaining({ path: `/api/agents/${AGENT.id}/${casino === 'join' && viewport.width < 1100 ? 'queue' : 'deploy'}` }),
     ]);
     const watches = await page.evaluate(() => window.__firstSessionWire.filter(message => message.type === 'watch'));
     expect(watches).toContainEqual(expect.objectContaining({ tableId: fixture.casinoTableId, agentId: AGENT.id }));
@@ -487,6 +506,11 @@ for (const { viewport, guest = false, casino = 'start' } of [
     const composer = page.getByPlaceholder('Whisper to him…', { exact: true });
     await composer.fill('Be patient.');
     await page.getByRole('button', { name: 'View your agent at the table', exact: true }).click();
+    if (viewport.width < 1100) {
+      await expect(page.getByRole('button', { name: 'Conversation', exact: true })).toHaveAttribute('aria-pressed', 'true');
+      await expect(composer).toHaveValue('Be patient.');
+      await page.getByRole('button', { name: 'Stats', exact: true }).click();
+    }
     await expect(page.getByRole('button', { name: 'Stats', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByText('Stack at this table', { exact: true })).toBeVisible();
     if (viewport.width < 1100) {
@@ -500,7 +524,10 @@ for (const { viewport, guest = false, casino = 'start' } of [
     await page.screenshot({ path: testInfo.outputPath('in-game-agent-stats.png') });
     const desktop = viewport.width >= 1100;
     if (!desktop) {
-      const lastStat = page.locator('.watch-agent-stats dl > div').last();
+      const skills = page.locator('.watch-agent-stats .attr-cluster > div');
+      await expect(skills).toHaveCount(4);
+      const lastStat = skills.last();
+      await expect(lastStat).toContainText('DECEPTION');
       await lastStat.scrollIntoViewIfNeeded();
       await expect(lastStat).toBeInViewport({ ratio: 1 });
       await expect(page.getByRole('button', { name: 'Back to table', exact: true })).toBeInViewport({ ratio: 1 });

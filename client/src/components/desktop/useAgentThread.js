@@ -11,6 +11,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
 import { useCommandAgent } from '../../lib/useCommandAgent.js';
+import { useProposalAcceptance } from '../../lib/useProposalAcceptance.js';
+import { savedChatMessage } from '../../lib/conversationReports.js';
+import { usePrivateAgentRefresh } from '../../lib/usePrivateAgentRefresh.js';
+import { useConversationUpdates } from '../../lib/useConversationUpdates.js';
 
 // WIRE-1: the opener is HIS, and the server writes it — MOOD-2c puts it on the
 // agent as `opener`, chosen by how hot he is and by the one hand he cannot let
@@ -40,11 +44,13 @@ export function openerFor(agent) {
 
 export function useAgentThread(suppliedAgent, { onCommand } = {}) {
   const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
+  const privateRead = usePrivateAgentRefresh(suppliedAgent?.id, acceptCommand);
   const userId = getUserId();
   const [chat, setChat] = useState([]);
+  const [seededAgent, setSeededAgent] = useState(null);
   const [hasHands, setHasHands] = useState(false);
   const [sending, setSending] = useState(false);
-  const [accepting, setAccepting] = useState(false);
+
   const [mood, setMood] = useState(null);
   const [cause, setCause] = useState(null);
   const [error, setError] = useState('');
@@ -58,6 +64,7 @@ export function useAgentThread(suppliedAgent, { onCommand } = {}) {
   useEffect(() => {
     const token = ++conversation.current;
     sendBusy.current = false;
+    setSeededAgent(null);
     setSending(false);
     if (!agentId) return undefined;
     let cancelled = false;
@@ -70,9 +77,11 @@ export function useAgentThread(suppliedAgent, { onCommand } = {}) {
     const seed = () => {
       if (cancelled) return;
       const history = Array.isArray(agent.chatHistory) ? agent.chatHistory.filter(m => ['user','assistant'].includes(m.role) && typeof m.content === 'string') : [];
-      const msgs = history.length ? history.map(m => mkMsg(m.role,m.content)) : [mkMsg('assistant', openerFor(agent))];
+      const msgs = (history.length ? history.map(m => savedChatMessage(m, mkMsg)) : [mkMsg('assistant', openerFor(agent))])
+        .map(message => ({ ...message, _seeded: true }));
       if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
       setChat(prev => [...msgs, ...prev.filter(m => m._id > startedAtId)]);
+      setSeededAgent(agentId);
     };
 
     fetch(
@@ -86,6 +95,8 @@ export function useAgentThread(suppliedAgent, { onCommand } = {}) {
     return () => { cancelled = true; if (conversation.current === token) conversation.current++; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
+
+  useConversationUpdates({ agent, privateRead, seededAgent, setChat, mkMsg });
 
   const send = useCallback(async (text, { onResult } = {}) => {
     const content = text.trim();
@@ -136,30 +147,9 @@ export function useAgentThread(suppliedAgent, { onCommand } = {}) {
     }
   }, [agentId, userId, suppliedAgent, onCommand]);
 
-  const acceptProposal = useCallback(async (msgId) => {
-    if (!agentId) return;
-    setAccepting(true);
-    try {
-      const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}/proposal/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-        body: JSON.stringify({ userId }),
-      });
-      if (!res.ok) throw new Error('accept failed');
-      setChat((prev) => prev.map((m) => (m._id === msgId ? { ...m, role: 'accepted' } : m)));
-      const chatRes = await fetch('/api/agents/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-        body: JSON.stringify({ userId, content: 'My proposed change was just accepted.', existingAgentId: agentId }),
-      });
-      const reply = ((await chatRes.json()).chat || []).filter((m) => m.role === 'assistant').pop();
-      if (reply) setChat((prev) => [...prev, mkMsg('assistant', reply.content)]);
-    } catch {
-      // silent — the card stays visible so the owner can retry
-    } finally {
-      setAccepting(false);
-    }
-  }, [agentId, userId]);
+  const { accepting, acceptProposal, error: proposalError } = useProposalAcceptance({
+    agentId, chat, setChat, mkMsg, acceptAgent: acceptCommand, onRefresh: onCommand,
+  });
 
-  return { agent, chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride: mood, causeOverride: cause };
+  return { agent, chat, hasHands, sending, accepting, send, acceptProposal, error: proposalError || error, moodOverride: mood, causeOverride: cause };
 }

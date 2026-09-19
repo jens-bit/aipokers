@@ -10,9 +10,9 @@
 //      process.cwd() ('data/agents.json', 'data/notifications.json', …), so
 //      running a script from a scratch directory keeps the E2E suites off the
 //      developer's real data/ — which they used to write into.
-//   2. No live model calls. ANTHROPIC_API_KEY is stripped from every child's
-//      environment by default (TEST-2). getAgentAction falls back to a
-//      deterministic check/fold without it; with a key the agents play real
+//   2. No live model calls. Provider keys are stripped from every child's
+//      environment by default (TEST-2). getAgentAction uses the compiled
+//      policy without them; with a key the agents play model-driven
 //      hands, the hands differ every run, and verify-multi-seat.js failed
 //      intermittently on whichever laptop happened to have the key exported.
 //      A suite whose result depends on the developer's shell is not a test.
@@ -53,7 +53,7 @@ function stripTestRunnerEnv(childEnv) {
 // Runs `node <scriptPath>` and resolves { code, output, ms }.
 // isolateCwd:     run in a fresh scratch directory (removed afterwards) so the
 //                 script's data/ writes never land in the repo.
-// allowLiveModel: keep ANTHROPIC_API_KEY in the child's environment. Off by
+// allowLiveModel: keep provider keys in the child's environment. Off by
 //                 default and there is currently no caller that turns it on —
 //                 anything that genuinely wants a live model belongs in
 //                 `npm run test:live`, not in a suite CI runs.
@@ -68,7 +68,10 @@ export function runScript(scriptPath, {
     : ROOT;
 
   const childEnv = { ...process.env, NODE_NO_WARNINGS: '1', ...env };
-  if (!allowLiveModel) delete childEnv.ANTHROPIC_API_KEY;
+  if (!allowLiveModel) {
+    delete childEnv.ANTHROPIC_API_KEY;
+    delete childEnv.OPENAI_API_KEY;
+  }
   stripTestRunnerEnv(childEnv);
 
   return new Promise((resolve) => {

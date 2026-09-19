@@ -38,3 +38,13 @@
 .csn-floor58__counter { top: 0; bottom: auto; }
 .csn-floor58__barlabel { top: 7px; bottom: auto; }
 .csn-floor58__standing { top: 28px; bottom: auto; }
+
+/* BUG-266: desktop's right column can use the floor's full height. The phone
+   42% cap clipped its primary action; an oversized preview also squeezed the
+   room below native scale. Keep flex sizing for shorter desktop windows. */
+.csn--desk-room > .csn-your { max-height: 300px; }
+.csn-floor--desk .csn-floor__board--play { max-height: none; }
+.csn-floor--desk .csn-floor-play > button { min-height: 44px; }
+@media (max-height: 760px) {
+  .csn--desk-room > .csn-your { max-height: 280px; gap: 4px; }
+}

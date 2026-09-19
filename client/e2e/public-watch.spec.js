@@ -203,7 +203,7 @@ for (const { theme, viewport } of CASES) {
     await expect(opponentRead).toHaveCount(0);
     await expect(table).toBeVisible();
     expect(await page.evaluate(() => window.__publicWatchWire.filter(m => m.type === 'watch').length)).toBe(watchCount);
-    await table.getByRole('button', { name: desktop ? 'Back to the room' : 'Leave table', exact: true }).click();
+    await table.getByRole('button', { name: desktop ? 'Back to the room' : 'Stop watching', exact: true }).click();
     await expect(home).toBeVisible();
     const wire = await page.evaluate(() => window.__publicWatchWire);
     const views = await page.evaluate(() => window.__publicWatchViews);

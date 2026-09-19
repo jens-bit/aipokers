@@ -2340,6 +2340,10 @@
 .dsk-casino-table__sit-out {right:12px;top:12px;}
 .dsk-casino-table__name {position:absolute;right:14px;top:17px;color:var(--dsk-dim);font:11px var(--dsk-mono);pointer-events:none;}
 .dsk-casino-table__notice {position:absolute;left:50%;top:18px;transform:translateX(-50%);font-size:12px;color:var(--dsk-gold);}
+.dsk-watch-return {padding:10px 14px;border-bottom:1px solid var(--v5-edge-up);}
+.dsk-watch-return button {min-height:44px;padding:8px 14px;background:var(--v5-panel);color:var(--text-primary);border:1px solid var(--v5-edge-up);border-radius:8px;cursor:pointer;}
+.dsk-watch-return button:disabled {color:var(--text-secondary);cursor:default;opacity:1;}
+.dsk-watch-return p {margin:6px 0 0;color:var(--text-secondary);font-size:12px;line-height:16px;}
 .dsk-panel--watch.is-conversation .dsk-apanel {border:0;background:none;}
 .dsk-panel--watch.is-conversation .dsk-apanel__body {padding:0;}
 .dsk-panel--watch.is-conversation .thread-row {margin-bottom:12px;}

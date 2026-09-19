@@ -5642,6 +5642,7 @@ export class Table {
       street: this.game.street,
       action,
       reasoning,
+      ...(decision.fallback ? { fallback: decision.fallback } : {}),
       holeCards: [...this.game.seats[aiSeat].holeCards],
       community: [...this.game.community],
       equity: gameState.equity,

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { appendOwnerReport, sessionReportText } from './ownerReports.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { spokenOwnerReply } from './ownerReply.js';
 import { ownerCommand, commandQuestion, conversationMessages, unearnedActionReply, OWNER_MESSAGE_MAX } from './ownerCommands.js';
@@ -1738,6 +1739,7 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
   const profile = getOrCreate(userId ?? 'anon');
   const agent = profile.agents.find((a) => a.id === agentId);
   if (!agent) return null;
+  const reportId = sessionEnd?.sessionId ?? tableId ?? agent.activeTableId;
   if (agent.activeTableId) activeTables.delete(agent.activeTableId);
   agent.status = 'idle';
   agent.activeTableId = null;
@@ -1779,6 +1781,11 @@ export function finishAgentSession(agentId, userId, { recap = null, sessionPnl =
     // No recap line to show, but the thread still has to open in his voice.
     agent.sessionRecap = { ...(agent.sessionRecap ?? {}), text: agent.sessionRecap?.text ?? null, opener, at: Date.now() };
   }
+  // BUG-264: an opener is only a fallback once a private conversation exists.
+  // File this completed stay beside the owner's earlier exchanges so its
+  // result is still there when they return. No live-table/public chat write.
+  appendOwnerReport(agent, { kind: 'session', id: reportId,
+    content: sessionReportText({ hands: sessionEnd?.hands ?? sessionHands, net: sessionEnd?.net ?? sessionPnl, opener }) });
   // Append to session log (cap 10)
   ensureStats(agent);
   // RELATE-1a: the owner ledger compresses on the session cadence, the same
@@ -2394,6 +2401,7 @@ export function maybeCreateProposal(agent) {
   }
 
   if (built) {
+    built.id = randomUUID();
     agent.proposal = built;
     return built;
   }
@@ -2644,8 +2652,18 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   ].filter(key => key in agent).map(key => [key, agent[key]]));
   // HOME-2: this action belongs only to the owner's Home animation channel.
   delete record.homeItem;
+  delete record.lastProposalAcceptance;
+  delete record.ownerReportIds;
+  // BUG-259: reopening Watch must retain a requested return. Read the live
+  // departure queues, never persist a second copy of the seat lifecycle.
+  const returnTable = owner ? (liveTables?.tableOfAgent?.(agent.id)
+    ?? (agent.activeTableId ? liveTables?.getTable?.(agent.activeTableId) : null)) : null;
+  const returnSeat = returnTable?.agentIds?.indexOf(agent.id) ?? -1;
+  const returnPending = !!(returnTable && !returnTable.home && !returnTable.closed && returnSeat >= 0
+    && (returnTable._benchAfterHand?.has(returnSeat) || returnTable.seatLeaving?.[returnSeat]));
   return {
     ...record,
+    ...(owner ? { returnPending } : {}),
     // WALLET-1: the pocket rides the agent list projection, so the floor, the
     // profile's pocket line and the wallet screen all read it from the call
     // they already make. Money and stakes only — never an attribute or a mood.
@@ -3053,6 +3071,17 @@ export function appendAgentRead(agentId, userId, entry) {
   saveStore(userId ?? 'anon');
   emitAgentChange(userId);
   return agent.readBook;
+}
+
+// A tape report is earned only after finishStudy has filed the actual read.
+// Start acknowledgements and timer/reconnect projections cannot call this.
+export function reportAgentStudy(agentId, userId, { startedAt, handNumber, text } = {}) {
+  if (!Number.isFinite(startedAt) || typeof text !== 'string' || !text.trim()) return null;
+  const agent = getOrCreate(userId ?? 'anon').agents.find(a => a.id === agentId);
+  const report = appendOwnerReport(agent, { kind: 'study', id: `${startedAt}:${handNumber ?? ''}`,
+    content: `I finished ${handNumber == null ? 'the tape' : `hand #${handNumber}`}. ${text}` });
+  if (report) { saveStore(userId ?? 'anon'); emitAgentChange(userId); }
+  return report;
 }
 
 /** His read book, as the tape room serves it: one entry per opponent. */
@@ -6697,7 +6726,29 @@ export function installAgentProfileRoutes(app) {
     const visitRefusal = visitActionRefusal(agent);
     if (visitRefusal) return res.status(visitRefusal.status).json(visitRefusal.body);
 
-    const finishedTableId = agent.activeTableId ?? null;
+    // BUG-259: a Watch action names the stay the owner actually saw. A slow
+    // request must not bench a later deployment of this same agent. Older
+    // callers without these fields still mean his current session.
+    const { expectedTableId, expectedSessionId } = req.body ?? {};
+    for (const value of [expectedTableId, expectedSessionId]) {
+      if (value !== undefined && (typeof value !== 'string' || !value.trim())) {
+        return res.status(400).json({ error: 'Invalid return session identity.' });
+      }
+    }
+    const candidateTable = liveTables?.tableOfAgent?.(agentId)
+      ?? (agent.activeTableId ? liveTables?.getTable?.(agent.activeTableId) : null);
+    const liveSeatTable = candidateTable && !candidateTable.closed ? candidateTable : null;
+    const liveSeat = liveSeatTable
+      ? (typeof liveSeatTable.seatOfAgent === 'function'
+        ? (liveSeatTable.seatOfAgent(agentId) ?? -1)
+        : (liveSeatTable.agentIds?.indexOf(agentId) ?? -1)) : -1;
+    const liveSessionId = liveSeat >= 0 ? (liveSeatTable.sessionIdAtSeat?.(liveSeat)
+      ?? liveSeatTable.sessionIdFor?.(agentId) ?? null) : null;
+    if ((expectedTableId !== undefined && (liveSeat < 0 || expectedTableId !== liveSeatTable.tableId))
+      || (expectedSessionId !== undefined && (liveSeat < 0 || expectedSessionId !== liveSessionId))) {
+      return res.status(409).json({ error: 'His session has changed. Reopen Watch before bringing him home.' });
+    }
+    const finishedTableId = liveSeat >= 0 ? liveSeatTable.tableId : (agent.activeTableId ?? null);
 
     // MONEY-1 jobs 3 and 5 — TAKE HIM OUT OF THE CHAIR FIRST.
     //
@@ -6717,17 +6768,24 @@ export function installAgentProfileRoutes(app) {
     // real ceremony through finishAgentSession, which is what settles the
     // money — so this route stops trying to end a session by forgetting about
     // it. `activeTableId` stays set until the table actually releases him.
-    const liveSeatTable = finishedTableId ? (liveTables?.getTable?.(finishedTableId) ?? null) : null;
-    const liveSeat = liveSeatTable ? (liveSeatTable.agentIds?.indexOf(agentId) ?? -1) : -1;
-    if (liveSeatTable && liveSeat >= 0 && typeof liveSeatTable.sitOutSeat === 'function') {
+    if (liveSeatTable && liveSeat >= 0) {
       try {
+        // The live chair owns the money even if stored metadata lost it.
+        // Repair before sitOutSeat: the immediate path may finish the stay
+        // synchronously, and its cleared record must remain cleared.
+        agent.activeTableId = finishedTableId;
+        agent.status = 'playing';
+        activeTables.add(finishedTableId);
         liveSeatTable.sitOutSeat(liveSeat, { afterHand: true });
         agent.unseenRecap = true;
         saveStore(userId);
         emitAgentChange(userId);
         return res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
       } catch (err) {
-        console.error('[agents] could not sit him out, ending the record instead:', err.message);
+        console.error('[agents] could not request his return:', err.message);
+        // A failed release is not evidence that the chair disappeared. Never
+        // refund the buy-in while those same chips may still be on the felt.
+        return res.status(503).json({ error: 'Could not request his return. Please try again.' });
       }
     }
 
@@ -6811,12 +6869,39 @@ export function installAgentProfileRoutes(app) {
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
-    if (!agent.proposal) return res.status(400).json({ error: 'no active proposal' });
+    // BUG-260: consent belongs to the exact card the owner read. A lost HTTP
+    // response can be retried without applying its deltas again or accepting
+    // a different proposal that appeared in the meantime. Keep one receipt.
+    const proposalId = typeof req.body?.proposalId === 'string' ? req.body.proposalId : '';
+    const respond = receipt => res.json({
+      ...presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }),
+      proposalAcceptance: receipt,
+    });
+    if (proposalId && agent.lastProposalAcceptance?.proposalId === proposalId) return respond(agent.lastProposalAcceptance);
+    const currentId = agent.proposal?.id ?? agent.proposal?.createdAt;
+    if (!proposalId || currentId == null || proposalId !== String(currentId)) {
+      return res.status(409).json({ error: 'This proposal has changed. Reopen the conversation to review the current change.' });
+    }
+    ensureProfile(agent);
+    const before = { ...agent.profile };
     recordOwnerEvent(agent, 'proposal_accepted', { what: agent.proposal.text });
     applyProposalPatch(agent, agent.proposal.suggestedPatch);
+    const labels = { tightness: 'Tightness', aggression: 'Aggression', bluffFreq: 'Bluff frequency', discipline: 'Discipline' };
+    const changes = Object.entries(labels).filter(([key]) => before[key] !== agent.profile[key])
+      .map(([key, label]) => `${label}: ${before[key]}% → ${agent.profile[key]}%`);
+    // Both casino and kitchen chairs keep the policy/strategy they seated.
+    // Saving a new profile changes the next seating, not an ongoing hand.
+    const table = liveTables?.tableOfAgent?.(agentId, { includeHome: true });
+    const seated = table && !table.closed && table.seatOfAgent?.(agentId) != null;
+    const reply = `Strategy change saved.${changes.length ? ` ${changes.join('; ')}.` : ''}`
+      + (seated ? ' I’ll use it next time I sit down.' : '');
+    agent.lastProposalAcceptance = { proposalId, reply };
     agent.proposal = null;
+    agent.ownerCommandRevision = Math.max(0, Number(agent.ownerCommandRevision) || 0) + 1;
+    agent.chatHistory = [...(Array.isArray(agent.chatHistory) ? agent.chatHistory : []), { role: 'assistant', content: reply }].slice(-12);
     saveStore(userId);
-    res.json(presentAgent(agent, { owner: isOwner(req, userId), wallet: walletFor(userId) }));
+    emitAgentChange(userId);
+    respond(agent.lastProposalAcceptance);
   });
 
   // POST /api/agents/:agentId/proposal/reject — clear the pending proposal.

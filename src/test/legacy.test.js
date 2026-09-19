@@ -69,6 +69,16 @@ describe('src/**/*.test.js', { concurrency: 4 }, () => {
     }
   });
 
+  it('offline suites discard both provider keys even when explicitly inherited', async () => {
+    const probe = path.join(os.tmpdir(), `aipoker-offline-${process.pid}.mjs`);
+    fs.writeFileSync(probe, 'console.log(JSON.stringify([!!process.env.ANTHROPIC_API_KEY, !!process.env.OPENAI_API_KEY]));\n', 'utf8');
+    try {
+      const result = await runScript(probe, { env: { ANTHROPIC_API_KEY: 'fixture-only', OPENAI_API_KEY: 'fixture-only' } });
+      assert.equal(result.code, 0, result.output);
+      assert.deepEqual(JSON.parse(result.output.trim()), [false, false]);
+    } finally { fs.rmSync(probe, { force: true }); }
+  });
+
   for (const file of files) {
     const rel = path.relative(SRC, file).split(path.sep).join('/');
     const liveReason = LIVE.get(rel);

@@ -42,10 +42,11 @@ describe('HOME-3: Profile hydrates the agent opened from Home', () => {
     expect(fetchMock.requests).toHaveLength(0);
   });
 
-  it('reads real stats and skills after compact Home opens Chat and Profile before roster REST completes', async () => {
-    const roster = deferred(), detail = deferred(), user = userEvent.setup();
+  it('BUG-264: Profile hydrates real stats after cancelling the compact Home chat refresh before roster REST completes', async () => {
+    const roster = deferred(), chatDetail = deferred(), detail = deferred(), user = userEvent.setup();
+    let profileReads = 0;
     fetchMock.route('/api/agents?', () => roster.promise);
-    fetchMock.route('/api/agents/a1?', () => detail.promise);
+    fetchMock.route('/api/agents/a1?', () => ++profileReads === 1 ? chatDetail.promise : detail.promise);
     render(<App />);
     await screen.findByTestId('home-screen');
     act(() => {
@@ -54,19 +55,31 @@ describe('HOME-3: Profile hydrates the agent opened from Home', () => {
       socket.emit({ type: 'home_state', userId: '4242', agents: [compact], game: null });
     });
     await user.click(await screen.findByRole('button', { name: /^The Clock — / }));
+    await waitFor(() => expect(detailsRead('a1')).toHaveLength(1));
+    const chatRequest = fetch.mock.calls.find(([url]) => url.startsWith('/api/agents/a1?'));
+    expect(chatRequest[1].signal.aborted).toBe(false);
     await user.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
     await screen.findByRole('region', { name: 'Career' });
     expect(career().getAllByText('—')).toHaveLength(5);
     expect(career().queryByText('0')).toBeNull();
 
-    // Home is gone, so completing its old roster request cannot hydrate the
-    // agent handed to Chat. Profile must ask for its own full record.
+    // Both Home's roster and Chat's private refresh belonged to closed views.
+    // Profile must hydrate from its own authenticated request, even if those
+    // older requests complete later with different data.
     await act(async () => { roster.resolve({ agents: [detailed] }); });
-    await waitFor(() => expect(detailsRead('a1')).toHaveLength(1));
-    expect(detailsRead('a1')[0]).toMatchObject({
-      url: '/api/agents/a1?userId=4242',
-      headers: { 'x-telegram-init-data': telegram.webApp.initData },
-    });
+    await waitFor(() => expect(detailsRead('a1')).toHaveLength(2));
+    const requests = fetch.mock.calls.filter(([url]) => url.startsWith('/api/agents/a1?'));
+    expect(chatRequest[1].signal.aborted).toBe(true);
+    expect(requests[1][1].signal.aborted).toBe(false);
+    for (const request of detailsRead('a1')) expect(request).toMatchObject({
+        url: '/api/agents/a1?userId=4242',
+        headers: { 'x-telegram-init-data': telegram.webApp.initData },
+      });
+    await act(async () => { chatDetail.resolve({ ...detailed, ownerCommandRevision: 99, careerStats: { hands: 999 },
+      attrLog: [{ key: 'READS', from: 61, to: 62, cause: 'Stale chat history.', ts: Date.now() }] }); });
+    expect(career().getAllByText('—')).toHaveLength(5);
+    expect(career().queryByText('999')).toBeNull();
+    expect(screen.queryByText('Stale chat history.')).toBeNull();
     await act(async () => { detail.resolve(detailed); });
     expect(career().getByText('123')).toBeInTheDocument();
     expect(career().getByText('42%')).toBeInTheDocument();

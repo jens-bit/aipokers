@@ -33,7 +33,8 @@
 //      whole file is free, which is why it is in a tree about cost at all —
 //      it is the one place the product got MORE alive without the bill moving.
 //
-//   4. THE SAME PATH THE BUTTON TAKES. It calls startStudy, so the study is
+//   4. THE SAME PATH THE BUTTON TAKES. It calls beginStudy, so admission and
+//      the single household TV are checked before claiming an allowance. It is
 //      the same record, the ninety seconds are the same ninety seconds, the
 //      read it writes is written the same way, and the HOME screen draws him
 //      the same. Nothing here is a second implementation of studying.
@@ -43,13 +44,8 @@
 //      exchange, and "who is home doing nothing" is exactly the question a
 //      standing change answers.
 
-import {
-  getAgentTape,
-  getFlaggedHand,
-  claimSelfStudy,
-  getAgentAttributes,
-} from './agentProfiles.js';
-import { startStudy, lineFor, subjectOf, isStudying } from './tapeRoom.js';
+import { getAgentTape } from './agentProfiles.js';
+import { beginStudy, subjectOf } from './tapeRoom.js';
 import { Where } from './home.js';
 
 // Rule 1. Two is enough to be a habit and few enough that a man who is in all
@@ -71,6 +67,8 @@ export const MIN_SALIENCE = Number(process.env.TAPE_MIN_SALIENCE ?? 0.25);
 export function idleAtHome(agent) {
   return !!agent
     && agent.location?.where === Where.HOME
+    && !agent.homeTableId
+    && !agent.liveGame?.home
     && !agent.study
     && agent.fatigue !== 'worn';
 }
@@ -101,33 +99,18 @@ export function pickHand(agentId, userId, { now = Date.now() } = {}) {
 export function maybeStudy(agent, userId, { now = Date.now() } = {}) {
   if (!idleAtHome(agent)) return null;
   const agentId = agent.id;
-  // The module-level timer map is the fast, authoritative answer for "is he in
-  // there right now" — the record can lag it by a save.
-  if (isStudying(agentId)) return null;
-
   const hand = pickHand(agentId, userId, { now });
   if (!hand) return null;
 
-  // Claimed BEFORE the study starts: the day and the count are stamped on the
-  // record first, so a failure past this point costs him one of today's two
-  // rather than retrying on the next tick and spending them both on a hand it
-  // cannot start.
-  if (!claimSelfStudy(agentId, userId, { limit: SELF_STUDY_PER_DAY, now })) return null;
-
-  const stored = getFlaggedHand(agentId, userId, hand.handNumber);
-  if (!stored) return null;
-  const subject = subjectOf(stored.hand);
-  if (!subject) return null;
-
-  const text = lineFor(stored.hand, subject, {
-    reads: getAgentAttributes(agentId, userId)?.attrs?.READS ?? null,
+  const result = beginStudy(agentId, userId, {
+    handId: hand.handNumber, now, selfStudyLimit: SELF_STUDY_PER_DAY,
   });
-  const study = startStudy(agentId, userId, { hand: stored.hand, subject, text, now });
+  if (result.status !== 200) return null;
   console.log(
     `[tape] ${agent.name || agentId} put on hand ${hand.handNumber} himself ` +
     `(${hand.flagType}, salience ${hand.salience}) — nobody asked him to`,
   );
-  return study;
+  return result.body.study;
 }
 
 /**

@@ -1358,7 +1358,7 @@ describe('WatchScreen controls', () => {
     const onSitOut = vi.fn();
     renderWatch(midHandGame, { onLeave, onSitOut });
 
-    screen.getByRole('button', { name: 'Leave table' }).click();
+    screen.getByRole('button', { name: 'Stop watching' }).click();
 
     expect(onLeave).toHaveBeenCalled();
     expect(onSitOut).not.toHaveBeenCalled();

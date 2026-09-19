@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       # Discovers every src/**/*.test.js and the fast scripts/verify-*.js.
-      # No ANTHROPIC_API_KEY is set here, and the runner strips it regardless.
+      # No provider keys are set here; the runner strips both providers' keys.
       - name: Server tests
         run: npm test
 
@@ -89,15 +89,12 @@ jobs:
       # far more than 60 API calls a minute from one address; and the hand pause
       # is shortened so the felt has something on it by the time the spec looks.
       #
-      # HOME_PAUSE_MS is the kitchen table's own pause, and it is thirty
-      # seconds in production on purpose (homeGame.js bound one: nobody is
-      # waiting on that game and every hand costs tokens). SIT-1 sits down at
-      # it and waits for the action to reach him, so at the shipped tempo the
-      # walk would spend its whole budget watching a table think. Shortened
-      # for the same reason HAND_PAUSE_MS is, and nowhere but here.
+      # HOME_PAUSE_MS is the kitchen table's own pause (normally three
+      # seconds). Home decisions use the free policy. Shorten only this test
+      # process so human-seat journeys can reach several decision boundaries.
       #
-      # No ANTHROPIC_API_KEY and no TELEGRAM_BOT_TOKEN, deliberately: decisions
-      # are the check/fold fallback, and auth is open, which is what lets the
+      # No provider keys and no TELEGRAM_BOT_TOKEN, deliberately: decisions
+      # use the compiled policy fallback, and auth is open, which lets the
       # spec seed its two owners over plain HTTP.
       - name: Start the server
         run: |
@@ -142,7 +139,7 @@ jobs:
       # BUG-232/233 assertions, with no retries masking a failure.
       - name: Railbird Home, casino and Watch regressions
         working-directory: client
-        run: npx playwright test e2e/home.spec.js e2e/desk.spec.js e2e/floor-recovery.spec.js e2e/watch-repair.spec.js e2e/watch-switch.spec.js e2e/roster-ink.spec.js e2e/home-pill.spec.js e2e/home-bubble-anatomy.spec.js e2e/owner-commands.spec.js
+        run: npx playwright test e2e/home.spec.js e2e/desk.spec.js e2e/floor-recovery.spec.js e2e/watch-repair.spec.js e2e/watch-switch.spec.js e2e/roster-ink.spec.js e2e/home-pill.spec.js e2e/home-bubble-anatomy.spec.js e2e/owner-commands.spec.js e2e/first-session.spec.js e2e/watch-return.spec.js
 
       # Always: a red run is exactly when the pictures and the server log are
       # worth having.

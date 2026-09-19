@@ -23,9 +23,9 @@ Observe quietly for roughly ten minutes. If they ask for help, record the point 
 | Entry and birth | Time to find the draft; confusing choices; whether they notice their created agent at Home and the brief first-arrival guidance |
 | First hand | How they reach actual Watch; confusion over who makes decisions; whether the short arrows help them use the real controls; what they do if the kitchen table is quiet |
 | Guidance and return | Whether they use or skip it; distracting or obscured targets; whether returning Home or reloading causes an unwanted repeat |
-| Casino entry and return | Whether a chosen room deals with an opponent; whether leaving Watch and returning makes the agent easy to find |
+| Casino entry and return | Whether a chosen room deals with an opponent; whether leaving Watch and returning makes the agent easy to find; whether Stop watching and Bring home communicate different outcomes |
 | Result | Their explanation of the actual hand: who won and why, and whether they distinguish the pot from their agent's or their own net change when shown |
-| Conversation | Their own question, response understood, failed sends/recovery and whether the reply answers them |
+| Conversation | Their own question, response understood, failed sends/recovery and whether the reply answers them; notice of a completed session/study report or a proposed strategy change when one naturally occurs |
 | Next step | What they choose without a suggestion: chat, another hand, human play, casino, Home, or stopping |
 | Friction | Hesitations, repeated taps, wrong turns, unreadable details, speed complaints, requests for help |
 
@@ -39,6 +39,13 @@ After the journey, ask without correcting them first:
 Assess the actual hand and current agent whereabouts, including whether the agent kept playing after the tester left Watch. A tester can understand the result without knowing formal hand vocabulary.
 
 After the unaided segment, separately check any once-only behavior not naturally observed: skip or finish the remaining guidance, return Home, then reload. Record whether it stays dismissed. Do not count these directed checks as part of unaided completion or ask the tester to restart a separate lesson.
+
+For the September recovery candidate, also check Bring home after this unaided
+segment: ask the tester what they expect, request it during a hand, and observe
+the pending state, settled chips and saved session report. If a strategy proposal
+or study is available, observe whether its choice and eventual receipt make
+sense. Do not create artificial events during the unaided journey or count
+these directed checks toward its success rate.
 
 ## Initial decision rule
 

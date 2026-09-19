@@ -878,7 +878,7 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       expect(Math.abs(roomBox.y - (headerBox.y + headerBox.height))).toBeLessThanOrEqual(1);
     });
   }
-  test('BUG-51: the first-agent action stays clear of the TV and can be clicked', async ({ page }) => {
+  test('BUG-51: the first-agent action stays clear of the TV and can be clicked', async ({ page }, testInfo) => {
     await page.route('**/api/slots**', route => route.fulfill({ json: { used: 0, cap: 4, next: { index: 1, price: 0, earned: 0, unlocked: true } } }));
     await room(page, { agents: [], game: null });
     const action = page.locator('.home1__ftu-draft');
@@ -886,7 +886,7 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
     const actionBox = await action.boundingBox();
     const tvBox = await page.getByTestId('home-tv').boundingBox();
     expect(actionBox.y + actionBox.height).toBeLessThan(tvBox.y);
-    const actual = await page.screenshot({ path: 'e2e/__screenshots__/home-empty-repaired.png' });
+    const actual = await page.screenshot({ path: testInfo.outputPath('home-empty-repaired.png') });
     // Optional local reference server: render the design itself for the
     // integrator's side-by-side review. Ordinary test runs need no board server.
     if (process.env.DESIGN_REF_URL) {

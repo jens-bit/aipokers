@@ -119,7 +119,7 @@ for (const width of [390, 1440]) test(`WATCH-MULTI-1: repeated table switches ke
     }
     if (turn < 3) {
       await page.evaluate(() => window.__watchSwitch.queueCurrent());
-      await page.getByRole('button', { name: width === 390 ? 'Leave table' : 'Back home', exact: true }).click();
+      await page.getByRole('button', { name: width === 390 ? 'Stop watching' : 'Back home', exact: true }).click();
       await expect(page.getByTestId('home-frame-switch-a')).toBeVisible();
     }
   }

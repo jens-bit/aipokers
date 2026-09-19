@@ -1,5 +1,76 @@
 # Bug Report — Railbird
 
+## Playability audit — 2026-09-19
+
+Current work and final validation: `read-me-claude/RAILBIRD_PLAYABILITY_AUDIT.md`
+on `codex/railbird-recovery-audit`. Earlier reports below remain historical.
+
+### BUG-259 — Watch has no reliable owned-agent return control — FIXED in review
+Stop watching and Bring home are separate actions. Bring home uses the real
+after-hand lifecycle, displays pending return across reopening and preserves
+funding mode/cap until actual settlement. Signed server and real WebSocket
+browser tests verify no immediate fold, duplicate payment or spectator side effect.
+At 320px the explicit stop label now shares a compact two-line identity header;
+the agent name, guidance target and separate 44px controls remain in bounds.
+
+### BUG-260 — proposal acceptance can fail silently or update the wrong conversation — FIXED in review
+Acceptance identifies the exact stored proposal, applies it once and returns
+the actual saved profile with a private receipt. Failed requests show retry
+feedback; stale responses cannot cross conversations. Acknowledgement no longer
+makes another model call. Real phone/desktop journeys cover save failure,
+retry and reopening the persisted change.
+While actually seated at the casino or kitchen, the receipt explains that
+the strategy applies at the next seating. The current session retains its
+strategy snapshot; real-seat tests verify the saved change on the next seating.
+
+### BUG-261 — model failure abandons the compiled poker policy — FIXED in review
+Missing configuration and provider/parse errors formerly defaulted to
+check/fold or an unconsidered call. They now use the compiled legal policy,
+with explicit fallback provenance and truthful usage for paid responses.
+Tests include illegal checks facing a bet, weak-hand folds, winning river
+calls, sizing bounds and actual table settlement with chip conservation.
+
+### BUG-262 — automatic study interrupts kitchen play and bypasses TV occupancy — FIXED in review
+Home location alone did not distinguish a kitchen seat from an idle companion.
+Both study entry points now check the authoritative live seat and shared TV.
+Automatic study uses the same admission service and only claims its daily
+allowance after admission. Real kitchen-hand and stale-roster tests preserve
+the hand; household sweeps admit one student, with other households independent.
+
+### BUG-263 — free decisions ignore their recorded FOCUS perception — FIXED in review
+The policy formerly acted on true equity/price while its hand record reported
+distorted perception. One pure calculation now drives policy, routing and
+briefing without mutating the true telemetry. Neutral/disabled controls are
+unchanged. A bounded comparison establishes changed low-FOCUS behavior, not
+a new win-rate claim. DISCIPLINE and opponent exploitation need separate measurement.
+
+### BUG-264 — completed sessions and studies leave no report in an existing conversation — FIXED in review
+Completed casino sessions and filed study reads now produce one deterministic
+private saved report, deduplicated independently of the short chat window.
+No public table speech, external notification or model call is added. Tests
+exercise actual completion and existing-history reopening with owner privacy.
+Open private conversations refresh their authenticated profile without model
+calls and merge only new activity reports, preserving drafts and pending replies.
+The first full profile also restores saved conversation after compact Home
+snapshots; later pending proposals become actionable without reopening chat.
+Accepted/withdrawn proposals and responses from a previous visit cannot replay.
+
+### BUG-265 — return screenshots capture an unfinished two-card deal — COVERAGE FIX in review
+Visual review appeared to show only one hole card. Runtime inspection found
+the second card in the intentional staggered deal, with both corners exposed
+after landing. No card-placement defect was reproduced and game timing stays
+unchanged. Captures now await both landed cards and verify separate visible
+rank/suit corners, alongside privacy, reveal and panel geometry.
+
+### BUG-266 — populated desktop floor clips the play action — FIXED in review
+A three-agent household at 1440×900 inherited the phone board's 42% height
+cap. The entry button extended below its panel and shrank below 44px, while
+an oversized Your Tables card reduced the actual casino room to 305px wide.
+The desktop board now uses the available height; the preview reserves 300px
+(280px on short desktop windows), and the primary action retains 44px.
+Populated-household tests at 1440×900 and 1280×720 verify containment and
+unobscured targets, while existing phone and desktop-felt checks remain green.
+
 ## Recovery follow-up — 2026-09-19
 
 Current evidence: `read-me-claude/RAILBIRD_RECOVERY_FOLLOWUP.md` on

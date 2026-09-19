@@ -1,5 +1,27 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Playability audit — companion decisions and activity (2026-09-19)
+
+On `codex/railbird-recovery-audit`, continuing the recovery. Owned-agent Watch
+now distinguishes stopping observation from bringing the agent home after
+the hand. Proposal acceptance saves the exact reviewed change, refreshes the
+actual profile and gives a retryable error or private receipt. Finished
+casino sessions and studies leave deterministic private conversation reports.
+Seated acceptance explains that the strategy takes effect next time he sits.
+Late profile loads restore saved chat and current proposal controls without
+losing drafts. Short-phone headers and skill panels retain readable content
+and reachable actions while the agent's cards stay above the panel.
+The populated desktop floor keeps its play action inside the panel and gives
+the room enough space without shrinking the live preview below its minimum.
+
+Missing or unusable model responses use the compiled legal poker policy.
+FOCUS now affects free decisions through the same perception used in the
+briefing and hand record; neutral behavior, profiles and rake are unchanged.
+Study admission protects live kitchen seats and the household's single TV,
+without consuming a daily automatic study when blocked. First-session browser
+coverage joins the CI gate. See `read-me-claude/RAILBIRD_PLAYABILITY_AUDIT.md`
+for the documented intended game, final validation and remaining evidence.
+
 ## Recovery follow-up — commands, table identity and economy (2026-09-19)
 
 On `codex/railbird-recovery-audit`, continuing the initial recovery commit.

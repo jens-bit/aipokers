@@ -13,6 +13,7 @@ import { WatchRail } from './WatchRail.jsx';
 import { WatchAccessNotice } from '../WatchScreen.jsx';
 import { useAgentThread } from './useAgentThread.js';
 import { useTableThread } from '../../hooks/useTableThread.js';
+import { useAgentReturn } from '../../hooks/useAgentReturn.js';
 import { FlaggedHandsSheet } from '../floor/FlaggedHandsSheet.jsx';
 import { splitFloor, standupLine } from '../floor/agentView.js';
 import { BirthCardRail } from './PlayerCardRail.jsx';
@@ -570,6 +571,7 @@ export function DesktopHome({
 // mounts while a table is actually on screen.
 function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines, draft, onDraftChange, onBack, onSitOut, guideBlocked = false, sessionEnd = null }) {
   const { chat, sending, send, error } = useAgentThread(agent);
+  const agentReturn = useAgentReturn({ agent, game, mySeat, sessionEnd });
   const composerRef=useRef(null);
   const [railView, setRailView] = useState('chat');
   useEffect(() => setRailView('chat'), [agent?.id, game?.sessionId, game?.tableId]);
@@ -608,6 +610,7 @@ function DeskWatch({ agent, game, mySeat, lastDecision, connection, threadLines,
         />
       </div>
       <WatchRail
+        agentReturn={agentReturn}
         composerRef={composerRef}
         conversationOnly
         view={railView}

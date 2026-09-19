@@ -17,6 +17,11 @@
 .watch-agent-sheet__head button, .watch-agent-sheet__views button { min-height: 44px; padding: 7px 12px; border: 1px solid var(--v5-edge-up); border-radius: 8px; color: var(--text-primary); background: transparent; cursor: pointer; }
 .watch-agent-sheet__views { display: flex; gap: 8px; margin: 6px 0 10px; flex-shrink: 0; }
 .watch-agent-sheet__views button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.watch-agent-sheet__views .watch-agent-sheet__return { margin-left: auto; white-space: nowrap; font-size: 12px; }
+.watch-agent-sheet__return:disabled { color: var(--text-secondary); cursor: default; opacity: 1; }
+.watch-agent-sheet__return-detail { flex: 0 0 auto; margin: -4px 0 6px; font-size: 11px; line-height: 14px; color: var(--text-secondary); }
+.watch-agent-sheet__return-detail[role="alert"] { color: var(--text-primary); }
+.watch-agent-sheet .thread-sheet__body > .watch-agent-sheet__empty { margin: 0; }
 .watch-agent-sheet__empty { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
 .watch-agent-sheet .thread-sheet__body { padding-bottom: 8px; scroll-padding-block: 8px; }
 .watch-agent-sheet .watch-agent-stats .attr-cluster > div:last-child { scroll-margin-bottom: 8px; }
@@ -98,6 +103,19 @@
   .watch-screen--agent-open .watch-felt--fill { --wv-pot: 133px; --wv-board: 130px; }
   .watch-screen--agent-open .watch-composer { padding-top: 8px; padding-bottom: 8px; }
   .watch-screen--agent-open .watch-composer__hint { display: none; }
+}
+/* BUG-259: on short phones (including an open keyboard), put Close beside
+   the view/action row. Two rows left only 31px for a 36px skill row at 590px.
+   The screen header still names the agent; the panel keeps its one-third
+   ceiling, the complete return status, and room to read the conversation. */
+@media (max-height: 700px) {
+  .watch-agent-sheet__head { position: absolute; top: 8px; right: 14px; }
+  .watch-agent-sheet__head > div { display: none; }
+  .watch-agent-sheet__head > .mood-ghost { display: none !important; }
+  .watch-agent-sheet__head button { padding: 7px 8px; font-size: 10px; }
+  .watch-screen--agent-open .watch-agent-sheet__views { margin: 0 68px 8px 0; gap: 4px; }
+  .watch-agent-sheet__views button,
+  .watch-agent-sheet__views .watch-agent-sheet__return { padding: 7px 8px; font-size: 10px; }
 }
 /* TABLE-2 job B: the four skills are the profile's own AttrCluster now, not
    a <dl> of bare figures — its rows come from agent-profile.css

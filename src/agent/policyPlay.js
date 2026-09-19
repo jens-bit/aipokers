@@ -42,6 +42,7 @@
 
 import { normalizeProfile } from './policy.js';
 import { fallbackLine } from './voice.js';
+import { perceivedMath } from './perceivedMath.js';
 
 // Two actions inside this band of each other are, as far as the compiled
 // policy is concerned, the same action. See rule 3.
@@ -68,7 +69,7 @@ const clamp = (n) => Math.max(0, Math.min(100, n));
 const DEFAULT_PROFILE = { tightness: 50, aggression: 50, bluffFreq: 25, discipline: 60 };
 
 /**
- * The pot odds this decision actually faces.
+ * The price this policy perceives, using the same FOCUS math as the briefing.
  *
  * With nothing to call, continuing is free and the pot odds are zero — which
  * is not the same as "unknown". gs.potOdds is null in that case (table.js only
@@ -77,7 +78,8 @@ const DEFAULT_PROFILE = { tightness: 50, aggression: 50, bluffFreq: 25, discipli
  */
 export function facingOdds(gs) {
   if (!(Number(gs?.toCall) > 0)) return 0;
-  return Number.isFinite(gs?.potOdds) ? gs.potOdds : 0;
+  const { potOdds } = perceivedMath(gs);
+  return Number.isFinite(potOdds) ? potOdds : 0;
 }
 
 /**
@@ -89,15 +91,16 @@ export function facingOdds(gs) {
  * the null that way.
  */
 export function marginOf(gs) {
-  if (!Number.isFinite(gs?.equity)) return null;
-  return Math.abs(gs.equity - facingOdds(gs));
+  const { equity } = perceivedMath(gs);
+  if (!Number.isFinite(equity)) return null;
+  return Math.abs(equity - facingOdds(gs));
 }
 
 // The appetite for putting money in, out of 100, before the passive line is
 // considered. Equity and the aggression slider carry it; the range verdict and
 // the bluff die are the policy's own two hands on it.
-function pushScore(gs, profile) {
-  const eq = Number.isFinite(gs?.equity) ? gs.equity : 0.5;
+function pushScore(gs, profile, equity) {
+  const eq = Number.isFinite(equity) ? equity : 0.5;
   let push = 55 * eq + 35 * (profile.aggression / 100);
 
   // A hand worth more than a coin flip is worth building a pot with, and the
@@ -130,11 +133,12 @@ function pushScore(gs, profile) {
 export function rateActions(gs) {
   if (!gs) return [];
   const profile = normalizeProfile(gs.policy?.profile ?? DEFAULT_PROFILE);
-  const push = pushScore(gs, profile);
+  const { equity } = perceivedMath(gs);
+  const push = pushScore(gs, profile, equity);
   const out = [];
 
   if (Number(gs.toCall) > 0) {
-    const edge = (Number.isFinite(gs.equity) ? gs.equity : 0.5) - facingOdds(gs);
+    const edge = (Number.isFinite(equity) ? equity : 0.5) - facingOdds(gs);
     let call = clamp(50 + EDGE_WEIGHT * edge);
     let fold = clamp(50 - EDGE_WEIGHT * edge);
     // A hand the range verdict threw out is one he is looking for a reason to
