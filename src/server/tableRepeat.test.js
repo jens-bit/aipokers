@@ -44,8 +44,8 @@ test('BUG-177: hand caps and private owner/decision lines do not replace the pub
   table.receiveWhisper('agent-one','Private owner instruction.');
   table._broadcastDecision({seat:0,action:{type:'call'},reasoning:'Private reasoning.',equity:0.6,potOdds:0.2});
   assert.equal(table._lastPublicAiLine[0],'Accepted public line.');
-  table.whisperReply('agent-one','An answer spoken aloud.');
-  assert.equal(table._lastPublicAiLine[0],'An answer spoken aloud.');
+  table.whisperReply('agent-one','A private answer to the owner.');
+  assert.equal(table._lastPublicAiLine[0],'Accepted public line.', 'BUG-257: private replies cannot feed later public speech');
 });
 
 test('BUG-177: the same speaker retains memory across hands and compaction, a new occupant starts clear', t => {

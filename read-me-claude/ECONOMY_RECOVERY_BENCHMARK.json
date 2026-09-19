@@ -1,0 +1,820 @@
+{
+  "measuredAt": "2026-09-19",
+  "unit": "chips and big blinds",
+  "deploymentPolicyLabels": {
+    "true": "highest affordable rung on every new deploy; not automatic table promotion",
+    "false": "explicit entry rung on every new deploy"
+  },
+  "current-entry": {
+    "config": {
+      "seed": 20260919,
+      "seeds": 3,
+      "sessions": 50,
+      "hands": 100,
+      "iterations": 120,
+      "profile": "balanced",
+      "opponent": null,
+      "rungs": [
+        0
+      ]
+    },
+    "sourceHashes": {
+      "../src/server/economyBenchmark.js": "f216c0b78040aa474c4a73712a9e253934abd43d1bd80ffa6799cccc8c3e914f",
+      "../src/server/houseCast.js": "dee6421c574d34e598e39754de48dd2c171442f58751567ce7497eb8f783fa84",
+      "../src/server/table.js": "496da415d7494d20d648b0958b1ac37e6d84e86816f01015c02dcff7566d2dbf",
+      "../src/engine/game.js": "feec40ed7db1e199d78406e06fc2d4db7abcfd749e1fe35b19bb21e9a130d923",
+      "../src/agent/policyPlay.js": "3ed03338f6448c8c557868d719253c459a08404510639a5fd026ee79f3ba1f9e"
+    },
+    "rake": {
+      "percent": 1,
+      "capBb": 3
+    },
+    "summaries": [
+      {
+        "rung": 0,
+        "hands": 9818,
+        "sessions": 150,
+        "net": -143870,
+        "rake": 13349,
+        "netBb100": -73.26848645345284,
+        "preRakeBb100": -66.4702587084946,
+        "rakeBb100": 6.798227744958239,
+        "stdevBb100": 123.75380310724724,
+        "standardErrorBb100": 12.592330743874625,
+        "wins": 38,
+        "busts": 96,
+        "cast": {
+          "doyle_v3": 194
+        }
+      }
+    ],
+    "bySeed": [
+      {
+        "seed": 20260919,
+        "rung": 0,
+        "hands": 2959,
+        "sessions": 50,
+        "net": -74510,
+        "rake": 3719,
+        "netBb100": -125.9040216289287,
+        "preRakeBb100": -119.61980398783373,
+        "rakeBb100": 6.284217641094965,
+        "stdevBb100": 123.65028039430106,
+        "standardErrorBb100": 20.92254251329288,
+        "wins": 5,
+        "busts": 37,
+        "cast": {
+          "doyle_v3": 57
+        }
+      },
+      {
+        "seed": 20365648,
+        "rung": 0,
+        "hands": 3561,
+        "sessions": 50,
+        "net": -34383,
+        "rake": 4862,
+        "netBb100": -48.277169334456616,
+        "preRakeBb100": -41.45043527099129,
+        "rakeBb100": 6.826734063465318,
+        "stdevBb100": 121.36686081012454,
+        "standardErrorBb100": 19.250451193639254,
+        "wins": 19,
+        "busts": 28,
+        "cast": {
+          "doyle_v3": 67
+        }
+      },
+      {
+        "seed": 20470377,
+        "rung": 0,
+        "hands": 3298,
+        "sessions": 50,
+        "net": -34977,
+        "rake": 4768,
+        "netBb100": -53.027592480291084,
+        "preRakeBb100": -45.798969072164944,
+        "rakeBb100": 7.228623408126136,
+        "stdevBb100": 126.26687996344275,
+        "standardErrorBb100": 23.660360441014472,
+        "wins": 14,
+        "busts": 31,
+        "cast": {
+          "doyle_v3": 70
+        }
+      }
+    ],
+    "projection": {
+      "households": 1000,
+      "sessionHorizon": 100,
+      "progression": false,
+      "alive": 0,
+      "meanBalance": 960.15,
+      "meanEarned": 3745.428,
+      "meanHands": 612.265,
+      "milestones": {
+        "slot2": {
+          "reached": 95,
+          "medianSessionAmongReachers": 11
+        },
+        "slot3": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        },
+        "slot4": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        },
+        "rung1": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        },
+        "rung2": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        }
+      }
+    },
+    "limits": [
+      "Compiled policy only; no watched-model decisions.",
+      "Rested numeric starter policy; no fatigue, drinks, learned model memory or growth.",
+      "Heads-up vs production-selected House, refilled after busts. No other owners.",
+      "Survival/slots are resampled-session projections, not more played hands or promised calendar days."
+    ]
+  },
+  "station-entry": {
+    "config": {
+      "seed": 20260919,
+      "seeds": 3,
+      "sessions": 50,
+      "hands": 100,
+      "iterations": 120,
+      "profile": "balanced",
+      "opponent": "tilted_ted",
+      "rungs": [
+        0
+      ]
+    },
+    "sourceHashes": {
+      "../src/server/economyBenchmark.js": "f216c0b78040aa474c4a73712a9e253934abd43d1bd80ffa6799cccc8c3e914f",
+      "../src/server/houseCast.js": "dee6421c574d34e598e39754de48dd2c171442f58751567ce7497eb8f783fa84",
+      "../src/server/table.js": "496da415d7494d20d648b0958b1ac37e6d84e86816f01015c02dcff7566d2dbf",
+      "../src/engine/game.js": "feec40ed7db1e199d78406e06fc2d4db7abcfd749e1fe35b19bb21e9a130d923",
+      "../src/agent/policyPlay.js": "3ed03338f6448c8c557868d719253c459a08404510639a5fd026ee79f3ba1f9e"
+    },
+    "rake": {
+      "percent": 1,
+      "capBb": 3
+    },
+    "summaries": [
+      {
+        "rung": 0,
+        "hands": 14886,
+        "sessions": 150,
+        "net": 118961,
+        "rake": 10622,
+        "netBb100": 39.95734246943437,
+        "preRakeBb100": 43.52512427784496,
+        "rakeBb100": 3.5677818084105875,
+        "stdevBb100": 64.59805049369794,
+        "standardErrorBb100": 4.6771878575582475,
+        "wins": 115,
+        "busts": 4,
+        "cast": {
+          "tilted_ted": 187
+        }
+      }
+    ],
+    "bySeed": [
+      {
+        "seed": 20260919,
+        "rung": 0,
+        "hands": 4954,
+        "sessions": 50,
+        "net": 33248,
+        "rake": 3411,
+        "netBb100": 33.55672184093662,
+        "preRakeBb100": 36.999394428744445,
+        "rakeBb100": 3.4426725878078317,
+        "stdevBb100": 63.94730474613206,
+        "standardErrorBb100": 7.264560510833739,
+        "wins": 38,
+        "busts": 1,
+        "cast": {
+          "tilted_ted": 62
+        }
+      },
+      {
+        "seed": 20365648,
+        "rung": 0,
+        "hands": 5000,
+        "sessions": 50,
+        "net": 39805,
+        "rake": 3552,
+        "netBb100": 39.805,
+        "preRakeBb100": 43.357,
+        "rakeBb100": 3.5520000000000005,
+        "stdevBb100": 64.41712647259743,
+        "standardErrorBb100": 7.8008560820108,
+        "wins": 39,
+        "busts": 0,
+        "cast": {
+          "tilted_ted": 63
+        }
+      },
+      {
+        "seed": 20470377,
+        "rung": 0,
+        "hands": 4932,
+        "sessions": 50,
+        "net": 45908,
+        "rake": 3659,
+        "netBb100": 46.54095701540957,
+        "preRakeBb100": 50.25040551500405,
+        "rakeBb100": 3.709448499594485,
+        "stdevBb100": 65.43273405969987,
+        "standardErrorBb100": 9.181877601087244,
+        "wins": 38,
+        "busts": 3,
+        "cast": {
+          "tilted_ted": 62
+        }
+      }
+    ],
+    "projection": {
+      "households": 1000,
+      "sessionHorizon": 100,
+      "progression": false,
+      "alive": 1000,
+      "meanBalance": 90024.492,
+      "meanEarned": 95781.52,
+      "meanHands": 9925.474,
+      "milestones": {
+        "slot2": {
+          "reached": 1000,
+          "medianSessionAmongReachers": 11
+        },
+        "slot3": {
+          "reached": 1000,
+          "medianSessionAmongReachers": 52
+        },
+        "slot4": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        },
+        "rung1": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        },
+        "rung2": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        }
+      }
+    },
+    "limits": [
+      "Compiled policy only; no watched-model decisions.",
+      "Rested numeric starter policy; no fatigue, drinks, learned model memory or growth.",
+      "Heads-up vs production-selected House, refilled after busts. No other owners.",
+      "Survival/slots are resampled-session projections, not more played hands or promised calendar days."
+    ]
+  },
+  "mixed-entry": {
+    "config": {
+      "seed": 20260919,
+      "seeds": 3,
+      "sessions": 50,
+      "hands": 100,
+      "iterations": 120,
+      "profile": "balanced",
+      "opponent": null,
+      "rungs": [
+        0
+      ]
+    },
+    "sourceHashes": {
+      "../src/server/economyBenchmark.js": "b42e8b4769d89aba1f55574b3647d13320ffcfc7d5be859de938f1c16d5127d7",
+      "../src/server/houseCast.js": "29d19943ce103c1029789da3a88baff3c77d515af6aa5fdde110452ba7807bc8",
+      "../src/server/table.js": "44ed10d277c37bb143975eb2f3085b74ce3fcec9443b45a9e559bf6ad2ca1590",
+      "../src/engine/game.js": "feec40ed7db1e199d78406e06fc2d4db7abcfd749e1fe35b19bb21e9a130d923",
+      "../src/agent/policyPlay.js": "3ed03338f6448c8c557868d719253c459a08404510639a5fd026ee79f3ba1f9e"
+    },
+    "rake": {
+      "percent": 1,
+      "capBb": 3
+    },
+    "summaries": [
+      {
+        "rung": 0,
+        "hands": 13317,
+        "sessions": 150,
+        "net": 38446,
+        "rake": 11277,
+        "netBb100": 14.434932792671024,
+        "preRakeBb100": 18.668994518284897,
+        "rakeBb100": 4.234061725613877,
+        "stdevBb100": 81.20818850643406,
+        "standardErrorBb100": 7.243127211365823,
+        "wins": 92,
+        "busts": 31,
+        "initialCast": {
+          "doyle_v3": 44,
+          "tilted_ted": 106
+        },
+        "castHands": {
+          "doyle_v3": 2721,
+          "tilted_ted": 10596
+        },
+        "cast": {
+          "doyle_v3": 57,
+          "tilted_ted": 131
+        }
+      }
+    ],
+    "bySeed": [
+      {
+        "seed": 20260919,
+        "rung": 0,
+        "hands": 4279,
+        "sessions": 50,
+        "net": -4199,
+        "rake": 3540,
+        "netBb100": -4.906520215003505,
+        "preRakeBb100": -0.7700397289086235,
+        "rakeBb100": 4.136480486094881,
+        "stdevBb100": 82.57296223412357,
+        "standardErrorBb100": 12.331578342994618,
+        "wins": 27,
+        "busts": 12,
+        "initialCast": {
+          "doyle_v3": 17,
+          "tilted_ted": 33
+        },
+        "castHands": {
+          "doyle_v3": 1009,
+          "tilted_ted": 3270
+        },
+        "cast": {
+          "doyle_v3": 20,
+          "tilted_ted": 40
+        }
+      },
+      {
+        "seed": 20365648,
+        "rung": 0,
+        "hands": 4514,
+        "sessions": 50,
+        "net": 20872,
+        "rake": 3697,
+        "netBb100": 23.11918475852902,
+        "preRakeBb100": 27.214222419140455,
+        "rakeBb100": 4.095037660611432,
+        "stdevBb100": 77.83492395057526,
+        "standardErrorBb100": 11.637306507672525,
+        "wins": 34,
+        "busts": 7,
+        "initialCast": {
+          "tilted_ted": 39,
+          "doyle_v3": 11
+        },
+        "castHands": {
+          "tilted_ted": 3797,
+          "doyle_v3": 717
+        },
+        "cast": {
+          "tilted_ted": 49,
+          "doyle_v3": 16
+        }
+      },
+      {
+        "seed": 20470377,
+        "rung": 0,
+        "hands": 4524,
+        "sessions": 50,
+        "net": 21773,
+        "rake": 4040,
+        "netBb100": 24.063881520778075,
+        "preRakeBb100": 28.5289566755084,
+        "rakeBb100": 4.465075154730327,
+        "stdevBb100": 83.1646484113673,
+        "standardErrorBb100": 13.525100085417929,
+        "wins": 31,
+        "busts": 12,
+        "initialCast": {
+          "tilted_ted": 34,
+          "doyle_v3": 16
+        },
+        "castHands": {
+          "tilted_ted": 3529,
+          "doyle_v3": 995
+        },
+        "cast": {
+          "tilted_ted": 42,
+          "doyle_v3": 21
+        }
+      }
+    ],
+    "projection": {
+      "households": 1000,
+      "sessionHorizon": 100,
+      "progression": false,
+      "alive": 866,
+      "meanBalance": 33570.294,
+      "meanEarned": 72583.963,
+      "meanHands": 8053.558,
+      "milestones": {
+        "slot2": {
+          "reached": 937,
+          "medianSessionAmongReachers": 13
+        },
+        "slot3": {
+          "reached": 870,
+          "medianSessionAmongReachers": 61
+        },
+        "slot4": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        },
+        "rung1": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        },
+        "rung2": {
+          "reached": 0,
+          "medianSessionAmongReachers": null
+        }
+      }
+    },
+    "limits": [
+      "Compiled policy only; no watched-model decisions.",
+      "Rested numeric starter policy; no fatigue, drinks, learned model memory or growth.",
+      "Heads-up vs production-selected House, refilled after busts. No other owners.",
+      "Survival/slots are resampled-session projections, not more played hands or promised calendar days."
+    ]
+  },
+  "mixed-screen": {
+    "config": {
+      "seed": 20260919,
+      "seeds": 3,
+      "sessions": 50,
+      "hands": 100,
+      "iterations": 20,
+      "profile": "balanced",
+      "opponent": null,
+      "rungs": [
+        0,
+        1,
+        2
+      ]
+    },
+    "sourceHashes": {
+      "../src/server/economyBenchmark.js": "b42e8b4769d89aba1f55574b3647d13320ffcfc7d5be859de938f1c16d5127d7",
+      "../src/server/houseCast.js": "29d19943ce103c1029789da3a88baff3c77d515af6aa5fdde110452ba7807bc8",
+      "../src/server/table.js": "44ed10d277c37bb143975eb2f3085b74ce3fcec9443b45a9e559bf6ad2ca1590",
+      "../src/engine/game.js": "feec40ed7db1e199d78406e06fc2d4db7abcfd749e1fe35b19bb21e9a130d923",
+      "../src/agent/policyPlay.js": "3ed03338f6448c8c557868d719253c459a08404510639a5fd026ee79f3ba1f9e"
+    },
+    "rake": {
+      "percent": 1,
+      "capBb": 3
+    },
+    "summaries": [
+      {
+        "rung": 0,
+        "hands": 14068,
+        "sessions": 150,
+        "net": 41864,
+        "rake": 10299,
+        "netBb100": 14.879158373613874,
+        "preRakeBb100": 18.539593403468864,
+        "rakeBb100": 3.66043502985499,
+        "stdevBb100": 74.68185428327162,
+        "standardErrorBb100": 6.241093954825749,
+        "wins": 95,
+        "busts": 22,
+        "initialCast": {
+          "doyle_v3": 44,
+          "tilted_ted": 106
+        },
+        "castHands": {
+          "doyle_v3": 3278,
+          "tilted_ted": 10790
+        },
+        "cast": {
+          "doyle_v3": 58,
+          "tilted_ted": 128
+        }
+      },
+      {
+        "rung": 1,
+        "hands": 11690,
+        "sessions": 150,
+        "net": -192275,
+        "rake": 39447,
+        "netBb100": -32.8956372968349,
+        "preRakeBb100": -26.146792130025666,
+        "rakeBb100": 6.7488451668092395,
+        "stdevBb100": 111.96534387784354,
+        "standardErrorBb100": 10.072103048787854,
+        "wins": 51,
+        "busts": 70,
+        "initialCast": {
+          "doyle_v3": 150
+        },
+        "castHands": {
+          "doyle_v3": 11690
+        },
+        "cast": {
+          "doyle_v3": 202
+        }
+      },
+      {
+        "rung": 2,
+        "hands": 11780,
+        "sessions": 150,
+        "net": -371233,
+        "rake": 81152,
+        "netBb100": -31.513837011884547,
+        "preRakeBb100": -24.624872665534806,
+        "rakeBb100": 6.888964346349745,
+        "stdevBb100": 111.78726847123738,
+        "standardErrorBb100": 9.920913764135403,
+        "wins": 52,
+        "busts": 68,
+        "initialCast": {
+          "doyle_v3": 150
+        },
+        "castHands": {
+          "doyle_v3": 11780
+        },
+        "cast": {
+          "doyle_v3": 202
+        }
+      }
+    ],
+    "bySeed": [
+      {
+        "seed": 20260919,
+        "rung": 0,
+        "hands": 4669,
+        "sessions": 50,
+        "net": -290,
+        "rake": 3445,
+        "netBb100": -0.3105590062111801,
+        "preRakeBb100": 3.3786678089526663,
+        "rakeBb100": 3.689226815163847,
+        "stdevBb100": 77.92886699577782,
+        "standardErrorBb100": 9.544893533344206,
+        "wins": 29,
+        "busts": 8,
+        "initialCast": {
+          "doyle_v3": 17,
+          "tilted_ted": 33
+        },
+        "castHands": {
+          "doyle_v3": 1406,
+          "tilted_ted": 3263
+        },
+        "cast": {
+          "doyle_v3": 21,
+          "tilted_ted": 36
+        }
+      },
+      {
+        "seed": 20365648,
+        "rung": 0,
+        "hands": 4678,
+        "sessions": 50,
+        "net": 20731,
+        "rake": 3187,
+        "netBb100": 22.157973492945704,
+        "preRakeBb100": 25.56434373663959,
+        "rakeBb100": 3.4063702436938863,
+        "stdevBb100": 69.80633952563237,
+        "standardErrorBb100": 9.894996199528501,
+        "wins": 34,
+        "busts": 6,
+        "initialCast": {
+          "tilted_ted": 39,
+          "doyle_v3": 11
+        },
+        "castHands": {
+          "tilted_ted": 3964,
+          "doyle_v3": 714
+        },
+        "cast": {
+          "tilted_ted": 49,
+          "doyle_v3": 15
+        }
+      },
+      {
+        "seed": 20470377,
+        "rung": 0,
+        "hands": 4721,
+        "sessions": 50,
+        "net": 21423,
+        "rake": 3667,
+        "netBb100": 22.689048930311376,
+        "preRakeBb100": 26.572760008472784,
+        "rakeBb100": 3.8837110781614066,
+        "stdevBb100": 76.05453325510669,
+        "standardErrorBb100": 12.57816168332039,
+        "wins": 32,
+        "busts": 8,
+        "initialCast": {
+          "tilted_ted": 34,
+          "doyle_v3": 16
+        },
+        "castHands": {
+          "tilted_ted": 3563,
+          "doyle_v3": 1158
+        },
+        "cast": {
+          "tilted_ted": 43,
+          "doyle_v3": 22
+        }
+      },
+      {
+        "seed": 20260919,
+        "rung": 1,
+        "hands": 3744,
+        "sessions": 50,
+        "net": -95636,
+        "rake": 12136,
+        "netBb100": -51.087606837606835,
+        "preRakeBb100": -44.60470085470085,
+        "rakeBb100": 6.482905982905983,
+        "stdevBb100": 111.11924794982318,
+        "standardErrorBb100": 17.300427601990688,
+        "wins": 13,
+        "busts": 25,
+        "initialCast": {
+          "doyle_v3": 50
+        },
+        "castHands": {
+          "doyle_v3": 3744
+        },
+        "cast": {
+          "doyle_v3": 64
+        }
+      },
+      {
+        "seed": 20365648,
+        "rung": 1,
+        "hands": 3901,
+        "sessions": 50,
+        "net": -16707,
+        "rake": 13531,
+        "netBb100": -8.565496026659831,
+        "preRakeBb100": -1.628300435785696,
+        "rakeBb100": 6.9371955908741345,
+        "stdevBb100": 111.64471878280482,
+        "standardErrorBb100": 17.546977628408296,
+        "wins": 22,
+        "busts": 19,
+        "initialCast": {
+          "doyle_v3": 50
+        },
+        "castHands": {
+          "doyle_v3": 3901
+        },
+        "cast": {
+          "doyle_v3": 71
+        }
+      },
+      {
+        "seed": 20470377,
+        "rung": 1,
+        "hands": 4045,
+        "sessions": 50,
+        "net": -79932,
+        "rake": 13780,
+        "netBb100": -39.52138442521632,
+        "preRakeBb100": -32.708034610630406,
+        "rakeBb100": 6.813349814585909,
+        "stdevBb100": 113.03569739580996,
+        "standardErrorBb100": 17.102792884922337,
+        "wins": 16,
+        "busts": 26,
+        "initialCast": {
+          "doyle_v3": 50
+        },
+        "castHands": {
+          "doyle_v3": 4045
+        },
+        "cast": {
+          "doyle_v3": 67
+        }
+      },
+      {
+        "seed": 20260919,
+        "rung": 2,
+        "hands": 3804,
+        "sessions": 50,
+        "net": -186224,
+        "rake": 25244,
+        "netBb100": -48.95478443743428,
+        "preRakeBb100": -42.3186119873817,
+        "rakeBb100": 6.636172450052576,
+        "stdevBb100": 111.15199241292214,
+        "standardErrorBb100": 16.88488710965077,
+        "wins": 14,
+        "busts": 24,
+        "initialCast": {
+          "doyle_v3": 50
+        },
+        "castHands": {
+          "doyle_v3": 3804
+        },
+        "cast": {
+          "doyle_v3": 64
+        }
+      },
+      {
+        "seed": 20365648,
+        "rung": 2,
+        "hands": 3901,
+        "sessions": 50,
+        "net": -33918,
+        "rake": 27589,
+        "netBb100": -8.694693668290181,
+        "preRakeBb100": -1.6224045116636763,
+        "rakeBb100": 7.072289156626506,
+        "stdevBb100": 111.46302470027335,
+        "standardErrorBb100": 17.52870294480365,
+        "wins": 22,
+        "busts": 19,
+        "initialCast": {
+          "doyle_v3": 50
+        },
+        "castHands": {
+          "doyle_v3": 3901
+        },
+        "cast": {
+          "doyle_v3": 71
+        }
+      },
+      {
+        "seed": 20470377,
+        "rung": 2,
+        "hands": 4075,
+        "sessions": 50,
+        "net": -151091,
+        "rake": 28319,
+        "netBb100": -37.07754601226994,
+        "preRakeBb100": -30.128098159509204,
+        "rakeBb100": 6.949447852760736,
+        "stdevBb100": 112.67606228047897,
+        "standardErrorBb100": 16.787970895758537,
+        "wins": 16,
+        "busts": 25,
+        "initialCast": {
+          "doyle_v3": 50
+        },
+        "castHands": {
+          "doyle_v3": 4075
+        },
+        "cast": {
+          "doyle_v3": 67
+        }
+      }
+    ],
+    "projection": {
+      "households": 1000,
+      "sessionHorizon": 100,
+      "progression": true,
+      "alive": 6,
+      "meanBalance": 1375.596,
+      "meanEarned": 38325.333,
+      "meanHands": 3209.915,
+      "milestones": {
+        "slot2": {
+          "reached": 895,
+          "medianSessionAmongReachers": 13
+        },
+        "slot3": {
+          "reached": 215,
+          "medianSessionAmongReachers": 32
+        },
+        "slot4": {
+          "reached": 5,
+          "medianSessionAmongReachers": 76
+        },
+        "rung1": {
+          "reached": 974,
+          "medianSessionAmongReachers": 7
+        },
+        "rung2": {
+          "reached": 575,
+          "medianSessionAmongReachers": 14
+        }
+      }
+    },
+    "limits": [
+      "Compiled policy only; no watched-model decisions.",
+      "Rested numeric starter policy; no fatigue, drinks, learned model memory or growth.",
+      "Heads-up vs production-selected House, refilled after busts. No other owners.",
+      "Survival/slots are resampled-session projections, not more played hands or promised calendar days."
+    ]
+  }
+}

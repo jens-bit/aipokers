@@ -54,6 +54,18 @@ export function tableIdOf(agent) {
   return id == null ? null : String(id);
 }
 
+/** Kitchen/host tables are movable home-game seats, not casino admission. */
+export function casinoTableIdOf(agent) {
+  const homeIds = new Set([
+    agent?.homeTableId,
+    agent?.liveGame?.home ? agent.liveGame.tableId : null,
+    ['home', 'visiting'].includes(agent?.location?.where) ? agent.location.tableId : null,
+  ].filter(Boolean).map(String));
+  return [agent?.liveGame?.tableId, agent?.activeTableId, agent?.location?.tableId]
+    .filter(id => id != null).map(String)
+    .find(id => !id.startsWith('home-') && !homeIds.has(id)) ?? null;
+}
+
 /**
  * Every table in this room the client can name, newest information first.
  *
@@ -80,7 +92,7 @@ export function liveTablesIn(room, { agents = [], events = [] } = {}) {
   // Yours in this room. `agents` is already the room's bucket (agentsByRoom),
   // so no blinds arithmetic happens here.
   for (const agent of agents) {
-    const id = tableIdOf(agent);
+    const id = casinoTableIdOf(agent);
     if (!id) continue;
     const row = touch(id);
     row.mine.push(agent);
@@ -203,6 +215,7 @@ export function FloorView({
   room, felts = [], agents = [], events = [], deployPanel = null,
   onWatch, onHome = null, onOpenRoster = null, desktop = false,
   headerOwned = false, zoom = null, onZoom = null,
+  ticker = null, yourTables = null,
 }) {
   // The phone still drags to dismiss: the gesture is how you leave a room in
   // this app and it predates this screen. The desk does not — there is nowhere
@@ -225,7 +238,8 @@ export function FloorView({
   for (const agent of agents) {
     const id = tableIdOf(agent);
     if (id && ranked.some((f) => f.tableId === id)) mineAt[id] = agent;
-    else standing.push(agent);
+    else if (!['home', 'visiting'].includes(agent.location?.where)
+      && (!tableIdOf(agent) || casinoTableIdOf(agent))) standing.push(agent);
   }
 
   // DkFloorStage: fit the 390×470 plan into both available axes. The phone
@@ -274,12 +288,14 @@ export function FloorView({
             fontFamily: PLAYFAIR, fontSize: 16, fontWeight: 600, color: M_TEXT,
             lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>{zoom ? 'Table · ' + zoom.blinds : room.name}</div>
-          <div style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
-            {zoom ? 'pinch again to watch' : `${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}
+          <div aria-label={zoom ? undefined : 'Everyone on the floor, including the House'} style={{ fontFamily: MONO, fontSize: 9.5, color: M_MUTED, marginTop: 1 }}>
+            {zoom ? 'pinch again to watch' : <><span>{`${count(room.seated)} in · ${count(room.tables)} table${room.tables === 1 ? '' : 's'}`}</span><span className="csn-floor__census-note"> · incl. House</span></>}
           </div>
         </div>
         {onOpenRoster && <RosterButton onOpenRoster={onOpenRoster} />}
       </div>}
+
+      <div className="csn-floor__overview" hidden={!!zoom}>{ticker}{yourTables}</div>
 
       <div className="csn-floor__body">
         <div className="csn-floor__room">
@@ -293,7 +309,7 @@ export function FloorView({
                 onWatch={onWatch}
                 onHome={zoom ? null : onHome}
                 width={floorW}
-                height={zoom && !desktop ? floorH : floorW * (FLOOR_H / FLOOR_W)}
+                height={zoom && !desktop ? floorH : floorW * ((desktop ? FLOOR_H : 330) / FLOOR_W)}
               />
             </div>
           ) : rows.length > 0 ? (

@@ -39,6 +39,17 @@ const B = body('b', 100, 240);
 const C = body('c', 100, 360);
 
 describe('the boxes are anchored to the same body', () => {
+  it('BUG-248: the enlarged TV leaves the lower standing speech lane clear without covering the screen', () => {
+    const speaker = body('below-couch', 100, 440);
+    const tv = { left: PHONE_ROOM.tvScreen.x, top: PHONE_ROOM.tvScreen.y,
+      right: PHONE_ROOM.tvScreen.x + PHONE_ROOM.tvScreen.w,
+      bottom: PHONE_ROOM.tvScreen.y + PHONE_ROOM.tvScreen.h };
+    const spoken = layout([says(speaker, 'Back from the table', true)], [speaker]);
+    expect(spoken).toHaveLength(1);
+    expect(overlaps(bubbleRect(spoken[0], spoken[0].side), tv)).toBe(false);
+    const student = bodyRect(PHONE_ROOM.tvSpot, PHONE_ROOM.seatedSize);
+    expect(overlaps(student, tv)).toBe(false);
+  });
   it('BUG-185: the pill stays above the head while ordinary speech centers beside it', () => {
     const pill = pillRect(A);
     const bubble = bubbleRect(A, 'right');

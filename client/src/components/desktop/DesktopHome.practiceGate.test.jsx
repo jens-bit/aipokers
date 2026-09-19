@@ -74,3 +74,14 @@ it('FIRST-RUN-1: removing the introduced agent ends the guide without binding a 
   act(() => homeSocket.emit({ type: 'home_state', agents: [newborn], game: null }));
   expect(hint()).toBeNull();
 });
+
+it('BUG-255: a pending request keeps its answer controls ahead of the introductory hint', async () => {
+  const asking = { ...restingAgent, want: { kind: 'deploy', text: 'I am fresh. Put me in.', needs: 'deploy' } };
+  fetchMock.route('/api/agents', { agents: [asking] });
+  render(withGuide({ ...defaults, wsUrl: 'ws://localhost:8765' }));
+  await screen.findByTestId('home-want-later');
+  expect(hint()).toBeNull();
+  const homeSocket = socketMock.last();
+  act(() => { homeSocket.open(); homeSocket.emit({ type: 'home_state', agents: [{ ...asking, want: null }], game: null }); });
+  expect(await screen.findByTestId('context-hint')).toHaveTextContent(`This is ${restingAgent.name}. Tap to talk.`);
+});

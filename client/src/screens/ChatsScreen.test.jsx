@@ -4,11 +4,11 @@
 // two invariants underneath them: the thread loads a real conversation, and it
 // never grabs the keyboard on its own.
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ChatsScreen } from './ChatsScreen.jsx';
+import { ChatsScreen, AgentThread } from './ChatsScreen.jsx';
 import { fetchMock, telegram } from '../test/harness.js';
 
 // RAISE-2: the opening bubble is the agent's own line — served by the server,
@@ -45,6 +45,80 @@ describe('ChatsScreen', () => {
     renderThread();
     expect(await screen.findByPlaceholderText('Message Aggressive v1.3…')).toBeInTheDocument();
     expect(await screen.findByText(OPENER)).toBeInTheDocument();
+  });
+
+  it('BUG-264: reopening the phone companion shows saved session and study reports with the existing conversation', async () => {
+    const returned = { ...AGENT, unseenRecap: false, chatHistory: [{ role: 'user', content: 'Play carefully.' },
+      { role: 'assistant', content: 'I will pick my spots.' },
+      { role: 'assistant', reportKind: 'session', reportId: 's1', content: 'I finished 8 hands at +$340 net.' },
+      { role: 'assistant', reportKind: 'study', reportId: '10:42', content: 'I finished hand #42. Granite paid off the river.' }] };
+    const first = render(<AgentThread companion agent={returned} onBack={noop} />);
+    expect(await within(first.container.querySelector('.agent-view__thread')).findByText('I finished hand #42. Granite paid off the river.')).toBeInTheDocument();
+    first.unmount();
+    const second = render(<AgentThread companion agent={returned} onBack={noop} />);
+    expect(await screen.findByText('Play carefully.')).toBeInTheDocument();
+    const thread = within(second.container.querySelector('.agent-view__thread'));
+    expect(thread.getAllByText('I finished 8 hands at +$340 net.')).toHaveLength(1);
+    expect(thread.getAllByText('I finished hand #42. Granite paid off the river.')).toHaveLength(1);
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(0);
+  });
+
+  it('BUG-264: the open phone conversation receives one fresh completed-study report while preserving the draft', async () => {
+    const user = userEvent.setup();
+    const current = { ...AGENT, chatHistory: [{ role: 'assistant', content: 'I will watch that hand.' }] };
+    const view = render(<AgentThread companion agent={current} onBack={noop} />);
+    const composer = await screen.findByPlaceholderText('Whisper to him…');
+    await user.type(composer, 'What did you notice?');
+    const updated = { ...current, ownerCommandRevision: 1, chatHistory: [...current.chatHistory,
+      { role: 'assistant', reportKind: 'study', reportId: 'study1', content: 'I finished hand #42. He sized for value.' }] };
+    view.rerender(<AgentThread companion agent={updated} onBack={noop} />);
+    const thread = within(view.container.querySelector('.agent-view__thread'));
+    expect(await thread.findByText('I finished hand #42. He sized for value.')).toBeInTheDocument();
+    expect(composer).toHaveValue('What did you notice?');
+    view.rerender(<AgentThread companion agent={{ ...updated, chatHistory: [...updated.chatHistory] }} onBack={noop} />);
+    expect(thread.getAllByText('I finished hand #42. He sized for value.')).toHaveLength(1);
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(0);
+  });
+
+  it('BUG-260: an open phone conversation adds actionable proposal controls once and removes a withdrawn proposal', async () => {
+    const user = userEvent.setup();
+    const current = { ...AGENT, chatHistory: [{ role: 'assistant', content: 'Ready to talk.' }], proposal: null };
+    const view = render(<AgentThread companion agent={current} onBack={noop} />);
+    const composer = await screen.findByPlaceholderText('Whisper to him…');
+    await user.type(composer, 'Tell me more');
+    const update = { ...current, ownerCommandRevision: 1, proposal: { id: 'new', text: 'Can I tighten up?', suggestedPatch: { profileDelta: { tightness: 5 } } } };
+    view.rerender(<AgentThread companion agent={update} onBack={noop} />);
+    expect(await screen.findByRole('button', { name: 'Accept change' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Discuss' }));
+    expect(composer).toHaveFocus(); expect(composer).toHaveValue('Tell me more');
+    view.rerender(<AgentThread companion agent={{ ...update }} onBack={noop} />);
+    expect(screen.getAllByRole('button', { name: 'Accept change' })).toHaveLength(1);
+    view.rerender(<AgentThread companion agent={{ ...update, proposal: null }} onBack={noop} />);
+    expect(screen.queryByRole('button', { name: 'Accept change' })).toBeNull();
+    view.rerender(<AgentThread companion agent={{ ...update }} onBack={noop} />);
+    expect(screen.queryByRole('button', { name: 'Accept change' })).toBeNull();
+  });
+
+  it('BUG-260: mobile acceptance shows a failed save, retries the same proposal, and opens the saved profile without a chat call', async () => {
+    const user = userEvent.setup();
+    const proposal = { createdAt: 123, text: 'Can I loosen up?', suggestedPatch: { profileDelta: { tightness: -8 } } };
+    const proposed = { ...AGENT, proposal, profile: { tightness: 60 } };
+    const saved = { ...proposed, proposal: null, profile: { tightness: 52 }, ownerCommandRevision: 1,
+      proposalAcceptance: { proposalId: '123', reply: 'Strategy change saved. Tightness: 60% → 52%.' } };
+    const onOpenProfile = vi.fn();
+    fetchMock.route('/proposal/accept', { status: 503, body: {} });
+    render(<ChatsScreen selectedAgent={proposed} onSelectAgent={noop} onBack={noop} onCreateAgent={noop} onOpenProfile={onOpenProfile} />);
+    await user.click(await screen.findByRole('button', { name: /^accept/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not save.*try/i);
+    expect(screen.getByRole('button', { name: /^accept/i })).toBeEnabled();
+    fetchMock.route('/proposal/accept', { status: 200, body: saved });
+    await user.click(screen.getByRole('button', { name: /^accept/i }));
+    expect(await screen.findByText(saved.proposalAcceptance.reply)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^accept/i })).toBeNull();
+    await user.click(screen.getByRole('button', { name: AGENT.name }));
+    expect(onOpenProfile).toHaveBeenCalledWith(expect.objectContaining({ profile: { tightness: 52 }, proposal: null }));
+    expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(0);
   });
 
   // FIX-1c. Mobile playtest 2026-09-05: opening a thread threw the iOS keyboard

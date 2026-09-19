@@ -4,7 +4,7 @@
 // half that has to be true at a real table: the owner takes a seat at his own
 // kitchen game, a hand is played out, and afterwards the hand is on his
 // agent's record with the owner's real actions in it and a line about how he
-// played them has reached the felt.
+// played them has reached his owner's private thread.
 //
 // The failure this is written against: table.js's hand-completion loop skips
 // `recordHandResult` for home tables, so the one hand an owner most wants
@@ -45,6 +45,8 @@ const { Table } = await import('./table.js');
 const { Actions } = await import('../engine/game.js');
 const { setPersistEnabled } = await import('./opponentStats.js');
 const { buildAgentChatSystem } = await import('./agentProfiles.js');
+const { readThread, setLineListener, OWNER } = await import('./thread.js');
+const { ownerHandComment } = await import('../agent/ownerHands.js');
 setPersistEnabled(false);
 
 function fakeWs() {
@@ -60,18 +62,25 @@ let seq = 0;
 // His own kitchen table, with HIM in one chair and the owner in the other.
 // The owner's seat is the one with no agent behind it, which is exactly how
 // _recordOwnerHands finds it.
-function kitchenTable() {
+function kitchenTable({ visitor = false } = {}) {
   const table = new Table({
-    tableId: `home-kitchen-${seq++}`, smallBlind: 10, bigBlind: 20, maxSeats: 2,
+    tableId: `home-kitchen-${seq++}`, smallBlind: 10, bigBlind: 20, maxSeats: visitor ? 3 : 2,
     home: true, homeOwnerId: 'kitchen',
   });
   const agentWs = fakeWs();
   table.seatPlayer(agentWs, { playerId: 'a0', buyIn: 2000, displayName: 'Stone' });
   table.agentIds[0] = 'stone';
   table.agentUserIds[0] = 'kitchen';
+  table.seatSessionIds[0] = `session-${table.tableId}-stone`;
 
   const ownerWs = fakeWs();
   table.seatPlayer(ownerWs, { playerId: 'kitchen:me', buyIn: 2000, displayName: 'Jens' });
+  if (visitor) {
+    table.seatPlayer(fakeWs(), { playerId: 'visiting-agent', buyIn: 2000, displayName: 'Visitor' });
+    table.agentIds[2] = 'visitor';
+    table.agentUserIds[2] = 'visitor-owner';
+    table.seatSessionIds[2] = `session-${table.tableId}-visitor`;
+  }
   return { table, agentWs, ownerWs };
 }
 
@@ -133,21 +142,42 @@ test('LIFE-1: a card nobody turned over is never stored', () => {
   assert.equal(h.ownerShowed, null, 'he folded, so his cards were never seen');
 });
 
-test('LIFE-1: he says something about how the owner played it, at the table', () => {
-  const { table, ownerWs } = kitchenTable();
+test('BUG-257 / LIFE-1: his comment about the owner\'s play reaches only the private owner thread', t => {
+  const { table, ownerWs } = kitchenTable({ visitor: true });
+  const ownWatch = fakeWs(), visitorWatch = fakeWs(), publicWatch = fakeWs();
+  table.spectators.push({ ws: ownWatch, spectatorSeat: 0 }, { ws: visitorWatch, spectatorSeat: 2 },
+    { ws: publicWatch, spectatorSeat: -1 });
+  setLineListener(line => table.deliverThreadLine(line));
+  t.after(() => { setLineListener(null); table._clearTimers(); });
   table.maybeStartHand({ clientDriven: true });
-  // A fold after the flop is the case that earns a line — a fold preflop is
-  // deliberately not an event.
+  // Both opponents fold on the flop so Stone actually wins the hand this
+  // comment describes. Leaving the visitor in produced a random showdown
+  // winner; if the visitor won, there was correctly no owner-hand comment.
+  // The visitor remains connected, so every private-delivery guard is tested.
   play(table, (seat, street) => {
-    if (seat === 1 && street !== 'preflop') return Actions.FOLD;
+    if (seat !== 0 && street !== 'preflop') return Actions.FOLD;
     return Actions.CHECK;
   });
 
-  const chat = ownerWs.of('chat');
-  const lines = chat.map((m) => m.text ?? m.message ?? '').filter(Boolean);
-  assert.ok(lines.length >= 1, `nothing was said: ${JSON.stringify(chat.slice(0, 3))}`);
-  assert.ok(lines.some((l) => /fold|had|chips|hope you had it/i.test(l)),
-    `no line about the owner's play: ${lines.join(' | ')}`);
+  const hand = stored().ownerHands[0];
+  assert.equal(hand.ownerFolded, true);
+  assert.equal(hand.iWon, true, 'the commenting agent won this hand');
+  assert.equal(hand.showdown, false, 'the owner and visitor both folded');
+  assert.ok(hand.ownerActions.some(action => action.type === Actions.FOLD && action.street !== 'preflop'));
+  const expected = ownerHandComment(hand);
+  assert.ok(expected && /fold|had|chips|hope you had it/i.test(expected), `no comment about the owner's actual play: ${expected}`);
+  const lines = readThread(table.seatSessionIds[0], { owner: true });
+  const comment = lines.find(line => line.text === expected && line.to === OWNER);
+  assert.equal(comment?.from, 'stone', 'the same factual hand comment is retained privately');
+  assert.equal(ownWatch.of('thread_line').filter(message => message.line?.text === expected).length, 1);
+  for (const socket of [ownerWs, ownWatch, visitorWatch, publicWatch, table.connections[2]]) {
+    assert.equal(socket.of('chat').some(message => message.text === expected), false, 'owner hand comments are never public CHAT');
+  }
+  for (const socket of [visitorWatch, publicWatch, table.connections[2]]) {
+    assert.equal(socket.of('thread_line').some(message => message.line?.text === expected), false);
+  }
+  assert.equal(readThread(table.seatSessionIds[2], { owner: true }).some(line => line.text === expected), false);
+  assert.equal(readThread(table.seatSessionIds[0]).some(line => line.text === expected), false);
 });
 
 test('LIFE-1: and he can be asked about it later, in a conversation', () => {

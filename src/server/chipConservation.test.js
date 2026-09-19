@@ -35,7 +35,7 @@ import path from 'node:path';
 const originalCwd = process.cwd();
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'aipoker-conserve-'));
 
-let store, profiles, bank, Table, audit;
+let store, profiles, bank, Table, audit, wallet;
 const tables = new Map();
 
 const OWNERS = ['con-buyin', 'con-bust', 'con-win', 'con-leave', 'con-close', 'con-restart', 'con-poor', 'con-double'];
@@ -57,6 +57,7 @@ before(async () => {
   profiles = await import('./agentProfiles.js');
   ({ Table } = await import('./table.js'));
   audit = await import('../../scripts/audit-chips.js');
+  wallet = await import('./wallet.js');
 });
 
 after(() => {
@@ -296,6 +297,79 @@ test('MONEY-1: POST /finish does not strand a buy-in (it used to pay twice)', ()
     });
   });
   assert.equal(record(agentId).pocket.balance, paidOnce, 'and pays nothing the second time');
+});
+
+// A pocket's visible history is not the lifetime of its unsettled table claim.
+// These are real funding transfers through the same primitive as POST /fund;
+// SQLite/reload deliberately discards any in-memory-only workaround.
+function fundPastHistory(owner) {
+  const agent = record(owner);
+  const safe = store.loadWallet(owner);
+  for (let n = 0; n < 100; n++) {
+    assert.equal(wallet.fund(safe, agent.pocket, { amount: 1 }).moved, 1);
+  }
+  store.saveProfile(owner, { userId: owner, agents: [agent] }, safe);
+  profiles.reloadOwners(owner);
+  assert.equal(record(owner).pocket.ledger.length, 100, 'history stays bounded');
+  assert.equal(record(owner).pocket.ledger.some(e => e.type === 'buyin'), false, 'the old display receipt is gone');
+}
+
+test('BUG-269: a live paid stay cannot be charged again after funding rolls its history over', () => {
+  const owner = 'receipt-charge'; makeOwner(owner); provider();
+  const deploy = profiles.deployAgent(owner, owner, { body: { rung: 0 } });
+  conserves('100 funding transfers', () => fundPastHistory(owner));
+  const pocketBefore = record(owner).pocket.balance, bankBefore = bank.balance();
+  const retry = profiles.chargeSeatBuyIn(owner, owner, { amount: 2_000, tableId: deploy.body.tableId });
+  assert.equal(retry.already, true, 'the durable paid receipt survives the history cap and SQLite reload');
+  assert.equal(record(owner).pocket.balance, pocketBefore);
+  assert.equal(bank.balance(), bankBefore);
+});
+
+for (const stack of [3_000, 0]) {
+  test(`BUG-269: a ${stack}-chip cashout closes a rolled-over receipt once, including a legacy surviving buy-in`, () => {
+    const owner = `receipt-cashout-${stack}`; makeOwner(owner); provider();
+    const deploy = profiles.deployAgent(owner, owner, { body: { rung: 0 } });
+    // Exercise migration of a real pre-upgrade pocket while its buy-in is
+    // still evidenced. The first accepted funding transfer must preserve it
+    // before churn; ordinary admission reads remain side-effect free.
+    delete record(owner).pocket.openBuyIns;
+    wallet.ensurePocket(record(owner));
+    conserves('100 funding transfers', () => fundPastHistory(owner));
+    const pocketBefore = record(owner).pocket.balance;
+    const table = tables.get(deploy.body.tableId);
+    conserves('actual table release', () => {
+      table.seatStacks[0] = stack; table.seatLeaving[0] = true; table._reconcileSeats();
+    });
+    assert.equal(record(owner).pocket.balance, pocketBefore + stack, 'the bank pays the actual final stack');
+    const receipts = record(owner).pocket.ledger.filter(e => e.type === 'cashout');
+    assert.equal(receipts.length, 1, 'a zero-stack result also closes its receipt');
+    assert.equal(receipts[0].amount, stack);
+    profiles.reloadOwners(owner);
+    const paid = record(owner).pocket.balance;
+    conserves('duplicate settlement after reload', () => {
+      profiles.finishAgentSession(owner, owner, { sessionPnl: stack - 2_000, finalStack: stack,
+        buyInAmount: 2_000, tableId: deploy.body.tableId });
+    });
+    assert.equal(record(owner).pocket.balance, paid);
+    assert.equal(profiles.refundSeatBuyIn(owner, owner, { tableId: deploy.body.tableId }).ok, false);
+    const ownerView = profiles.presentAgent(record(owner), { owner: true });
+    const publicView = profiles.presentAgent(record(owner), { owner: false });
+    assert.equal(Object.hasOwn(ownerView.pocket ?? {}, 'openBuyIns'), false, 'private bookkeeping is not UI data');
+    assert.equal(Object.hasOwn(publicView.pocket ?? {}, 'openBuyIns'), false, 'receipt identities do not leak publicly');
+  });
+}
+
+test('BUG-269: restart refund survives rolled-over history and cannot pay twice', () => {
+  const owner = 'receipt-refund'; makeOwner(owner); provider();
+  const deploy = profiles.deployAgent(owner, owner, { body: { rung: 0 } });
+  fundPastHistory(owner);
+  const pocketBefore = record(owner).pocket.balance;
+  conserves('refund retained receipt', () => {
+    assert.equal(profiles.refundSeatBuyIn(owner, owner, { tableId: deploy.body.tableId }).moved, 2_000);
+  });
+  assert.equal(record(owner).pocket.balance, pocketBefore + 2_000);
+  profiles.reloadOwners(owner);
+  assert.equal(profiles.refundSeatBuyIn(owner, owner, { tableId: deploy.body.tableId }).ok, false);
 });
 
 // ── 5. the table closing ────────────────────────────────────────────────────

@@ -459,8 +459,8 @@ test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => 
     await desk(page,SIZES[0]);
     const flat=await page.locator('.home-flat').boundingBox();
     const k=flat.width/560;
-    // C9's DkFlat coordinates supersede the earlier enlarged phone room.
-    for(const [selector,x,y] of [['.home-flat__safe',24,96],['.home-flat__fridge',452,130],['.home-flat__tv',210,604],['.home-flat__door',518,288]]) {
+    // BUG-243 enlarges the TV for a readable hand; other C9 fixtures stay put.
+    for(const [selector,x,y] of [['.home-flat__safe',24,96],['.home-flat__fridge',452,130],['.home-flat__tv',172,536],['.home-flat__door',518,288]]) {
       const fixture=page.locator(selector);
       await expect(fixture).toHaveCSS('position','absolute');
       const box=await fixture.boundingBox();
@@ -941,7 +941,7 @@ test.describe('BUG-105 · the casino Watch destination',()=>{
     await expect(page.locator('.watch-hero .mood-ghost')).toHaveAttribute('data-hood',owned?'sand':'oxblood');
     await expect(page.locator('.watch-hero radialGradient stop').first()).toHaveAttribute('stop-color',owned?'#C9A227':'#7FA8C9');
     await page.screenshot({path:'../artifacts/casino31-'+(owned?'owned':'public')+(width===1920?'-1920':'')+'.png'});
-    await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+    await page.getByRole('button',{name:owned?'Stop watching':'BACK TO THE FLOOR',exact:true}).click();
     await expect(page.getByTestId('floor-view')).toBeVisible();
     // SPEC-1: `data-room` was the rung you came from, and BACK TO THE FLOOR
     // had to put you back in THAT room rather than in whichever one the casino
@@ -1051,7 +1051,7 @@ test.describe('BUG-125: authored casino camera with real touch input',()=>{
   // until BUG-232 lands. 1440 still runs and still covers the camera. Do not
   // loosen the 65% — it is the whole claim.
   for(const size of [{width:390,height:844},{width:390,height:590},{width:1440,height:900}])
-    (size.width<1100?test.fixme:test)((size.width<1100?'BUG-232: ':'')+'pinch, return, then Watch at '+size.width+'x'+size.height,async({page,context})=>{
+    test((size.width<1100?'BUG-232: ':'')+'pinch, return, then Watch at '+size.width+'x'+size.height,async({page,context})=>{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await stub(page);await page.setViewportSize(size);
     await page.addInitScript(()=>{

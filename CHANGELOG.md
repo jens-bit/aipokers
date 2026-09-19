@@ -1,5 +1,112 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Document-led recovery — human play, receipts and truthful results (2026-09-19)
+
+Human kitchen play survives short disconnects and uses a server-owned 15-second
+check-or-fold deadline. Explicit departure settles the hand safely; unfunded
+human casino JOINs are refused. Active buy-in receipts survive history rollover
+and reload. Opponent sheets retain saved appearance, and hand-result history
+waits for the staged award. Review copy no longer claims unused reads caused
+an action. Raw recent-hand history now requires owner verification before
+returning private cards or reasoning. See `read-me-claude/RAILBIRD_DOCUMENT_RECOVERY.md` for regressions,
+document coverage, validation, limitations and the local fixture incident.
+
+## Playability audit — companion decisions and activity (2026-09-19)
+
+On `codex/railbird-recovery-audit`, continuing the recovery. Owned-agent Watch
+now distinguishes stopping observation from bringing the agent home after
+the hand. Proposal acceptance saves the exact reviewed change, refreshes the
+actual profile and gives a retryable error or private receipt. Finished
+casino sessions and studies leave deterministic private conversation reports.
+Seated acceptance explains that the strategy takes effect next time he sits.
+Late profile loads restore saved chat and current proposal controls without
+losing drafts. Short-phone headers and skill panels retain readable content
+and reachable actions while the agent's cards stay above the panel.
+The populated desktop floor keeps its play action inside the panel and gives
+the room enough space without shrinking the live preview below its minimum.
+
+Missing or unusable model responses use the compiled legal poker policy.
+FOCUS now affects free decisions through the same perception used in the
+briefing and hand record; neutral behavior, profiles and rake are unchanged.
+Study admission protects live kitchen seats and the household's single TV,
+without consuming a daily automatic study when blocked. First-session browser
+coverage joins the CI gate. See `read-me-claude/RAILBIRD_PLAYABILITY_AUDIT.md`
+for the documented intended game, final validation and remaining evidence.
+
+## Recovery follow-up — commands, table identity and economy (2026-09-19)
+
+On `codex/railbird-recovery-audit`, continuing the initial recovery commit.
+Watch keeps socket, table, selected agent, cards and paced seat identity
+together through rapid switches and late responses. Owner conversations can
+carry bounded commands through the real game actions, with explicit stakes
+and funding decisions and truthful pending/refusal receipts. House regulars
+have distinct public voices and bounded encounter memory without model calls.
+Private owner replies stay out of public chat and opponents' threads. The live
+conversation shows session net instead of treating its buy-in as a loss.
+
+A reproducible actual-House economy benchmark replaces unsupported progression
+assumptions and exposed an engine stall when a player went all-in posting a
+blind. The engine now refunds unmatched chips and runs out when no decision
+remains. Forwarded-IP rate limits trust only configured proxy hops. The safe
+labels buy-ins/cash-outs, uses shared glass, and its parked input/material
+checks are active. Home speech keeps its TV anchor and pending requests take
+precedence over introductory hints. Browser CI includes the repaired journeys.
+Entry stakes favor Ted on two-thirds of House selections; higher stakes retain
+the original mix, with rake and profiles unchanged. A lonely table's requeue
+preserves its chosen stakes instead of silently promoting a larger pocket.
+
+See `read-me-claude/RAILBIRD_RECOVERY_FOLLOWUP.md` for measurements, final gate
+results and the live-access checks that local testing cannot certify.
+
+## Recovery review — casino, Watch and Home (2026-09-19)
+
+On `codex/railbird-recovery-audit`; not pushed or deployed. The review repairs
+the 0.18.0 playtest regressions: casino placement dismisses after seating and
+explains refusals, Home stays reachable above a compact table selector, and
+short phones can reach the room's felts. Public floor counts explicitly include
+the House; the owner's agent/table count is separate. Co-seated companions get
+their own live updates and the selected companion's Watch perspective.
+
+Watch opens the private conversation below the felt, keeping the agent and
+hole cards visible. Whisper editing selects Conversation, uncontested preflop
+wins leave the undealt board empty, and actual settled rake has a stable slot.
+Win headlines, narration and chip awards now display the credited payout after
+rake, using the server's per-seat cut once across side pots. Net profit remains
+a separate figure; no settled balances are recalculated.
+The fridge labels its effects and buys one item at the displayed unit price.
+Home televisions and wall monitors show readable public board cards, pot and
+current turn; a null actor clears the previous turn. No economy rates, House
+policies, engine rules or private-card permissions change.
+
+Session-end Talk now opens a visible conversation. Final integration checks
+also preserved seating responses that omit the optional agent ID, rejected
+explicitly mismatched IDs, and restored standing speech and recaps by keeping
+the enlarged TV clear of their existing placement lane.
+
+Design ownership was explicitly authorized by Jens. The compact casino
+selector, below-felt conversation and larger TV are intentional changes to the
+older composition. Retired test contracts are named: BUG-169's hidden TV
+board/pot, BUY 6, old TV coordinates, and fabricated occupants without seat
+data. These now assert the new visible behavior. Existing BUG-232 room-size/
+hit-target and BUG-233 76px limits remain unchanged and are active again.
+Watch visual assertions now use the current warm palette and pot-adjacent
+result geometry. Old Watch10 expectations that boosted the hero over an
+opponent read contradict TABLE-2's retained fix and now assert below-glass
+layering with the same card geometry. Bust checks enter through a live hand
+before asserting its settlement effects. No effect checks were removed.
+The production casino smoke now checks the phone's compact table selector;
+desktop retains its full-felt size assertion. Both still exercise real owned
+tables, clickable Watch controls and the visible casino room.
+
+The shipped screenshot inventory follows the single casino floor and accepts
+an output directory for review evidence. CI now runs the Home and desk browser
+suites plus the dedicated floor and Watch recovery cases, so these geometry
+checks no longer depend on someone remembering to run them manually.
+Full audit, remaining product gaps,
+visual evidence and final gate results:
+`read-me-claude/RAILBIRD_RECOVERY_AUDIT.md`.
+
+
 ## 0.18.0 candidate — one room, a floor he can stand on, and books that add up (2026-09-16)
 
 Five branches merged as MERGE-14 onto the 0.17.0 candidate, gated after each

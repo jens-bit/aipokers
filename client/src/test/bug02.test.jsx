@@ -119,10 +119,8 @@ describe('BUG-02 — rendered mobile surfaces', () => {
 // reaches. `.dsk-composer__input` is 13.5px for exactly this reason.
 const DESKTOP_ONLY = /min-width:\s*1100px/;
 
-// Known dead rule, see BUG-20. `.dr-form-field` is applied by no JSX in the
-// client — it is left over from a form that was removed — so nothing can
-// currently focus a 14px field. It stays listed here rather than silently
-// filtered, because the day someone reuses the class it becomes a live BUG-02.
+// BUG-20's former 14px rule is now 16px. Keep its explicit regression as well
+// as the whole-bundle audit; unused selectors get no font-size exception.
 const KNOWN_DEAD = new Set(['.dr-form-field input']);
 
 function textFieldFontRules() {
@@ -158,7 +156,6 @@ describe('BUG-02 — stylesheet audit', () => {
   it('no mobile rule sets a text field below 16px', () => {
     const offenders = textFieldFontRules()
       .filter((r) => !DESKTOP_ONLY.test(r.condition))
-      .filter((r) => !KNOWN_DEAD.has(r.selector))
       .filter((r) => Number.isFinite(r.px) && r.px < MIN_PX);
 
     expect(
@@ -167,10 +164,7 @@ describe('BUG-02 — stylesheet audit', () => {
     ).toEqual([]);
   });
 
-  // BUG-20 — dead rule, not a live defect: no JSX applies `.dr-form-field`.
-  // Left red on purpose so it is not forgotten. Un-todo when the rule is
-  // deleted or raised to 16px.
-  it.todo('BUG-20: no dead rule leaves a 14px input waiting to be reused', () => {
+  it('BUG-20: no dead rule leaves a 14px input waiting to be reused', () => {
     const dead = textFieldFontRules().filter((r) => KNOWN_DEAD.has(r.selector));
     expect(dead.filter((r) => r.px < MIN_PX)).toEqual([]);
   });

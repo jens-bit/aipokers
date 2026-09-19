@@ -1,8 +1,10 @@
 // scripts/verify-growth.js — ATTR-3
 //
-// A whole career, offline, in about a second: a day-one agent plays 600 hands
+// A whole career, offline: a day-one agent plays 600 hands
 // across a dozen sessions and we watch what he becomes. Prints his growth log
 // and the history of his scouted bands as tables you can read.
+// The real policy/200-iteration equity workload takes tens of seconds. It runs
+// in the required slow E2E group, not the fast unit-verification group.
 //
 // Everything here is the real thing except the table orchestration:
 //   · the real NLHE engine deals and settles every hand
@@ -12,8 +14,8 @@
 //
 // NO MODEL CALLS, EVER. The key is removed from the environment before the
 // agent module is touched and the run asserts it stayed gone, so this script
-// can never bill: it is discovered by src/test/verifyScripts.test.js and runs
-// on every `npm test` and every CI push.
+// can never bill: it is discovered by src/test/e2e.test.js and runs in
+// `npm run test:e2e` and every CI push, with the other real-hand workloads.
 //
 // Usage:
 //   node scripts/verify-growth.js
@@ -199,6 +201,7 @@ async function playHand({ sessionHands, evidence, costSink }) {
 const costSink = [];
 const sessions = [];
 let sessionsRun = 0;
+const careerStartedAt = Date.now();
 
 for (let played = 0; played < args.hands; played += args.sessionHands) {
   const length = Math.min(args.sessionHands, args.hands - played);
@@ -239,6 +242,11 @@ for (let played = 0; played < args.hands; played += args.sessionHands) {
   if (growth.narrowed.length > 0) {
     bandHistory.push({ at: agent.stats.handsPlayed, label: `stage ${growth.stage}`, bands: snapshotBands() });
   }
+  // A stalled career must be distinguishable from a completed process held
+  // open by a handle. One checkpoint per session keeps captured CI failures
+  // attributable without changing the simulation or its assertions.
+  console.log(`[verify-growth] session ${sessionsRun}/${Math.ceil(args.hands / args.sessionHands)} complete; ` +
+    `${agent.stats.handsPlayed}/${args.hands} hands; elapsed ${Date.now() - careerStartedAt}ms`);
 }
 
 // ── The tables ──────────────────────────────────────────────────────────────

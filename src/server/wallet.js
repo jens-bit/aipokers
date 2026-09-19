@@ -118,6 +118,9 @@ export function emptyPocket({ mode = 'topup', cap = null, balance = 0 } = {}) {
     // table. Set by callIn(), cleared by sweepRecall() once he is off it —
     // which is what stops the owner having to collect the same roll twice.
     recall: false,
+    // Active paid stays are money obligations, not display history. They
+    // remain until settlement even after the bounded ledger has rolled over.
+    openBuyIns: [],
     ledger: [],
   };
 }
@@ -128,6 +131,36 @@ export function appendEntry(ledger, entry) {
   const list = Array.isArray(ledger) ? ledger : [];
   list.push({ id: randomUUID(), ts: Date.now(), ...entry });
   return list.length > LEDGER_CAP ? list.slice(-LEDGER_CAP) : list;
+}
+
+// BUG-269: migrate only buy-ins still proved by the legacy ledger. An empty
+// array is authoritative too: never resurrect a settled receipt from history,
+// or guess an already-truncated legacy payment from a cached activeTableId.
+function readOpenBuyIns(pocket) {
+  if (Array.isArray(pocket.openBuyIns)) return pocket.openBuyIns;
+  const open = new Map();
+  for (const entry of pocket.ledger ?? []) {
+    if (typeof entry?.tableId !== 'string' || !entry.tableId) continue;
+    if (entry.type === 'cashout') open.delete(entry.tableId);
+    if (entry.type === 'buyin') {
+      const amount = chips(-Number(entry.amount));
+      if (amount > 0) open.set(entry.tableId, { tableId: entry.tableId, amount, receiptId: entry.id ?? null });
+    }
+  }
+  return [...open.values()];
+}
+
+// Persist migration only alongside an accepted ledger-writing transaction.
+// Admission/rollback preflights must remain exact read-only operations.
+function ensureOpenBuyIns(pocket) {
+  if (!Array.isArray(pocket.openBuyIns)) pocket.openBuyIns = readOpenBuyIns(pocket);
+  return pocket.openBuyIns;
+}
+
+/** The amount still owed against this paid stay, independent of UI history. */
+export function openStayFor(pocket, tableId) {
+  if (!pocket || !tableId) return 0;
+  return chips(readOpenBuyIns(pocket).find(stay => stay.tableId === tableId)?.amount);
 }
 
 // Backfill a pocket on an agent that predates this feature. Idempotent, and
@@ -200,6 +233,7 @@ export function fund(wallet, pocket, { mode, amount = 0, cap = null } = {}) {
   if (pocket.mode === 'cut') pocket.cap = null;
 
   if (want > 0) {
+    ensureOpenBuyIns(pocket);
     wallet.balance -= want;
     pocket.balance += want;
     wallet.ledger = appendEntry(wallet.ledger, { type: 'fund', amount: -want, agentId: pocket.agentId ?? null });
@@ -238,6 +272,7 @@ export function collect(wallet, pocket, { amount = null, all = false } = {}) {
   const moved = Math.min(want, chips(pocket.balance));
   if (moved <= 0) return { ok: false, moved: 0, reason: 'nothing to collect' };
 
+  ensureOpenBuyIns(pocket);
   pocket.balance -= moved;
   wallet.balance += moved;
   // Winnings that came home stop being uncollected P&L. Without this the row
@@ -316,6 +351,8 @@ export function autoRefill(wallet, pocket) {
   const moved = Math.min(need, wallet.balance);
   if (moved <= 0) return { ok: false, moved: 0, reason: 'wallet is empty' };
 
+  ensureOpenBuyIns(pocket);
+
   wallet.balance -= moved;
   pocket.balance += moved;
   wallet.ledger = appendEntry(wallet.ledger, { type: 'refill', amount: -moved, agentId: pocket.agentId ?? null });
@@ -329,17 +366,25 @@ export function autoRefill(wallet, pocket) {
 export function debitBuyIn(pocket, amount, tableId = null) {
   const want = chips(amount);
   if (want > pocket.balance) return { ok: false, moved: 0, reason: 'pocket does not cover the buy-in' };
+  const open = ensureOpenBuyIns(pocket);
   pocket.balance -= want;
   pocket.realised = (pocket.realised ?? 0) - want;
   pocket.ledger = appendEntry(pocket.ledger, { type: 'buyin', amount: -want, tableId });
+  if (typeof tableId === 'string' && tableId && want > 0) {
+    const receipt = { tableId, amount: want, receiptId: pocket.ledger.at(-1).id };
+    pocket.openBuyIns = [...open.filter(stay => stay.tableId !== tableId), receipt];
+  }
   return { ok: true, moved: want };
 }
 
 export function creditCashOut(pocket, amount, tableId = null) {
   const back = chips(amount);
+  const open = ensureOpenBuyIns(pocket);
   pocket.balance += back;
   pocket.realised = (pocket.realised ?? 0) + back;
   pocket.ledger = appendEntry(pocket.ledger, { type: 'cashout', amount: back, tableId });
+  // Also close a bust: owing zero at the rail still ends the paid stay.
+  pocket.openBuyIns = open.filter(stay => stay.tableId !== tableId);
   return { ok: true, moved: back };
 }
 
@@ -365,6 +410,7 @@ export function creditCashOut(pocket, amount, tableId = null) {
 export function takeRake(pocket, amount, tableId = null) {
   const cut = Math.min(chips(amount), chips(pocket.balance));
   if (cut <= 0) return { ok: false, moved: 0, reason: 'nothing to rake' };
+  ensureOpenBuyIns(pocket);
   pocket.balance -= cut;
   pocket.realised = (pocket.realised ?? 0) - cut;
   pocket.ledger = appendEntry(pocket.ledger, { type: 'rake', amount: -cut, tableId });

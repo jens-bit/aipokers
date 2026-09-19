@@ -126,10 +126,10 @@ test(`BUG-192: existing ${entry} live Watch destination remains intact at ${widt
   await expect.poll(()=>page.evaluate(()=>window.__awayMessages.filter(m=>m.type==='watch'))).toEqual([expect.objectContaining({tableId:`table-${id}`,agentId:id,displayName:name})]);
   if(width===1440){
     await expect(page.getByTestId('desk-casino-table')).toHaveAccessibleName(`${name} at the table`);
-    await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+    await page.getByRole('button',{name:'Stop watching',exact:true}).click();
   }else{
     await expect(page.locator('.watch-felt')).toBeVisible();
-    await page.getByRole('button',{name:'Leave table',exact:true}).click();
+    await page.getByRole('button',{name:'Stop watching',exact:true}).click();
   }
   await expect(page.getByTestId('home-tv')).toBeVisible();
 });

@@ -10,8 +10,9 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import express from 'express';
 
-import { rateLimiter, clientIp } from './rateLimit.js';
+import { rateLimiter, clientIp, createClientIp } from './rateLimit.js';
 
 const req = (forwarded, socketIp = '127.0.0.1') => ({
   headers: forwarded ? { 'x-forwarded-for': forwarded } : {},
@@ -35,12 +36,67 @@ function hit(limiter, request) {
   return { passed, status: r.statusCode, body: r.body };
 }
 
-test('clientIp prefers the forwarded address over the socket', () => {
+test('clientIp accepts forwarding from the local reverse proxy', () => {
   assert.equal(clientIp(req('203.0.113.7')), '203.0.113.7');
-  // A proxy chain: the client is the first entry, the rest are the hops.
-  assert.equal(clientIp(req('203.0.113.7, 10.0.0.1, 10.0.0.2')), '203.0.113.7');
+  assert.equal(clientIp(req('203.0.113.7', '::ffff:127.0.0.1')), '203.0.113.7');
   assert.equal(clientIp(req(null, '198.51.100.4')), '198.51.100.4', 'and falls back to the socket');
   assert.equal(clientIp({}), null, 'with nothing to go on, nothing');
+});
+
+test('BUG-250: an untrusted socket cannot rotate its budget with a forged forwarded header', () => {
+  const limiter = rateLimiter({ max: 1 });
+  assert.equal(clientIp(req('203.0.113.7', '198.51.100.4')), '198.51.100.4');
+  assert.equal(hit(limiter, req('203.0.113.7', '198.51.100.4')).passed, true);
+  assert.equal(hit(limiter, req('203.0.113.8', '198.51.100.4')).status, 429);
+});
+
+test('BUG-250: forwarding stops at the nearest untrusted hop, not a supplied leftmost identity', () => {
+  assert.equal(clientIp(req('203.0.113.7, 198.51.100.4')), '198.51.100.4');
+  assert.equal(clientIp(req('203.0.113.7, 10.0.0.2')), '10.0.0.2');
+  assert.equal(clientIp(req('203.0.113.7, invalid')), '127.0.0.1');
+  assert.equal(clientIp(req('unknown')), '127.0.0.1');
+  assert.equal(clientIp({ headers: { 'x-forwarded-for': '203.0.113.7' } }), null);
+});
+
+test('BUG-250: equivalent IPv6 spellings share a budget', () => {
+  const limiter = rateLimiter({ max: 1 });
+  assert.equal(hit(limiter, req('2001:db8::1')).passed, true);
+  assert.equal(hit(limiter, req('2001:0db8:0:0:0:0:0:1')).status, 429);
+});
+
+test('BUG-250: remote proxy trust is explicit and can be disabled', () => {
+  const remote = createClientIp({ trustedProxies: '127.0.0.0/8,10.2.3.0/24,2001:db8:1::/64' });
+  assert.equal(remote(req('203.0.113.7, 10.2.3.4')), '203.0.113.7');
+  assert.equal(remote(req('203.0.113.7', '2001:db8:1::5')), '203.0.113.7');
+  assert.equal(remote(req('203.0.113.7', '10.2.4.4')), '10.2.4.4');
+  assert.equal(createClientIp({ trustedProxies: '' })(req('203.0.113.7')), '127.0.0.1');
+  for (const bad of ['true', '*', '10.0.0.1/no', '10.0.0.1/99', '10.0.0.1/8/1']) {
+    assert.throws(() => createClientIp({ trustedProxies: bad }));
+  }
+});
+
+test('BUG-250: the HTTP limiter separates real proxy clients but ignores a forged prefix', async () => {
+  const app = express();
+  app.use(rateLimiter({ max: 2 }));
+  app.get('/', (_req, res) => res.json({ ok: true }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const url = `http://127.0.0.1:${server.address().port}/`;
+  const request = async forwarded => {
+    const response = await fetch(url, { headers: { 'x-forwarded-for': forwarded } });
+    await response.text();
+    return response.status;
+  };
+  try {
+    assert.equal(await request('203.0.113.1, 198.51.100.4'), 200);
+    assert.equal(await request('203.0.113.2, 198.51.100.4'), 200);
+    assert.equal(await request('203.0.113.3, 198.51.100.4'), 429);
+    assert.equal(await request('198.51.100.5'), 200);
+    assert.equal(await request('fe80::1%zone'), 200, 'invalid forwarding falls back without throwing');
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  }
 });
 
 test('MONEY-1: two people behind one proxy do not share a budget', () => {

@@ -89,6 +89,7 @@ import { chooseFromPolicy } from '../agent/policyPlay.js';
 // both are injected the same way: table.js supplies the facts and never the
 // prompt.
 import { writeHandTalk, BUBBLE_GAP_MS } from './handTalk.js';
+import { greetHouseTable, finishHouseHand, isHouseSpeaker, replyFromHouse } from './houseTableTalk.js';
 import { writeNightRecap } from './nightRecap.js';
 import { recordDecisionRoute } from './meter.js';
 import { estimateEquity } from '../engine/equity.js';
@@ -142,7 +143,7 @@ import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js
 import { seatedElsewhere, seatedElsewhereMessage } from './seating.js';
 import { appendLine as appendThreadLine, ThreadKind, ThreadCategory, ThreadSource, OWNER as THREAD_OWNER, ROOM as THREAD_ROOM } from './thread.js';
 import { homeSessionId } from './homeNight.js';
-import { canAffordTable } from './wallet.js';
+import { canAffordTable, STAKES } from './wallet.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 
@@ -255,6 +256,8 @@ const RECAP_LONELY = 'nobody else ever sat down, so I moved tables';
 // tempo can never trip it.
 const SESSION_STALL_MS = Number(process.env.SESSION_STALL_MS ?? 120_000);
 const SESSION_STALL_MS_EXPLICIT = process.env.SESSION_STALL_MS !== undefined;
+const HUMAN_ACTION_MS = 15_000;
+const HUMAN_RECONNECT_MS = 30_000;
 
 // MST-2: the House archetypes and the complementarity rule moved to
 // matchmaking.js, where the same judgement now also ranks real tables. Kept
@@ -364,6 +367,8 @@ export class Table {
     // channel can push a FLOOR_GAME delta. Cheap no-op when unset.
     this.onStateChange = onStateChange ?? null;
     this.connections = Array(maxSeats).fill(null); // ws by seat
+    this._humanReconnects = new Map(); // stable playerId -> grace timer
+    this._humanActionTimer = null;
     this.pending = Array(maxSeats).fill(null);     // { playerId, buyIn, displayName } per seat before hand starts
     this.game = null;
 
@@ -521,9 +526,7 @@ export class Table {
     // failed fill does not restart the clock.
     this._aloneSince = null;
     this._lonelyTimer = null;
-    // Advisory deadline for the seat currently to act (the AI's think delay).
-    // Surfaced to the floor as liveGame.actionDeadline. A real server-side
-    // action timer for HUMAN seats is still Fredrik's queue.
+    // The current seat's server deadline: AI think delay or human action time.
     this.actionDeadline = null;
 
     // ── SERVER-3: the session, as a thing with a name ────────────────────
@@ -944,6 +947,9 @@ export class Table {
     const displayName = occupant.displayName ?? occupant.playerId;
     this._pendingSitOut.delete(seat);
     this._benchAfterHand.delete(seat);
+    // A grace window belongs to this stay. Compaction only moves a seat,
+    // but retiring it must not carry an expired reservation into a later buy-in.
+    this._cancelHumanReconnect(occupant.playerId);
     this._clearSeat(seat);
     console.log(`[table:${this.tableId}] seat ${seat} freed -- ${displayName} (${recap})`);
     this._broadcast({ type: ServerMsg.SEAT_LEFT, seat, displayName, reason: recap });
@@ -1023,7 +1029,7 @@ export class Table {
       agentProfile: profile,
       buyIn: stack,
     });
-    const house = pickComplementaryHouse(profile);
+    const house = pickComplementaryHouse(profile, { bigBlind: this.home ? null : this.bigBlind });
     this.seatAI({
       displayName:  house.displayName,
       strategy:     house.strategy,
@@ -1234,7 +1240,7 @@ export class Table {
       const opposing = this._survivingSeats()
         .map((seat) => this.agentProfiles[seat])
         .filter(Boolean);
-      const house = pickHouseRegular(opposing, this._seatedCastIds());
+      const house = pickHouseRegular(opposing, this._seatedCastIds(), { bigBlind: this.home ? null : this.bigBlind });
       if (!house) break;   // the whole cast is already at this felt
       try {
         this.seatAI({
@@ -1275,16 +1281,27 @@ export class Table {
    * is still pointing at a live table and closeTable is what clears that.
    */
   _closeAndRequeue() {
+    // BUG-256: a replacement table continues the same stakes. An omitted
+    // rung asks deploy for the highest affordable room, which can spend a
+    // much larger buy-in than the owner selected before this table stalled.
+    const stakes = STAKES.find((s) => s.smallBlind === this.smallBlind && s.bigBlind === this.bigBlind);
     const stranded = [];
     for (const seat of this._survivingSeats()) {
       if (this.agentIds[seat]) {
         stranded.push({ agentId: this.agentIds[seat], userId: this.agentUserIds[seat] });
       }
     }
-    this.closeTable(RECAP_LONELY, { recap: RECAP_LONELY });
+    const recap = stakes ? RECAP_LONELY : 'that table closed, so I came home';
+    this.closeTable(recap, { recap });
+    // Custom tables have no equivalent deploy rung. Return their chips home
+    // without inventing consent to another room.
+    if (!stakes) {
+      if (stranded.length) console.warn(`[table:${this.tableId}] unsupported re-queue stakes ${this.smallBlind}/${this.bigBlind}; players returned home`);
+      return;
+    }
     for (const who of stranded) {
       try {
-        const out = deployAgent(who.userId, who.agentId, { requeue: true });
+        const out = deployAgent(who.userId, who.agentId, { requeue: true, body: { rung: stakes.rung } });
         if (out.status === 200) {
           console.log(`[table:${this.tableId}] ${who.agentId} re-queued at ${out.body.tableId}`);
         } else {
@@ -1344,6 +1361,12 @@ export class Table {
   }
 
   _clearTimers() {
+    if (this._humanActionTimer) clearTimeout(this._humanActionTimer);
+    this._humanActionTimer = null;
+    this.actionTimer = null;
+    this.actionDeadline = null;
+    for (const entry of this._humanReconnects.values()) clearTimeout(entry.timer);
+    this._humanReconnects.clear();
     for (const t of this._paceTimers ?? []) clearTimeout(t);
     this._paceTimers = [];
     this._pendingPaceResult = null;
@@ -1525,12 +1548,14 @@ export class Table {
 
     const existingSeat = this.pending.findIndex((p) => p?.playerId === playerId);
     if (existingSeat !== -1) {
+      if (this._humanReconnects.get(playerId)?.expired) throw new Error('reconnect window expired');
+      this._cancelHumanReconnect(playerId);
       // Reconnect: replace the WebSocket on that seat.
       const prev = this.connections[existingSeat];
+      this.connections[existingSeat] = ws;
       if (prev && prev !== ws && prev.readyState === prev.OPEN) {
         prev.close(4000, 'replaced by new connection');
       }
-      this.connections[existingSeat] = ws;
       if (displayName) this.pending[existingSeat].displayName = displayName;
       this._refreshNextDealForViewer();
       return existingSeat;
@@ -1566,7 +1591,7 @@ export class Table {
       // profile and pick a complementary House shape so the table produces
       // action instead of a fold-fest.
       const opposingProfile = this.agentProfiles.find((p) => p) ?? null;
-      const house = pickComplementaryHouse(opposingProfile);
+      const house = pickComplementaryHouse(opposingProfile, { bigBlind: this.home ? null : this.bigBlind });
       console.log(`[table:${this.tableId}] scheduling ${house.displayName} (${house.castMember?.archetype ?? 'House'}) vs opponent T=${opposingProfile?.tightness ?? '?'}`);
       this.maybeAutoSeatAI({
         agentDisplayName: house.displayName,
@@ -2539,7 +2564,50 @@ export class Table {
     }, 60_000);
   }
 
-  removeConnection(ws) {
+  _cancelHumanReconnect(playerId) {
+    const entry = this._humanReconnects.get(playerId);
+    if (entry) clearTimeout(entry.timer);
+    this._humanReconnects.delete(playerId);
+  }
+
+  _leaveHumanSeat(seat) {
+    if (this.closed || !this.pending[seat] || this.aiSeats[seat]) return;
+    this.sitOutSeat(seat);
+    // An explicit departure is immediate intent, not permission to discard
+    // the pot. Fold on his legal turn; an all-in remains entitled to showdown.
+    if (this.handInProgress() && this.game.toAct === seat) {
+      this._applyHumanAction(seat, { type: 'fold' });
+    }
+  }
+
+  removeConnection(ws, { reconnect = false } = {}) {
+    if (!reconnect && this._pendingPaceResult && this.connections.includes(ws)) {
+      this._finishPaceHold();
+      if (this.closed) return;
+    }
+    const humanSeat = this.connections.indexOf(ws);
+    if (humanSeat !== -1 && !this.aiSeats[humanSeat]) {
+      const playerId = this.pending[humanSeat]?.playerId;
+      this.connections[humanSeat] = null;
+      if (!reconnect) {
+        this._cancelHumanReconnect(playerId);
+        this._leaveHumanSeat(humanSeat);
+        return;
+      }
+      // The same authenticated, namespaced player can reclaim this exact
+      // seat. Cards, committed chips and the existing action deadline stay.
+      const entry = { expired: false, timer: null };
+      entry.timer = setTimeout(() => {
+        if (this.closed || this._humanReconnects.get(playerId) !== entry) return;
+        entry.expired = true;
+        const seat = this.pending.findIndex(occupant => occupant?.playerId === playerId);
+        if (seat === -1) { this._humanReconnects.delete(playerId); return; }
+        if (!this.connections[seat]) this._leaveHumanSeat(seat);
+      }, HUMAN_RECONNECT_MS);
+      entry.timer.unref?.();
+      this._humanReconnects.set(playerId, entry);
+      return;
+    }
     // A seated player's explicit departure can compact the roster below.
     // Publish the final held result while those seat indices still mean it.
     if (this._pendingPaceResult && this.connections.includes(ws)) {
@@ -2668,6 +2736,7 @@ export class Table {
     // AGENT-5 job G: and who is from his own flat, which since job E is a
     // thing that can happen at a casino table.
     for (let seat = 0; seat < this.maxSeats; seat++) this._maybeGreetHousemate(seat);
+    greetHouseTable(this);
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
@@ -2677,6 +2746,10 @@ export class Table {
     if (!this.game) throw new Error('hand not in progress');
     const seat = this.connections.indexOf(ws);
     if (seat === -1) throw new Error('connection not seated');
+    this._applyHumanAction(seat, action);
+  }
+
+  _applyHumanAction(seat, action) {
     const streetBefore = this.game.street;
     this._boardBeforeAct = [...this.game.community];
     const actionBefore = this._actionViewBefore(seat);
@@ -2893,7 +2966,6 @@ export class Table {
       this._takeRake(this.game.result);
       this._noteSeatPots(this.game.result);
       this.game.result.events = this._handEndEvents(this.game.result);
-      this._threadResult(this.game.result);
     }
     // PACE-1: with a spectator attached and a stack committed, the pot does not
     // move yet — the runout is revealed a card at a time and the finished board
@@ -2903,6 +2975,7 @@ export class Table {
     if (holdMs === 0) {
       this._broadcastPace({ pace: PACE.SHOWDOWN });
       this._broadcast({ type: ServerMsg.HAND_RESULT, result: this.game.result });
+      this._threadResult(this.game.result);
     }
     // Fire-and-forget per-agent result reports. Snapshot data we need now,
     // because subsequent hands will reset the game's seat state.
@@ -2949,6 +3022,7 @@ export class Table {
 
   _finishCompletedHand() {
     if (this.closed) return;
+    finishHouseHand(this, this.game?.result);
 
     // A departure or a bust only ends the TABLE when it can no longer be
     // dealt. With three or more agents seated, one leaving is just a seat
@@ -4376,10 +4450,8 @@ export class Table {
   // drawing a countdown had to start its own clock on arrival — off by the
   // network, and wrong again on a reconnect mid-think.
   //
-  // Only an AI seat gets a clock. There is no server-side action timer for a
-  // human seat yet (Fredrik's seat-lifecycle queue owns that), and a deadline
-  // nothing will enforce is worse than no ring: the client would draw it
-  // running out and then nothing would happen.
+  // AI uses its existing think delay. Human turns have the documented 15s
+  // deadline, enforced here even when their browser is hidden or disconnected.
   //
   // Idempotent per (hand, action, seat). The key includes _actionSeq because
   // heads-up the same seat legitimately acts twice in a row across a street
@@ -4389,17 +4461,34 @@ export class Table {
     const g = this.game;
     const seat = g?.toAct;
     const live = g && g.street !== Streets.COMPLETE && g.street !== Streets.WAITING;
-    if (!live || seat === null || seat === undefined || !this.aiSeats[seat]) {
+    if (!live || seat === null || seat === undefined) {
+      if (this._humanActionTimer) clearTimeout(this._humanActionTimer);
+      this._humanActionTimer = null;
       this.actionTimer = null;
       this.actionDeadline = null;
       return null;
     }
     const key = `${g.handNumber}:${this._actionSeq}:${seat}`;
     if (this.actionTimer?.key === key) return this.actionTimer;
-    const totalMs = Math.round(THINK_MIN_MS + Math.random() * THINK_SPREAD_MS);
+    if (this._humanActionTimer) clearTimeout(this._humanActionTimer);
+    this._humanActionTimer = null;
+    const human = !this.aiSeats[seat];
+    const totalMs = human ? HUMAN_ACTION_MS : Math.round(THINK_MIN_MS + Math.random() * THINK_SPREAD_MS);
     this.actionTimer = { key, seat, deadlineTs: Date.now() + totalMs, totalMs };
     // AGE-37's advisory field is the same clock; the floor's LiveBar reads it.
     this.actionDeadline = this.actionTimer.deadlineTs;
+    if (human) {
+      const playerId = this.pending[seat]?.playerId;
+      const game = g;
+      this._humanActionTimer = setTimeout(() => {
+        if (this.closed || this.game !== game || this.actionTimer?.key !== key
+          || this.pending[seat]?.playerId !== playerId || this.aiSeats[seat] || game.toAct !== seat) return;
+        this._humanActionTimer = null;
+        const canCheck = game.legalActions(seat).some(action => action.type === 'check');
+        this._applyHumanAction(seat, { type: !this._foldsOutOfHand(seat) && canCheck ? 'check' : 'fold' });
+      }, this._foldsOutOfHand(seat) ? 0 : totalMs);
+      this._humanActionTimer.unref?.();
+    }
     return this.actionTimer;
   }
 
@@ -4451,7 +4540,7 @@ export class Table {
     }
     // SERVER-3: the acting seat's deadline, so the client draws the ring the
     // server is actually keeping rather than one it started on arrival. Null
-    // when nobody is to act and null for a human seat -- see _armActionTimer.
+    // when nobody is to act. Human and AI deadlines are both server-owned.
     state.actionTimer = this._actionTimerPayload();
     // SERVER-3: which stay this seat is on. The key SESSION_END and
     // GET /api/agents/:id/thread are both filed under, so a client that
@@ -4663,6 +4752,9 @@ export class Table {
     // no SHOWDOWN frame of its own. Settling is not another card landing.
     this._broadcastPace({ force: true, pace: PACE.SHOWDOWN, board: pending.finalBoard });
     this._broadcast({ type: ServerMsg.HAND_RESULT, result: pending.result });
+    // BUG-272: history reloads and the live Handlog share this persisted
+    // result. Publish only at award, before lifecycle changes the roster.
+    this._threadResult(pending.result);
     if (runLifecycle) pending.afterAward?.();
   }
 
@@ -4707,6 +4799,15 @@ export class Table {
     if (typeof text !== 'string') return;
     const trimmed = text.trim().slice(0, 280);
     if (!trimmed) return;
+    // BUG-257: addressed owner replies can contain cards, instructions or
+    // personal context. Keep both whisperReply and owner-hand comments on
+    // the same private thread path; never copy them into another seat's
+    // history, public CHAT, or the public speech memory used by later talk.
+    if (to != null && to !== THREAD_ROOM) {
+      this._threadTo(seat, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', trimmed,
+        { from, to, category: ThreadCategory.CHAT });
+      return;
+    }
     const displayName = this.pending[seat]?.displayName ?? `Seat ${seat}`;
     const entry = {
       seat,
@@ -4734,10 +4835,8 @@ export class Table {
     if (entry.isAI && this.aiSeats[seat] && this.pending[seat]) {
       this._lastPublicAiLine[seat] = trimmed;
     }
-    // An owner-addressed whisper reply is not room speech, even though the
-    // legacy table CHAT transport above also carries it. Never widen its
-    // audience to the casino floor or retain owner/thread metadata here.
-    if (this.pending[seat] && (to == null || to === THREAD_ROOM)) {
+    // Only public speech reaches the casino miniature.
+    if (this.pending[seat]) {
       this._recentFloorChat = {
         ...entry, seq: ++this._floorChatSeq, expiresAt: entry.timestamp + FLOOR_CHAT_MS,
         playerId: this.pending[seat].playerId,
@@ -4757,10 +4856,9 @@ export class Table {
   //   1. IT IS ADDRESSED. Owner → him, and him → owner. Every other line at a
   //      felt is said to the room and carries no from/to; these two carry
   //      both, which is what lets the sheet draw "YOU → GRANITE".
-  //   2. WHAT YOU SAID IS YOURS. The whisper itself is written into HIS thread
-  //      only — no other seat heard it, and no other seat's sheet gets it. His
-  //      ANSWER is out loud, so it goes on the wire as an ordinary CHAT bubble
-  //      over his head, exactly as his trash talk does.
+  //   2. BOTH HALVES ARE PRIVATE. The whisper and answer are written into HIS
+  //      thread only. Its owner-gated THREAD_LINE push delivers the reply;
+  //      neither half is public CHAT or another seat's history.
   //   3. IT NEVER BREAKS A HAND. Everything here is best-effort and returns
   //      null rather than throwing: a whisper that can wedge a table is worse
   //      than a whisper that goes unanswered.
@@ -4821,7 +4919,7 @@ export class Table {
   }
 
   /**
-   * His answer: a bubble over his head, and a HIM line addressed back to you.
+   * His answer: a private HIM line addressed back to you, pushed to his owner.
    * Returns the seat, or null.
    */
   whisperReply(agentId, text) {
@@ -4888,6 +4986,7 @@ export class Table {
       if (seat === fromSeat) continue;
       if (!this.aiSeats[seat] || !this.pending[seat]) continue;
       const cast = this.seatTalkLines?.[seat];
+      if (replyFromHouse(this, seat)) continue;
       if (Array.isArray(cast) && cast.length > 0) {
         this._speakOnce(seat, cast[Math.floor(Math.random() * cast.length)]);
         continue;
@@ -4925,6 +5024,9 @@ export class Table {
 
     for (let seat = 0; seat < this.maxSeats; seat++) {
       if (!this.aiSeats[seat] || !this.pending[seat]) continue;
+      // House regulars use public outcome dialogue after the paced award.
+      // They never enter the model writer or its private-equity triggers.
+      if (isHouseSpeaker(this, seat)) continue;
       if (!this._seatIsInGame(seat)) continue;
 
       const myDecisions = this.currentHandDecisions.filter((d) => d.seat === seat);
@@ -5618,6 +5720,7 @@ export class Table {
       street: this.game.street,
       action,
       reasoning,
+      ...(decision.fallback ? { fallback: decision.fallback } : {}),
       holeCards: [...this.game.seats[aiSeat].holeCards],
       community: [...this.game.community],
       equity: gameState.equity,
@@ -5663,7 +5766,7 @@ export class Table {
       // What they were for now happens once, at the end of the hand, in
       // _maybeSendAgentTalk, which can see the whole hand instead of one
       // action out of it.
-      if (decision.say) this._speakOnce(aiSeat, decision.say);
+      if (decision.say && !isHouseSpeaker(this, aiSeat)) this._speakOnce(aiSeat, decision.say);
       this._broadcastState();
       if (this.game.street === Streets.COMPLETE) this._handCompleted();
     } catch (err) {

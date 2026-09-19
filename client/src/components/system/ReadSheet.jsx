@@ -11,6 +11,7 @@
 // one thing in a tab and another in a sheet.
 import { useEffect, useRef, useState } from 'react';
 import { normalizeReads, noEvidenceLine } from '../../lib/reads.js';
+import { storedIdentity } from '../../lib/identity.js';
 import { MoodGhost } from './MoodGhost.jsx';
 import { ReadBar } from './ReadPanel.jsx';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
@@ -20,6 +21,9 @@ const FORMING_MS = 4000;
 
 export function ReadSheet({ entry, seat, onClose }) {
   const model = normalizeReads(entry);
+  // Match the public seat's saved portrait without rolling an identity for
+  // an anonymous/legacy opponent whose appearance was never served.
+  const identity = storedIdentity(seat);
   // BUGS-A job 5: the same gesture every other sheet answers to.
   const drag = useSheetDrag(onClose);
   const closeRef = useRef(onClose);
@@ -98,6 +102,7 @@ export function ReadSheet({ entry, seat, onClose }) {
       <div className="read-sheet__head">
         <div className="read-sheet__well">
           <MoodGhost mood={seat?.mood || 'neutral'} heat={Number.isFinite(seat?.heat) ? seat.heat : 45}
+            hood={identity?.hood} glow={identity?.glow.c}
             accent={seat?.accent || '#00D4AA'} size={38} ring={false} />
         </div>
         <div className="read-sheet__id">

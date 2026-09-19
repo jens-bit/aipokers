@@ -131,7 +131,7 @@ export function DeskHome({
       onPanel={onPanel}
       focusId={focusId}
       onFocusId={onFocusId}
-      renderRail={({ panel: open, openPanel, setFocus, agents, loaded, gameKnown, home, game: homeGame, liveHomeTable, focus, toast, refresh, carryAgent, roomTarget }) => {
+      renderRail={({ panel: open, openPanel, setFocus, agents, loaded, gameKnown, home, game: homeGame, liveHomeTable, focus, toast, refresh, refreshRoomWallet, carryAgent, roomTarget }) => {
         const backToRoom = () => openPanel('thread');
 
         if (open === 'draft' && draft) {
@@ -219,6 +219,10 @@ export function DeskHome({
               draft={drafts[focus.id] ?? ''}
               onDraftChange={onDraftChange}
               onClose={backToRoom}
+              onCommand={() => {
+                refresh(); refreshRoomWallet();
+                return onRefreshWallet?.();
+              }}
               onWatch={onWatch}
               onDeploy={onDeploy}
               onCarry={carryAgent}

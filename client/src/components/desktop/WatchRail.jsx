@@ -55,7 +55,7 @@ export function WatchRail({
   // be awake for, so a reconnect emptied it exactly as it emptied the phone's.
   stored = [], readOnly = false, conversationOnly = false,
   draft, onDraftChange, onSend, sending, onClose, composerRef, error = '',
-  view, onViewChange,
+  view, onViewChange, agentReturn = null,
 }) {
   const [localView, setLocalView] = useState('chat');
   useEffect(() => setLocalView('chat'), [agent?.id, game?.sessionId, game?.tableId]);
@@ -131,6 +131,10 @@ export function WatchRail({
               background: activeView === tab ? 'var(--sys-panel-2, #24242B)' : 'transparent' }}
           >{label}</button>)}
         </div>
+      </div>}
+      {agentReturn?.visible && <div className="dsk-watch-return">
+        <button type="button" disabled={agentReturn.disabled} onClick={agentReturn.request}>{agentReturn.label}</button>
+        <p role={agentReturn.error ? 'alert' : 'status'}>{agentReturn.detail}</p>
       </div>}
       <RailBody>
         {/* WATCH-6, board 31: the rail leads with THE TABLE — everything said

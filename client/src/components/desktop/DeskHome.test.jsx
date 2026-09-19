@@ -99,6 +99,24 @@ beforeEach(() => {
   telegram.signIn();
 });
 
+it('BUG-251: a private command refreshes both the room safe and the desktop owner projections immediately', async () => {
+  let balance = 54000;
+  const onRefreshWallet = vi.fn();
+  await boot({ props: { onRefreshWallet, panel: 'agent', focusId: 'a1', drafts: { a1: 'give me 500 chips' }, onDraftChange: vi.fn() } });
+  fetchMock.route('/api/wallet', () => ({ balance, ledger: [] }));
+  fetchMock.route('/api/agents/chat', () => {
+    balance = 53500;
+    return { chat: [{ role: 'assistant', content: 'I took $500 from your safe.' }],
+      command: { status: 'done' }, agent: { ...BALANCE, ownerCommandRevision: 1 } };
+  });
+  await screen.findAllByText('Sit down.');
+  const reads = fetchMock.requestsMatching('/api/agents?').length;
+  await userEvent.click(screen.getByRole('button', { name: 'Send', exact: true }));
+  await waitFor(() => expect(onRefreshWallet).toHaveBeenCalledTimes(1));
+  expect(fetchMock.requestsMatching('/api/agents?').length).toBeGreaterThan(reads);
+  await waitFor(() => expect(screen.getByTestId('home-safe')).toHaveTextContent('$53,500'));
+});
+
 describe('C9 · the shared room with desktop coordinates', () => {
   it('draws ONE room at the reference desktop size', async () => {
     await boot();

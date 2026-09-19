@@ -17,7 +17,7 @@ import {
   POCKET_FLOAT, ENTRY_BUYIN, STAKES, MODES,
   emptyWallet, emptyPocket, ensurePocket,
   stakesFor, isBroke, canAffordTable, buyInFor,
-  fund, collect, collectable, autoRefill, debitBuyIn, creditCashOut, floatFor,
+  fund, collect, collectable, autoRefill, debitBuyIn, creditCashOut, floatFor, openStayFor,
   callIn, sweepRecall, modeForRequest,
   seedOwner, walletProjection, pocketProjection, benchCutSeat,
   collectMoment, callInMoment, brokeMoment,
@@ -944,4 +944,72 @@ test('WALLET-5: benching twice is idempotent — one seat, queued once', () => {
   benchCutSeat(table, 'a1');
   benchCutSeat(table, 'a1');
   assert.deepEqual([...table.benchedAfterHand], [0]);
+});
+
+test('BUG-269: legacy receipt migration follows the latest evidenced stay, without minting or resurrecting a settled stay', () => {
+  const pocket = { balance: 5000, ledger: [
+    { id: 'first', type: 'buyin', tableId: 'same-table', amount: -2000 },
+    { type: 'cashout', tableId: 'same-table', amount: 2500 },
+    { id: 'next', type: 'buyin', tableId: 'same-table', amount: -5000 },
+    { type: 'buyin', tableId: 'busted-table', amount: -2000 },
+    { type: 'cashout', tableId: 'busted-table', amount: 0 },
+  ] };
+  assert.equal(openStayFor(pocket, 'same-table'), 5000);
+  assert.equal(openStayFor(pocket, 'busted-table'), 0);
+  assert.equal(pocket.balance, 5000, 'migration moves no chips');
+  assert.equal(Object.hasOwn(pocket, 'openBuyIns'), false, 'a legacy lookup is read-only');
+  fund({ balance: 1, ledger: [] }, pocket, { amount: 1 });
+  assert.equal(pocket.openBuyIns[0].receiptId, 'next', 'the first accepted ledger write persists the proven legacy receipt');
+  assert.equal(openStayFor({ ...pocket, openBuyIns: [] }, 'same-table'), 0, 'persisted settlement wins over old history');
+});
+
+test('BUG-269: an already-truncated legacy buy-in is not invented from cached table identity', () => {
+  const agent = { activeTableId: 'lost', pocket: { balance: 2000, realised: -2000,
+    ledger: [{ type: 'fund', amount: 1 }] } };
+  ensurePocket(agent);
+  assert.equal(openStayFor(agent.pocket, 'lost'), 0);
+  assert.equal(Object.hasOwn(agent.pocket, 'openBuyIns'), false, 'an empty lookup does not add bookkeeping');
+  assert.equal(agent.pocket.balance, 2000);
+});
+
+test('BUG-269: direct funding preserves a legacy receipt before bounded history expires', () => {
+  const pocket = { balance: 0, realised: -2000, ledger: [{ id: 'legacy', type: 'buyin', tableId: 'live', amount: -2000 }] };
+  const safe = { balance: 100, ledger: [] };
+  for (let n = 0; n < 100; n++) fund(safe, pocket, { amount: 1 });
+  assert.equal(pocket.ledger.length, 100);
+  assert.equal(openStayFor(JSON.parse(JSON.stringify(pocket)), 'live'), 2000);
+});
+
+test('BUG-269: failed funding or buy-in cannot consume a paid receipt or fabricate a new one', () => {
+  const pocket = emptyPocket({ balance: 2000 });
+  debitBuyIn(pocket, 2000, 'live');
+  const before = structuredClone(pocket);
+  assert.equal(fund(emptyWallet('poor'), pocket, { amount: 1 }).ok, false);
+  assert.equal(debitBuyIn(pocket, 2000, 'unfunded').ok, false);
+  assert.deepEqual(pocket, before);
+  assert.equal(openStayFor(pocket, 'live'), 2000);
+  assert.equal(openStayFor(pocket, 'unfunded'), 0);
+});
+
+test('BUG-269: legacy admission reads do not mutate a pocket before any transaction succeeds', () => {
+  const agent = { pocket: { balance: 5000, mode: 'allowance', cap: null, realised: -2000,
+    recall: false, ledger: [{ id: 'legacy', type: 'buyin', tableId: 'live', amount: -2000 }] } };
+  const before = structuredClone(agent.pocket);
+  ensurePocket(agent);
+  assert.equal(openStayFor(agent.pocket, 'live'), 2000);
+  assert.equal(openStayFor(agent.pocket, 'other'), 0);
+  assert.deepEqual(agent.pocket, before, 'read-only admission must preserve the exact rollback snapshot');
+});
+
+test('BUG-269: a bust closes only its own receipt and a later paid stay at the same table has a new identity', () => {
+  const pocket = emptyPocket({ balance: 6000 });
+  debitBuyIn(pocket, 2000, 'again');
+  const firstId = pocket.openBuyIns[0].receiptId;
+  debitBuyIn(pocket, 2000, 'other');
+  creditCashOut(pocket, 0, 'again');
+  assert.equal(openStayFor(pocket, 'again'), 0);
+  assert.equal(openStayFor(pocket, 'other'), 2000);
+  debitBuyIn(pocket, 2000, 'again');
+  assert.equal(openStayFor(pocket, 'again'), 2000);
+  assert.notEqual(pocket.openBuyIns.find(stay => stay.tableId === 'again').receiptId, firstId);
 });

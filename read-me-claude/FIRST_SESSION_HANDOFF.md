@@ -1,5 +1,12 @@
 # First-session playtest candidate
 
+Latest continuation, **19 September 2026**: the recovery and companion playability
+work is on `codex/railbird-recovery-audit`; main remains `19b34a4`. See the
+[current playability audit](RAILBIRD_PLAYABILITY_AUDIT.md) for the implemented
+journey, final gates, captures and remaining human/live checks. The local-main
+integration and push commands below are historical and do not describe this
+review branch. Jens retains the push decision.
+
 12 September 2026. [Approved mission](FIRST_SESSION_MISSION.md) · [Five-person playtest](FIRST_SESSION_PLAYTEST.md).
 
 Current local status and the latest Watch/palette continuation are recorded in [Warm game and public Watch](WARM_GAME_HANDOFF.md). Jens's replacement of the separate practice flow is recorded in [In-game introduction](FIRST_RUN_GUIDE_HANDOFF.md). The candidate and integration history below describe earlier revisions; their separate-practice requirements are retired.

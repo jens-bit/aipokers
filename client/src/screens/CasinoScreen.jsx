@@ -45,7 +45,7 @@ import {
 } from '../components/casino/CasinoBuilding.jsx';
 import { CasinoTicker } from '../components/casino/CasinoTicker.jsx';
 import { YourTables } from '../components/casino/YourTables.jsx';
-import { FloorView, tableIdOf } from '../components/casino/FloorView.jsx';
+import { FloorView, tableIdOf, casinoTableIdOf } from '../components/casino/FloorView.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { useCasinoRooms, roomForBlinds, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
@@ -56,6 +56,7 @@ import { HomeThread } from '../components/home/HomeThread.jsx';
 // chunk that draws them instead of with every phone entry.
 import '../styles/casino.css';
 import '../styles/desktop.css';
+import '../styles/floor-recovery.css';
 
 const POLL_MS = 10_000;
 
@@ -140,12 +141,15 @@ export function CasinoScreen({
   const [playAgentId, setPlayAgentId] = useState(null);
   const [playError, setPlayError] = useState('');
   const [pendingTable, setPendingTable] = useState(null);
+  const [placedAgentId, setPlacedAgentId] = useState(null);
   const [zoom, setZoom] = useState(null);
   const playInFlight = useRef(false);
   const playEntry = useRef(0);
   const mounted = useRef(false);
   useLayoutEffect(() => {
     mounted.current = true;
+    setPlacedAgentId(null);
+    setPlayError('');
     return () => { mounted.current = false; playEntry.current += 1; };
   }, [deployAgent?.id]);
   const abandonFloorPlay = useCallback(() => {
@@ -181,6 +185,15 @@ export function CasinoScreen({
     return () => clearInterval(t);
   }, [loadAgents]);
 
+  // Suppress duplicate taps only until the roster catches up to the receipt.
+  // Thereafter the authoritative casino seat hides the tray; coming home
+  // makes him eligible for another outing without remounting this screen.
+  useEffect(() => {
+    if (placedAgentId && agents.some(agent => agent.id === placedAgentId && casinoTableIdOf(agent))) {
+      setPlacedAgentId(null);
+    }
+  }, [agents, placedAgentId]);
+
   const refreshWallet = useCallback(async () => {
     setWallet(await fetchWallet());
     await loadAgents();
@@ -191,9 +204,10 @@ export function CasinoScreen({
   // The agent in the tray, kept current with the roster: his pocket changes
   // when the owner funds him, and the tray is the thing that states it.
   const trayAgent = useMemo(() => {
-    if (!deployAgent) return null;
-    return agents.find((a) => a.id === deployAgent.id) ?? deployAgent;
-  }, [deployAgent, agents]);
+    if (!deployAgent || deployAgent.id === placedAgentId) return null;
+    const current = agents.find((a) => a.id === deployAgent.id) ?? deployAgent;
+    return casinoTableIdOf(current) ? null : current;
+  }, [deployAgent, agents, placedAgentId]);
 
   const pocket = useMemo(() => (trayAgent ? pocketOf(trayAgent) : null), [trayAgent]);
   const speaker = trayAgent ?? agents.find(a => a.id === conversationId)
@@ -205,7 +219,7 @@ export function CasinoScreen({
     try { return await onSend(agent, text); }
     finally { setSending(false); }
   };
-  const conversation = !desktop && !rosterOpen && speaker && onSend ? <HomeThread
+  const conversation = !desktop && !zoom && !rosterOpen && speaker && onSend ? <HomeThread
     key={speaker.id} agent={speaker} open={threadOpen} onToggle={setThreadOpen}
     onSend={sendConversation} sending={sending} privateContext="HIS CONVERSATION"
     placeholder={`Whisper to ${speaker.nickname || speaker.name}…`}
@@ -234,7 +248,7 @@ export function CasinoScreen({
   );
 
   const seated = totalSeated(rooms);
-  const availableAgents = agents.filter(agent => !tableIdOf(agent) && !agent.guest && !agent.archived && !agent.retiring
+  const availableAgents = agents.filter(agent => agent.id !== placedAgentId && !casinoTableIdOf(agent) && !agent.guest && !agent.archived && !agent.retiring
     && agent.location?.where !== 'visiting');
   const playAgent = availableAgents.find(agent => agent.id === playAgentId) ?? availableAgents[0] ?? null;
 
@@ -275,8 +289,12 @@ export function CasinoScreen({
   // "Deal him in" — the existing queue path, with the chosen stake attached.
   async function dealHimIn(into = null) {
     const room = into ?? selectedRoom;
-    if (!trayAgent || !room || busy) return;
+    if (!trayAgent || !room || playInFlight.current) return;
     if (!canAfford(pocket, room)) { setFundTarget(trayAgent); return; }
+    playInFlight.current = true;
+    const entry = playEntry.current;
+    const stillHere = () => mounted.current && playEntry.current === entry;
+    setPlayError('');
     setBusy(true);
     try {
       const res = await fetch(`/api/agents/${encodeURIComponent(trayAgent.id)}/queue`, {
@@ -288,16 +306,30 @@ export function CasinoScreen({
           stakes: room.stakes,
         }),
       });
-      if (!res.ok) return;
       const payload = await res.json();
+      if (!stillHere()) return;
+      if (!res.ok) {
+        const message = typeof payload?.message === 'string' ? payload.message
+          : typeof payload?.error === 'string' && /\s/.test(payload.error) ? payload.error : null;
+        setPlayError(message || (payload?.error === 'cantAfford'
+          ? `${trayAgent.name} needs ${money(payload.buyIn ?? room.stakes.buyIn)} to sit here.`
+          : `${trayAgent.name} could not join. Try again.`));
+        return;
+      }
+      if (!payload?.tableId || (payload.agentId != null && payload.agentId !== trayAgent.id)) throw new Error('Missing placement confirmation');
       const smallBlind = payload.smallBlind ?? payload.stakes?.smallBlind;
       const bigBlind = payload.bigBlind ?? payload.stakes?.bigBlind;
       const queuedRoom = rooms.find(candidate => candidate.id === payload.room)
         ?? roomForBlinds(rooms, `${smallBlind}/${bigBlind}`)
         ?? room;
+      setPlacedAgentId(trayAgent.id);
       onDeployed?.(payload, trayAgent, queuedRoom);
-    } catch { /* he stays in the tray */ }
-    finally { setBusy(false); }
+    } catch {
+      if (stillHere()) setPlayError(`${trayAgent.name}’s table could not be opened. Try again.`);
+    } finally {
+      playInFlight.current = false;
+      if (mounted.current) setBusy(false);
+    }
   }
 
   // Unlike the tray's queue, deploy joins a compatible populated table or
@@ -363,6 +395,11 @@ export function CasinoScreen({
       r.biggestPot && (!best || r.biggestPot.pot > best.pot) ? r.biggestPot : best
     ), null),
   }), [rooms, seated]);
+  // The public census includes the House and other owners. Your own count is
+  // a separate fact, and two companions sharing a felt still mean one table.
+  const ownedSeats = agents.filter(agent => !agent.archived && !agent.guest && casinoTableIdOf(agent));
+  const ownedTableCount = new Set(ownedSeats.map(casinoTableIdOf)).size;
+  const ownedCensus = `Your agents: ${ownedSeats.length} at ${ownedTableCount} table${ownedTableCount === 1 ? '' : 's'}`;
 
   const fund = fundTarget ? (
     <FundSheet
@@ -385,9 +422,10 @@ export function CasinoScreen({
     );
   }
 
-  function watchTable(tableId) {
+  function watchTable(tableId, preferredAgentId = null) {
     abandonFloorPlay();
-    const agent = agents.find(candidate => tableIdOf(candidate) === String(tableId));
+    const atTable = agents.filter(candidate => tableIdOf(candidate) === String(tableId));
+    const agent = atTable.find(candidate => candidate.id === preferredAgentId) ?? atTable[0];
     if (agent) onSpectate?.(tableId, { agent });
     else onSpectate?.(tableId);
   }
@@ -418,6 +456,7 @@ export function CasinoScreen({
         selectedId={selectedRoomId}
         onSelect={selectStake}
       />
+      {playError && <p className="csn-deploy__error" role="alert">{playError}</p>}
     </div>
   ) : (!zoom && onDeployed && (pendingTable || playAgent)) ? (
     <div className="csn-floor-play" data-testid="casino-play">
@@ -462,7 +501,7 @@ export function CasinoScreen({
   const headerPortal = desktop && headerTarget ? createPortal(<>
     <div className="dsk-top__room">
       <h1>{zoom ? 'Table · ' + zoom.blinds : 'The casino floor'}</h1>
-      <p>{zoom ? 'pinch again to watch' : `${count(venue.seated)} in · ${count(venue.tables)} tables`}</p>
+      <p aria-label={zoom ? undefined : 'Everyone on the floor, including the House'}>{zoom ? 'pinch again to watch' : <><span>{`${count(venue.seated)} in · ${count(venue.tables)} tables`}</span> · including the House</>}</p>
     </div>
     {zoom && <button type="button" className="dsk-btn dsk-btn--ghost" onClick={() => setZoom(null)}>Back to the floor</button>}
     {trayAgent && <button type="button" className="dsk-btn dsk-btn--ghost" aria-label="Stop placing him" onClick={onCancelDeploy}>Not now</button>}
@@ -489,8 +528,10 @@ export function CasinoScreen({
       agents={agents}
       felts={felts}
       onSelectAgent={setConversationId}
-      onWatch={onSpectate ? watchTable : null}
+      onWatch={onSpectate ? tableId => watchTable(tableId, conversationId) : null}
       onSend={onPlace ?? null}
+      compact={!desktop}
+      census={ownedCensus}
     />
   ) : null;
 
@@ -506,18 +547,20 @@ export function CasinoScreen({
       onOpenRoster={desktop ? null : onOpenRoster}
       desktop={desktop}
       headerOwned={!!headerPortal}
+      ticker={desktop ? null : ticker}
+      yourTables={desktop ? null : yourTables}
       zoom={zoom} onZoom={setZoom}
     />
   );
 
   return (
     <div
-      className={`csn${desktop ? ' csn--desk-room' : ' csn--phone'}`}
+      className={`csn${desktop ? ' csn--desk-room' : ' csn--phone'}${zoom ? ' csn--zoom' : ''}`}
       style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
     >
       {headerPortal}
-      {ticker}
-      {yourTables}
+      {desktop && ticker}
+      {desktop && yourTables}
       {floor}
       {tray}
       {conversation}

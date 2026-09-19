@@ -1,17 +1,8 @@
 // Board 29 F13, mood-home2.jsx: household stock, bought from the safe.
 // Agents fetch an item after a want answer or a carry-to-fridge placement.
 //
-// UI-3 JOB D — THE FRIDGE LOSES ITS ESSAY.
-//
-// The list used to carry a sentence per item ("cools heat" / "gentler
-// cooling") always on, plus a whole paragraph at the foot spelling out the
-// beer's discipline tradeoff — visible whether or not the owner cared, every
-// time the sheet opened. Jens's decision: no descriptive text in the list.
-// Each item shows what it does as ARROWS ONLY — stamina up in green, heat
-// down in blue, discipline down in red, the same three colours `--success`/
-// `--cool`/`--error` mean everywhere else in the product — and the one
-// sentence that used to sit at the foot for everyone now belongs to
-// whichever item the owner actually taps, and only that one.
+// BUG-242: labels make the colored effects readable without guessing which
+// stat an arrow belongs to. Buying one costs exactly the quoted unit price.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
@@ -25,12 +16,12 @@ export const STOCK = [
   {
     id: 'beer', label: 'BEER',
     effects: [{ attr: 'heat', dir: 'down' }, { attr: 'discipline', dir: 'down' }],
-    sentence: 'Cools him off now, but the edge follows him to his next casino seat as a discipline hit and looser bluffs.',
+    sentence: 'Cools him down, but lowers discipline and increases bluffing next session.',
   },
   {
     id: 'snack', label: 'SNACK',
     effects: [{ attr: 'stamina', dir: 'up' }, { attr: 'heat', dir: 'down' }],
-    sentence: 'A gentler cooldown that also tops up his stamina, with nothing carried into his next session.',
+    sentence: 'Restores stamina and gently cools him down.',
   },
 ];
 
@@ -46,7 +37,7 @@ function EffectArrow({ attr, dir }) {
       aria-label={`${attr} ${dir}`}
       title={`${attr} ${dir}`}
     >
-      {up ? '↑' : '↓'}
+      <span>{attr[0].toUpperCase() + attr.slice(1)}</span> <span aria-hidden>{up ? '↑' : '↓'}</span>
     </span>
   );
 }
@@ -84,7 +75,7 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
     if (busy || loading || !items) return;
     setBusy(item); setError(''); setSaid('');
     try {
-      const res = await fetch('/api/fridge/stock', { method: 'POST', headers: headers(), body: JSON.stringify({ userId: getUserId(), item, qty: 6 }) });
+      const res = await fetch('/api/fridge/stock', { method: 'POST', headers: headers(), body: JSON.stringify({ userId: getUserId(), item, qty: 1 }) });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Could not stock the fridge. Please try again.');
       if (!alive.current) return;
@@ -92,7 +83,8 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
       if (body.fridge && STOCK.every(s => Number.isFinite(body.fridge[s.id]))) {
         setItems(prev => prev.map(i => ({ ...i, count: body.fridge[i.id] })));
       } else await load();
-      setSaid(`Bought ${body.qty ?? 6} ${item === 'beer' ? 'beers' : 'snacks'} from the safe.`);
+      const qty = body.qty ?? 1;
+      setSaid(`Bought ${qty} ${item}${qty === 1 ? '' : 's'} from the safe.`);
       onStocked?.(item, body);
     } catch (err) { if (alive.current) setError(err.message || 'Could not stock the fridge. Please try again.'); }
     finally { if (alive.current) setBusy(null); }
@@ -121,14 +113,14 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
               <div className="fridge-stock__detail">
                 <div>
                   <b>{s.label}</b>
-                  <span className="fridge-stock__arrows">{s.effects.map(e => <EffectArrow key={e.attr} attr={e.attr} dir={e.dir} />)}</span>
                   <span className={`fridge-stock__count${empty ? ' is-empty' : ''}`}>{shelf ? (empty ? 'out' : `× ${shelf.count}`) : '—'}</span>
                 </div>
+                <span className="fridge-stock__arrows">{s.effects.map(e => <EffectArrow key={e.attr} attr={e.attr} dir={e.dir} />)}</span>
                 <small>{shelf ? `${money(shelf.price)} each` : 'price unavailable'}</small>
               </div>
             </button>
+            <button type="button" className="fridge-stock__buy" aria-label={`Buy 1 ${s.id}`} data-testid={`home-buy-${s.id}`} onClick={() => buy(s.id)} disabled={!shelf || loading || !!busy}><span>{busy === s.id ? 'BUYING…' : 'BUY 1'}</span></button>
             {open && <p className="fridge-stock__why">{s.sentence}</p>}
-            <button type="button" className="fridge-stock__buy" aria-label={`Buy 6 ${s.id}`} data-testid={`home-buy-${s.id}`} onClick={() => buy(s.id)} disabled={!shelf || loading || !!busy}><span>{busy === s.id ? 'BUYING…' : 'BUY 6'}</span></button>
           </li>;
         })}
       </ul>

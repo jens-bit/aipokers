@@ -12,8 +12,9 @@ export function ThreadPanel({
   agent, accentIndex, draft, onDraftChange, onClose, onWatch, onDeploy, onCarry, onReplay,
   initialView = 'thread',
   onBackToThread,
+  onCommand,
 }) {
-  const { chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride } = useAgentThread(agent);
+  const { agent: commandAgent, chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride } = useAgentThread(agent, { onCommand });
   const feedRef = useRef(null);
   const inputRef = useRef(null);
   const [view, setView] = useState(initialView);
@@ -23,7 +24,8 @@ export function ThreadPanel({
   const [wallet, setWallet] = useState(null);
   const [pocketOverride, setPocketOverride] = useState(null);
   const [profileError, setProfileError] = useState('');
-  const currentAgent = pocketOverride ? { ...agent, pocket: pocketOverride } : agent;
+  const currentAgent = pocketOverride ? { ...commandAgent, pocket: pocketOverride } : commandAgent;
+  useEffect(() => { setPocketOverride(null); }, [commandAgent.pocket]);
   const backToThread = () => { setView('thread'); onBackToThread?.(); };
 
   useEffect(() => {
@@ -84,7 +86,7 @@ export function ThreadPanel({
     {view === 'card' ? <AgentProfileScreen companion agent={currentAgent}
       onBack={backToThread} onOpenChat={backToThread}
       onWatch={onWatch} onDeploy={onDeploy} onCallIn={callIn} onFund={openFunds}
-      onRetired={onClose} sendWhisper={profileWhisper} /> : <AgentView desktop agent={currentAgent} mood={moodOverride ?? moodOf(agent)} heat={heatOf(agent)}
+      onRetired={onClose} sendWhisper={profileWhisper} /> : <AgentView desktop agent={currentAgent} mood={moodOverride ?? moodOf(currentAgent)} heat={heatOf(currentAgent)}
       chat={hand && onReplay ? [...chat,{role:'replay',hand,_id:'latest-hand'}] : flagsKnown && !hand && hasHands ? [...chat,{role:'noflags',_id:'quiet-shift'}] : chat}
       loading={sending} draft={draft} setDraft={onDraftChange} send={handleSend}
       inputRef={inputRef} feedRef={feedRef} onBack={onClose} onOpenProfile={() => setView('card')}

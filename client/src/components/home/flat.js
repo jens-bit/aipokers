@@ -35,14 +35,17 @@ export const FLAT = {
   // second set in the left corner any more. Written against F_H the way the ref
   // writes it, because it is a band measured up from the floor rather than a
   // point on a grid.
-  tv:     { x: 244, y: F_H - 126, w: 132, h: 112 },
+  // BUG-243: enough screen for a real board and action, still in the tape corner.
+  // BUG-248: begin below the standing speech envelope (ends at y440.5),
+  // and end before the TV student's largest body footprint begins (y548).
+  tv:     { x: 180, y: F_H - 170, w: 196, h: 160 },
 };
 
 // The screen and the chair inside the tape room's footprint, at the ref's own
 // offsets. The set is not centred in its box: the chair sits below it and a
 // little to the left, which is what a room with one armchair in front of one
 // television looks like from above.
-export const TV_SCREEN = { x: FLAT.tv.x + 16, y: FLAT.tv.y, w: 100, h: 58 };
+export const TV_SCREEN = { x: FLAT.tv.x, y: FLAT.tv.y, w: 196, h: 106 };
 
 // BUGS-C job 4's one-sign rule remains. Current DoorTap writes down the jamb;
 // its exclusion area is the door itself, inside the room at every scale.
@@ -60,7 +63,7 @@ export const SIGN = { x: FLAT.door.x, y: FLAT.door.y, w: SIGN_W, h: SIGN_H };
 // wall would leave him with no side left to open on.
 export const HEADER = { x: 0, y: 0, w: F_W, h: 24 };
 
-export const TV_CHAIR  = { x: FLAT.tv.x + 48, y: FLAT.tv.y + 78, w: 34, h: 14 };
+export const TV_CHAIR  = { x: 292, y: F_H - 48, w: 34, h: 14 };
 
 // Seats around the table, clockwise from the near side. Two agents sit opposite,
 // which is what a heads-up kitchen game looks like from above.
@@ -287,13 +290,13 @@ const DESK_FLAT = {
   fridge: { x: 452, y: 130, w: 72, h: 112 },
   couch: { x: 22, y: 470, w: 112, h: 148 },
   door: { x: 518, y: 288, w: 42, h: 132 },
-  tv: { x: 210, y: 604, w: 140, h: 96 },
+  tv: { x: 172, y: 536, w: 216, h: 164 },
 };
 const DESK_DOOR = { x: 480, y: 390 };
 const DESK_TV = { x: 280, y: 700 };
 export const DESK_ROOM = {
   width: 560, height: 700, flat: DESK_FLAT,
-  tvScreen: { x: 210, y: 604, w: 140, h: 78 },
+  tvScreen: { x: 172, y: 536, w: 216, h: 106 },
   tvChair: { x: 263, y: 686, w: 34, h: 14 },
   sign: DESK_FLAT.door, header: { x: 0, y: 0, w: 560, h: 24 },
   seats: {

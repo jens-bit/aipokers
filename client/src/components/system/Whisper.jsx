@@ -28,7 +28,7 @@ export function Whisper({ text }) {
   );
 }
 
-export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
+export function WhisperComposer({ onSend, onOpenThread, onCompose, disabled, agentName }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -134,7 +134,7 @@ export function WhisperComposer({ onSend, onOpenThread, disabled, agentName }) {
           <input
             className="watch-composer__input"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => { setText(e.target.value); onCompose?.(); }}
             placeholder="Whisper to him…"
             aria-label={agentName ? `Whisper to ${agentName}` : 'Whisper to him'}
             maxLength={280}

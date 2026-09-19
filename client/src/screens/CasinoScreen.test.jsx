@@ -11,7 +11,7 @@
 // "CASINO-1 the building" below is now about that one floor; the doorway,
 // toggle and swipe describe blocks are gone with the thing they tested.
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -51,6 +51,119 @@ function routeFloor({ agents = [], rooms: floor = rooms, events = [], felts = []
 function renderCasino(props = {}) {
   return render(<CasinoScreen {...props} />);
 }
+
+describe('floor recovery', () => {
+  it.each([
+    { liveGame: { tableId: 'kitchen', home: true }, homeTableId: 'kitchen' },
+    { activeTableId: 'home-4242' },
+    { location: { where: 'home', tableId: 'home-4242' } },
+  ])('BUG-234: kitchen-table presence still lets the owner place him in the casino (%j)', async home => {
+    const kitchen = { ...fundedCannon, ...home };
+    routeFloor({ agents: [kitchen] });
+    fetchMock.route('/queue', { tableId: 'casino-seat', agentId: kitchen.id }, { method: 'POST' });
+    const deployed = vi.fn();
+    renderCasino({ deployAgent: kitchen, onDeployed: deployed });
+    await userEvent.click(await screen.findByRole('button', { name: 'Deal him in' }));
+    expect(deployed).toHaveBeenCalledWith(expect.objectContaining({ tableId: 'casino-seat' }), kitchen, expect.any(Object));
+  });
+
+  it('BUG-234: confirmation retires the temporary placement guard so a returning agent can play again', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      let roster = [fundedCannon];
+      routeFloor();
+      fetchMock.route('/api/agents?', () => ({ agents: roster }));
+      fetchMock.route('/queue', { tableId: 'casino-seat', agentId: fundedCannon.id }, { method: 'POST' });
+      renderCasino({ deployAgent: fundedCannon, onDeployed: vi.fn() });
+      await userEvent.click(await screen.findByRole('button', { name: 'Deal him in' }));
+      expect(screen.queryByRole('button', { name: 'Deal him in' })).toBeNull();
+      roster = [{ ...fundedCannon, activeTableId: 'casino-seat' }];
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      roster = [fundedCannon];
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(await screen.findByRole('button', { name: 'Deal him in' })).toBeEnabled();
+      await userEvent.click(screen.getByRole('button', { name: 'Deal him in' }));
+      expect(fetchMock.posts.filter(request => request.url.endsWith('/queue'))).toHaveLength(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('BUG-227: Watch keeps the selected companion when two share the same table', async () => {
+    const first = { ...fundedCannon, id: 'first', name: 'First', activeTableId: 'shared' };
+    const second = { ...fundedCannon, id: 'second', name: 'Second', activeTableId: 'shared' };
+    routeFloor({ agents: [first, second], felts: [felt({ tableId: 'shared' })] });
+    const spectate = vi.fn();
+    renderCasino({ onSpectate: spectate });
+    await userEvent.click(await screen.findByRole('tab', { name: 'Second' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Watch Second at 10/20' }));
+    expect(spectate).toHaveBeenCalledWith('shared', { agent: expect.objectContaining({ id: 'second' }) });
+  });
+  it('BUG-234: a confirmed placement dismisses the tray before the parent navigates', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    fetchMock.route('/queue', { tableId: 'tbl-new', agentId: fundedCannon.id }, { method: 'POST' });
+    const deployed = vi.fn();
+    renderCasino({ deployAgent: fundedCannon, onDeployed: deployed });
+    await userEvent.click(await screen.findByRole('button', { name: 'Deal him in' }));
+    await waitFor(() => expect(deployed).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId('casino-deploy')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Deal him in' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send Loose Cannon to play' })).toBeNull();
+  });
+
+  it('BUG-234: a queue receipt naming another agent keeps this placement retryable', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    fetchMock.route('/queue', { tableId: 'tbl-new', agentId: 'different-agent' }, { method: 'POST' });
+    const deployed = vi.fn();
+    renderCasino({ deployAgent: fundedCannon, onDeployed: deployed });
+    await userEvent.click(await screen.findByRole('button', { name: 'Deal him in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Loose Cannon’s table could not be opened. Try again.');
+    expect(screen.getByRole('button', { name: 'Deal him in' })).toBeEnabled();
+    expect(deployed).not.toHaveBeenCalled();
+  });
+
+  it('BUG-234: an agent already at a table cannot remain in the placement tray', async () => {
+    routeFloor({ agents: [{ ...fundedCannon, activeTableId: 'tbl-seated' }] });
+    renderCasino({ deployAgent: fundedCannon });
+    await screen.findByTestId('your-tables');
+    expect(screen.queryByTestId('casino-deploy')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Deal him in' })).toBeNull();
+  });
+
+  it('BUG-235: a placement refusal states the server remedy and remains retryable', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    fetchMock.route('/queue', { status: 409, body: { error: 'tooTired', message: 'Give me three snacks or a couple of hours.' } }, { method: 'POST' });
+    const deployed = vi.fn();
+    renderCasino({ deployAgent: fundedCannon, onDeployed: deployed });
+    await userEvent.click(await screen.findByRole('button', { name: 'Deal him in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Give me three snacks or a couple of hours.');
+    expect(screen.getByRole('button', { name: 'Deal him in' })).toBeEnabled();
+    expect(deployed).not.toHaveBeenCalled();
+  });
+
+  it('BUG-235: a dropped placement request says the table could not be opened', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    fetchMock.route('/queue', () => { throw new Error('offline'); }, { method: 'POST' });
+    renderCasino({ deployAgent: fundedCannon });
+    await userEvent.click(await screen.findByRole('button', { name: 'Deal him in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Loose Cannon’s table could not be opened. Try again.');
+  });
+
+  it('BUG-236: labels the public census separately from your agents and deduplicates their table', async () => {
+    const a = { ...fundedCannon, activeTableId: 'shared' };
+    const b = { ...fundedCannon, id: 'second', name: 'Second', activeTableId: 'shared' };
+    routeFloor({ agents: [a, b], rooms: [{ ...floorRoom, seated: 4, tables: 2 }], felts: [felt({ tableId: 'shared' })] });
+    renderCasino();
+    expect(await screen.findByText('Your agents: 2 at 1 table')).toBeInTheDocument();
+    expect(screen.getByLabelText('Everyone on the floor, including the House')).toHaveTextContent('4 in · 2 tables');
+  });
+
+  it('BUG-237: phone Home navigation precedes your table and the room', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    renderCasino({ onBack: vi.fn() });
+    const your = await screen.findByTestId('your-tables');
+    const back = screen.getByRole('button', { name: 'Back home', exact: true });
+    expect(back.compareDocumentPosition(your) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 
 const stake = (label) => screen.getByRole('button', { name: new RegExp(`^${label.replace(/[$/]/g, '\\$&')}`) });
 

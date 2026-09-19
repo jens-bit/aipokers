@@ -267,16 +267,20 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         const your = page.getByTestId('your-tables');
         await expect(your).toBeVisible({ timeout: 20_000 });
 
-        // He was deployed in seed(), so his page is a live felt and not the
-        // "where he is" page — never a placeholder ghost.
-        const felt = your.locator('.csn-felt').first();
-        await expect(felt).toBeVisible({ timeout: 30_000 });
-
-        // And it is HIS felt, drawn from the live snapshot: `data-mine` is set
-        // from the seats on the payload, so a page that fell back to a
-        // silhouette of a table he is not in would not carry it.
-        await expect(felt, 'the page is his real table, not a picture of one')
-          .toHaveAttribute('data-mine', 'true');
+        // Recovery: the phone uses a compact, named live-table selector;
+        // desktop retains the full felt. Both must identify the seeded agent.
+        const ownedPage = your.locator(`.csn-your__page[data-agent="${agent.id}"]`);
+        if (desktop) {
+          const felt = ownedPage.locator('.csn-felt');
+          await expect(felt).toBeVisible({ timeout: 30_000 });
+          await expect(felt, 'the page is his real table').toHaveAttribute('data-mine', 'true');
+        } else {
+          const summary = ownedPage.getByRole('button', { name: new RegExp(`^Watch ${escapeRe(agent.name)} at `) });
+          await expect(summary).toBeVisible({ timeout: 30_000 });
+          await expect(summary).toContainText('YOUR TABLE');
+          await expect(summary).toContainText('in the pot');
+          expect((await summary.boundingBox()).height, 'the compact selector remains a touch target').toBeGreaterThanOrEqual(44);
+        }
 
         // A page is exactly as wide as the track, which is the whole of a
         // scroll-snap carousel and is pure layout.
@@ -300,7 +304,7 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         const view = page.getByTestId('floor-view');
 
         // Wave 58: it is a ROOM, drawn from above — felts as ellipses with
-        // bodies on their rims, the bar along the bottom wall.
+        // bodies on their rims, with the bar above the tables.
         const floor = view.getByTestId('the-floor');
         await expect(floor).toBeVisible({ timeout: 20_000 });
         await expect(floor.locator('.csn-felt58').first()).toBeVisible({ timeout: 20_000 });
@@ -350,23 +354,23 @@ for (const [shell, viewport] of Object.entries(SHELLS)) {
         // was making. So it is asserted about the elements that are there now.
         const ticker = await page.getByTestId('casino-ticker').boundingBox();
         const your = await page.getByTestId('your-tables').boundingBox();
-        const view = await page.getByTestId('floor-view').boundingBox();
+        const view = await (desktop ? page.getByTestId('floor-view') : page.locator('.csn-floor__room')).boundingBox();
 
         expect(ticker.y + ticker.height, 'the ticker is above Your table, not over it')
           .toBeLessThanOrEqual(your.y + 1);
         expect(your.y + your.height, 'Your table is above the room, not over it')
           .toBeLessThanOrEqual(view.y + 1);
 
-        // THE FELT DOES NOT SHRINK. This is the half of the old rule that was
-        // load-bearing and had nowhere to live once the board column went.
-        // `.csn-your`'s 240px floor is geometry and not taste — casino.css
-        // says so at the rule: everything on the felt is placed by percentage,
-        // and below about 230px the board row (61%) crosses the hero's name
-        // pill. A room that grows by eating Your table's height is exactly the
-        // regression nothing else in the repo would catch, because jsdom lays
-        // nothing out.
-        expect(your.height, 'Your table keeps the box its felt was drawn for')
-          .toBeGreaterThanOrEqual(240);
+        // The 240px full-felt minimum remains on desktop. The phone's approved
+        // compact selector has no felt inside it; it must leave room for the
+        // actual casino rather than reserving the retired full-preview box.
+        if (desktop) {
+          expect(your.height, 'Your table keeps the box its felt was drawn for').toBeGreaterThanOrEqual(240);
+        } else {
+          expect(your.height, 'the phone selector leaves space for the room').toBeLessThanOrEqual(180);
+          const head = await page.locator('.csn-floor__head').boundingBox();
+          expect(head.y + head.height, 'Home navigation stays above the ticker').toBeLessThanOrEqual(ticker.y + 1);
+        }
 
         if (desktop) {
           // ...and the room takes the whole desk THE ROSTER LEAVES. Measured

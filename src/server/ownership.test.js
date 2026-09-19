@@ -20,6 +20,8 @@ const { saveProfile, _closeForTests } = await import('./store.js');
 for (const id of ['9001', '9002']) saveProfile(id, {
   userId: id, chat: [{ role: 'user', content: 'PRIVATE DRAFT' }],
   agents: [{ id: `agent-${id}`, name: 'Original', status: 'idle',
+    recentHands: [{ handNumber: 7, holeCards: ['As', 'Ad'], decisions: [
+      { action: { type: 'call' }, reasoning: 'PRIVATE RECENT DECISION', equity: 0.91 }], won: true }],
     sessionFlagged: [{ holeCards: ['As', 'Ad'], reasoning: 'PRIVATE REASONING',
       streets: [{ street: 'flop', reasoning: 'PRIVATE READ', equity: 92 }], attrCosts: [{ line: 'PRIVATE THOUGHT' }] }],
     memory: { privateNote: 'PRIVATE MEMORY' }, strategy: 'PRIVATE STRATEGY' }],
@@ -145,6 +147,23 @@ test('BUG-49: owner still receives their own flagged cards', async () => {
 });
 test('BUG-49: private memory requires ownership', async () => {
   assert.equal((await request('/api/agents/agent-9001/memory?userId=9001', 'GET', undefined, '9002')).status, 403);
+});
+for (const [caller, status] of [[undefined, 401], ['9002', 403]]) {
+  test(`BUG-274: recent agent hands reject ${caller ? 'another signed owner' : 'a missing credential'} before revealing private play`, async () => {
+    const response = await request('/api/agents/agent-9001/hands?userId=9001', 'GET', undefined, caller);
+    assert.equal(response.status, status);
+    const body = await response.text();
+    for (const secret of ['PRIVATE', 'As', 'Ad', '0.91']) assert.equal(body.includes(secret), false);
+  });
+}
+test('BUG-274: the signed owner retains exact recent cards, decision reasoning and stats', async () => {
+  const response = await request('/api/agents/agent-9001/hands?userId=9001', 'GET', undefined, '9001');
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.recentHands[0].holeCards, ['As', 'Ad']);
+  assert.equal(body.recentHands[0].decisions[0].reasoning, 'PRIVATE RECENT DECISION');
+  assert.equal(body.recentHands[0].decisions[0].equity, 0.91);
+  assert.equal(typeof body.stats.handsPlayed, 'number');
 });
 test('BUG-49: public flagged hands hide private reasoning as well as cards', async () => {
   const response = await request('/api/agents/agent-9001/flagged?userId=9001', 'GET', undefined, '9002');

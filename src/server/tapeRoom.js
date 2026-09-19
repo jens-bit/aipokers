@@ -45,8 +45,10 @@ import {
   setAgentStudy,
   getAgentStudy,
   appendAgentRead,
+  reportAgentStudy,
   getAgentReadBook,
   noteTapeWatch,
+  claimSelfStudy,
   visitActionRefusal,
 } from './agentProfiles.js';
 import { getRead } from './opponentStats.js';
@@ -140,7 +142,7 @@ export function startStudy(agentId, userId, { hand, subject, text, now = Date.no
   const timer = setTimeout(() => {
     inProgress.delete(key);
     try {
-      finishStudy(agentId, userId, { pending: study.pending, handNumber: study.handNumber });
+      finishStudy(agentId, userId, { pending: study.pending, handNumber: study.handNumber, startedAt: study.startedAt });
     } catch (err) {
       console.error('[tape] finish failed:', err.message);
     }
@@ -161,7 +163,7 @@ export function startStudy(agentId, userId, { hand, subject, text, now = Date.no
  * Idempotent — an agent with nothing to file finishes with nothing written,
  * which is what makes it safe to call from both the timer and a shutdown.
  */
-export function finishStudy(agentId, userId, { pending: handed = null, handNumber = null } = {}) {
+export function finishStudy(agentId, userId, { pending: handed = null, handNumber = null, startedAt = null } = {}) {
   const study = getAgentStudy(agentId, userId);
   const timer = inProgress.get(String(agentId));
   if (timer) { clearTimeout(timer); inProgress.delete(String(agentId)); }
@@ -177,6 +179,7 @@ export function finishStudy(agentId, userId, { pending: handed = null, handNumbe
     text: pending.text,
     handNumber: hand ?? null,
   });
+  reportAgentStudy(agentId, userId, { startedAt: study?.startedAt ?? startedAt, handNumber: hand, text: pending.text });
   console.log(`[tape] ${agentId} finished hand ${hand} — wrote a read on ${pending.displayName}`);
   return pending;
 }
@@ -198,7 +201,7 @@ export function reset() {
  * Returns { status, body }, so the route is the two lines that turn it into an
  * express reply and the fixture can read the refusal rather than the HTTP.
  */
-export function beginStudy(agentId, userId, { handId = null } = {}) {
+export function beginStudy(agentId, userId, { handId = null, now = Date.now(), selfStudyLimit = null } = {}) {
   const agent = getAgentHome(agentId, userId);
   if (!agent) return { status: 404, body: { error: 'Agent not found' } };
   const visitRefusal = visitActionRefusal(agent);
@@ -208,7 +211,13 @@ export function beginStudy(agentId, userId, { handId = null } = {}) {
   if (agent.location?.where === 'table') {
     return { status: 409, body: { error: 'He is at a table. Bring him home first.', where: agent.location.where } };
   }
-  if (agent.study) {
+  // HOME is the location of both the sofa and a live kitchen seat. Re-read
+  // the authoritative projection even when the idle sweep was handed an
+  // earlier roster: starting a tape must never pull him out of that game.
+  if (agent.homeTableId) {
+    return { status: 409, body: { error: 'He is playing at the kitchen table. Let that game finish first.', tableId: agent.homeTableId } };
+  }
+  if (agent.study || isStudying(agentId)) {
     return { status: 409, body: { error: 'He is already watching one.', study: agent.study } };
   }
 
@@ -231,12 +240,18 @@ export function beginStudy(agentId, userId, { handId = null } = {}) {
   // BUG-137: one television and one chair. Validate the requested tape first,
   // so an empty library still explains that there is nothing to watch.
   // This check is synchronous with startStudy and cannot race a second request.
-  const watching = presentedRoster(userId).find(a => a.id !== agentId && a.study);
+  const watching = presentedRoster(userId).find(a => a.id !== agentId && (a.study || isStudying(a.id)));
   if (watching) return { status: 409, body: { error: `${watching.name} is using the TV. Let him finish first.`, occupiedBy: watching.id } };
   const text = lineFor(flagged.hand, subject, {
     reads: getAgentAttributes(agentId, userId)?.attrs?.READS ?? null,
   });
-  const study = startStudy(agentId, userId, { hand: flagged.hand, subject, text });
+  // Only the internal idle driver supplies this limit. Busy seats, a full TV
+  // or invalid tapes must not spend today's allowance. Claim synchronously
+  // after admission and before startStudy emits the changed roster.
+  if (selfStudyLimit !== null && !claimSelfStudy(agentId, userId, { limit: selfStudyLimit, now })) {
+    return { status: 409, body: { error: 'He has studied enough on his own today.', dailyLimit: true } };
+  }
+  const study = startStudy(agentId, userId, { hand: flagged.hand, subject, text, now });
 
   return {
     status: 200,

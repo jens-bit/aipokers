@@ -68,7 +68,7 @@ async function openHomeAgent(user, name) {
 }
 
 async function waitForWatch() {
-  await screen.findByRole('button', { name: 'Leave table' });
+  await screen.findByRole('button', { name: 'Stop watching' });
   expect(document.querySelector('.watch-screen')).toBeTruthy();
 }
 
@@ -95,7 +95,7 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
       const floor = await screen.findByTestId('floor-view');
       await user.click(await within(floor).findByRole('button', { name: /Watch table tbl-upstairs/ }));
       await waitForWatch();
-      await user.click(screen.getByRole('button', { name: 'Leave table' }));
+      await user.click(screen.getByRole('button', { name: 'Stop watching' }));
       expect(await screen.findByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
       pushFloorTables();
     }
@@ -185,7 +185,7 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     await user.type(draft(), 'Ask him after this hand.');
     await user.click(screen.getByRole('button', { name: 'Watch live game' }));
     await waitForWatch();
-    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await user.click(screen.getByRole('button', { name: 'Stop watching' }));
     expect(draft()).toHaveValue('Ask him after this hand.');
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
     expect(await screen.findByTestId('home-screen')).toBeVisible();
@@ -205,7 +205,7 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     await screen.findByPlaceholderText('Whisper to him…');
     await user.click(screen.getByRole('button', { name: 'Close agent panel', exact: true }));
     expect(document.querySelector('.watch-screen')).toBe(watchedTable);
-    await user.click(screen.getByRole('button', { name: 'Leave table', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Stop watching', exact: true }));
     expect(draft()).toHaveValue('Finish writing after the game.');
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
     expect(await screen.findByTestId('home-screen')).toBeVisible();

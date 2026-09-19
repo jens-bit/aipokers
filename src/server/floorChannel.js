@@ -522,32 +522,35 @@ function tableBelongsTo(table, userId) {
   return (table.agentUserIds ?? []).some((id) => id != null && String(id) === userId);
 }
 
-// The agentId this owner has seated at the table (their POV on it).
-function heroAgentIdFor(table, userId) {
+// Each owned seat has its own POV, even when two companions share a felt.
+function heroAgentIdsFor(table, userId) {
+  const ids = [];
   for (let seat = 0; seat < (table.agentIds?.length ?? 0); seat++) {
     if (table.agentIds[seat] && String(table.agentUserIds[seat]) === userId) {
-      return table.agentIds[seat];
+      ids.push(table.agentIds[seat]);
     }
   }
-  return null;
+  return [...new Set(ids)];
 }
 
-function buildGameMessage(table, entry) {
-  const agentId = heroAgentIdFor(table, entry.userId);
-  if (!agentId) return null;
+function buildGameMessage(table, entry, agentId, publicView) {
   const view = table.liveGameView(agentId, { includeHole: entry.owner });
   if (!view) return null;
+  // A newly occupied seat can be waiting for the next deal. Its personal
+  // view then has no board/pot/turn, but the table is still playing a hand.
+  // Every companion's public preview must describe that same actual hand.
+  const publicGame = publicView ?? view;
   return {
     type: ServerMsg.FLOOR_GAME,
     tableId: view.tableId,
     agentId,
-    street: view.street,
-    board: view.board,
+    street: publicGame.street,
+    board: publicGame.board,
     heroHole: view.heroHole,
-    pot: view.pot,
-    toAct: view.toAct,
+    pot: publicGame.pot,
+    toAct: publicGame.toAct,
     actionDeadline: view.actionDeadline,
-    handNumber: view.handNumber,
+    handNumber: publicGame.handNumber,
   };
 }
 
@@ -555,8 +558,12 @@ function buildGameMessage(table, entry) {
 // arriving inside the throttle window is held and sent on the trailing edge
 // so the last state of a hand always lands.
 function pushGame(ws, entry, table, { force = false } = {}) {
-  const msg = buildGameMessage(table, entry);
-  if (!msg) return;
+  // One public snapshot per push; private hole cards still come solely from
+  // each owner-gated liveGameView. Small legacy test tables lack feltView.
+  const publicView = table.feltView?.() ?? null;
+  const messages = heroAgentIdsFor(table, entry.userId)
+    .map(agentId => buildGameMessage(table, entry, agentId, publicView)).filter(Boolean);
+  if (!messages.length) return;
   const tableId = table.tableId;
   let state = entry.tables.get(tableId);
   if (!state) {
@@ -564,7 +571,7 @@ function pushGame(ws, entry, table, { force = false } = {}) {
     entry.tables.set(tableId, state);
   }
 
-  const signature = JSON.stringify(msg);
+  const signature = JSON.stringify(messages);
   if (!force && signature === state.lastSignature) return;
 
   const now = Date.now();
@@ -584,7 +591,9 @@ function pushGame(ws, entry, table, { force = false } = {}) {
     return;
   }
 
-  if (!send(ws, msg)) return;
+  // Preserve the existing wire shape and one-second table throttle. Clients
+  // already key frames by agentId; each owned agent now receives its own.
+  for (const msg of messages) if (!send(ws, msg)) return;
   state.lastPushAt = Date.now();
   state.lastSignature = signature;
 }

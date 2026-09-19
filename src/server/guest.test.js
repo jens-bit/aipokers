@@ -303,14 +303,15 @@ test('GUEST-1/GUEST-3: the configured number a day from one address, then 429 gu
   assert.equal(elsewhere.status, 200);
 });
 
-test('GUEST-1: the forwarded address is what is counted, not the socket', () => {
+test('GUEST-1: trusted forwarding separates clients; BUG-250 rejects forged prefixes', () => {
   // Claim 3's other half. Every request in this file arrives on 127.0.0.1; if
   // the socket were what counted, the five above would have been spent by the
   // tests before them and CAP_IP would hold nothing.
   assert.equal(store.countGuestsFromIp(CAP_IP, Date.now() - guest.DAY_MS), guest.guestPerIpPerDay());
   assert.equal(store.countGuestsFromIp('127.0.0.1', Date.now() - guest.DAY_MS), 0);
-  assert.equal(guest.clientIp({ headers: { 'x-forwarded-for': '9.9.9.9, 10.0.0.1' } }), '9.9.9.9');
-  assert.equal(guest.clientIp({ headers: {}, ip: '127.0.0.1' }), '127.0.0.1');
+  assert.equal(guest.clientIp({ headers: { 'x-forwarded-for': '9.9.9.9' }, socket: { remoteAddress: '127.0.0.1' } }), '9.9.9.9');
+  assert.equal(guest.clientIp({ headers: { 'x-forwarded-for': '9.9.9.9, 10.0.0.1' }, socket: { remoteAddress: '127.0.0.1' } }), '10.0.0.1');
+  assert.equal(guest.clientIp({ headers: {}, socket: { remoteAddress: '127.0.0.1' } }), '127.0.0.1');
 });
 
 test('GUEST-1: the cap is rows, not memory — it survives a restart', () => {

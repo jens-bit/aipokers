@@ -163,6 +163,7 @@
   overflow: hidden;
   cursor: pointer;
   min-height: 0;
+  scroll-margin-block: 8px;
 }
 .home-flat__tv-screen {
   position: absolute; inset: 4px;
@@ -214,32 +215,32 @@
   background: var(--accent, var(--accent));
   animation: home-shimmer 2.2s ease-in-out infinite;
 }
-/* C7a / mood-home.jsx 224–247: a TV-specific ring, not the away-frame felt.
-   Only the backing is inset four pixels in the source. Undo the furniture's
-   existing inner inset for this scene, retaining the outer TV and its chair. */
+/* BUG-243: a readable broadcast inside the existing television. The larger
+   fixture and card-first hierarchy are a founder-approved design departure
+   from C7a's 100px ring of dots, not a claim of reference parity. */
 .home-tv__live { position: absolute; inset: -4px; display: block; overflow: hidden; border-radius: 2px; }
 .home-tv__live-backdrop {
   position: absolute; inset: 4px; border-radius: 2px;
-  background: radial-gradient(ellipse at 50% 42%, #2B3C37 0%, #16201E 76%);
+  background: radial-gradient(ellipse at 50% 48%, #375044 0%, #182A23 76%);
 }
 .home-tv__live .home-tv__ghost {
-  position: absolute; transform: translate(-50%, -50%);
-  /* Preserve the reference's inline SVG baseline inside its 16px Inter line. */
-  font: 16px/normal "Inter", sans-serif;
+  display: inline-flex; flex-shrink: 0; width: 10px; height: 10px;
 }
-.home-tv__ghost svg { display: inline; vertical-align: baseline; }
-.home-tv__pot-dot {
-  position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%);
-  width: 5px; height: 5px; border-radius: 50%;
-  background: var(--gold-reward); box-shadow: 0 0 6px var(--gold-reward);
-}
+.home-tv__ghost svg { display: block; }
 .home-tv__live .home-tv__caption {
-  position: absolute; left: 6px; right: 6px; bottom: 4px;
-  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 6.5px;
-  color: var(--accent); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  position: absolute; left: 8px; right: 18px; top: 6px;
+  font: 600 10px/14px "Inter", sans-serif;
+  color: #F3ECD9; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.home-tv__street { position:absolute;top:23px;left:8px;font:500 9px/13px "Oswald",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#C4D8C9; }
+.home-tv__pot { position:absolute;top:23px;right:8px;font:600 10px/13px "JetBrains Mono",monospace;color:#E9D299; }
+.home-tv__cards { position:absolute;top:41px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:3px;height:32px; }
+.home-tv__empty-board { font:10px/14px "Inter",sans-serif;color:#C4D8C9; }
+.home-tv__footer { position:absolute;left:8px;right:8px;bottom:9px;display:flex;gap:6px;align-items:center; }
+.home-tv__seats { display:flex;gap:2px;flex-shrink:0; }
+.home-tv__action { min-width:0;font:10px/13px "Inter",sans-serif;color:#F3ECD9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 .home-tv__live-signal {
-  position: absolute; right: 6px; top: 6px; width: 4px; height: 4px;
+  position: absolute; right: 8px; top: 11px; width: 4px; height: 4px;
   border-radius: 50%; background: #FF6B6D;
   animation: home-tv-live-pulse 2.2s ease-in-out infinite;
 }
@@ -468,31 +469,35 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-frame__body {
   position: absolute;
-  width: 5px; height: 6px; margin-left: -2.5px;
-  border-radius: 3px 3px 1px 1px;
-  background: color-mix(in srgb, var(--text-primary) 20%, transparent);
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: #A1BAAA;
 }
 .home-frame__seat {
-  position: absolute; left: 50%; bottom: 4px; margin-left: -5px;
-  width: 10px; height: 11px;
-  border-radius: 5px 5px 2px 2px;
+  position: absolute; left: 5px; top: 3px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
   animation: home-pulse 2.4s ease-in-out infinite;
 }
 .home-frame__cards {
-  position: absolute; left: 50%; top: 20px;
+  position: absolute; left: 50%; top: 13px;
   transform: translateX(-50%);
-  display: flex; gap: 1.5px;
+  display: flex; gap: 2px;
 }
 .home-frame__card {
-  width: 5px; height: 7px; border-radius: 1px;
-  background: #E8E6E0;
+  width: var(--preview-card-w, 20px); height: 22px; border-radius: 2px;
+  background: #fff;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font:700 10px/11px Arial,sans-serif;
   animation: home-rise 0.5s ease-out both;
 }
+.home-frame__card b { font:inherit; }
+.home-frame__card i { font:normal 10px/10px Arial,sans-serif; }
+.home-frame__action { position:absolute;left:4px;right:4px;bottom:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:8.5px/10px Inter,sans-serif;color:#F3ECD9;text-align:center; }
 .home-frame__pot {
-  position: absolute; right: 5px; top: 5px;
+  position: absolute; right: 4px; top: 1px;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 7.5px; font-weight: 700;
-  color: var(--gold-reward);
+  font-size: 8px; font-weight: 700;
+  color: #E9D299;
 }
 .home-frame__glow {
   position: absolute; inset: 0;
@@ -507,15 +512,15 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-frame__name {
   display: block;
-  font-size: 8px; color: var(--text-primary, var(--text-primary));
+  font-size: 9px; color: #F3ECD9;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .home-frame__line {
   display: block;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 7.5px; color: var(--accent); white-space: nowrap;
+  font-size: 7.5px; color: #B6C89B; white-space: nowrap;
 }
-.home-frame__line.is-down { color: var(--error); }
+.home-frame__line.is-down { color: #F39A83; }
 /* Current C7a numbers use JetBrains Mono. Keep the room's name-case reset,
    but let these two AwayFrame labels use the authored face. */
 .home1 .home-frame .home-frame__pot,
@@ -675,6 +680,9 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-one--shuffles .home-prop--cards { animation: home-shuffle 1.6s ease-in-out var(--home-idle-phase, 0ms) infinite; }
 .home-one--counts .home-prop--chips { animation: home-count 2.2s ease-in-out var(--home-idle-phase, 0ms) infinite; }
 .home-one--tape .home-one__body { animation: home-lean 4s ease-in-out var(--home-idle-phase, 0ms) infinite; }
+/* The side bubble shares the resting anchor. Hold the student's 3px idle
+   lean while he speaks so his head cannot drift away from its tail. */
+.home-one--tape.is-speaking .home-one__body { animation: none; }
 
 /* ── The pill, ABOVE the head (Jens's correction) ─────────────────────────── */
 
@@ -963,7 +971,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
 }
 .home-thread__composer:focus-within { border-color: var(--accent, var(--accent)); }
 /* BUG-184 · Board29 F11 collapsed room line. Keep the private Casino band
-   unchanged. 1px border +22px line +8px gap +36px composer +11px bottom =78. */
+   unchanged. BUG-233: 1px border +22px line +6px gap +36px composer +11px bottom =76. */
 .home-thread--room .home-thread__band { padding: 0; }
 .home-thread--room .home-thread__line {
   height: 22px;
@@ -975,7 +983,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
   font: 11px Inter, system-ui, sans-serif;
   line-height: normal;
 }
-.home-thread--room .home-thread__composer { flex-shrink: 0; margin: 8px 12px 11px; }
+.home-thread--room .home-thread__composer { flex-shrink: 0; margin: 6px 12px 11px; }
 .home-thread--room .home-thread__sentence {
   flex: 1;
   min-width: 0;
@@ -1265,7 +1273,7 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .fridge-stock .home-sheet__close{min-height:32px;padding:0;align-self:stretch;font-size:14px}
 .fridge-stock .home-sheet__title{font:600 9px Oswald,sans-serif;letter-spacing:.16em;flex:0;color:var(--text-muted);white-space:nowrap}
 .fridge-stock__from{flex:1;font-size:10.5px;color:var(--text-muted)}
-.fridge-stock__row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:3px 0;border-top:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent)}
+.fridge-stock__row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:12px 0;border-top:1px solid color-mix(in srgb, var(--text-primary) 12.2%, transparent)}
 /* UI-3 job D: the icon and detail are a tap target now — the item itself,
    answering "what does this do" on demand instead of always saying so. */
 .fridge-stock__item{display:flex;align-items:center;gap:10px;flex:1;min-width:0;border:0;padding:0;margin:0;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}
@@ -1275,20 +1283,20 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .fridge-stock__icon.is-empty:before{background:color-mix(in srgb, var(--text-primary) 10.2%, transparent);border-color:color-mix(in srgb, var(--text-primary) 14.1%, transparent)}
 .fridge-stock__detail{flex:1;min-width:0}
 .fridge-stock__detail>div{display:flex;align-items:baseline;gap:7px}
-.fridge-stock__detail b{font:600 10px Oswald,sans-serif;letter-spacing:.12em;color:var(--text-primary)}
+.fridge-stock__detail b{font:600 12px Oswald,sans-serif;letter-spacing:.12em;color:var(--text-primary)}
 /* The arrows: stamina up in green, heat down in blue, discipline down in
    red — the same three tokens (--success/--cool/--error) mean everywhere
    else, never a colour invented just for this list. */
-.fridge-stock__arrows{display:inline-flex;align-items:center;gap:3px}
-.fridge-stock__arrow{font-size:11px;font-weight:700;line-height:1}
+.fridge-stock__arrows{display:flex;flex-wrap:wrap;align-items:center;gap:5px 9px;margin-top:5px}
+.fridge-stock__arrow{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;line-height:1.3}
 .fridge-stock__count{margin-left:auto;font:700 11px 'JetBrains Mono',monospace;color:var(--accent)}
 .fridge-stock__count.is-empty{color:var(--error)}
 .fridge-stock__detail small{display:block;margin-top:2px;font:10.5px Inter,sans-serif;color:var(--text-muted)}
-.fridge-stock__buy{min-height:44px;min-width:44px;flex-shrink:0;border:0;padding:0;font:600 8.5px Oswald,sans-serif;letter-spacing:.1em;color:var(--gold-reward);background:transparent}
-.fridge-stock__buy span{display:block;border:1px solid color-mix(in srgb, var(--gold-reward) 33.3%, transparent);border-radius:10px;padding:4px 10px}
+.fridge-stock__buy{min-height:44px;min-width:60px;flex-shrink:0;border:1px solid var(--edge-strong);border-radius:10px;padding:0;font:600 11px Oswald,sans-serif;letter-spacing:.1em;color:var(--accent);background:var(--glow-faint)}
+.fridge-stock__buy span{display:block;padding:6px 10px}
 /* UI-3 job D: one sentence, for the one item just tapped — never the whole
    list's worth at once, and never open by default. */
-.fridge-stock__why{flex-basis:100%;margin:0;padding:6px 0 2px 36px;font:10.5px/1.45 Inter,sans-serif;color:var(--text-muted)}
+.fridge-stock__why{flex-basis:100%;margin:0;padding:0 0 2px 36px;font:12px/1.45 Inter,sans-serif;color:var(--text-secondary)}
 .fridge-stock__loading,.fridge-stock__error{padding:6px 0;font:11px/1.4 Inter,sans-serif;color:var(--gold-reward)}
 .fridge-stock__error button{display:block;padding:6px 0;color:var(--gold-reward);font:11px Inter,sans-serif}
 .home-thread__error{position:absolute;left:12px;right:12px;bottom:76px;padding:8px 10px;border:1px solid color-mix(in srgb, var(--gold-reward) 26.7%, transparent);border-radius:10px;background:#1b2019;color:var(--gold-reward);font:11px/1.4 Inter,sans-serif;z-index:20;pointer-events:none}

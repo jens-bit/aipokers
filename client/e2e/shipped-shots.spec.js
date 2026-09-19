@@ -41,10 +41,8 @@
 // the owner's own watch on this server, so there is no true spectator screen
 // to capture here; recorded as a gap rather than a screenshot that lies.
 //
-// Two more real rooms (upstairs, the back room) are populated by throwaway
-// single-agent households funded and deployed at each rung, purely so those
-// floors have something running on them when the owner's own household
-// walks in — none of them are "his".
+// Two other households populate the higher stakes on the same casino floor.
+// None of those agents belongs to the household being photographed.
 
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
@@ -54,7 +52,9 @@ import { fileURLToPath } from 'node:url';
 const BASE = process.env.SHOTS_BASE_URL ?? 'http://127.0.0.1:8793';
 const GUEST_BASE = process.env.SHOTS_GUEST_BASE_URL ?? 'http://127.0.0.1:8794';
 
-const OUT_DIR = fileURLToPath(new URL('../../design-refs/shipped/', import.meta.url));
+const OUT_DIR = process.env.SHOTS_OUTPUT_DIR
+  ? path.resolve(process.env.SHOTS_OUTPUT_DIR)
+  : fileURLToPath(new URL('../../design-refs/shipped/', import.meta.url));
 fs.mkdirSync(OUT_DIR, { recursive: true });
 const shot = (name) => path.join(OUT_DIR, `${name}.png`);
 
@@ -97,14 +97,11 @@ async function gotoHome(page, uid = OWNER_UID) {
   await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 20_000 });
 }
 
-/** Opens a room from the casino, switching through Board when it isn't the one already showing. */
-async function openRoom(page, roomId, namePrefix) {
+/** All stakes share the same casino floor since 0.18.0. */
+async function openCasino(page) {
   const floorView = page.getByTestId('floor-view');
   await expect(floorView).toBeVisible({ timeout: 20_000 });
-  if (await floorView.getAttribute('data-room') === roomId) return;
-  await page.getByRole('button', { name: 'Board', exact: true }).click();
-  await page.getByRole('group', { name: 'The rooms' }).getByRole('button', { name: new RegExp('^' + namePrefix) }).click();
-  await expect(floorView).toHaveAttribute('data-room', roomId, { timeout: 20_000 });
+  await expect(floorView).toHaveAttribute('data-room', 'floor');
 }
 
 const watchSurface = (page) => page.locator('.watch-screen, [data-testid="desk-home-table"], [data-testid="desk-casino-table"]');
@@ -174,23 +171,7 @@ const SCREENS = [
     run: async (page) => {
       await gotoHome(page);
       await page.getByTestId('home-door').click();
-      await openRoom(page, 'floor', 'the floor');
-    },
-  },
-  {
-    name: 'casino-upstairs',
-    run: async (page) => {
-      await gotoHome(page);
-      await page.getByTestId('home-door').click();
-      await openRoom(page, 'upstairs', 'upstairs');
-    },
-  },
-  {
-    name: 'casino-backroom',
-    run: async (page) => {
-      await gotoHome(page);
-      await page.getByTestId('home-door').click();
-      await openRoom(page, 'backroom', 'the back room');
+      await openCasino(page);
     },
   },
   {
@@ -215,7 +196,7 @@ const SCREENS = [
       if (w >= 1100) {
         await gotoHome(page);
         await page.getByTestId('home-door').click();
-        await openRoom(page, 'floor', 'the floor');
+        await openCasino(page);
         await page.locator(`.csn-felt58[data-table="${ctx.casinoTableId}"]`).click();
       } else {
         await loginAs(page, OWNER_UID);
@@ -270,7 +251,7 @@ const SCREENS = [
 
 for (const screen of SCREENS) {
   for (const { w, h } of WIDTHS) {
-    test(`SHOTS-1 ${screen.name} @ ${w}x${h}`, async ({ page }) => {
+    test(`BUG-246 SHOTS-1 ${screen.name} @ ${w}x${h}`, async ({ page }) => {
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.setViewportSize({ width: w, height: h });
@@ -298,7 +279,7 @@ for (const { w, h } of WIDTHS) {
     await page.locator('.guest-hero .guest-hero__cta').click();
     // draftHim() scrolls to it — `toBeVisible` alone is satisfied before that
     // scroll settles, and the screenshot would still be the hero at the top.
-    await expect(page.getByTestId('draft-input')).toBeInViewport({ timeout: 20_000 });
+    await expect(page.getByTestId('draft-input')).toBeInViewport({ ratio: 1, timeout: 20_000 });
     await page.screenshot({ path: shot(`guest-draft-${w}`) });
     expect(errors, `console errors on guest-draft @ ${w}: ${errors.join('\n')}`).toEqual([]);
   });

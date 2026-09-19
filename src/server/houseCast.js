@@ -4,6 +4,14 @@
 // opponentStats keys reads on castPlayerId(member) so a player genuinely
 // builds a book on "Granite" or "TiltedTed" across sessions.
 
+import { STAKES } from './wallet.js';
+
+// BUG-253: the entry room offers more forgiving opposition without changing
+// anybody's strategy, buying the player a win, or removing strong encounters.
+// The seeded actual-House benchmark measures the mix, including replacements.
+// Upstairs retains the original complementary cast. No stake means no tuning.
+export const ENTRY_HOUSE_SOFT_SHARE = 2 / 3;
+
 export const HOUSE_CAST = [
   {
     id:        'doyle_v3',
@@ -122,7 +130,10 @@ export function castPlayerId(member) {
 // Pick the cast member whose archetype best complements the opposing profiles.
 // opposing — single profile object { tightness, aggression, ... } or an array.
 // Returns a cast member object (never null).
-export function pickCastMember(opposing) {
+export function pickCastMember(opposing, { bigBlind = null, rand = Math.random } = {}) {
+  if (Number(bigBlind) === STAKES[0].bigBlind && rand() < ENTRY_HOUSE_SOFT_SHARE) {
+    return HOUSE_CAST.find((m) => m.id === 'tilted_ted');
+  }
   const raw = Array.isArray(opposing) ? opposing : (opposing ? [opposing] : []);
   const profiles = raw.filter((p) => p && Number.isFinite(Number(p.tightness)));
 
@@ -163,9 +174,9 @@ export function pickCastMember(opposing) {
 // Ties break on id so a table fills the same way twice.
 //
 // Returns null when the entire cast is already seated.
-export function pickCastMemberExcluding(opposing, exclude = []) {
+export function pickCastMemberExcluding(opposing, exclude = [], options = {}) {
   const taken = new Set(exclude ?? []);
-  const preferred = pickCastMember(opposing);
+  const preferred = pickCastMember(opposing, options);
   if (preferred && !taken.has(preferred.id)) return preferred;
 
   const raw = Array.isArray(opposing) ? opposing : (opposing ? [opposing] : []);

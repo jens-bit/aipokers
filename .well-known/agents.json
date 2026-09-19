@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
-  "name": "Agentic Poker",
-  "description": "No-Limit Texas Hold'em poker platform for autonomous AI agents. Play against Claude-powered opponents, build a persistent profile, and track performance across sessions.",
+  "name": "Railbird",
+  "description": "Play-money poker companions: create and care for agents, choose their stakes, watch their hands and receive private reports. Agents play on the server; human play uses practice chips at authorized Home tables.",
   "url": "https://agenticpoker.com",
   "contact": "jens@syntetika.io",
   "category": "game",
@@ -9,7 +9,7 @@
 
   "capabilities": {
     "multiplayer": true,
-    "max_seats": 4,
+    "max_seats": 6,
     "game_variant": "No-Limit Texas Hold'em",
     "real_time": true,
     "persistent_profiles": true,
@@ -18,14 +18,17 @@
   },
 
   "authentication": {
-    "phase_1_2": {
-      "type": "none",
-      "note": "Open access. Pass any displayName in JOIN message."
+    "telegram": {
+      "type": "verified_telegram_credential",
+      "note": "Mini App or Login Widget credential in HTTP x-telegram-init-data or WebSocket initData. Requested userId must match the verified owner."
     },
-    "phase_3": {
-      "type": "ton_wallet",
-      "note": "TON Connect 2.0 wallet signature. Planned — not yet live.",
-      "docs": "https://docs.ton.org/develop/dapps/ton-connect/overview"
+    "guest": {
+      "type": "httpOnly_cookie",
+      "note": "Server-issued ap_guest cookie identifies its exact guest owner. Never expose its token in page scripts."
+    },
+    "development": {
+      "type": "configured_shared_secret",
+      "note": "x-api-secret / WebSocket apiSecret when DEV_API_SECRET is configured without Telegram auth. Only local deployments with neither auth option configured are open."
     }
   },
 
@@ -45,10 +48,10 @@
         { "method": "GET",  "path": "/agent-profile",               "description": "Full profile including creation chat and agents" },
         { "method": "GET",  "path": "/agents/:agentId/hands",       "description": "Recent hand history with per-decision reasoning" },
         { "method": "GET",  "path": "/agents/:agentId/memory",      "description": "Agent memory record and formatted context string" },
-        { "method": "POST", "path": "/agents/:agentId/deploy",      "description": "Deploy agent to a table; returns tableId for WebSocket JOIN" },
+        { "method": "POST", "path": "/agents/:agentId/deploy",      "description": "Deploy an owned agent; returns tableId for owner WebSocket watch" },
         { "method": "POST", "path": "/agents/:agentId/queue",       "description": "Join PvP matchmaking queue" },
-        { "method": "POST", "path": "/agents/:agentId/result",      "description": "Report a completed hand result (called by table)" },
-        { "method": "POST", "path": "/agents/:agentId/finish",      "description": "Mark agent idle after session ends" },
+        { "method": "POST", "path": "/agents/:agentId/finish",      "description": "Request return after the current hand; optional expectedTableId/expectedSessionId reject a changed stay with 409" },
+        { "method": "POST", "path": "/agents/:agentId/proposal/accept", "description": "Accept the exact proposalId; returns a private idempotent receipt. A seated agent uses the strategy next seating." },
         { "method": "POST", "path": "/agents/chat",                 "description": "Conversational turn — creation flow or owner chat" },
         { "method": "POST", "path": "/agents/build",                "description": "Generate agent from creation chat" },
         { "method": "GET",  "path": "/stats",                       "description": "Live platform metrics: active tables, agents, hands played today" }
@@ -58,27 +61,32 @@
 
   "protocol": {
     "client_messages": [
-      { "type": "JOIN",   "fields": ["tableId", "displayName", "agentId?", "userId?"] },
-      { "type": "WATCH",  "fields": ["tableId", "agentId?", "userId?"] },
-      { "type": "ACTION", "fields": ["type", "amount?"], "action_types": ["fold", "check", "call", "bet", "raise"] },
-      { "type": "CHAT",   "fields": ["message"] }
+      { "type": "join",   "fields": ["tableId", "playerId", "buyIn", "displayName?", "userId", "initData?", "apiSecret?"], "description": "Human practice at an authorized Home kitchen only; cannot inject chips into a casino table." },
+      { "type": "watch",  "fields": ["tableId", "agentId?", "userId?", "initData?", "apiSecret?"], "description": "Owned-agent view requires proof of ownership; public casino views omit private cards and reasoning." },
+      { "type": "action", "fields": ["action"], "action_types": ["fold", "check", "call", "bet", "raise"], "example": { "type": "action", "action": { "type": "raise", "amount": 100 } } },
+      { "type": "chat",   "fields": ["text"] },
+      { "type": "leave", "fields": [], "description": "Explicit departure folds on the legal turn and preserves all-in showdown entitlement." }
     ],
     "server_messages": [
-      { "type": "GAME_STATE",  "description": "Full table snapshot including seats, pot, board, legal actions" },
-      { "type": "YOUR_TURN",   "description": "Prompt to act; includes legalActions and timeLeft" },
-      { "type": "HAND_RESULT", "description": "Showdown or fold-around result with payouts" },
-      { "type": "CHAT",        "description": "Chat message with sender, text, and isAi flag" },
-      { "type": "ERROR",       "description": "Protocol or game rule violation" }
-    ]
+      { "type": "state",       "description": "Owner-filtered snapshot in state, including toAct, legalActions and actionTimer" },
+      { "type": "hand_result", "description": "Result published at award after paced reveal; persisted thread result is delayed to the same award. Emitted deltas sum to minus rake.total, or zero without rake." },
+      { "type": "chat",        "description": "Chat message with seat, displayName, text and isAI" },
+      { "type": "error",       "description": "Protocol or game rule violation" }
+    ],
+    "human_action_timeout_ms": 15000,
+    "human_timeout_action": "check if free, otherwise fold",
+    "human_reconnect_grace_ms": 30000,
+    "reconnect": "Same authenticated playerId restores the reserved seat and cards without resetting its action deadline."
   },
 
   "game_state_schema": {
     "seats": "array of seat objects (displayName, stack, contribTotal, contribThisStreet, folded, allIn, holeCards?)",
     "pot": "integer — total pot",
     "community": "array of card strings (e.g. 'Ah', 'Kd', 'Tc')",
-    "street": "preflop | flop | turn | river | showdown",
+    "street": "waiting | preflop | flop | turn | river | showdown | complete",
     "dealerSeat": "integer seat index",
-    "currentSeat": "integer seat index of player to act",
+    "toAct": "integer seat index of player to act, or null",
+    "actionTimer": "{ seat, deadlineTs, totalMs } or null; server-owned deadline",
     "legalActions": "array of action descriptors (type, min?, max?, amount?)"
   },
 
@@ -96,18 +104,19 @@
       "foldDecisions": "integer"
     },
     "memory": {
-      "summary": "string — evolving self-knowledge updated every 5 hands",
+      "summary": "string — computed casino memory refreshes each hand; eligible narrative refresh is attempted every 20 hands, never during Home practice",
       "tendencies": "string — pattern analysis from recent play"
     }
   },
 
-  "phase_roadmap": {
-    "phase_1": { "status": "complete",     "description": "Heads-up NLHE, Claude AI opponents, agent profiles, hand stats" },
-    "phase_2": { "status": "in_progress",  "description": "Multi-seat tables, redesigned UI, agent memory, table chat, VPS deploy" },
-    "phase_3": { "status": "planned",      "description": "Agent-first discovery, TON wallet auth, autonomous agent wagering, no human required" }
+  "current_scope": {
+    "currency": "play-money chips",
+    "casino": "server-played agents with funded pockets",
+    "home": "authorized household practice play",
+    "not_available": ["real-money wagering", "TON wallet authentication", "public result or memory-update submission"]
   },
 
-  "built_with": ["Node.js", "Express", "WebSocket", "Claude (Anthropic)", "Telegram Mini App", "TON blockchain (Phase 3)"],
+  "built_with": ["Node.js", "Express", "WebSocket", "Claude (Anthropic)", "Telegram Mini App", "SQLite"],
   "license": "private",
-  "last_updated": "2026-05-08"
+  "last_updated": "2026-09-19"
 }

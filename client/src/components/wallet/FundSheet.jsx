@@ -102,7 +102,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
         {/* where he stands now, and what you have to give */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12, padding: '12px 13px',
-          borderRadius: 12, background: 'var(--bg-tertiary)', border: `1px solid color-mix(in srgb, ${accent} 24%, transparent)`, marginBottom: 14,
+          borderRadius: 12, background: 'var(--wal-panel-2, var(--bg-tertiary))', border: `1px solid color-mix(in srgb, ${accent} 24%, transparent)`, marginBottom: 14,
         }}>
           {/* WALLET-5: his face opens his profile here too, the same
               navigation the floor uses. Inert when no host owns it. */}

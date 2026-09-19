@@ -198,7 +198,7 @@ async function expectPublicTable(page, tableId, board, pot) {
 }
 
 async function expectPublicWatch(page, tableId, board, pot) {
-  await expect(page.getByRole('button', { name: 'Leave table' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop watching' })).toBeVisible();
   await expectPublicTable(page, tableId, board, pot);
 }
 
@@ -266,7 +266,7 @@ test('HOME-3 direct Home table Watch and actual seated YOU both leave for Home',
   expect(await page.evaluate(() => window.__homeJourneyWire.filter(message => message.type === 'watch'))).toEqual(expect.arrayContaining([
     expect.objectContaining({ tableId: HOME_TABLE, userId: OWNER, displayName: 'Jens', agentId: null }),
   ]));
-  await page.getByRole('button', { name: 'Leave table' }).click();
+  await page.getByRole('button', { name: 'Stop watching' }).click();
   await expect(page.getByTestId('home-screen')).toBeVisible();
   await page.getByTestId('home-table').click();
   await page.getByTestId('home-table-sit').click();
@@ -315,7 +315,7 @@ test('HOME-3 Upstairs floor → Watch twice and nested Profile CHAT return to th
     await expect(floor).toHaveAttribute('data-room', 'floor');
     await floor.getByRole('button', { name: /Watch table home3-upstairs/ }).click();
     await expectPublicWatch(page, UPSTAIRS_TABLE, ['A', 'K', '7'], '$640');
-    await page.getByRole('button', { name: 'Leave table' }).click();
+    await page.getByRole('button', { name: 'Stop watching' }).click();
     await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
   }
   await expect(page.getByTestId('floor-view').getByRole('button', { name: /Watch table home3-upstairs/ })).toBeVisible();

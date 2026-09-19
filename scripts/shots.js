@@ -24,9 +24,9 @@
 // Two servers run for the actual walk: one plain, one GUEST_ENABLED=1 — a
 // guest and an owner cannot share a process, since GUEST-1's door is a
 // boot-time env var (main.jsx's boot() picks it over everything once the
-// server says it is open). Both keyless — no ANTHROPIC_API_KEY, no
-// TELEGRAM_BOT_TOKEN — so every agent decision is the deterministic
-// check/fold fallback and auth is open, which is what lets this seed a real
+// server says it is open). Both keyless — no provider keys or
+// TELEGRAM_BOT_TOKEN — so decisions use the compiled policy fallback
+// and auth is open, which is what lets this seed a real
 // household over plain HTTP instead of a signed Telegram session.
 //
 //   npm run shots
@@ -62,7 +62,7 @@ const BACKROOM_UID = 'shipbackroom';
 // them exported.
 function childEnv(extra) {
   const env = { ...process.env, ...extra };
-  for (const k of ['ANTHROPIC_API_KEY', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'DEV_API_SECRET', 'ADMIN_KEY']) {
+  for (const k of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_USERNAME', 'DEV_API_SECRET', 'ADMIN_KEY']) {
     delete env[k];
   }
   return env;

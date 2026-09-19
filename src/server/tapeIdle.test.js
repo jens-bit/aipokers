@@ -13,10 +13,10 @@
 // in the tape room ever does, and this asserts it stays that way.
 delete process.env.ANTHROPIC_API_KEY;
 
-// Ninety seconds is the product; sixty milliseconds is the test.
-process.env.HOME_STUDY_MS = '60';
+// End studies explicitly; a timer racing admission would test scheduling.
+process.env.HOME_STUDY_MS = '90000';
 
-import test, { before, after } from 'node:test';
+import test, { before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -113,6 +113,13 @@ after(async () => {
 const openerOf = (id) =>
   profiles.presentedRoster('idle', { owner: true }).find((a) => a.id === id)?.opener ?? '';
 
+// One household has one TV. Resetting timers alone does not end the study
+// saved on the agent, so use the actual completion path between scenarios.
+function finishStudies() {
+  for (const agent of profiles.presentedRoster('idle', { owner: true })) tape.finishStudy(agent.id, 'idle');
+}
+beforeEach(finishStudies);
+
 // ── the pick ────────────────────────────────────────────────────────────────
 
 test('the tape is ranked, and the top of it is the hand a person would pick', () => {
@@ -135,7 +142,7 @@ test('watching is recorded when it STARTS, and the ledger counts repeats', () =>
   assert.equal(watches['41'].flagType, 'badBeat');
   assert.equal(watches['41'].subject, 'Granite');
 
-  tape.reset();                                   // he finished watching
+  finishStudies();
   idle.maybeStudy(presented('picker'), 'idle');
   watches = profiles.getTapeWatches('picker', 'idle');
   assert.equal(watches['41'].count, 2, 'he went back to it');
@@ -166,18 +173,18 @@ test('idle means idle — a seat, a study or a worn man is none of it', () => {
 
 test('twice a day and no more', () => {
   assert.ok(idle.maybeStudy(presented('twice'), 'idle'), 'first');
-  tape.reset();
+  finishStudies();
   assert.ok(idle.maybeStudy(presented('twice'), 'idle'), 'second');
-  tape.reset();
+  finishStudies();
   assert.equal(idle.maybeStudy(presented('twice'), 'idle'), null, 'third, same day');
 });
 
 test('tomorrow he is allowed to watch something again', () => {
   const now = Date.UTC(2026, 8, 6, 12, 0, 0);
   assert.ok(idle.maybeStudy(presented('tomorrow'), 'idle', { now }));
-  tape.reset();
+  finishStudies();
   assert.ok(idle.maybeStudy(presented('tomorrow'), 'idle', { now }));
-  tape.reset();
+  finishStudies();
   assert.equal(idle.maybeStudy(presented('tomorrow'), 'idle', { now }), null);
   assert.ok(idle.maybeStudy(presented('tomorrow'), 'idle', { now: now + DAY }), 'a new day');
 });
@@ -202,15 +209,15 @@ test('the sweep answers for the whole household and counts what it started', () 
 
 test('one watch is just watching — it takes two to be on his mind', () => {
   idle.maybeStudy(presented('once'), 'idle');
-  tape.reset();
+  finishStudies();
   assert.ok(!/Still thinking/.test(openerOf('once')), openerOf('once'));
 });
 
 test('the hand he keeps watching is named in his opener', () => {
   idle.maybeStudy(presented('opener'), 'idle');
-  tape.reset();
+  finishStudies();
   idle.maybeStudy(presented('opener'), 'idle');
-  tape.reset();
+  finishStudies();
   assert.match(openerOf('opener'), /Still thinking about that beat against Granite\./);
 });
 

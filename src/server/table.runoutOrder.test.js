@@ -11,6 +11,7 @@ const { Actions, Streets } = await import('../engine/game.js');
 const { holdPlan, seedFor } = await import('./pace.js');
 const { Dealer, createDeck } = await import('../engine/deck.js');
 const { _closeForTests } = await import('./store.js');
+const { readThread, setLineListener } = await import('./thread.js');
 after(() => _closeForTests());
 
 const socket = () => ({ OPEN: 1, readyState: 1, sent: [], send(raw) { this.sent.push(JSON.parse(raw)); } });
@@ -196,6 +197,61 @@ function planFor(table) {
     runout: table.game.community.slice(table._boardBeforeAct.length),
     seed: seedFor(table.tableId, table.game.handNumber), watched: true });
 }
+
+function recordResultThread(t, table, viewer) {
+  table.agentIds[0] = `thread-agent-${table.tableId}`;
+  table.agentUserIds[0] = 'thread-owner';
+  table.seatSessionIds[0] = `session-${table.tableId}`;
+  const session = table.seatSessionIds[0];
+  const spectator = table.spectators.find(entry => entry.ws === viewer);
+  if (spectator) spectator.spectatorSeat = 0;
+  setLineListener(line => table.deliverThreadLine(line));
+  t.after(() => setLineListener(null));
+  return () => readThread(session, { owner: true }).filter(line => line.category === 'result');
+}
+
+test('BUG-272: live and reloaded result threads wait for the staged award', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const { table, viewer } = onFlop(t);
+  const results = recordResultThread(t, table, viewer);
+  closeWithAllIn(table);
+  checkOrCall(table);
+  const pushed = () => viewer.sent.filter(msg => msg.type === 'thread_line' && msg.line.category === 'result');
+  assert.equal(results().length, 0, 'reloading history during the runout cannot reveal the winner');
+  assert.equal(pushed().length, 0, 'the live Handlog cannot reveal the winner');
+  t.mock.timers.tick(planFor(table).awardAt - 1);
+  assert.equal(results().length, 0);
+  t.mock.timers.tick(1);
+  assert.equal(results().length, 1);
+  assert.equal(pushed().length, 1);
+  assert.match(results()[0].text, /P[012].*showdown/);
+  table._finishPaceHold();
+  assert.equal(results().length, 1, 'a repeated finish cannot duplicate the persisted award');
+});
+
+test('BUG-272: forced closure publishes one result before clearing the session', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const { table, viewer } = onFlop(t);
+  const results = recordResultThread(t, table, viewer);
+  closeWithAllIn(table);
+  checkOrCall(table);
+  assert.equal(results().length, 0);
+  table.closeTable('forced during runout');
+  assert.equal(results().length, 1);
+  const award = viewer.sent.findIndex(msg => msg.type === 'thread_line' && msg.line.category === 'result');
+  const close = viewer.sent.findIndex(msg => msg.type === 'table_closed');
+  assert.ok(award >= 0 && close > award);
+  t.mock.timers.tick(60_000);
+  assert.equal(results().length, 1);
+});
+
+test('BUG-272: an unwatched result is recorded immediately', t => {
+  const { table } = onFlop(t, { watched: false });
+  const results = recordResultThread(t, table);
+  closeWithAllIn(table);
+  checkOrCall(table);
+  assert.equal(results().length, 1);
+});
 
 function assertFinalBeforeClose(messages) {
   const award = messages.findIndex((msg) => msg.type === 'hand_result');

@@ -17,35 +17,27 @@
 // A frame with no live game draws the room dark and says so at the plate. An
 // honest empty felt beats a fake busy one.
 //
-// THE CARDS LAND. Each card is keyed by the card itself, so React mounts only
-// the ones that are new and the `home-rise` keyframe plays for those alone —
-// the turn arrives on the turn, rather than the whole board flashing. Suits
-// are colour and nothing else: at five pixels wide a rank is a smudge, but red
-// against white is legible at a glance and is the one thing about a board you
-// can read at this size.
+// BUG-245: the board is the picture's subject. Legible ranks and suits replace
+// five-pixel colored marks, with the public turn directly underneath. Cards
+// retain their keys so only a newly dealt card animates.
 
 const RED = new Set(['h', 'd']);
 
 /** How many bodies stand around a felt this size before it is just a crowd. */
 const MAX_BODIES = 6;
 
-/** Where the other seats stand, as fractions of the picture's width. */
-const RING = [0.16, 0.3, 0.44, 0.58, 0.72, 0.86];
+const SUITS = { h: '♥', d: '♦', c: '♣', s: '♠' };
 
 export function cardColor(card) {
   const suit = String(card ?? '').slice(1, 2).toLowerCase();
-  return RED.has(suit) ? '#C6494C' : '#E8E6E0';
+  return RED.has(suit) ? '#C6494C' : '#111111';
 }
 
 /** The seats to draw as unlit bodies: everyone at the table except him. */
 export function ringSeats(liveGame) {
   const seats = Array.isArray(liveGame?.seats) ? liveGame.seats : null;
   const hero = Number.isInteger(liveGame?.heroSeat) ? liveGame.heroSeat : null;
-  if (!seats) {
-    // No seat list on the wire yet — four bodies, which is what the frame has
-    // always drawn and reads as "a table with people at it".
-    return [0, 1, 2, 3];
-  }
+  if (!seats) return [];
   return seats
     .map((s, i) => (Number.isInteger(s?.seat) ? s.seat : i))
     .filter((seat) => seat !== hero)
@@ -62,11 +54,18 @@ export function ringSeats(liveGame) {
 export function MiniFelt({ liveGame, accent = '#00D4AA', width = 118, hot = false, money }) {
   // Home's practice pot is real table state, but is not a money result.
   const pot = liveGame?.home ? 0 : Number(liveGame?.pot) || 0;
-  const board = Array.isArray(liveGame?.board) ? liveGame.board.slice(0, 5) : [];
+  const board = Array.isArray(liveGame?.board) ? liveGame.board.filter(c => /^[2-9TJQKA][cdhs]$/i.test(c)).slice(0, 5) : [];
   const ring = ringSeats(liveGame);
+  const seats = Array.isArray(liveGame?.seats) ? liveGame.seats : [];
+  const hero = seats.find((s,i) => (Number.isInteger(s?.seat) ? s.seat : i) === liveGame?.heroSeat);
+  const actor = Number.isInteger(liveGame?.toAct) ? seats.find((s,i) => (Number.isInteger(s?.seat) ? s.seat : i) === liveGame.toAct) : null;
+  const action = !liveGame || liveGame.street === 'waiting' ? 'Waiting for a hand'
+    : liveGame.street === 'complete' ? 'Hand complete'
+      : actor ? `${actor.displayName ?? 'Player'} to act` : 'Hand in progress';
+  const cardWidth = Math.max(11, Math.min(20, (width - 16) / 5 - 2));
 
   return (
-    <span className="home-frame__picture" data-street={liveGame?.street ?? 'none'} aria-hidden>
+    <span className="home-frame__picture" data-street={liveGame?.street ?? 'none'} aria-hidden style={{ '--preview-card-w': `${cardWidth}px` }}>
       <span className="home-frame__felt" style={{ width: width * 0.6, marginLeft: -(width * 0.3) }} />
 
       {/* the rest of the table: bodies, unlit, so his own seat is the one you find */}
@@ -74,24 +73,27 @@ export function MiniFelt({ liveGame, accent = '#00D4AA', width = 118, hot = fals
         <span
           key={seat}
           className="home-frame__body"
-          style={{ left: `${(RING[i] ?? RING[RING.length - 1]) * 100}%`, top: i % 2 ? 8 : 30 }}
+          style={{ left: 12 + i * 6, top: 4 }}
         />
       ))}
 
       {/* his seat, lit and pulsing */}
-      <span className="home-frame__seat" style={{ background: accent, boxShadow: `0 0 7px ${accent}` }} />
+      {hero && <span className="home-frame__seat" style={{ background: accent }} />}
 
       {/* the board he is playing, as far as it has run. Keyed by the card, so
           only the new one animates in. */}
       <span className="home-frame__cards">
         {board.map((c) => (
-          <span key={c} className="home-frame__card" style={{ background: cardColor(c) }} />
+          <span key={c} className="home-frame__card" aria-label={c} style={{ color: cardColor(c) }}>
+            <b>{c[0].toUpperCase() === 'T' ? '10' : c[0].toUpperCase()}</b><i>{SUITS[c[1].toLowerCase()]}</i>
+          </span>
         ))}
       </span>
 
       {pot > 0 ? (
         <span className="home-frame__pot">{money ? money(Math.round(pot)) : Math.round(pot)}</span>
       ) : null}
+      <span className="home-frame__action" title={action}>{action}</span>
       {hot ? <span className="home-frame__glow" /> : null}
     </span>
   );

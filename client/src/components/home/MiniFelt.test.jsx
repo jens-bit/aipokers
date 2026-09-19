@@ -4,7 +4,7 @@
 // must never do are invent a table and lose the one it has.
 
 import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 import { MiniFelt, cardColor, ringSeats } from './MiniFelt.jsx';
 import { money } from '../../lib/wallet.js';
@@ -17,6 +17,15 @@ const live = (over = {}) => ({
 });
 
 describe('BUGS-A job 8 · the miniature felt', () => {
+  it('BUG-245: wall monitors show readable card ranks and suits with the current action, not colored dots', () => {
+    const { container, rerender } = render(<MiniFelt liveGame={live({ toAct: 1 })} width={132} money={money}/>);
+    expect(screen.getByLabelText('Ah')).toHaveTextContent('A');
+    expect(screen.getByLabelText('Kd')).toHaveTextContent('K');
+    expect(screen.getByText('Granite to act')).toBeInTheDocument();
+    rerender(<MiniFelt liveGame={null} width={132} money={money}/>);
+    expect(screen.getByText('Waiting for a hand')).toBeInTheDocument();
+    expect(container.querySelectorAll('.home-frame__body, .home-frame__seat')).toHaveLength(0);
+  });
   it('BUG-162: Home previews keep the real board without inventing a money pot', () => {
     const {container}=render(<MiniFelt liveGame={live({home:true,pot:480})} money={money}/>);
     expect(container.querySelectorAll('.home-frame__card')).toHaveLength(3);
@@ -42,18 +51,18 @@ describe('BUGS-A job 8 · the miniature felt', () => {
   it('a red suit is red and a black suit is not', () => {
     expect(cardColor('Ah')).toBe('#C6494C');
     expect(cardColor('Kd')).toBe('#C6494C');
-    expect(cardColor('2c')).toBe('#E8E6E0');
-    expect(cardColor('9S')).toBe('#E8E6E0');
-    expect(cardColor(null)).toBe('#E8E6E0');
+    expect(cardColor('2c')).toBe('#111111');
+    expect(cardColor('9S')).toBe('#111111');
+    expect(cardColor(null)).toBe('#111111');
   });
 
   it('draws one body per seat at the table except his own', () => {
     expect(ringSeats(live())).toEqual([1, 2]);
   });
 
-  it('with no seat list on the wire it draws the four it always drew', () => {
-    expect(ringSeats(live({ seats: undefined }))).toEqual([0, 1, 2, 3]);
-    expect(ringSeats(null)).toEqual([0, 1, 2, 3]);
+  it('BUG-245: an absent seat list never invents four occupants', () => {
+    expect(ringSeats(live({ seats: undefined }))).toEqual([]);
+    expect(ringSeats(null)).toEqual([]);
   });
 
   it('states the pot in the product money format, and says nothing at zero', () => {
@@ -67,10 +76,9 @@ describe('BUGS-A job 8 · the miniature felt', () => {
     const { container } = render(<MiniFelt liveGame={null} money={money} />);
     expect(container.querySelectorAll('.home-frame__card')).toHaveLength(0);
     expect(container.querySelector('.home-frame__pot')).toBeNull();
-    // The felt and his seat are still drawn: he IS at a table, it just has not
-    // dealt him in yet.
+    // The decorative felt remains, but no live seat is invented.
     expect(container.querySelector('.home-frame__felt')).not.toBeNull();
-    expect(container.querySelector('.home-frame__seat')).not.toBeNull();
+    expect(container.querySelector('.home-frame__seat')).toBeNull();
   });
 
   it('carries the street, so the CSS can tell a runout from a shuffle', () => {

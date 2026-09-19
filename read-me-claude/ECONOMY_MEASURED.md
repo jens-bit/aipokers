@@ -1,5 +1,13 @@
 # ECONOMY_MEASURED.md — the four assumed numbers, replaced with real ones
 
+> **Historical report; corrected on 19 September 2026.** The long-term model
+> below assumes chair purchase costs and promotion rules that differ from the
+> shipped game. Its 100% household-collapse claim is not a validated forecast.
+> The original simulator also uses a synthetic initial opponent and incompletely
+> seeded decisions. See [the recovery benchmark](ECONOMY_RECOVERY_BENCHMARK.md)
+> for reproducible real-House comparisons, current progression rules and limits.
+> The original text remains here as an audit record.
+
 ECON-1, 2026-09-16, on `chore/econ-1` (branched from `origin/main`, worktree at
 `C:\Projects\ai-poker-tableview`). This is a measurement job — nothing in `src/`
 or `client/` changed. `data/arena/` is gitignored everywhere except this
@@ -142,6 +150,13 @@ anyone should tune anything off the -8.9 by itself.
 
 ## 2. Hands per day
 
+> **19 September correction:** the 440 / 880 / 1,760 figures below are loose
+> long-run recovery ceilings, not measured sustainable hands per calendar day.
+> They allocate all 24 hours to resting and omit the time spent playing,
+> during which recovery stops. A real throughput estimate must include both
+> table pacing and rest. A full initial reserve can additionally fund a first
+> day's burst; it does not recur every day without time to recover.
+
 Straight from `src/agent/stamina.js`, no simulation:
 
 - `STAMINA_MAX = 100`, `RECOVER_PER_HOUR = 22` — a full reserve, uncontested,
@@ -152,14 +167,13 @@ Straight from `src/agent/stamina.js`, no simulation:
   a casino one, and this section is about the casino, where stakes live.
 - `staminaNow` only credits recovery while `resting: true` — **no recovery
   while seated.** So the reserve is a throughput cap, not a burst cap: over any
-  long stretch, sustainable hands/day = (hours resting × RECOVER_PER_HOUR) ÷
-  (cost per hand), and since play is what drains the reserve rather than what
-  costs wall-clock time in this model, the two-decimal arithmetic is just
-  `24 × RECOVER_PER_HOUR ÷ HAND_COST`.
+  long stretch, recovered hands/day = (hours resting × RECOVER_PER_HOUR) ÷
+  (cost per hand). Substituting 24 resting hours produces only the upper
+  bound `24 × RECOVER_PER_HOUR ÷ HAND_COST`, with zero playing time budgeted.
 
-**Never fed:**
+**Never fed — recovery-only upper bounds:**
 
-| stamina attribute | hand cost | hands/day = 24 × 22 ÷ cost |
+| stamina attribute | hand cost | recovery ceiling = 24 × 22 ÷ cost |
 |---|---|---|
 | worst (0)    | 1.2 | 528 ÷ 1.2 = **440** |
 | neutral      | 0.6 | 528 ÷ 0.6 = **880** |
@@ -176,12 +190,10 @@ being the constraint at all**, and hands/day becomes bounded by something this
 file has no opinion on (table pacing, `HAND_PAUSE_MS`/`UNWATCHED_HAND_PAUSE_MS`,
 how often the owner is around to buy snacks) rather than by stamina.
 
-**Source: the shipped constants, arithmetic only. Trust: high** — this isn't a
-simulation, it's the formula the product already runs, and the unfed number
-(880/day, neutral) is also the figure that independently made the arc
-reproduction (§5) line up with the assumed table when the assumed win rate was
-plugged in — a second, unplanned confirmation that ~800–880/day is the right
-order of magnitude for "a day" in this economy.
+**Source: the shipped constants, arithmetic only.** The recovery arithmetic
+is exact under the stated assumptions; 880/day is not a validated throughput.
+Matching a reconstructed progression model to assumed inputs is not an
+independent measurement of playing or resting time.
 
 ---
 
@@ -301,9 +313,9 @@ handed down from the original script:
 - **Chairs** at $100 / $600 / $2,500 for the 2nd/3rd/4th agent, purchased the
   instant the bankroll can cover the price and still leave one buy-in in
   reserve.
-- **880 hands/day** (§2, unfed/neutral — the always-available figure; feeding
-  can only make the arc *faster*, never slower, so this is the conservative
-  choice and the direction of the finding below does not depend on it).
+- **880 hands/day** (§2's recovery-only ceiling, used as an assumed pace).
+  This is not always available or a conservative calendar-time estimate:
+  playing consumes time that the formula assigned to recovery.
 - **One snack a day, 6bb** at the day's stake, debited from the bankroll —
   the daily cost of keeping him at that pace.
 - Daily result: `Normal(mean = winrate_bb100/100 × hands, sd = stdev_bb100 ×
@@ -317,9 +329,9 @@ handed down from the original script:
 (+20bb/100, stdev 100, and — solved for, not measured — 800 hands/day) the
 model reproduces the assumed table closely (2nd agent day 1 vs. day 3, mid
 stakes day 18 vs. 19, 3rd agent day 21 vs. 24, 4th agent day 37 vs. 37 exactly,
-high stakes day 56 vs. 45). That the back-solved hands/day (~800) lands next to
-the independently-measured 880 (§2) is a second, unplanned agreement — evidence
-this reconstruction has the right shape, not just a coincidence built to fit.
+high stakes day 56 vs. 45). This is calibration to assumed outcomes, not an
+independent confirmation: §2's 880 is a recovery-only upper bound and does
+not measure the calendar-day pace used by this reconstruction.
 
 ### The table asked for
 
@@ -355,9 +367,10 @@ the measured numbers substituted in.
   (+0.5). Cross-checked against `MONEY_AUDIT.md`'s independent measurement,
   same conclusion. Trust: medium-high on sign, medium on magnitude — policy
   play only, no model calls.
-- **Hands/day:** 440–1,760 depending on the STAMINA attribute (880 at
-  neutral), unfed; effectively unbounded by stamina once fed on every ask.
-  Trust: high — read straight off the shipped constants.
+- **Hands/day:** 440–1,760 (880 at neutral) are unfed recovery-only ceilings,
+  not sustainable calendar-day measurements; actual pacing and rest were
+  omitted. Frequent feeding moves the constraint toward pacing and owner
+  availability. No observed hands/day claim is established here.
 - **Stdev, bb/100:** ~144.5 pooled, stable across stakes and sample sizes.
   ~45% hotter than real poker's ~100. Trust: high.
 - **Rake drag, bb/100:** ~9.4 pooled, charged per pot won regardless of

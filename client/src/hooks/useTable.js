@@ -72,12 +72,13 @@ export function useTable({ wsUrl }) {
   const configRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const reconnectAttemptRef = useRef(0);
-  const userInitiatedCloseRef = useRef(false);
   const lastStreetRef = useRef(null);
   const waitingForNextHandRef = useRef(false);
   const paceStateRef = useRef({ frame: null, tableId: null, handNumber: null });
 
   const handleServerMessage = useCallback((msg) => {
+    const tableId = msg.tableId ?? msg.state?.tableId;
+    if (tableId != null && configRef.current?.tableId != null && tableId !== configRef.current.tableId) return;
     switch (msg.type) {
       case ServerMsg.JOINED:
         setMySeat(msg.seat);
@@ -278,6 +279,7 @@ export function useTable({ wsUrl }) {
     wsRef.current = ws;
 
     ws.addEventListener('open', () => {
+      if (wsRef.current !== ws) return;
       console.log('[ws] open', wsUrl);
       if (cfg.isSpectator) {
         ws.send(JSON.stringify({
@@ -317,6 +319,7 @@ export function useTable({ wsUrl }) {
     });
 
     ws.addEventListener('message', (event) => {
+      if (wsRef.current !== ws) return;
       let msg;
       try { msg = JSON.parse(event.data); }
       catch { setError('received invalid JSON from server'); return; }
@@ -324,13 +327,8 @@ export function useTable({ wsUrl }) {
     });
 
     ws.addEventListener('close', (event) => {
+      if (wsRef.current !== ws) return;
       console.log('[ws] close', { code: event.code, reason: event.reason, wasClean: event.wasClean, url: wsUrl });
-
-      // User clicked Leave — don't reconnect.
-      if (userInitiatedCloseRef.current) {
-        userInitiatedCloseRef.current = false;
-        return;
-      }
 
       // Server kicked us because another connection took our seat. Reconnecting
       // would just collide again, so stop and surface the reason.
@@ -345,6 +343,7 @@ export function useTable({ wsUrl }) {
     });
 
     ws.addEventListener('error', () => {
+      if (wsRef.current !== ws) return;
       // Browsers don't expose details here; the close event fires next and
       // carries code + reason. Just log so devtools shows it happened.
       console.warn('[ws] error event');
@@ -355,7 +354,8 @@ export function useTable({ wsUrl }) {
   const watch = useCallback((cfg) => {
     clearReconnectTimer();
     const prev = wsRef.current;
-    if (prev) { try { prev.close(); } catch {} wsRef.current = null; }
+    wsRef.current = null;
+    if (prev) { try { prev.close(); } catch {} }
 
     setError(null);
     setHistory([]);
@@ -388,9 +388,9 @@ export function useTable({ wsUrl }) {
   const connect = useCallback((cfg) => {
     clearReconnectTimer();
     const prev = wsRef.current;
+    wsRef.current = null;
     if (prev) {
       try { prev.close(); } catch {}
-      wsRef.current = null;
     }
 
     setError(null);
@@ -422,8 +422,8 @@ export function useTable({ wsUrl }) {
 
   const disconnect = useCallback(() => {
     clearReconnectTimer();
-    userInitiatedCloseRef.current = true;
     const ws = wsRef.current;
+    wsRef.current = null;
     if (ws) {
       try {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: ClientMsg.LEAVE }));
@@ -483,6 +483,7 @@ export function useTable({ wsUrl }) {
   useEffect(() => () => {
     clearReconnectTimer();
     const ws = wsRef.current;
+    wsRef.current = null;
     if (ws) try { ws.close(); } catch {}
   }, []);
 

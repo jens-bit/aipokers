@@ -385,6 +385,8 @@ export function HomeScreen({
   // standing, over the room he opened it from.
   const [safeOpen, setSafeOpen] = useState(false);
   const [roomWallet, setRoomWallet] = useState(null);
+  const [roomWalletRevision, setRoomWalletRevision] = useState(0);
+  const refreshRoomWallet = useCallback(() => setRoomWalletRevision(value => value + 1), []);
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -394,7 +396,7 @@ export function HomeScreen({
     load();
     const timer = setInterval(load, 30_000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [safeOpen, fridgeOpen]);
+  }, [safeOpen, fridgeOpen, roomWalletRevision]);
   // DESK-2 — which panel the rail is showing: the room's own thread, one of the
   // three fixtures, one man's thread, or nothing at all when the shell has put
   // something else beside the room. Only ever read on the desk.
@@ -763,7 +765,9 @@ export function HomeScreen({
     if (guide.stage) guide.advance('live');
     onCasino?.();
   };
-  const roomUncovered = guideEnabled && !carry && (desktop ? rail === 'thread' : !tableOpen && !fridgeOpen && !safeOpen && !threadOpen);
+  // A real request owns the next action; introductory guidance resumes once
+  // it is answered, without covering its buttons in a short viewport.
+  const roomUncovered = guideEnabled && !carry && !wanting && (desktop ? rail === 'thread' : !tableOpen && !fridgeOpen && !safeOpen && !threadOpen);
   const firstAtHome = home.find(agent => !agent.guest && !agent.visiting);
   useEffect(() => {
     if (loaded && roomUncovered && firstAtHome) guide.begin(firstAtHome);
@@ -1016,6 +1020,7 @@ export function HomeScreen({
             focus,
             wanting,
             refresh,
+            refreshRoomWallet,
             carryAgent: agent => { if (home.some(a => a.id === agent.id) && pick(agent.id)) setRail('thread'); },
             toast: visitor ? (
               <VisitorToast visitor={visitor} onAnswered={onVisitorAnswered} />

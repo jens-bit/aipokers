@@ -31,5 +31,5 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
 
-  outputDir: '../design-refs/shipped/trace',
+  outputDir: process.env.SHOTS_OUTPUT_DIR ? `${process.env.SHOTS_OUTPUT_DIR}/trace` : '../design-refs/shipped/trace',
 });

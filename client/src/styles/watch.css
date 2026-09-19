@@ -31,7 +31,9 @@
   flex-shrink: 0;
 }
 
-.watch-screen__header > .watch-screen__title { min-width: 0; }
+.watch-screen__header .watch-screen__title { min-width: 0; }
+.watch-screen__identity,
+.watch-screen__status { display: contents; }
 
 .watch-screen__chat {
   flex-shrink: 0;
@@ -89,6 +91,21 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.watch-screen__stop-label { font-size: 10px; line-height: 12px; max-width: 44px; text-align: left; }
+
+/* BUG-259: at 320px the explicit Stop watching label squeezed the name to
+   zero width (and hid its guide). Keep identity and status together while
+   reserving real touch targets for each action. Wider phones retain their row. */
+@media (max-width: 360px) {
+  .watch-screen__header { height: 44px; padding: 0 8px; gap: 4px; border-bottom: 0; }
+  .watch-screen__identity { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
+  .watch-screen__title { line-height: 17px; letter-spacing: .08em; }
+  .watch-screen__status { display: flex; align-items: center; gap: 3px; }
+  .watch-screen__status .floor-mood-chip.is-small,
+  .watch-screen__status .floor-state-tag.is-compact { height: 14px; padding: 0 3px; gap: 3px; font-size: 7.5px; letter-spacing: .04em; }
+  .watch-screen__header-space { display: none; }
+  .watch-screen__header > button { height: 44px; min-width: 44px; }
 }
 
 /* ── the stage: felt above, draggable sheet below ─────────────────────── */
@@ -207,6 +224,37 @@
   background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
   border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
+
+/* BUG-218: actual settled rake, in a fixed slot beside the pot's location.
+   The empty slot stays mounted between awards; neither pot nor board moves. */
+.watch-felt__rake {
+  position: absolute;
+  top: calc(var(--wv-pot, 60px) - 17px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 14px;
+  text-align: center;
+  color: var(--felt-ink);
+  font: 10px/14px var(--sys-font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* A routine award replaces the pot in its own slot. Keeping the old raised
+   three-line card covered the rake on short phones. */
+.watch-felt--fill .watch-felt__won.is-celebrating { top: var(--wv-pot); }
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-pill {
+  flex-direction: row;
+  gap: 6px;
+  padding: 3px 10px;
+  max-width: calc(100% - 24px);
+}
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-amt,
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-with { margin-top: 0; }
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-amt { line-height: 1.1; }
+.watch-felt--fill .watch-felt__won.is-celebrating:not(.is-ordinary-win) .watch-felt__won-amt { font-size: 20px; }
 
 /* WV2-5: the pot going to its winner. Ported from mood-watch2.jsx's
    WatchShowdownScreenM -- a trail from under the board down to the pill,

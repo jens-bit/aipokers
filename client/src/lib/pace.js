@@ -284,6 +284,7 @@ function sameFrame(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.game === b.game
+    && a.mySeat === b.mySeat
     && a.lastDecision === b.lastDecision
     && a.chatMessages === b.chatMessages
     && a.paceFrame === b.paceFrame;

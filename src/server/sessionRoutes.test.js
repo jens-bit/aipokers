@@ -58,10 +58,12 @@ const { appendLine, ThreadKind } = await import('./thread.js');
 const { bus: sessionBus } = await import('./sessions.js');
 const floor = await import('./floorChannel.js');
 
-// The smallest table shape the /finish route asks for: SERVER-3's own accessor
-// and nothing else.
+// A closed table snapshot still supplies SERVER-3's result accessor. BUG-259:
+// a live seat must use its release lifecycle; lacking sitOutSeat is an error,
+// never permission to refund a seat. This fixture tests the ended-table path.
 const fakeTable = {
   tableId: 'tbl-1',
+  closed: true,
   sessionDetailFor: (agentId) => (agentId === 'hero'
     ? { sessionId: 'sess-1', tableId: 'tbl-1', seat: 0, hands: 12, net: -430, biggestPot: 1800, duration: 900_000 }
     : null),

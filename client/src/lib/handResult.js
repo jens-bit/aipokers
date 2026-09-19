@@ -28,6 +28,7 @@
 // says who took what.
 
 import { handName } from '../components/share/handName.js';
+import { settledAwards } from './settledAwards.js';
 
 // Names that are already a quantity and take no article: "four nines", "three
 // nines", "two pair, aces and kings", "aces full of kings" — and "ace-high",
@@ -94,14 +95,20 @@ export function winningHand(winner, { showdown = [], community = [] } = {}) {
  * The parts of the line, so a surface can style the amount without having to
  * take a sentence apart.
  *
- * @returns {{ who, amount, tail, line }|null}
+ * Accepts the original server result: winners and pot are gross, rake.bySeat
+ * contains each actual deduction. Every "took" sentence names paid chips.
+ * Explicit gross pot labels should read result.pot directly instead.
+ *
+ * @returns {{ who, verb, amount, tail, line }|null}
  *   `who`    "Granite", or "Granite and Doyle" for a split
- *   `amount` the pot, already formatted by the caller's money function
+ *   `verb`   "took" or "split", or a phrase without a sum when unknown
+ *   `amount` combined payout after rake, formatted by money; null if unknown
  *   `tail`   "with a pair of nines" · "uncontested" · '' when nothing knows
  *   `line`   the whole sentence, for a label or a screen reader
  */
 export function handResult(result, { seats = [], community = [], money = String } = {}) {
-  const winners = Array.isArray(result?.winners) ? result.winners.filter(Boolean) : [];
+  const { awards, total } = settledAwards(result);
+  const winners = awards.map(award => result.winners.find(w => w?.seat === award.seat));
   if (winners.length === 0) return null;
 
   const names = winners.map((w) => seatName(w.seat, seats));
@@ -109,14 +116,12 @@ export function handResult(result, { seats = [], community = [], money = String 
     ? names[0]
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
-  const pot = Number.isFinite(result?.pot)
-    ? result.pot
-    : winners.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
-  const amount = money(Math.round(pot) || 0);
+  const amount = total == null ? null : money(Math.round(total));
 
   // A split has no single hand to name — two people held different cards and
   // the pot went both ways — so it states the split and stops there.
-  const verb = winners.length === 1 ? 'took' : 'split';
+  const verb = total == null ? (winners.length === 1 ? 'won the hand' : 'split the pot')
+    : winners.length === 1 ? 'took' : 'split';
   let tail = '';
   if (winners.length === 1) {
     if (result?.type === 'uncontested') {
@@ -129,6 +134,7 @@ export function handResult(result, { seats = [], community = [], money = String 
 
   return {
     who,
+    verb,
     amount,
     tail,
     line: [who, verb, amount, tail].filter(Boolean).join(' '),

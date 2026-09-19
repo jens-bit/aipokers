@@ -744,7 +744,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await bootedOnHome();
 
     await deployFromThread(user);
-    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await user.click(screen.getByRole('button', { name: 'Stop watching' }));
 
     expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
@@ -767,7 +767,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await user.click(within(row).getByRole('button', { name: 'Deploy' }));
     await dealHimIn(user);
 
-    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await user.click(screen.getByRole('button', { name: 'Stop watching' }));
     // The thread he came through is where he lands; the room is behind it.
     expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
   });
@@ -783,7 +783,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
 
     await deployFromThread(user);
     // The watch screen has no bar of any kind; leave first, then choose.
-    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await user.click(screen.getByRole('button', { name: 'Stop watching' }));
     await screen.findByPlaceholderText('Whisper to him…');
     await user.click(screen.getByRole('button', { name: 'Back' }));
 
@@ -798,7 +798,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await bootedOnHome();
 
     await deployFromThread(user);
-    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await user.click(screen.getByRole('button', { name: 'Stop watching' }));
     await screen.findByPlaceholderText('Whisper to him…');
 
     // Straight back out and in again, from the thread we just landed in.
@@ -811,7 +811,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await user.click(within(row).getByRole('button', { name: 'Deploy' }));
     await dealHimIn(user);
 
-    await user.click(screen.getByRole('button', { name: 'Leave table' }));
+    await user.click(screen.getByRole('button', { name: 'Stop watching' }));
     // DEFLAKE-2: 20s, and the reason is that this case is TWO complete round
     // trips — home, thread, profile, deploy, casino, deal in, watch, leave,
     // thread, and then all of it again — driven through the whole <App /> with

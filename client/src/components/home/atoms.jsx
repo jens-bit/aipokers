@@ -209,7 +209,7 @@ export function HomeOne({
   return (
     <button
       type="button"
-      className={`home-one${awaitingLift ? ' is-awaiting-lift' : ''}${refusing ? ' is-refusing' : ''}${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
+      className={`home-one${shownBubble ? ' is-speaking' : ''}${awaitingLift ? ' is-awaiting-lift' : ''}${refusing ? ' is-refusing' : ''}${walking ? ' is-walking' : ''}${away ? ' is-away' : ''}${crossing === 'home' ? ' is-coming-home' : ''}${carried ? ' is-carried' : ''}${r.anim ? ` home-one--${r.key}` : ''}`}
       data-agent={agent?.id}
       data-routine={r.key}
       data-home-item-phase={fetching ? homeItem.phase : undefined}

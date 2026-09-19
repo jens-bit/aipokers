@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useTable } from './hooks/useTable.js';
 import { usePacedTable } from './hooks/usePacedTable.js';
+import { useWatchSelection } from './hooks/useWatchSelection.js';
 import { useDeepLink } from './hooks/useDeepLink.js';
 import { useHomeThread } from './hooks/useHomeThread.js';
 import { resolveDeepLink, readStartParam, parseStartParam } from './lib/deeplink.js';
@@ -99,7 +100,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     game, mySeat, legalActions, history,
     error, dismissError, status,
     reconnectAttempt, maxReconnectAttempts,
-    config, connect, watch, disconnect, act, deal, rename,
+    config, act, deal, rename,
     chatMessages, sendChat,
     sitOut,
     lastDecision,
@@ -108,6 +109,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     // whichever surface is showing the thread.
     threadLines,
   } = table;
+  const { connect, watch, disconnect, watchAgent, cancelWatch } = useWatchSelection(table);
   // WATCH-5 (W5-1): the felt is played back, not mirrored. Every snapshot the
   // socket delivers goes through the pacing queue, which lets no two actions
   // land closer together than the beat in lib/pace.js. The four fields travel
@@ -115,7 +117,9 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   // was said about. The live stream is still what the ActionBar and the legacy
   // table read — pacing is for watching, and a player must never wait to see
   // his own seat.
-  const paced = usePacedTable({ game, lastDecision, paceFrame, chatMessages });
+  const paced = usePacedTable({ game, lastDecision, paceFrame, chatMessages, mySeat }, {
+    streamKey: `${config?.tableId ?? ''}:${config?.agentId ?? ''}`,
+  });
 
   const displayNames = useMemo(() => {
     const names = {};
@@ -211,6 +215,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
 
   function placeInCasino(agent) {
     if (!agent) return;
+    cancelWatch();
     setDeployTarget({ agent, origin: hereOrigin() });
     setAgentProfileTarget(null);
     setAgentChatTarget(null);
@@ -220,14 +225,12 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   async function watchCompanion(agent, requestedTableId = null) {
     const tableId = requestedTableId || agent?.activeTableId || agent?.liveGame?.tableId || agent?.location?.tableId;
     if (!tableId) return;
-    watchOriginRef.current = hereOrigin();
-    let memoryContext = '';
-    try {
-      const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}/memory?userId=${encodeURIComponent(getUserId())}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
-      if (res.ok) memoryContext = (await res.json()).memoryContext || '';
-    } catch { /* Watching does not depend on memory loading. */ }
-    setActiveAgent(agent.id, agent);
-    watch({ tableId, agentId: agent.id, userId: getUserId(), agentStrategy: agent.strategy, displayName: agent.name || 'Agent', wantOpponentAI: false, memoryContext });
+    const origin = hereOrigin();
+    await watchAgent(agent, (memoryContext) => {
+      watchOriginRef.current = origin;
+      setActiveAgent(agent.id, agent);
+      watch({ tableId, agentId: agent.id, userId: getUserId(), agentStrategy: agent.strategy, displayName: agent.name || 'Agent', wantOpponentAI: false, memoryContext });
+    });
   }
 
   function setActiveAgent(id, agent = null) {
@@ -260,6 +263,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   const [homeTableOpen, setHomeTableOpen] = useState(0);
 
   function navigateTo(tab) {
+    cancelWatch();
     setActiveTab(tab);
     setAgentChatTarget(null);
     setYouMoneyOpen(false);
@@ -267,6 +271,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   }
 
   function navigateToMoney() {
+    cancelWatch();
     setActiveTab('you');
     setAgentChatTarget(null);
     setYouMoneyOpen(true);
@@ -276,6 +281,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   // already up. The draft on the server is untouched by the refusal, so this is
   // a look at the price rather than an exit from the conversation.
   function navigateToTable() {
+    cancelWatch();
     setIsCreating(false);
     setActiveTab('home');
     setAgentChatTarget(null);
@@ -296,6 +302,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   const chatOriginRef = useRef(null);
 
   function openAgentChat(agent, origin = null) {
+    cancelWatch();
     chatOriginRef.current = origin ?? { tab: activeTab, profileAgent: null };
     setAgentChatTarget(agent);
     setActiveTab('chats');
@@ -303,6 +310,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
 
   /** Back out of a thread, to the door it was opened by. */
   function closeAgentChat() {
+    cancelWatch();
     const origin = chatOriginRef.current;
     chatOriginRef.current = null;
     setAgentChatTarget(null);
@@ -313,6 +321,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   }
 
   function openAgentProfile(agent) {
+    cancelWatch();
     setAgentProfileTarget(agent);
   }
 
@@ -514,7 +523,9 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   const loadLatestAgentHand = useCallback(async (agentId) => {
     if (!agentId) return;
     try {
-      const res = await fetch(agentHandsApiUrl(agentId));
+      const res = await fetch(agentHandsApiUrl(agentId), {
+        headers: { 'x-telegram-init-data': getTelegramInitData() },
+      });
       if (!res.ok) throw new Error('hands request failed');
       const data = await res.json();
       const hand = data.recentHands?.[0] || null;
@@ -539,50 +550,8 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     lastResultKeyRef.current = null;
   }, [activeAgentId]);
 
-  // ── Seat-level countdown timer (replaces ActionBar's horizontal bar) ────────
-  const TIMER_TOTAL = 15;
-  const [timerLeft, setTimerLeft] = useState(TIMER_TOTAL);
-  const timerFiredRef = useRef(false);
-  const actRef = useRef(act);
-  useEffect(() => { actRef.current = act; });
-
-  const handIsActive = !!game && game.toAct !== null &&
-    game.street !== Streets.COMPLETE && game.street !== Streets.WAITING;
-  const isMyTurn = handIsActive && game.toAct === mySeat;
-  const timerKey = `${game?.handNumber ?? 0}-${game?.toAct ?? -1}`;
-
-  // Reset to full duration whenever the acting seat changes
-  useEffect(() => {
-    setTimerLeft(TIMER_TOTAL);
-    timerFiredRef.current = false;
-  }, [timerKey]);
-
-  // Tick down while a hand is active (shows countdown for whichever seat is acting)
-  useEffect(() => {
-    if (!handIsActive) return;
-    const id = setInterval(() => setTimerLeft((p) => Math.max(0, p - 1)), 1000);
-    return () => clearInterval(id);
-  }, [handIsActive, timerKey]);
-
-  // Auto-act when the timer hits 0 on the human player's turn.
-  //
-  // SIT-1 · AT THE KITCHEN TABLE IT CHECKS IF IT CAN. Board 29, 52·Y2, states
-  // the rule in as many words — "timeout checks if it can and folds if it
-  // cannot; either way you are dealt in next hand" — and SitStrip prints it on
-  // the strip, so a timeout that always folded made the screen's own sentence
-  // untrue. Throwing away a free look at the turn is also not what a man who
-  // put his phone down meant to do.
-  //
-  // Only at home. In the casino a timeout is a fold and stays one: that table
-  // is somebody else's money and its own tree; changing what a lapsed clock
-  // does there is not this tree's to decide.
-  useEffect(() => {
-    if (!isMyTurn || timerLeft !== 0 || timerFiredRef.current) return;
-    timerFiredRef.current = true;
-    const canCheck = config?.sitting
-      && (legalActions ?? []).some((a) => a && a.type === 'check');
-    actRef.current?.({ type: canCheck ? 'check' : 'fold' });
-  }, [timerLeft, isMyTurn]);
+  // BUG-268: the server owns action deadlines and legal timeout actions.
+  // Watch/SitStrip display game.actionTimer; App only sends explicit input.
 
   // Closing the spectator view means "stop watching", not "recall the agent".
   // POSTing /finish here reset status to idle and cleared activeTableId while
@@ -696,21 +665,13 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
           // Accepted kitchen visitors have a live target without a casino deployment.
           const tableId = agent?.activeTableId || agent?.liveGame?.tableId;
           if (!tableId) return;
-          let memoryContext = '';
-          try {
-            const res = await fetch(
-              `/api/agents/${agent.id}/memory?userId=${getUserId()}`,
-              { headers: { 'x-telegram-init-data': getTelegramInitData() } },
-            );
-            if (res.ok) memoryContext = (await res.json()).memoryContext || '';
-          } catch { /* watch with empty context */ }
-          watchPayload({
+          await watchAgent(agent, (memoryContext) => watchPayload({
             tableId,
             agentId: agent.id,
             agentName: agent.name,
             strategy: agent.strategy,
             memoryContext,
-          }, agent);
+          }, agent));
         }}
         // CASINO-1: the desk deploys from the building too — the stage
         // swaps to the casino with him in the tray.
@@ -788,7 +749,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
           <AgentProfileScreen
             companion
             agent={agentProfileTarget}
-            onBack={() => setAgentProfileTarget(null)}
+            onBack={() => { cancelWatch(); setAgentProfileTarget(null); }}
             onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}
             onOpenChat={(ag) => {
               // CHAT on a profile opened from this same thread resumes it.
@@ -804,22 +765,20 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
               if (!tableId) return;
               // CHAT-2: captured before the overlay closes, so it still knows
               // whether a thread or the floor is underneath it.
-              watchOriginRef.current = hereOrigin();
-              let memoryContext = '';
-              try {
-                const res = await fetch(`/api/agents/${ag.id}/memory?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
-                if (res.ok) memoryContext = (await res.json()).memoryContext || '';
-              } catch { /* watch with empty context */ }
-              setAgentProfileTarget(null);
-              setActiveAgent(ag.id, ag);
-              watch({
-                tableId,
-                agentId: ag.id,
-                userId: getUserId(),
-                agentStrategy: ag.strategy,
-                displayName: ag.name || getTelegramDisplayName() || 'Agent',
-                wantOpponentAI: false,
-                memoryContext,
+              const origin = hereOrigin();
+              await watchAgent(ag, (memoryContext) => {
+                watchOriginRef.current = origin;
+                setAgentProfileTarget(null);
+                setActiveAgent(ag.id, ag);
+                watch({
+                  tableId,
+                  agentId: ag.id,
+                  userId: getUserId(),
+                  agentStrategy: ag.strategy,
+                  displayName: ag.name || getTelegramDisplayName() || 'Agent',
+                  wantOpponentAI: false,
+                  memoryContext,
+                });
               });
             }}
             // CHAT-2 item 3 — the control centre's own actions.
@@ -915,29 +874,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
                   wantOpponentAI: false,
                 });
               }}
-              onWatch={async (agent) => {
-                const tableId = agent?.activeTableId
-                  || agent?.liveGame?.tableId
-                  || agent?.location?.tableId
-                  || null;
-                if (!tableId) return;
-                watchOriginRef.current = hereOrigin();
-                let memoryContext = '';
-                try {
-                  const res = await fetch(`/api/agents/${agent.id}/memory?userId=${getUserId()}`, { headers: { 'x-telegram-init-data': getTelegramInitData() } });
-                  if (res.ok) memoryContext = (await res.json()).memoryContext || '';
-                } catch { /* watch with empty context */ }
-                setActiveAgent(agent.id, agent);
-                watch({
-                  tableId,
-                  agentId: agent.id,
-                  userId: getUserId(),
-                  agentStrategy: agent.strategy,
-                  displayName: agent.name || getTelegramDisplayName() || 'Agent',
-                  wantOpponentAI: false,
-                  memoryContext,
-                });
-              }}
+              onWatch={watchCompanion}
               // CASINO-1: the casino is the only place a deploy happens, because
               // the room and the buy-in are decided there. A `needs: 'deploy'`
               // yes from a want walks him over with the agent already chosen
@@ -1094,7 +1031,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
         // W5-1: the paced bundle, not the live one. `paced.game` is null only
         // before the first snapshot, which is the same moment `game` is.
         game={paced.game}
-        mySeat={mySeat}
+        mySeat={paced.mySeat}
         lastDecision={paced.lastDecision}
         // WIRE-1 (W3-6): the staged runout, forwarded rather than picked up off
         // the view model. useTable merges it onto `game` too, and WatchScreen
@@ -1104,7 +1041,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
         paceLag={paced.behindMs}
         chatMessages={paced.chatMessages}
         sendChat={sendChat}
-        displayNames={displayNames}
+        displayNames={Object.fromEntries((paced.game?.seats ?? []).map((seat, index) => [index, seat?.displayName ?? `Seat ${index + 1}`]))}
         // WATCH-8: the socket's own status. The thread refetches when the
         // connection comes back, because the record the table wrote while the
         // owner was disconnected is exactly the part he cannot have heard.
@@ -1151,7 +1088,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
             {error} · tap to dismiss
           </div>
         )}
-        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} timerLeft={timerLeft} timerTotal={TIMER_TOTAL} isSpectator={!!config?.isSpectator} mode={config?.isSpectator ? 'spectator' : config?.wantAI ? 'vs-ai' : 'vs-human'} lastDecision={lastDecision} />
+        <TableView game={game} mySeat={mySeat} buyIn={buyInRef.current} onRename={rename} isSpectator={!!config?.isSpectator} mode={config?.isSpectator ? 'spectator' : config?.wantAI ? 'vs-ai' : 'vs-human'} lastDecision={lastDecision} />
         {config?.isSpectator && (
           <AnalysisPanel
             chatMessages={chatMessages}
@@ -1284,7 +1221,7 @@ function formatAgentAmount(amount) {
   return amount == null ? '--' : amount;
 }
 
-function TableView({ game, mySeat, buyIn, onRename, timerLeft, timerTotal, isSpectator, mode, lastDecision }) {
+function TableView({ game, mySeat, buyIn, onRename, isSpectator, mode, lastDecision }) {
   const viewSeat = Number.isInteger(mySeat) ? mySeat : 0;
   const seatCount = Math.max(game?.seats?.length || 2, 2);
   const opponentSeatIndex = (viewSeat + 1) % seatCount;

@@ -183,7 +183,7 @@ test('BUG-137: the household TV admits one student at a time and releases its ch
   assert.equal(next.status, 200); await next.json();
 });
 
-test('HOME-STATE-1: he goes in, ninety seconds pass, one line comes out', async () => {
+test('HOME-STATE-1 / BUG-264: he goes in, ninety seconds pass, one private read report comes out', async () => {
   const before = profiles.getAgentAttributes('student', 'tape');
   const attrsBefore = JSON.stringify(before.attrs);
   const potentialBefore = JSON.stringify(before.potential);
@@ -224,6 +224,10 @@ test('HOME-STATE-1: he goes in, ninety seconds pass, one line comes out', async 
   assert.equal(seen.book[0].lines.length, 1);
   assert.equal(seen.book[0].lines[0].handNumber, 41);
   assert.equal(seen.book[0].lines[0].text, studyLine({ flagType: 'badBeat', handNumber: 41 }));
+  const reports = done.chatHistory.filter(m => m.reportKind === 'study' && m.reportId === `${body.study.startedAt}:41`);
+  assert.equal(reports.length, 1, 'the timer files one private report after the study record expires');
+  assert.ok(reports[0].content.includes(seen.book[0].lines[0].text));
+  assert.equal(profiles.presentedRoster('tape', { owner: false }).find(a => a.id === 'student').chatHistory, undefined);
 
   // THE RULE WITH TEETH.
   const after = profiles.getAgentAttributes('student', 'tape');

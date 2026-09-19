@@ -111,7 +111,7 @@ function AwayPage({ agent, index, onSend }) {
  * @param onWatch (tableId) => watch it
  * @param onSend  (agent)   => take him to the casino to be placed
  */
-export function YourTables({ agents = [], felts = [], onWatch = null, onSend = null, onSelectAgent = null }) {
+export function YourTables({ agents = [], felts = [], onWatch = null, onSend = null, onSelectAgent = null, compact = false, census = null }) {
   const [page, setPage] = useState(0);
   const trackRef = useRef(null);
   const scrollTarget = useRef(null);
@@ -163,13 +163,19 @@ export function YourTables({ agents = [], felts = [], onWatch = null, onSend = n
   }
 
   return (
-    <div className="csn-your" data-testid="your-tables">
+    <div className={`csn-your${compact ? ' csn-your--compact' : ''}`} data-testid="your-tables">
+      {census && <p className="csn-your__census">{census}</p>}
       <div className="csn-your__track" ref={trackRef} onScroll={onScroll} onPointerDown={() => { scrollTarget.current = null; }} onWheel={() => { scrollTarget.current = null; }}>
         {agents.map((agent, i) => {
           const felt = feltForAgent(felts, agent);
           return (
             <div className="csn-your__page" key={agent.id} data-agent={agent.id}>
-              {felt ? (
+              {felt && compact ? (
+                <button type="button" className="csn-your__summary" onClick={() => onWatch?.(felt.tableId)} aria-label={`Watch ${agent.name} at ${felt.blinds}`}>
+                  <span className="csn-your__summary-name">{pillName(agent.name)} <span>YOUR TABLE · {felt.blinds}</span></span>
+                  <span className="csn-your__summary-pot"><span>{money(felt.pot)}</span> in the pot <b>WATCH →</b></span>
+                </button>
+              ) : felt ? (
                 <TableFelt
                   felt={felt}
                   agentId={agent.id}
@@ -199,7 +205,7 @@ export function YourTables({ agents = [], felts = [], onWatch = null, onSend = n
               className="csn-your__dot"
               data-on={i === page ? 'true' : undefined}
               onClick={() => goTo(i)}
-            />
+            >{compact ? pillName(agent.name) : null}</button>
           ))}
         </div>
       )}

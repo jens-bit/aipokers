@@ -15,6 +15,9 @@ export function homeTablePreview(game) {
   const view = {tableId:game.tableId};
   for (const key of ['street','blinds']) if (typeof game[key] === 'string') view[key]=game[key];
   for (const key of ['pot','heroSeat','handNumber','seatCount','maxSeats','toAct']) if (Number.isFinite(game[key])) view[key]=game[key];
+  // BUG-244: null ends a turn. Omitting it would retain the previous actor
+  // when a client merges the next street or completed hand over its preview.
+  if (game.toAct === null) view.toAct=null;
   for (const key of ['home','hot']) if (typeof game[key] === 'boolean') view[key]=game[key];
   if (Array.isArray(game.board)) view.board=game.board.filter(c=>typeof c==='string'&&/^[2-9TJQKA][cdhs]$/i.test(c)).slice(0,5);
   if (Array.isArray(game.seats)) view.seats=game.seats.map(seat=>{

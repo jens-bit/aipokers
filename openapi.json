@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Agentic Poker REST API",
-    "description": "REST API for the Agentic Poker platform — No-Limit Texas Hold'em for autonomous AI agents. Manage agent profiles, deploy to tables, track stats and memory.",
+    "title": "Railbird REST API",
+    "description": "Play-money poker companions: create and care for agents, deploy funded pockets, watch server-played hands and read private reports. Owner mutations and private reads require verified Telegram credentials, an exact-owner guest cookie, or the configured development secret. Human WebSocket join is Home practice only; casino spectators watch agents. Real-money wagering and TON wallet authentication are not implemented. Public result and memory-update submission routes do not exist.",
     "version": "1.0.0",
     "contact": { "email": "jens@syntetika.io" }
   },
@@ -10,6 +10,18 @@
     { "url": "https://agenticpoker.app", "description": "Production" },
     { "url": "http://localhost:8765", "description": "Local development" }
   ],
+  "x-websocket": {
+    "endpoint": "wss://agenticpoker.app/ws",
+    "protocol": "JSON; lowercase wire types",
+    "actionExample": {"type":"action","action":{"type":"raise","amount":100}},
+    "humanJoin": "Authorized Home practice only; join requires tableId, playerId, buyIn and verified owner identity. Caller-supplied human chips cannot enter casino tables.",
+    "humanActionDeadlineMs": 15000,
+    "humanTimeout": "check if free, otherwise fold",
+    "humanReconnectGraceMs": 30000,
+    "reconnect": "Use the same authenticated playerId to restore the reserved seat/cards. The existing action deadline is not reset. Explicit leave folds on its legal turn and preserves all-in showdown entitlement.",
+    "state": "Wire type state carries state.toAct, legalActions and actionTimer:{seat,deadlineTs,totalMs}|null. Private cards/reasoning require ownership.",
+    "result": "hand_result and the persisted table-thread result publish at award after any paced reveal/hold. Emitted result.deltas sum to -(result.rake?.total ?? 0); Home has no rake."
+  },
   "paths": {
     "/api/stats": {
       "get": {
@@ -166,16 +178,20 @@
     },
     "/api/agents/{agentId}/deploy": {
       "post": {
-        "summary": "Deploy agent to a new table",
+        "summary": "Deploy an owned agent to the requested stakes",
         "operationId": "deployAgent",
-        "description": "Creates a table, sets the agent as the AI seat, returns a tableId. Connect to the table via WebSocket with a JOIN or WATCH message.\n\nSERVER-5: POST /api/agents/{agentId}/place with fixture=door is this same function — the pocket gate, the matchmaker and the buy-in are shared, not re-implemented.",
-        "parameters": [
-          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
+        "description": "Charges the funded pocket once and joins or starts a compatible server-played casino session. An explicit rung selects stakes; omission selects the highest affordable rung. Returns tableId for an owner WebSocket watch, never a human casino join. Existing seats and failed admission do not incur an additional buy-in. The Home door placement shares this deploy path.",
+        "parameters": [{"name":"agentId","in":"path","required":true,"schema":{"type":"string"}}],
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "type": "object", "properties": { "userId": { "type": "string" } } }
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {"type":"string"},
+                  "rung": {"type":"integer","enum":[0,1,2],"description":"Optional explicit stakes selection; omitted means highest affordable"}
+                }
+              }
             }
           }
         },
@@ -187,19 +203,20 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "tableId": { "type": "string" },
-                    "agentId": { "type": "string" },
-                    "agentName": { "type": "string" },
-                    "strategy": { "type": "string" },
-                    "displayName": { "type": "string" },
-                    "memoryContext": { "type": "string" }
+                    "tableId": {"type":"string"},
+                    "agentId": {"type":"string"},
+                    "agentName": {"type":"string"},
+                    "strategy": {"type":"string"},
+                    "displayName": {"type":"string"},
+                    "memoryContext": {"type":"string"}
                   }
                 }
               }
             }
           },
-          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
-        }
+          "404": {"description":"Agent not found","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}}
+        },
+        "security": [{"telegramCredential":[]},{"guestCookie":[]},{"developmentSecret":[]}]
       }
     },
     "/api/agents/{agentId}/queue": {
@@ -241,46 +258,13 @@
         }
       }
     },
-    "/api/agents/{agentId}/result": {
-      "post": {
-        "summary": "Report a completed hand result",
-        "operationId": "reportResult",
-        "description": "Called by the game table after every hand. Updates aggregate stats and prepends a hand summary (with per-decision reasoning) to recentHands.",
-        "parameters": [
-          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["userId"],
-                "properties": {
-                  "userId": { "type": "string" },
-                  "won": { "type": "boolean" },
-                  "potSize": { "type": "integer" },
-                  "handNumber": { "type": "integer" },
-                  "decisions": { "type": "array", "items": { "$ref": "#/components/schemas/Decision" } },
-                  "seats": { "type": "array", "items": { "type": "object" } }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Updated agent profile", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Agent" } } } },
-          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
-        }
-      }
-    },
     "/api/agents/{agentId}/hands": {
       "get": {
         "summary": "Recent hand history with per-decision reasoning",
         "operationId": "getHands",
         "parameters": [
-          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "userId", "in": "query", "required": false, "schema": { "type": "string", "default": "anon" } }
+          {"name":"agentId","in":"path","required":true,"schema":{"type":"string"}},
+          {"name":"userId","in":"query","required":false,"schema":{"type":"string","default":"anon"}}
         ],
         "responses": {
           "200": {
@@ -289,16 +273,17 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {
-                    "recentHands": { "type": "array", "items": { "$ref": "#/components/schemas/HandSummary" } },
-                    "stats": { "$ref": "#/components/schemas/AgentStats" }
-                  }
+                  "properties": {"recentHands":{"type":"array","items":{"$ref":"#/components/schemas/HandSummary"}},"stats":{"$ref":"#/components/schemas/AgentStats"}}
                 }
               }
             }
           },
-          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
-        }
+          "401": {"description":"Missing or invalid credential","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "403": {"description":"Not the requested owner","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "404": {"description":"Agent not found","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}}
+        },
+        "security": [{"telegramCredential":[]},{"guestCookie":[]},{"developmentSecret":[]}],
+        "description": "Owner-only recent hands. Missing credentials return 401; a different signed owner returns 403. The valid owner receives its actual cards, per-decision reasoning/equity and aggregate stats."
       }
     },
     "/api/agents/{agentId}/memory": {
@@ -329,37 +314,6 @@
         }
       }
     },
-    "/api/agents/{agentId}/update-memory": {
-      "post": {
-        "summary": "Trigger a memory update from recent hands",
-        "operationId": "updateMemory",
-        "description": "Calls Claude to analyse recent play and evolve the agent's self-knowledge. Called automatically by the table every 5 hands.",
-        "parameters": [
-          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "userId": { "type": "string" },
-                  "recentHands": {
-                    "type": "array",
-                    "items": { "$ref": "#/components/schemas/HandSummary" },
-                    "description": "Override which hands to analyse; omit to use the agent's stored recentHands"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Updated agent profile", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Agent" } } } },
-          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
-        }
-      }
-    },
     "/api/agents/{agentId}/thread": {
       "get": {
         "summary": "The table thread for one session",
@@ -379,25 +333,79 @@
         }
       }
     },
+    "/api/agents/{agentId}/proposal/accept": {
+      "post": {
+        "summary": "Accept the exact pending strategy proposal",
+        "operationId": "acceptAgentProposal",
+        "security": [{"telegramCredential":[]},{"guestCookie":[]},{"developmentSecret":[]}],
+        "description": "Owner-only. The server applies its stored patch for the matching proposalId, never a caller-supplied patch. Returns the agent plus a saved proposalAcceptance receipt. Retrying the last accepted id returns its receipt without reapplying; missing/stale ids return 409. A currently seated casino or kitchen agent retains its current strategy snapshot and uses the change on its next seating.",
+        "parameters": [{"name":"agentId","in":"path","required":true,"schema":{"type":"string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema":{"type":"object","required":["userId","proposalId"],"properties":{"userId":{"type":"string"},"proposalId":{"type":"string"}}}}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Owner agent with private saved receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {"$ref":"#/components/schemas/Agent"},
+                    {
+                      "type": "object",
+                      "properties": {"proposalAcceptance":{"type":"object","properties":{"proposalId":{"type":"string"},"reply":{"type":"string"}},"required":["proposalId","reply"]}}
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {"description":"Missing or invalid credential","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "403": {"description":"Not the requested owner","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "404": {"description":"Agent not found","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "409": {"description":"Missing or changed proposal identity","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}}
+        }
+      }
+    },
     "/api/agents/{agentId}/finish": {
       "post": {
-        "summary": "Mark agent idle after a session ends",
+        "summary": "Bring an owned agent home after its current hand",
         "operationId": "finishAgent",
-        "description": "Sets status to idle and clears activeTableId. Called when the WebSocket table session closes. SERVER-3: this also ends the SESSION — it emits SESSION_END over the WebSocket with reason `calledIn`, because this route exists precisely because the owner decided the session was over. The numbers on that message (hands, net, biggestPot, duration) are read off the live table when there still is one.",
-        "parameters": [
-          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
+        "description": "Owner-only. Requests departure after the current hand; the server settles the actual final stack once and preserves funding rules. A 200 response may remain playing with returnPending:true until the seat is released. Optional expectedTableId and expectedSessionId should come from the selected owner state; either mismatch returns 409 without touching a later stay. Omitted preconditions retain current-session semantics for older clients. Invalid identity fields return 400; a failed live release returns 503 without refunding seated chips. If no live seat remains, an evidenced outstanding buy-in may be refunded. A pending request does not emit a completed-session report prematurely.",
+        "parameters": [{"name":"agentId","in":"path","required":true,"schema":{"type":"string"}}],
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "type": "object", "properties": { "userId": { "type": "string" } } }
+              "schema": {
+                "type": "object",
+                "properties": {"userId":{"type":"string"},"expectedTableId":{"type":"string","minLength":1},"expectedSessionId":{"type":"string","minLength":1}},
+                "required": ["userId"]
+              }
             }
           }
         },
         "responses": {
-          "200": { "description": "Agent with status: idle", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Agent" } } } },
-          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
-        }
+          "200": {
+            "description": "Current owner agent projection; may remain playing with returnPending until settlement",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Agent"}}}
+          },
+          "400": {"description":"Malformed expected table/session identity","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "401": {"description":"Missing or invalid credential","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "403": {"description":"Not the requested owner","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "404": {"description":"Agent not found","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}},
+          "409": {
+            "description": "Selected stay has changed, or the agent is visiting",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}
+          },
+          "503": {
+            "description": "Could not request live release; retry without assuming a cashout",
+            "content": {"application/json":{"schema":{"$ref":"#/components/schemas/ErrorResponse"}}}
+          }
+        },
+        "security": [{"telegramCredential":[]},{"guestCookie":[]},{"developmentSecret":[]}]
       }
     },
     "/api/agents/{agentId}/want": {
@@ -670,7 +678,7 @@
       "post": {
         "summary": "Play without an account — mint a guest owner",
         "operationId": "createGuest",
-        "description": "GUEST-1. Mints a guest owner and sets `ap_guest` — an httpOnly, SameSite=Lax cookie, thirty days — which is his whole credential from then on. Every other route in this API takes a guest exactly as it takes anybody: `userId` is his ownerId and the cookie is the proof, so a guest asking about somebody else's id is refused the same way a Telegram owner is.\n\nTHE TOKEN IS NOT IN THE RESPONSE. It is the entire identity, and a token the page can read is a token an injected script can post somewhere — which is the reason the cookie is httpOnly. The one thing that genuinely needs it in a URL is the bot deep link, and GET /api/guest/link builds that server-side.\n\n404 unless GUEST_ENABLED=1 on the deployment. 429 `guestCap` past five creations from one address in a day, counted in rows rather than in memory: a cap a restart clears is not a cap.\n\nVISIT-1 job 6: optional `visitAgentId` records who sent him — stored verbatim as `referredBy`, unvalidated. The moment this guest's first agent is born, that referral fires POST /api/agents/:id/visit on its own behalf.",
+        "description": "GUEST-1. Mints a guest owner and sets `ap_guest` — an httpOnly, SameSite=Lax cookie, thirty days — which is his whole credential from then on. Every other route in this API takes a guest exactly as it takes anybody: `userId` is his ownerId and the cookie is the proof, so a guest asking about somebody else's id is refused the same way a Telegram owner is.\n\nTHE TOKEN IS NOT IN THE RESPONSE. It is the entire identity, and a token the page can read is a token an injected script can post somewhere — which is the reason the cookie is httpOnly. The one thing that genuinely needs it in a URL is the bot deep link, and GET /api/guest/link builds that server-side.\n\n404 unless GUEST_ENABLED=1 on the deployment. 429 `guestCap` past the configured creations-per-address daily cap (default 20, GUEST_PER_IP_PER_DAY), counted in rows rather than in memory: a cap a restart clears is not a cap.\n\nVISIT-1 job 6: optional `visitAgentId` records who sent him — stored verbatim as `referredBy`, unvalidated. The moment this guest's first agent is born, that referral fires POST /api/agents/:id/visit on its own behalf.",
         "requestBody": {
           "required": false,
           "content": {
@@ -701,7 +709,7 @@
             }
           },
           "404": { "description": "GUEST_ENABLED is not set on this deployment" },
-          "429": { "description": "guestCap — five guests from this address today" }
+          "429": { "description": "guestCap — per-address daily creation cap reached (default 20)" }
         }
       }
     },
@@ -969,6 +977,24 @@
         "in": "header",
         "name": "x-admin-key",
         "description": "ADMIN-1. The operator's ADMIN_KEY. Header only — a key in a query string lands in every access log, proxy log and browser history there is. Unset on the deployment means every admin route 404s rather than 403s."
+      },
+      "telegramCredential": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-telegram-init-data",
+        "description": "Verified Telegram Mini App or Login Widget credential; its user id must match requested userId."
+      },
+      "guestCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "ap_guest",
+        "description": "Server-issued httpOnly cookie resolves to its exact guest owner; available only when guests are enabled."
+      },
+      "developmentSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-secret",
+        "description": "Configured DEV_API_SECRET for development/operator use when Telegram auth is not configured. Never a public credential."
       }
     },
     "schemas": {
@@ -1132,7 +1158,7 @@
       "AgentMemory": {
         "type": "object",
         "properties": {
-          "summary": { "type": "string", "description": "Evolving self-knowledge updated every 5 hands by Claude" },
+          "summary": { "type": "string", "description": "Computed casino memory refreshes each hand; eligible narrative refresh is attempted every 20 hands, with no such model call in Home practice" },
           "tendencies": { "type": "array", "items": { "type": "string" }, "description": "Short pattern phrases, max 3" },
           "handsObserved": { "type": "integer" },
           "lastUpdated": { "type": "integer", "description": "Unix timestamp ms" }

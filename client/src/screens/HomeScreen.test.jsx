@@ -940,14 +940,14 @@ describe('HOME-1 · the safe and the fridge', () => {
   it('BUG-64: F13 stocks the household from the safe, without silently giving an item', async () => {
     let stocked = null;
     fetchMock.route('/api/fridge', { items: [{ id: 'beer', count: 0, price: 12 }, { id: 'snack', count: 2, price: 8 }] });
-    fetchMock.route('/api/fridge/stock', ({ body }) => { stocked = body; return { qty: 6, fridge: { beer: 6, snack: 2 } }; }, { method: 'POST' });
+    fetchMock.route('/api/fridge/stock', ({ body }) => { stocked = body; return { qty: 1, fridge: { beer: 1, snack: 2 } }; }, { method: 'POST' });
     await boot([mkAgent('a1', 'The Clock')]);
 
     await userEvent.click(await screen.findByTestId('home-fridge'));
     await waitFor(() => expect(screen.getByTestId('home-buy-beer')).toBeEnabled());
     await userEvent.click(screen.getByTestId('home-buy-beer'));
-    await waitFor(() => expect(stocked).toEqual(expect.objectContaining({ item: 'beer', qty: 6 })));
-    expect(await screen.findByText('Bought 6 beers from the safe.')).toBeInTheDocument();
+    await waitFor(() => expect(stocked).toEqual(expect.objectContaining({ item: 'beer', qty: 1 })));
+    expect(await screen.findByText('Bought 1 beer from the safe.')).toBeInTheDocument();
     expect(fetchMock.requestsMatching('/give')).toHaveLength(0);
   });
 

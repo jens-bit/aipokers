@@ -20,7 +20,7 @@ import path from 'node:path';
 import { Game, Streets, Actions } from '../src/engine/game.js';
 import { freshShuffledDeck } from '../src/engine/deck.js';
 import { estimateEquity } from '../src/engine/equity.js';
-import { getAgentAction } from '../src/agent/handler.js';
+import { getAgentAction, isFallbackDecision } from '../src/agent/handler.js';
 import { newCostMeter, addCost, usdPer100Hands, formatUsd, priceFor } from '../src/agent/providers/pricing.js';
 import { providerIdFor } from '../src/agent/providers/index.js';
 import { compilePolicy, inferProfileFromStyleRisk } from '../src/agent/policy.js';
@@ -324,7 +324,7 @@ async function playHand({ deck, seat0Bundle, seat1Bundle, nameBySeat, sb, bb, bu
       }));
       if (opponentReads.length > 0) evidence._readSubjects?.add(nameBySeat[(seat + 1) % 2]);
     }
-    let fallback = /fallback|no API key|parse failure/i.test(reasoning || '');
+    let fallback = isFallbackDecision(decision);
 
     let appliedAction = action;
     try {

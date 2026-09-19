@@ -8,7 +8,7 @@
 //
 // Four rules, and this file is one test per rule:
 //
-//   1. He ANSWERS, and the answer comes back as a bubble at his seat.
+//   1. He ANSWERS in HTTP and his private seat history, never public CHAT.
 //   2. Both halves are written to his thread, ADDRESSED — you to him, him
 //      back to you.
 //   3. What you said is his alone. No other seat's sheet gets it.
@@ -68,6 +68,11 @@ profiles.setLiveTableProvider(registry);
 
 // A real table with him in a seat and a House regular opposite.
 const table = registry.getOrCreateTable('tbl-whisper', { smallBlind: 10, bigBlind: 20 });
+// This suite exercises HTTP/private-thread delivery against a dealt hand,
+// not autonomous poker. Keep the hand stable while requests are in flight.
+// Otherwise the 250ms initial deal can greet the House in the middle of an
+// unrelated chat assertion (the release CI failure counted that public line).
+table._maybeRunAiTurn = async () => {};
 table.startAgentSession({
   agentId: 'granite',
   userId: 'u1',
@@ -75,6 +80,8 @@ table.startAgentSession({
   strategy: 'You wait for premiums.',
   agentProfile: { tightness: 88, aggression: 45, bluffFreq: 8, discipline: 88 },
 });
+table._clearTimers();
+table.autoPlay = false;
 const heroSeat = table.seatOfAgent('granite');
 
 // A watcher at his seat, so "it went out on the wire" is something this file
@@ -82,6 +89,9 @@ const heroSeat = table.seatOfAgent('granite');
 const wire = [];
 const watcher = { readyState: 1, OPEN: 1, send: (raw) => wire.push(JSON.parse(raw)) };
 table.spectators.push({ ws: watcher, spectatorSeat: heroSeat });
+// Let the native deal and public arrival greeting finish before any request
+// capture. No clock speed or HTTP latency now determines whether they race.
+table.maybeStartHand();
 
 const app = express();
 app.use(express.json());
@@ -112,9 +122,11 @@ test.after(() => {
 
 // ── 1. Something comes back ─────────────────────────────────────────────────
 
-test('BUGS-B/2: a whisper during a hand gets an answer, and it lands at his seat', async () => {
+test('BUG-257: a whisper during a hand gets an answer in his private seat history', async () => {
   assert.notEqual(heroSeat, null, 'he is in a seat');
   assert.ok(table.seatSessionIds[heroSeat], 'and the seat is a session, so it has a thread');
+  assert.equal(table.handInProgress(), true, 'the whisper reaches an actual dealt hand');
+  assert.equal(table.game.seats[heroSeat].holeCards.length, 2, 'private cards exist during the privacy check');
 
   wire.length = 0;
   const { status, body } = await whisper('what have you got?');
@@ -124,16 +136,16 @@ test('BUGS-B/2: a whisper during a hand gets an answer, and it lands at his seat
   assert.equal(typeof reply, 'string');
   assert.ok(reply.trim().length > 0, 'he said something back');
 
-  // The whole point: it came back as a BUBBLE, not only as an HTTP body.
+  // The response retains the seat context. Its text belongs to the owner,
+  // so the old public bubble expectation is replaced by a privacy assertion.
   assert.equal(body.whisper?.tableId, 'tbl-whisper');
   assert.equal(body.whisper?.seat, heroSeat);
 
   const bubbles = wire.filter((m) => m.type === ServerMsg.CHAT);
-  assert.equal(bubbles.length, 1, `one bubble, got ${JSON.stringify(wire.map((m) => m.type))}`);
-  assert.equal(bubbles[0].seat, heroSeat);
-  assert.equal(bubbles[0].isAI, true);
-  assert.equal(bubbles[0].text, reply);
-  assert.equal(bubbles[0].displayName, 'Granite');
+  assert.equal(bubbles.length, 0, `private replies cannot use CHAT: ${JSON.stringify(bubbles)}`);
+  const answer = hisThread().find(line => line.text === reply);
+  assert.equal(answer?.from, 'granite');
+  assert.equal(answer?.to, OWNER);
 });
 
 // ── 2. Both halves are written down, and both are addressed ─────────────────
@@ -160,6 +172,9 @@ test('BUGS-B/2: an ordinary table line is still said to nobody in particular', (
   // The rule the from/to pair must not break: the room announces, it does not
   // address, and a seat talking out loud is talking to the felt.
   table.sendChat(heroSeat, 'nice hand', true);
+  const bubble = wire.filter(m => m.type === ServerMsg.CHAT).at(-1);
+  assert.equal(bubble?.text, 'nice hand', 'public table speech still reaches the wire');
+  assert.equal(bubble?.seat, heroSeat);
   const last = hisThread().filter((l) => l.kind === ThreadKind.HIM).at(-1);
   assert.equal(last.text, 'nice hand');
   assert.equal(last.from, null);
@@ -188,13 +203,16 @@ test('BUGS-B/2: with no seat under him it is an ordinary chat turn again', async
   record.activeTableId = null;
 
   wire.length = 0;
-  const { status, body } = await whisper('how was the session');
-  assert.equal(status, 200, JSON.stringify(body));
-  assert.ok(body.chat?.[0]?.content, 'he still answers');
-  assert.equal(body.whisper, null, 'but there is no felt for it to land on');
-  assert.equal(wire.filter((m) => m.type === ServerMsg.CHAT).length, 0, 'and no bubble');
-
-  record.activeTableId = seatedTable;
+  try {
+    const { status, body } = await whisper('how was the session');
+    assert.equal(status, 200, JSON.stringify(body));
+    assert.ok(body.chat?.[0]?.content, 'he still answers');
+    assert.equal(body.whisper, null, 'but there is no felt for it to land on');
+    const bubbles = wire.filter((m) => m.type === ServerMsg.CHAT);
+    assert.equal(bubbles.length, 0, `and no bubble: ${JSON.stringify(bubbles)}`);
+  } finally {
+    record.activeTableId = seatedTable;
+  }
 });
 
 test('BUGS-B/2: a table that no longer exists is not a felt to whisper into', async () => {

@@ -6,6 +6,11 @@ Read this first in every session. It is the map; the deeper docs are the territo
 Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claude-powered) via chat and deploy them to play. **Identity: a GAME first** — "a Tamagotchi that plays poker": agents are companions with personalities, moods, and their own poker skill. Play money. Real money is a maybe-later, not the foundation.
 
 ## Read next, in order
+Current recovery entry point (19 September):
+`read-me-claude/RAILBIRD_DOCUMENT_RECOVERY.md`, then its linked recovery reports.
+For this recovery Jens explicitly chose design ownership and a review branch;
+historical main/port-only handoffs do not override that choice.
+
 1. `CORE_GAME_PLAN.md` — current state, the active build plan (skill engine, personality layer, mood economy), tree-by-tree with megaprompts. **This is where we are.**
 2. Highest-version `agentic-poker-master-spec-*.docx` — full product vision (v15 as of 2026-09-10). Read `read-me-claude/DESIGN_GAP.md` and `read-me-claude/ASTRA_REPAIR.md` for current founder overrides and verified repair status.
 3. `read-me-claude/HOW_WE_WORK.md` — workflow: worktrees, terminal discipline, merge rules, deploy.
@@ -15,7 +20,7 @@ Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claud
 - Run locally: `npm start` (builds client + serves on :8765). Dev client hot-reload: `npm run dev` in client/.
 - Tests: `npm test` (server) + `npm run test:client` MUST pass before any commit. `npm run test:all` runs server, client AND e2e. `npm run test:e2e` (~100s) MUST pass before any merge to main. See **Testing law** below.
 - Smoke: `npm run smoke` (one hand, no browser). `npm run smoke:browser` is CI-2's browser smoke — start the app first (`npm start`), then it walks HOME/CASINO/YOU/WATCH at 390×844 and 1440×900 in chromium and drops a screenshot per screen in `smoke-shots/`.
-- Deploy: push to main → SSH root@46.62.169.246 → /opt/aipokers → git pull → pm2 restart all --update-env. Gotcha: data/agents.json on the VPS is live prod data; back it up, checkout, pull, restore (see project memory / HOW_WE_WORK).
+- Deploy: a push to main runs the gates and VPS workflow in `.github/workflows/deploy.yml`. The workflow uses `pm2 restart all` without `--update-env`, since noninteractive SSH lacks the runtime environment. Current persistence is SQLite `data/app.db` with WAL; the old JSON checkout/copy recipe is obsolete. Jens authorized the recovery's production release on 19 September through [PR #8](https://github.com/jens-bit/aipokers/pull/8); check its main-push workflow for deployment status.
 
 ## Architecture map
 - `src/engine/` — pure NLHE engine (game.js is correct and tested: side pots, min-raise, HU blind reversal). Change with extreme care.

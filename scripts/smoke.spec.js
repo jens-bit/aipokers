@@ -514,7 +514,7 @@ test('desktop casino deploy and felt Watch open the actual owned game',async({pa
   const state=received.findLast(m=>m.type==='state'&&m.state?.tableId===payload.tableId)?.state;
   expect(state?.seats[seat]?.identity).toEqual(saved);
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();await shot(page,'desktop-casino-deployed-watch');
-  await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+  await page.getByRole('button',{name:'Stop watching',exact:true}).click();
   await expect(page.getByTestId('floor-view')).toBeVisible();
   await expect(page.locator('.csn-felt58[data-table="'+payload.tableId+'"] .csn-tiny[data-mine="true"]')).toHaveAttribute('data-hood',saved.hood);
   const before=sent.filter(m=>m.type==='watch'&&m.agentId===agent.id).length;
@@ -522,7 +522,7 @@ test('desktop casino deploy and felt Watch open the actual owned game',async({pa
   await expect(page.getByTestId('desk-casino-table')).toBeVisible();
   await expect.poll(()=>sent.filter(m=>m.type==='watch'&&m.agentId===agent.id).length).toBe(before+1);
   await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
-  await page.getByRole('button',{name:'BACK TO THE FLOOR',exact:true}).click();
+  await page.getByRole('button',{name:'Stop watching',exact:true}).click();
   await expect(page.getByTestId('floor-view')).toBeVisible();
   expect(sent.filter(m=>m.type==='leave').length).toBeGreaterThanOrEqual(2);
   expect(received.filter(m=>m.type==='error')).toEqual([]);expect(noise).toEqual([]);

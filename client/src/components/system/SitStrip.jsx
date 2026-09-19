@@ -96,6 +96,7 @@ export function SitStrip({ game = null, mySeat = null, legalActions = [], onAct,
   const raise = yourTurn ? findLegal(legalActions, Actions.RAISE) : null;
   const bet = yourTurn ? findLegal(legalActions, Actions.BET) : null;
   const aggressive = raise ?? bet;
+  const timeoutVerb = check ? 'checks' : fold ? 'folds' : null;
   const heroSeat = (game && game.seats && Number.isInteger(mySeat)) ? game.seats[mySeat] : null;
   const heroStack = heroSeat && Number.isFinite(heroSeat.stack) ? heroSeat.stack : 0;
 
@@ -122,8 +123,8 @@ export function SitStrip({ game = null, mySeat = null, legalActions = [], onAct,
         {yourTurn && (
           <div className="sit-strip__head">
             <span className="sit-strip__turn">YOUR TURN</span>
-            {Number.isFinite(secs) && (
-              <span className="sit-strip__sub">{`${Math.max(0, Math.round(secs))}s · timeout checks for you`}</span>
+            {Number.isFinite(secs) && timeoutVerb && (
+              <span className="sit-strip__sub">{`${Math.max(0, Math.round(secs))}s · timeout ${timeoutVerb} for you`}</span>
             )}
           </div>
         )}

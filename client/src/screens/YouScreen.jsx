@@ -267,7 +267,9 @@ export function YouScreen({ onOpenProfile, openMoney = false, onBack = null }) {
         const hands = [];
         for (const ag of list.slice(0, 4)) {
           try {
-            const r = await fetch(`/api/agents/${encodeURIComponent(ag.id)}/hands?userId=${encodeURIComponent(userId)}`);
+            const r = await fetch(`/api/agents/${encodeURIComponent(ag.id)}/hands?userId=${encodeURIComponent(userId)}`, {
+              headers: { 'x-telegram-init-data': getTelegramInitData() },
+            });
             if (!r.ok) continue;
             const d = await r.json();
             (d.recentHands || []).forEach((h) => hands.push({ ...h, agentName: ag.name }));

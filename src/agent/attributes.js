@@ -880,14 +880,16 @@ export function attrCostsForHand({ decisions = [], won = false } = {}) {
         street, won ? false : true);
     }
 
-    // READS — he was briefed on this opponent and folded a hand the price
-    // justified anyway. The read was on the table and he did not use it.
+    // BUG-273: this context proves only that a read was available. The free
+    // policy does not consume opponentReads, and even a model win does not
+    // establish causation. Keep the existing hand-selection/price conditions;
+    // describe the evidence without inventing an exploit or an ignored read.
     if (!seen.has('READS') && Array.isArray(a.readSubjects) && a.readSubjects.length > 0) {
       const who = a.readSubjects[0];
       if (type === 'fold' && Number.isFinite(d.equity) && Number.isFinite(d.potOdds) && d.equity >= d.potOdds) {
-        add('READS', `he had ${who} read and folded anyway at a price that called`, street, true);
+        add('READS', `a read on ${who} was available when he folded`, street, true);
       } else if (won) {
-        add('READS', `he had ${who} read, and played him with it`, street, false);
+        add('READS', `a read on ${who} was available during this hand`, street, false);
       }
     }
   }

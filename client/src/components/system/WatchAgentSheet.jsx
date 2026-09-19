@@ -5,7 +5,7 @@ import { WatchAgentStats } from './WatchAgentStats.jsx';
 import { MoodGhost } from './MoodGhost.jsx';
 import { identityOf } from '../../lib/identity.js';
 
-export function WatchAgentSheet({ agent, name, seat, chat, pending, view, onView, onClose }) {
+export function WatchAgentSheet({ agent, name, seat, chat, pending, view, onView, onClose, agentReturn }) {
   const identity = identityOf(agent);
   const drag = useSheetDrag(onClose);
   const closeRef = useRef(onClose);
@@ -13,7 +13,7 @@ export function WatchAgentSheet({ agent, name, seat, chat, pending, view, onView
   const feed = useRef(null);
   useEffect(() => {
     const sheet = drag.ref.current;
-    const felt = sheet?.closest('.watch-felt');
+    const felt = sheet?.closest('.watch-screen')?.querySelector('.watch-felt') || sheet?.closest('.watch-felt');
     const opener = document.activeElement;
     const outside = event => {
       if (sheet.contains(event.target) || event.target.closest?.('button, a, input, textarea, select, [role="button"]')) return;
@@ -47,7 +47,10 @@ export function WatchAgentSheet({ agent, name, seat, chat, pending, view, onView
     <div className="watch-agent-sheet__views" aria-label="Agent information">
       {['chat', 'stats'].map(tab => <button key={tab} type="button" aria-pressed={view === tab}
         onClick={() => onView(tab)}>{tab === 'chat' ? 'Conversation' : 'Stats'}</button>)}
+      {agentReturn?.visible && <button type="button" className="watch-agent-sheet__return"
+        disabled={agentReturn.disabled} onClick={agentReturn.request}>{agentReturn.label}</button>}
     </div>
+    {agentReturn?.visible && <p className="watch-agent-sheet__return-detail" role={agentReturn.error ? 'alert' : 'status'}>{agentReturn.detail}</p>}
     <div className="thread-sheet__body" ref={feed}>
       {view === 'stats' ? <WatchAgentStats agent={agent} seat={seat}/> : <>
         {!chat.length && <p className="watch-agent-sheet__empty">{agent ? 'Whisper below to start a conversation.' : 'Loading your conversation…'}</p>}

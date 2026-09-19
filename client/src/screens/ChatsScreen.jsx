@@ -21,6 +21,11 @@ import { NotYet } from '../components/ftu/NotYet.jsx';
 // is not on the felt yet, so there is nothing to hold a spinner over.
 const ReplayTheatre = lazy(() => import('../components/replay/ReplayTheatre.jsx').then((m) => ({ default: m.ReplayTheatre })));
 import { AgentView } from '../components/agent/AgentView.jsx';
+import { useCommandAgent } from '../lib/useCommandAgent.js';
+import { useProposalAcceptance } from '../lib/useProposalAcceptance.js';
+import { savedChatMessage } from '../lib/conversationReports.js';
+import { useConversationUpdates } from '../lib/useConversationUpdates.js';
+import { usePrivateAgentRefresh } from '../lib/usePrivateAgentRefresh.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -588,7 +593,9 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
 // top-right avatar (job 9). ChatsScreen below is still the composition of the
 // two and is still what the roster sheet's route resolves to; nothing on the
 // tab bar reaches its list half any more.
-export function AgentThread({ agent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange }) {
+export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange }) {
+  const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
+  const privateRead = usePrivateAgentRefresh(suppliedAgent?.id, acceptCommand);
   const userId   = getUserId();
   const accent   = accentFor(agent);
   const agState  = stateOf(agent);
@@ -599,13 +606,14 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
   // so the face in the header changes when he is talked down, not just its colour.
   const [localHeat, setLocalHeat]   = useState(() => heatOf(agent));
   const [chat, setChat]             = useState([]);
+  const [seededAgent, setSeededAgent] = useState(null);
   // WIRE-1: the hand he is showing off, opened from the poster in the recap.
   const [replayHand, setReplayHand]  = useState(null);
   const [localDraft, setLocalDraft] = useState('');
   const draft = draftValue ?? localDraft;
   const setDraft = onDraftChange ?? setLocalDraft;
   const [loading, setLoading]       = useState(false);
-  const [proposalAccepting, setProposalAccepting] = useState(false);
+
   const [sendError, setSendError] = useState('');
   const sendBusy = useRef(false);
   const conversation = useRef(0);
@@ -632,16 +640,20 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
   useEffect(() => {
     let alive = true;
     const token = ++conversation.current;
+    setSeededAgent(null);
     sendBusy.current = false;
     setLoading(false); setSendError(''); setChat([]); setLocalDraft('');
     setLocalMood(moodOf(agent)); setLocalHeat(heatOf(agent));
     const startedAtId = msgIdRef.current;
     const initialMessages = () => {
       const history = companion && Array.isArray(agent.chatHistory) ? agent.chatHistory.filter(m => (m.role === 'assistant' || m.role === 'user') && typeof m.content === 'string') : [];
-      return history.length ? history.map(m => mkMsg(m.role, m.content)) : [mkMsg('assistant', openerFor(agent))];
+      return (history.length ? history.map(m => savedChatMessage(m, mkMsg)) : [mkMsg('assistant', openerFor(agent))])
+        .map(message => ({ ...message, _seeded: true }));
     };
     Promise.all([
-      fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`).then((r) => r.json()),
+      fetch(`/api/agents/${encodeURIComponent(agent.id)}/hands?userId=${encodeURIComponent(userId)}`, {
+        headers: { 'x-telegram-init-data': getTelegramInitData() },
+      }).then((r) => r.json()),
       loadAttrLog(agent, userId),
       loadFlagged(agent, userId),
     ])
@@ -679,16 +691,20 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
         }
         // BUG-63: keep anything typed while the recap request was in flight.
         setChat(prev => [...msgs, ...prev.filter(m => m._id > startedAtId)]);
+        setSeededAgent(agent.id);
       })
       .catch(() => {
         if (!alive) return;
         const msgs = initialMessages();
         if (agent.proposal) msgs.push({ role: 'proposal', proposal: agent.proposal, _id: ++msgIdRef.current });
         setChat(prev => [...msgs, ...prev.filter(m => m._id > startedAtId)]);
+        setSeededAgent(agent.id);
       });
     return () => { alive = false; if (conversation.current === token) conversation.current++; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent.id]);
+
+  useConversationUpdates({ agent, privateRead, seededAgent, setChat, mkMsg });
 
   useEffect(() => {
     const el = feedRef.current;
@@ -719,6 +735,8 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
       const newAi = (Array.isArray(data?.chat) ? data.chat : []).filter((m) => m?.role === 'assistant').pop();
       if (typeof newAi?.content !== 'string' || !newAi.content.trim()) throw new Error('Chat reply missing');
       setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
+      acceptCommand(data);
+      if (data.command && data.agent?.mood) { setLocalMood(moodOf(data.agent)); setLocalHeat(heatOf(data.agent)); }
       if (Number.isFinite(data.mood?.heat)) setLocalHeat(data.mood.heat);
       if (data.pepTalk?.soothed && data.pepTalk.newState) {
         setLocalMood(data.pepTalk.newState);
@@ -740,30 +758,9 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
     inputRef.current?.focus();
   }
 
-  async function handleAccept(proposalMsgId) {
-    setProposalAccepting(true);
-    try {
-      const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}/proposal/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-        body: JSON.stringify({ userId }),
-      });
-      if (!res.ok) throw new Error('accept failed');
-      setChat((prev) => prev.map((m) => m._id === proposalMsgId ? { ...m, role: 'accepted' } : m));
-      const chatRes = await fetch('/api/agents/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getTelegramInitData() },
-        body: JSON.stringify({ userId, content: 'My proposed change was just accepted.', existingAgentId: agent.id }),
-      });
-      const chatData = await chatRes.json();
-      const newAi = (chatData.chat || []).filter((m) => m.role === 'assistant').pop();
-      if (newAi) setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
-    } catch {
-      // silent fail — card stays visible
-    } finally {
-      setProposalAccepting(false);
-    }
-  }
+  const { accepting: proposalAccepting, acceptProposal: handleAccept, error: proposalError } = useProposalAcceptance({
+    agentId: agent.id, chat, setChat, mkMsg, acceptAgent: acceptCommand,
+  });
 
   // CHAT-2: no action lives here any more. Deploy, Call him in, Give him chips
   // and Retire are all on the profile, which the face and the name open.
@@ -782,7 +779,7 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
     );
   }
 
-  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} externalError={sendError} />;
+  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} externalError={proposalError || sendError} />;
 
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
@@ -811,7 +808,7 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
       )}
 
       {/* Chat feed */}
-      {sendError && <div className="agent-view__error" role="alert">{sendError}</div>}
+      {(proposalError || sendError) && <div className="agent-view__error" role="alert">{proposalError || sendError}</div>}
       {/* FIX-1a: `overflow: hidden auto`, never a bare overflowY — a box that
           declares one axis has the other computed from `visible` to `auto`,
           which made the thread draggable sideways on any long token. */}

@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildSystem, buildUserPrompt, estimateCallTokens, getAgentAction } from './handler.js';
+import { chooseFromPolicy } from './policyPlay.js';
 import { sampleGameStates } from './fixtures/sampleGameStates.js';
 
 function withEnv(vars, fn) {
@@ -57,9 +58,10 @@ test('estimateCallTokens agrees with getAgentAction\'s fallback path — same pr
     const [gs] = sampleGameStates(1, 3);
     const est = estimateCallTokens(gs, '', '');
     const result = await getAgentAction(gs, '', '');
-    // No key → the documented safe fallback, not a thrown error, and no usage
+    // BUG-261: no key → the compiled policy, not a thrown error, and no usage
     // to bill — but the estimate above still had to be computable beforehand.
-    assert.ok(['check', 'fold'].includes(result.action.type));
+    assert.deepEqual(result.action, chooseFromPolicy(gs).action);
+    assert.equal(result.fallback.reason, 'unconfigured');
     assert.equal(result.usage, undefined);
     assert.ok(est.staticTokens > 0);
   });
