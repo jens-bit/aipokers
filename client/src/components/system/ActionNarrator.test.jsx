@@ -29,6 +29,43 @@ describe('SHOW-3 deterministic action commentary',()=>{
     expect(actionNarration(end)).toBe('Granite folds. $4,180 to Big Slick.');
     expect(actionNarration({...end,result:{pot:200,winners:[{seat:0,amount:100},{seat:1,amount:100}]}})).toBe('Big Slick and Granite split $200.');
   });
+  it('BUG-249: settled narration names the actual award after rake for ordinary and major pots', () => {
+    for (const [pot, award, rake] of [[150, 148, 2], [12000, 11940, 60]]) {
+      const result = { type: 'showdown', pot, winners: [{ seat: 0, amount: pot, hand: 'three sixes' }], rake: { total: rake, bySeat: { 0: rake } } };
+      const original = structuredClone(result);
+      const ended = { ...game, street: 'complete', result };
+      expect(actionNarration(ended)).toBe(`Big Slick took $${award === 11940 ? '11,940' : '148'} with three sixes.`);
+      expect(result).toEqual(original);
+    }
+  });
+  it('BUG-249: a raked uncontested fold names the paid amount, not the gross pot', () => {
+    const ended = { ...game, street: 'complete', lastAction: { ...action, seat: 1, type: 'fold', allIn: false },
+      result: { type: 'uncontested', pot: 150, winners: [{ seat: 0, amount: 150 }], rake: { total: 2, bySeat: { 0: 2 } } } };
+    expect(actionNarration(ended)).toBe('Granite folds. $148 to Big Slick.');
+  });
+  it('BUG-249: split-pot narration totals actual awards, retaining legacy fallback for incomplete winner amounts', () => {
+    const ended = { ...game, street: 'complete', result: { pot: 200,
+      winners: [{ seat: 0, amount: 100 }, { seat: 1, amount: 100 }], rake: { total: 3, bySeat: { 0: 1, 1: 2 } } } };
+    expect(actionNarration(ended)).toBe('Big Slick and Granite split $197.');
+    expect(actionNarration({ ...ended, result: { pot: 200,
+      winners: [{ seat: 0, amount: 100 }, { seat: 1 }] } })).toBe('Big Slick and Granite split $200.');
+  });
+  it('BUG-249: repeated side-pot awards name each recipient once and deduct rake once per seat', () => {
+    const ended = { ...game, street: 'complete', result: { pot: 2000,
+      winners: [{ seat: 0, amount: 600 }, { seat: 0, amount: 400 }, { seat: 1, amount: 1000 }],
+      rake: { total: 20, bySeat: { 0: 10, 1: 10 } } } };
+    expect(actionNarration(ended)).toBe('Big Slick and Granite split $1,980.');
+    expect(actionNarration({ ...ended, result: { pot: 1000, winners: ended.result.winners.slice(0, 2),
+      rake: { total: 10, bySeat: { 0: 10 } } } })).toBe('Big Slick took $990.');
+  });
+  it('BUG-249: legacy total-only rake never subtracts twice and unknown payouts omit a number', () => {
+    for (const amount of [150, 148]) {
+      expect(actionNarration({ ...game, street: 'complete', result: { pot: 150,
+        winners: [{ seat: 0, amount }], rake: { total: 2 } } })).toBe('Big Slick took $148.');
+    }
+    expect(actionNarration({ ...game, street: 'complete', result: {
+      winners: [{ seat: 0 }], rake: { total: 2 } } })).toBe('Big Slick won the hand.');
+  });
   it('SHOW-3: a new action sequence is announced again, but unrelated updates keep the same entry',()=>{
     const {container,rerender}=render(<ActionNarrator game={game} mySeat={-1}/>);
     const line=container.querySelector('[data-action-line]');

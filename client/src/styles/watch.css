@@ -208,6 +208,37 @@
   border: 1px solid var(--sys-border, color-mix(in srgb, var(--text-primary) 12%, transparent));
 }
 
+/* BUG-218: actual settled rake, in a fixed slot beside the pot's location.
+   The empty slot stays mounted between awards; neither pot nor board moves. */
+.watch-felt__rake {
+  position: absolute;
+  top: calc(var(--wv-pot, 60px) - 17px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 14px;
+  text-align: center;
+  color: var(--felt-ink);
+  font: 10px/14px var(--sys-font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* A routine award replaces the pot in its own slot. Keeping the old raised
+   three-line card covered the rake on short phones. */
+.watch-felt--fill .watch-felt__won.is-celebrating { top: var(--wv-pot); }
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-pill {
+  flex-direction: row;
+  gap: 6px;
+  padding: 3px 10px;
+  max-width: calc(100% - 24px);
+}
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-amt,
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-with { margin-top: 0; }
+.watch-felt--fill .watch-felt__won.is-celebrating .watch-felt__won-amt { line-height: 1.1; }
+.watch-felt--fill .watch-felt__won.is-celebrating:not(.is-ordinary-win) .watch-felt__won-amt { font-size: 20px; }
+
 /* WV2-5: the pot going to its winner. Ported from mood-watch2.jsx's
    WatchShowdownScreenM -- a trail from under the board down to the pill,
    which takes the meta line's slot for as long as the showdown is up. */

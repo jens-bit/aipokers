@@ -1,16 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChipStack, potBand } from './Chips.jsx';
+import { settledAwards } from '../../lib/settledAwards.js';
 
 // Engine awards can contain several side pots for the same seat. One journey
 // per actual recipient; neither the camera seat nor the result headline pays it.
 export function potAwards(game) {
-  const amounts = new Map();
-  for (const award of game?.result?.winners ?? []) {
-    if (!Number.isInteger(award.seat) || !game.seats?.[award.seat]
-      || !Number.isFinite(award.amount) || award.amount <= 0) continue;
-    amounts.set(award.seat, (amounts.get(award.seat) ?? 0) + award.amount);
-  }
-  return [...amounts].map(([seat, amount]) => ({ seat, amount }));
+  return settledAwards(game?.result).awards
+    .filter(award => game?.seats?.[award.seat] && Number.isFinite(award.amount) && award.amount > 0);
 }
 
 export function PotAward({ rootRef, seat, amount, bigBlind }) {

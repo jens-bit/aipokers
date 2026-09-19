@@ -75,6 +75,100 @@ function fakeSocket() {
   return ws;
 }
 
+test('BUG-227: every owned agent sharing a table receives a private, throttled live frame', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 10000 });
+  const proven = fakeSocket(), claimed = fakeSocket(), stranger = fakeSocket();
+  let handNumber = 1;
+  const table = {
+    tableId: 'shared-227', agentIds: ['first-227', 'second-227', 'other-227'],
+    agentUserIds: ['owner-227', 'owner-227', 'elsewhere-227'],
+    liveGameView(agentId, { includeHole }) {
+      return { tableId: this.tableId, street: 'preflop', board: [], pot: handNumber * 30,
+        handNumber, heroHole: includeHole ? [agentId, 'private'] : [], toAct: agentId };
+    },
+  };
+  const frames = ws => ws.sent.filter(m => m.type === 'floor_game');
+  try {
+    floor.configure({ liveTables: { listTables: () => [table] } });
+    floor.subscribe(proven, { userId: 'owner-227', owner: true });
+    floor.subscribe(claimed, { userId: 'owner-227', owner: false });
+    floor.subscribe(stranger, { userId: 'unrelated-227', owner: true });
+    assert.deepEqual(frames(proven).map(m => m.agentId), ['first-227', 'second-227']);
+    assert.deepEqual(frames(proven).map(m => m.heroHole[0]), ['first-227', 'second-227']);
+    assert.equal(frames(claimed).length, 2);
+    assert.ok(frames(claimed).every(m => m.heroHole.length === 0));
+    assert.equal(frames(stranger).length, 0);
+    handNumber = 2; floor.notifyTable(table);
+    handNumber = 3; floor.notifyTable(table);
+    assert.equal(frames(proven).length, 2, 'co-seated agents share the table throttle');
+    t.mock.timers.tick(1000);
+    assert.equal(frames(proven).length, 4);
+    assert.ok(frames(proven).slice(-2).every(m => m.handNumber === 3), 'both get latest trailing state');
+    floor.notifyTable(table);
+    t.mock.timers.tick(1000);
+    assert.equal(frames(proven).length, 4, 'unchanged frames stay suppressed');
+    handNumber = 4; floor.notifyTable(table);
+    handNumber = 5; floor.notifyTable(table);
+    floor.unsubscribe(proven);
+    const count = frames(proven).length;
+    t.mock.timers.tick(1000);
+    assert.equal(frames(proven).length, count, 'unsubscribe cancels pending frames');
+  } finally { floor.reset(); t.mock.timers.reset(); }
+});
+
+test('BUG-227: a companion joining mid-hand cannot clear the shared public board or borrow another seat’s cards', t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 10000 });
+  const proven = fakeSocket(), claimed = fakeSocket();
+  // Match Table.liveGameView's pending-seat distinction: the new third seat
+  // exists in agentIds but will not enter game.seats until the next deal.
+  const table = {
+    tableId: 'pending-227',
+    agentIds: ['playing-227', 'opponent-227', 'joining-227'],
+    agentUserIds: ['owner-227', 'other-owner', 'owner-227'],
+    game: { street: 'flop', community: ['Ah', 'Kd', '2c'], pot: 420, toAct: 1, handNumber: 7,
+      seats: [{ holeCards: ['As', 'Ad'] }, { holeCards: ['Ks', 'Kh'] }] },
+    liveGameView(agentId, { includeHole }) {
+      const seat = this.agentIds.indexOf(agentId), g = this.game;
+      const inHand = seat < g.seats.length;
+      return { tableId: this.tableId, street: g.street, handNumber: g.handNumber,
+        board: inHand ? [...g.community] : [], pot: inHand ? g.pot : 0, toAct: inHand ? g.toAct : null,
+        heroHole: includeHole && inHand ? [...g.seats[seat].holeCards] : null };
+    },
+    feltView() {
+      const g = this.game;
+      return { tableId: this.tableId, street: g.street, board: [...g.community], pot: g.pot,
+        toAct: g.toAct, handNumber: g.handNumber };
+    },
+  };
+  const frames = socket => socket.sent.filter(m => m.type === ServerMsg.FLOOR_GAME);
+  try {
+    floor.configure({ liveTables: { listTables: () => [table] } });
+    floor.subscribe(proven, { userId: 'owner-227', owner: true });
+    floor.subscribe(claimed, { userId: 'owner-227', owner: false });
+    for (const socket of [proven, claimed]) {
+      assert.deepEqual(frames(socket).map(m => m.agentId), ['playing-227', 'joining-227']);
+      for (const message of frames(socket)) {
+        assert.deepEqual(message.board, ['Ah', 'Kd', '2c'], 'both previews show the current public board');
+        assert.equal(message.pot, 420);
+        assert.equal(message.toAct, 1);
+        assert.equal(message.street, 'flop');
+        assert.equal(message.handNumber, 7);
+      }
+    }
+    assert.deepEqual(frames(proven).map(m => m.heroHole), [['As', 'Ad'], null]);
+    assert.ok(frames(claimed).every(m => m.heroHole === null), 'a claimed owner receives no private cards');
+    // On the next deal he really has a hand; private cards stay per-agent.
+    Object.assign(table.game, { street: 'preflop', community: [], pot: 30, toAct: 2, handNumber: 8 });
+    table.game.seats.push({ holeCards: ['Qs', 'Qd'] });
+    floor.notifyTable(table);
+    t.mock.timers.tick(1000);
+    const next = frames(proven).slice(-2);
+    assert.ok(next.every(m => m.board.length === 0 && m.pot === 30 && m.toAct === 2 && m.handNumber === 8));
+    assert.deepEqual(next.map(m => m.heroHole), [['As', 'Ad'], ['Qs', 'Qd']]);
+    assert.ok(frames(claimed).every(m => m.heroHole === null));
+  } finally { floor.reset(); t.mock.timers.reset(); }
+});
+
 test('BUG-131: kitchen updates reach proven seat owners as throttled Home snapshots only',t=>{
  t.mock.timers.enable({apis:['setTimeout','Date'],now:10000});
  const host=fakeSocket(),visitor=fakeSocket(),claimed=fakeSocket(),stranger=fakeSocket();let revision=1;

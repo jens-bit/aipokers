@@ -1,0 +1,40 @@
+/* Recovery: the phone keeps navigation above one scrollable room. The
+   compact companion selector belongs to the room, not a second full felt. */
+.csn-floor__overview { flex: 0 0 auto; min-height: 0; }
+.csn-floor__overview[hidden] { display: none; }
+.csn--phone .csn-floor__head { min-height: 58px; padding: 5px 12px; }
+.csn--phone .csn-floor__back { min-width: 54px; min-height: 44px; }
+.csn-deploy__error { margin: 0; color: var(--error); font-size: 12px; line-height: 1.4; }
+.csn-floor-play .csn-stake { background: var(--bg-tertiary); border-color: var(--edge-strong); color: var(--text-primary); padding: 7px 8px; font-weight: 400; }
+.csn-floor-play .csn-stake[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary)); }
+.csn-your__census { margin: 0; font: 10px/1.4 "JetBrains Mono", monospace; color: var(--text-muted); }
+.csn--phone .csn-your--compact { flex: 0 0 auto; min-height: 0; max-height: none; gap: 4px; padding: 8px 14px; border-bottom: 1px solid var(--edge); }
+.csn-your--compact .csn-your__track { flex: 0 0 auto; min-height: 48px; }
+.csn-your__summary { width: 100%; min-height: 48px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 5px; padding: 0; border: 0; background: none; text-align: left; text-transform: none; letter-spacing: normal; color: var(--text-primary); cursor: pointer; }
+.csn-your__summary-name { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 14px; }
+.csn-your__summary-name > span { color: var(--accent); font: 9px "JetBrains Mono", monospace; }
+.csn-your__summary-pot { font-size: 11px; color: var(--text-secondary); }
+.csn-your__summary-pot b { float: right; color: var(--accent); font: 10px "Oswald", sans-serif; letter-spacing: .1em; }
+.csn-your--compact .csn-your__away { padding: 4px 0; border: 0; background: none; flex-direction: row; gap: 8px; }
+.csn-your--compact .csn-your__away > svg { width: 30px; flex-shrink: 0; }
+.csn-your--compact .csn-your__away > div { text-align: left !important; font-size: 11px !important; }
+.csn-your--compact .csn-your__away > div:nth-of-type(2) { display: none; }
+.csn-your--compact .csn-your__send { min-height: 44px; min-width: 78px; }
+.csn-your--compact .csn-your__dots { justify-content: flex-start; gap: 4px; overflow-x: auto; }
+.csn-your--compact .csn-your__dot { width: auto; min-width: 54px; min-height: 44px; height: 44px; padding: 0 9px; color: var(--text-muted); font: 11px "Oswald", sans-serif; letter-spacing: .04em; }
+.csn-your--compact .csn-your__dot::after { display: none; }
+.csn-your--compact .csn-your__dot[data-on] { color: var(--accent); box-shadow: inset 0 -2px var(--accent); }
+.csn--phone .csn-floor__body { overflow-y: auto; overscroll-behavior-y: contain; }
+.csn--phone .csn-floor__room { flex: 1 0 auto; overflow: visible; padding: 10px 14px; }
+.csn--phone .csn-floor__board { flex: 0 0 auto; max-height: none; overflow: visible; }
+.csn--phone .csn-floor--zoom .csn-floor__body { overflow: hidden; }
+.csn--phone .csn-floor--zoom .csn-floor__room { flex: 1; min-height: 0; overflow: hidden; padding: 0; }
+.csn--phone .csn-floor--zoom .csn-floor__plan { height: 100%; }
+.csn-floor58__watch { min-height: 44px; }
+.csn-floor58__vignette { background: radial-gradient(ellipse 56% 40% at 50% 46%, transparent 28%, color-mix(in srgb, var(--wood-edge) 62%, transparent) 100%); }
+/* The founder's room has its bar at the top. The staircase keeps a distinct
+   place beside it, and the six original felt positions stay unchanged. */
+.csn-floor58__bar { top: 10px; right: 124px; bottom: auto; height: 42px; }
+.csn-floor58__counter { top: 0; bottom: auto; }
+.csn-floor58__barlabel { top: 7px; bottom: auto; }
+.csn-floor58__standing { top: 28px; bottom: auto; }

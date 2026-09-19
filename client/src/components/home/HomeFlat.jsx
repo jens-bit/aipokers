@@ -141,7 +141,6 @@ export function HomeFlat({
         data-testid="home-tv"
       >
         <span className="home-flat__tv-screen" aria-hidden>{tvScreen}</span>
-        <span className="home-flat__fixture-label" aria-hidden>TV</span>
       </button>
       <div
         className="home-flat__tv-chair"

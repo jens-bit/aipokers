@@ -943,6 +943,14 @@
 .watch-felt__seat--tl .watch-felt__seat-pile,
 .watch-felt__seat--tc .watch-felt__seat-pile,
 .watch-felt__seat--tr .watch-felt__seat-pile { top: calc(100% + 5px); }
+/* BUG-241: adding the STACK caption widened the old inward-facing piles
+   until the left and center banks crossed. Each bank belongs to its seat. */
+.watch-felt__seat--tl .watch-felt__seat-pile,
+.watch-felt__seat--tc .watch-felt__seat-pile,
+.watch-felt__seat--tr .watch-felt__seat-pile {
+  margin-left: 0;
+  transform: translateX(-50%);
+}
 .watch-felt__seat--ml .watch-felt__seat-pile,
 .watch-felt__seat--mr .watch-felt__seat-pile { top: 4px; --pile-gap: 20px; }
 

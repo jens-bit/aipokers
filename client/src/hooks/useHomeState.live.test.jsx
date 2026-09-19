@@ -15,6 +15,15 @@ async function boot(roster=[agent()]){
 }
 const delta=(extra={})=>({type:'floor_game',agentId:'bird',tableId:'casino-a',street:'turn',board:['Ah','Kd','2c','9s'],pot:180,handNumber:7,...extra});
 
+it('BUG-244: each live turn reaches both Home previews and an explicit null clears the actor',async()=>{
+  const {result,socket}=await boot([agent('bird',{liveGame:live({toAct:0})}),agent('other',{liveGame:live({heroSeat:1,toAct:0})})]);
+  act(()=>socket.emit(delta({toAct:1,heroHole:['Qc','Qd']})));
+  expect(result.current.agents.map(a=>a.liveGame.toAct)).toEqual([1,1]);
+  expect(result.current.agents.every(a=>a.liveGame.heroHole===undefined)).toBe(true);
+  act(()=>socket.emit(delta({street:'complete',toAct:null})));
+  expect(result.current.agents.map(a=>a.liveGame.toAct)).toEqual([null,null]);
+});
+
 it('FIRST-HOME-1: a fresh REST roster can bring a newborn home after an initial empty snapshot',async()=>{
   const {result,socket}=await boot([]);
   act(()=>socket.emit({type:'home_state',agents:[],game:null}));

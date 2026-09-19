@@ -1,8 +1,118 @@
 # Bug Report — Railbird
+
+## Recovery review — 2026-09-19
+
+Work on `codex/railbird-recovery-audit`; final gate and visual evidence are
+recorded in `read-me-claude/RAILBIRD_RECOVERY_AUDIT.md`. No main push/deploy.
+The older status paragraphs below are historical.
+
+### BUG-234 — confirmed casino placement leaves its placing tray active — FIXED in recovery review
+The queue success path notified its parent but left the tray's source prop
+active. Track confirmed placement and current seating so it dismisses without
+waiting for navigation. Guard duplicate in-flight placement. Regression:
+`CasinoScreen.test.jsx`, observed failing before repair.
+
+### BUG-235 — casino placement failures give no visible explanation — FIXED in recovery review
+The queue path returned silently on non-OK responses and swallowed fetch
+failures. It now displays the server's human-readable refusal/remedy or a
+retryable connection error. Regression: `CasinoScreen.test.jsx`.
+
+### BUG-236 — public floor counts read as owned-agent counts; home agents appear at the bar — FIXED in recovery review
+The census correctly counted House and other players but did not say so.
+Separate the public count from the owner's agents/distinct tables. Explicit
+Home/visiting locations no longer become standing casino bodies when no floor
+felt matches them. Regressions: `CasinoScreen.test.jsx`, `FloorView.test.jsx`.
+
+### BUG-237 — casino Home control is below the preview and scrolls away — FIXED in recovery review
+Place the phone header above the ticker and compact companion selector; room
+and deploy controls share a scroll area below it. Browser checks cover visible,
+clickable navigation at 390×844 and 390×590.
+
+### BUG-238 — an uncontested preflop win draws a five-back board — FIXED in recovery review
+The no-board check only applied to live hands. A settled hand with no community
+cards now keeps that board empty. Regression: `WatchScreen.repair.test.jsx`.
+
+### BUG-239 — whisper editing leaves the private panel on Stats — FIXED in recovery review
+Composer interaction selects Conversation while retaining the draft.
+Regression: `WatchScreen.repair.test.jsx`.
+
+### BUG-240 — tapping the owned hero opens Stats first — FIXED in recovery review
+The tap explicitly requested Stats. It now opens Conversation; the skill
+cluster remains available through the Stats tab. Regression:
+`WatchScreen.repair.test.jsx`.
+
+### BUG-241 — private agent panel hides the hero and hole cards — FIXED in recovery review
+Dock the private panel below the felt with a one-third viewport cap and a
+compact hero/status arrangement while open. Opponent reading remains separate.
+Real-browser tests check panel bounds, card visibility and hit targets at both
+phone heights. Regressions: `WatchScreen.repair.test.jsx`, `watch-repair.spec.js`.
+
+### BUG-242 — fridge effects are unlabelled and the purchase is always six — FIXED in recovery review
+Name each colored stat effect, use a brief explanation, buy one at the quoted
+unit price, and acknowledge the actual quantity. Server prices/effects stay
+unchanged. Regression: `FridgeSheet.test.jsx` and the Home browser checks.
+
+### BUG-243 — Home television hides the actual hand behind dots — FIXED in recovery review
+Replace the intentionally abstract live screen with public board cards, pot,
+identities and current turn, and give it a readable footprint. This explicitly
+retires BUG-169's old requirement to hide the board/pot; its seat identity and
+privacy guards remain. No private holes are added to Home's public projection.
+
+### BUG-244 — Home live preview keeps a stale actor — FIXED in recovery review
+`useHomeState` discarded `FLOOR_GAME.toAct`, and the shared preview omitted an
+explicit null, leaving the previous actor after a hand ends. Carry the public
+actor and preserve null clearing. Regressions: `homePreview.test.js` and
+`useHomeState.live.test.jsx`, observed failing before repair.
+
+### BUG-245 — wall monitors show colored marks and unreadable names — FIXED in recovery review
+The 46px miniature represented cards only by color and inherited dark daytime
+text on a permanently dark monitor. It now draws ranks/suits, the current
+public actor and fixed light monitor text. Unknown seat lists no longer invent
+four occupants. Regressions: `MiniFelt.test.jsx` and live Home browser checks.
+
+### BUG-246 — shipped-screen audit still requires retired casino rooms — FIXED in recovery review
+The post-0.18.0 casino has one floor. The screenshot suite now asserts that
+floor instead of navigating nonexistent Board/upstairs/backroom controls.
+Optional `SHOTS_OUTPUT_DIR` keeps review evidence outside design references.
+The repaired suite has 26 current screen/viewport cases; all passed on a
+keyless, API-seeded scratch server. Reported Home Watch ERR_ABORTED did not
+reproduce; no speculative product navigation change was made.
+
+**Existing entries repaired in this review:** BUG-227 sends a live frame for
+each owned seat and preserves the selected companion when opening a shared
+table; BUG-218 draws authoritative rake in a stable felt slot; BUG-232 fixes
+the short-phone room and restores both original browser assertions; BUG-233
+fixes the 78px conversation band and restores its unchanged 76px assertion.
+
+### BUG-247 — session-end Talk opens an invisible private panel — FIXED in recovery review
+The ceremony's Talk action only opened chat state while the still-visible
+ceremony suppressed that panel. Explicit conversation opening now dismisses
+the local ceremony while retaining its session record and context. Regression:
+`WatchScreen.repair.test.jsx`. Closing the conversation restores the ceremony,
+including the human player's Play again and Back home controls.
+
+### BUG-248 — enlarged Home TV suppresses standing speech and recaps — FIXED in recovery review
+The larger TV entered the existing standing speech lane by 2.5px, so the
+bubble placer correctly withheld otherwise-clear replies. Move the phone TV
+4px down while preserving clearance from its seated viewer. All 39 existing
+bubble tests and the new speech/TV/viewer clearance regression pass; no bubble
+collision rules were weakened. Regression: `roomBubbles.test.jsx`.
+
+### BUG-249 — win headlines, narration and chip awards show gross money as paid — FIXED in recovery review
+The server deducts rake from stacks and deltas but leaves `winners[].amount`
+and `result.pot` gross. A shared display helper now subtracts each seat's
+authoritative `rake.bySeat` cut once, after combining any side-pot entries.
+Narration, celebrations and chip awards agree on the credited payout, which
+remains distinct from profit. Incomplete legacy split allocations stay unknown.
+Eight failing regressions reproduced the issue before the fix; five further
+regressions cover the shared formatter, ceremony, accessible label and replay.
+Settlement, ledger, rake rates and engine rules are unchanged.
+
 Last updated: 2026-09-16 (MERGE-14 merged five branches onto the 0.17.0 candidate as the 0.18.0 candidate — AGENT-5, TABLE-2 (carrying UI-3 and TABLE-1), SPEC-1, CHIPS-1 and ECON-1. Acting on SPEC-1's own warning, the merge ran the three spec files it named — `home.spec.js`, `appearance.spec.js`, `show-home-journeys.spec.js` — found 12 red (nothing gates any of them) and re-expressed or retired each against the one-room casino; one of the 12, BUG-233, turned out to predate the merge and is filed open. SPEC-1 rewrote the casino browser gate for the one-room casino and filed BUG-232 (the phone's casino room is a 36% strip, and at 590 its only felt cannot be tapped) — filed on the branch as BUG-219, renumbered here because AGENT-4 already holds 219. the UI-3 lineage (UI-3 -> TABLE-1 -> TABLE-2) counted its own bugs from 215 while MONEY-2 and AGENT-4 were spending the same numbers on main, so four UI-3 entries renumber to BUG-228/229/230/231 and TABLE-1's blocked job G folds into main's own BUG-218 -- see the renumbering note under BUG-228. TABLE-2, on fix/table-2, branched from fix/table-1: JOB A fixed BUG-133's rule ("his cards, hands and strip stay above the read glass") applying to reading an opponent as well as the thread it was written for — an opponent's opened card now sits above every hero element on the felt, with its own Close button always reachable. JOB B ported the profile's own four-skill AttrCluster (READS/FOCUS/DISCIPLINE/DECEPTION, with its range band) into the in-game STATS tab in place of the same four skills (plus STAMINA/COMPOSURE, which the profile's cluster has never included) as bare figures. Before that: 2026-09-16 (TABLE-1, on fix/table-1, branched from fix/ui-3: JOB A stopped the in-hand felt jumping (`ActionNarrator` used to contribute no DOM node when it had nothing to say, then a real one once a hand settled — that difference was the felt's own height, and everything positioned against the felt shifted with it); JOB C stopped the pot pill printing the same figure the win card already states; JOB D stopped preflop drawing five backs where there is no board yet; JOB E labelled an opponent's stack and every bet the same way the hero's already are. JOB B's reported defect (a title-cased duplicate hand name) was not found in the code and nothing was changed for it — see its own note below. JOB G could not be attempted on this branch: see BUG-218. Before that: 2026-09-15 (UI-3, on fix/ui-3, merged onto MERGE-10's tip: JOB A merged the casino's three rooms into one floor and closed BUG-231 (filed on the branch as 217, renumbered from a local 214 — main's own BUG-214, carrying a mid-hand agent to the door, landed first and keeps the number); JOB B put real table state on the desk's other monitors and closed BUG-229; JOB C made every money figure say what it is and closed BUG-230; JOB E made his want's own action the button, not a generic Yes; JOB F drew his reply to the room as his own speech bubble and closed BUG-228. Before that: fix/agent-5: BUG-224/225/226 fixed and BUG-227 filed open — the one-hand session and its YOU LOST screen, the half-copied stamina rule in the shared module, and the floor channel showing one agent per table now that two of an owner's may share one. Before it, MERGE-13 merged fix/agent-4 to main as the 0.17.0 candidate, adding MERGE-13-FLAKE and MERGE-13-SMOKE-ENV below; the branch itself: BUG-219/220/221/222/223, five items from Jens playing prod on the night of 15 September — a second seat via the vs-You JOIN door, a want that answered and did nothing, the fridge refusing food at one dot, the stablemate refusal reading as a fault, and a draft with no word for shoving. Before it, 0.16.0 candidate, two — MERGE-11 merged MONEY-2 (BUG-215/216/217/218, the rake, and the sinks in MONEY_AUDIT.md §19) and LIFE-3 (LIFE-3-A/B/C/D fixed, LIFE-3-E closed by DEFLAKE-1 and DEFLAKE-2, which had already fixed both failures it named); MERGE-10 merged LIFE-2: LIFE-2-A/B/C fixed, LIFE-2-D closed as not-a-bug, LIFE-2-E closed by DEFLAKE-1. The merge exposed BUG-214, fixed here, and DEFLAKE-2 with it. 0.15.0 before it: CI-FIX, MERGE-8, BUG-211/BUG-134, DEFLAKE-1); statuses and evidence below.
 Named BUG headings: 228 (224 distinct numbers), plus the five LIFE-2 letters, the five LIFE-3 letters and two DEFLAKE entries — 240 headings in all. The BUG numbers include the two historically reused BUG-121 headings, the two BUG-55 follow-up headings and the BUG-134 follow-up heading. Recounted from this file at MERGE-7 — both branch sides carried a stale figure (197 on fix/money-integrity, 191 on feat/agent-life) and main already stood at 198. Historical reports are retained; an OPEN section heading alone does not override an entry's verified FIXED status.
 
-### BUG-233 — the room's conversation strip is 78px against its own 76px budget — OPEN, found by MERGE-14
+### BUG-233 — the room's conversation strip is 78px against its own 76px budget — FIXED in recovery review
+Recovery: compact the band itself and restore the original <=76px browser assertion. Original diagnosis follows.
 Found by running `client/e2e/home.spec.js` in full, which nothing gates: `playwright.home2.config.js` matches only `scripts/home2.spec.js`, and CI's one Playwright step is `npx playwright test e2e/home.spec.js -g BUG-55`. So this file's other 57 tests have not run anywhere, and this one has been quietly red.
 
 BUG-60's own rule is that the room's conversation stays a compact strip — `.home-thread__band` no taller than 76px, with a round send control. It measures **78px**. The send control is still round and still 26px; it is the band around it that has drifted by two pixels.
@@ -11,7 +121,8 @@ BUG-60's own rule is that the room's conversation stays a compact strip — `.ho
 
 Per Testing law #6 the assertion is kept verbatim and the test is `test.fixme`, titled `BUG-233:`. Do not raise the 76 — the strip staying compact is the whole claim. Un-fixme when this lands.
 
-### BUG-232 — UI-3 job A left the phone's casino room a strip, and at 590 its only felt cannot be tapped at all — OPEN, found by SPEC-1
+### BUG-232 — UI-3 job A left the phone's casino room a strip, and at 590 its only felt cannot be tapped at all — FIXED in recovery review
+Recovery: one coherent room scroll area and a zoom that owns the remaining screen. Both original desk browser assertions are active with unchanged thresholds. Original diagnosis follows.
 *(MERGE-14: filed on `fix/spec-1` as BUG-219, which AGENT-4 had already spent on main — "one agent seated at two tables at once" — before this branch was cut. Renumbered here, and the two `test.fixme` titles in `client/e2e/desk.spec.js` were renamed with it.)*
 Found by rewriting the browser gate, not by reading the diff. `client/e2e/desk.spec.js`'s BUG-125 camera block reached the room through the Floor|Board toggle; UI-3 job A deleted that toggle, so the block had not run since — and once SPEC-1 pointed it at the room the casino now opens on, both phone widths went red on claims UI-3 never said it was retiring.
 
@@ -42,7 +153,8 @@ One step behind them, `levelFromReserve` in `src/shared/levels.js` copied `stami
 
 Fix: `levelFromReserve` and `staminaLevel` take `was`, the stored stage, and mirror `staminaStage` line for line; `presentAgent` passes it. `levels.test.js` walks all 404 `(reserve, was)` pairs against `staminaStage` rather than trusting the copy — the two files deliberately do not import each other (see the note by the constants), so a walk is the only thing that keeps them honest. Regression: `src/server/staminaDots.test.js` (3, feeding an empty agent twice through the real fridge), `src/shared/levels.test.js` (+3), `client/src/components/system/FeltBodyBars.test.jsx` (+2).
 
-### BUG-227 — the floor's live delta shows one agent per table — OPEN, filed on fix/agent-5
+### BUG-227 — the floor's live delta shows one agent per table — FIXED in recovery review
+Recovery: send the existing message shape for every owned agent, preserving private-card ownership and table throttling. Shared-table Watch also carries the selected companion rather than choosing the first seat. Original diagnosis follows.
 Surfaced by AGENT-5 job E, which lets two of one owner's agents share a casino felt. `floorChannel.heroAgentIdFor(table, userId)` returns the FIRST seat at that table belonging to the owner, so `FLOOR_GAME` carries one of the two points of view and the other agent's live frame never reaches the floor. Not a correctness or money fault — the seat, the session, the thread, the ceremony and the buy-in are all per agent, and WATCH on the specific agent is unaffected — but an owner with two men at one table sees one of them moving on the floor screen.
 
 Pre-existing in shape (the function has always answered "the owner's agent at this table" as though there were one) and only reachable now that the same-owner rule is gone. Left open deliberately: it is the floor channel's shape, one message per table per owner, and changing it is a protocol question rather than a line fix.
@@ -336,7 +448,8 @@ Not a bug: a deliberate product change, recorded here because Testing law #5 req
 
 **One thing the rake got right the second time, and it is worth knowing about.** The first version raked `result.pot`, which on a hand that ends to a fold still contains the winner's own uncalled bet: raise 300 into a 20 blind, everybody folds, `pot` is 320 and what he actually won is 20. At the default setting that took twelve chips out of a twenty-chip win — out of his own stack. No cardroom rakes an uncalled bet and none of them calls that an exception: the uncalled portion is pushed back before the pot is counted. `table.js _rakeablePot` is that, and `rake.test.js`'s "a winner is never raked on his own uncalled bet" is the regression.
 
-### BUG-218 — the felt does not draw the rake, only the history sheet says it — OPEN (client)
+### BUG-218 — the felt does not draw the rake, only the history sheet says it — FIXED in recovery review
+Recovery: a stable pot-adjacent slot reads the authoritative settled rake. Short-phone result overlap and premature all-in reveal are covered. Original diagnosis follows.
 MONEY-2 job 3 puts the cut on the wire (`result.rake = { total, bySeat, percent, capBb, bigBlind }` on every `HAND_RESULT`) and names it on the thread's result line ("GRANITE won 1000 at showdown — 50 to the house"). The WATCH screen's own result moment does not read it, so an owner watching a hand live sees the pot pushed and the stack land 50 light with nothing on screen saying why; he has to open the history to find out. The server half is done and the queue was server-only. The client change is to read `result.rake?.total` where the pot is announced and print the same phrase `rakeLine()` already produces, so the felt and the history cannot describe one cut two ways.
 
 *(MERGE-14: `fix/table-1` filed this a second time, as its own BUG-219 — "the felt still does not draw the rake — OPEN (blocked)" — because job G could not be attempted there: `fix/table-1` branches from `fix/ui-3`, cut before MONEY-2 merged (`9673e58`), so there was no `src/server/rake.js`, no `result.rake` on the wire and no `rakeLine()` to read. That duplicate is folded in here, as its own entry predicted it would be, and 219 stays with AGENT-4. **The merge unblocks the job**: both halves are now in one tree and `grep -ril rake client/src` still finds only an unrelated substring in `GhostHands.jsx`, so the client change — read `result.rake?.total` where the felt announces the pot and print `rakeLine()`'s own phrase — is still unwritten. This stays OPEN.)*

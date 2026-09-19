@@ -6,6 +6,7 @@ import { identityOf } from '../../lib/identity.js';
 import { PlayingCard } from '../system/PlayingCard.jsx';
 import { FLAGS } from '../replay/timeline.js';
 import { pillName, shortName } from '../../lib/names.js';
+import { money } from '../../lib/wallet.js';
 
 export const ROOMS_URL = '/api/rooms';
 
@@ -73,18 +74,29 @@ export function CasinoOnTv({ away = [] }) {
     const ring = own > 0 ? [...seats.slice(own), ...seats.slice(0, own)] : seats;
     const name = shortName(showing.name, showing.nickname);
     const blinds = typeof game.blinds === 'string' ? game.blinds.trim() : '';
+    const board = Array.isArray(game.board) ? game.board.filter(c => /^[2-9TJQKA][cdhs]$/i.test(c)).slice(0, 5) : [];
+    const actor = Number.isInteger(game.toAct) ? seats.find(seat => seat.seat === game.toAct) : null;
+    const action = game.street === 'complete' ? 'Hand complete'
+      : actor ? `${actor.seat === game.heroSeat ? name : actor.displayName ?? actor.name ?? 'Player'} to act`
+        : game.street === 'waiting' ? 'Waiting for a hand' : 'Hand in progress';
     return (
       <span className="home-tv__live" data-testid="home-tv-felt" data-street={game.street ?? 'none'}>
         <span className="home-tv__live-backdrop" />
-        {ring.map((seat, index) => {
-          const theta = (index / ring.length) * Math.PI * 2 - Math.PI / 2;
+        <span className="home-tv__caption">{[name, blinds].filter(Boolean).join(' · ')}</span>
+        <span className="home-tv__street">{game.street === 'complete' ? 'RESULT' : game.street ?? 'LIVE'}</span>
+        <span className="home-tv__pot">POT {game.home ? Math.round(Number(game.pot) || 0) : money(Math.round(Number(game.pot) || 0))}</span>
+        <span className="home-tv__cards" role="img" aria-label={`Board: ${board.length ? board.join(' ') : 'no community cards'}`}>
+          {board.map(c => <PlayingCard key={c} rank={c[0].toUpperCase()} suit={c[1].toLowerCase()} w={24} h={32}/>)}
+          {!board.length && <span className="home-tv__empty-board">No community cards</span>}
+        </span>
+        <span className="home-tv__footer">
+        <span className="home-tv__seats" aria-hidden>{ring.map(seat => {
           const isOwn = seat.seat === game.heroSeat;
           const look = identityOf({ ...seat, name: seat.displayName ?? seat.name,
             identity: seat.identity ?? (isOwn ? showing.identity : null) });
           return (
             <span key={seat.seat} className={`home-tv__ghost${isOwn ? ' is-own' : ''}`}
-              data-seat={seat.seat} aria-hidden
-              style={{ left: `${50 + Math.cos(theta) * 33}%`, top: `${50 + Math.sin(theta) * 34}%` }}>
+              data-seat={seat.seat}>
               <svg width="10" height="10" viewBox="0 0 80 80">
               <path d="M40 8 C58 8 70 20 70 38 L70 68 C70 76 62 75 58 79 C54 83 46 83 40 79 C34 83 26 83 22 79 C18 75 10 76 10 68 L10 38 C10 20 22 8 40 8Z"
                 fill={look.hood.top} stroke={isOwn ? '#00D4AAAA' : 'rgba(0,0,0,0.5)'} strokeWidth={isOwn ? 5 : 2} />
@@ -93,9 +105,9 @@ export function CasinoOnTv({ away = [] }) {
               </svg>
             </span>
           );
-        })}
-        {Number(game.pot) > 0 && <span className="home-tv__pot-dot" />}
-        <span className="home-tv__caption">{[name, blinds].filter(Boolean).join(' · ')}</span>
+        })}</span>
+        <span className="home-tv__action">{action}</span>
+        </span>
         <span className="home-tv__live-signal" aria-hidden />
       </span>
     );

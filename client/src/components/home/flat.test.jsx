@@ -96,9 +96,9 @@ describe('HOME-2 job 4 · what is on the walls', () => {
     expect(FLAT.safe).toEqual({ x: 16, y: 94, w: 60, h: 50 });
     expect(FLAT.fridge).toEqual({ x: 250, y: 94, w: 54, h: 86 });
     expect(FLAT.door).toEqual({ x: 356, y: 152, w: 34, h: 112 });
-    // The tape room is a band measured up from the floor, which is how the ref
-    // writes it: `y: F_H - 126`.
-    expect(FLAT.tv).toEqual({ x: 244, y: F_H - 126, w: 132, h: 112 });
+    // BUG-243 intentionally enlarges the TV under the founder's design
+    // override. The other furniture retains its reference coordinates.
+    expect(FLAT.tv).toEqual({ x: 180, y: F_H - 170, w: 196, h: 160 });
   });
 
   it('the door is cut INTO the right wall, not floating in the room', () => {

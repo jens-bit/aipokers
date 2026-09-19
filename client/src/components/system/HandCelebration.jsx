@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { play, withSoundGroup } from '../../lib/audio.js';
 import { pillName } from '../../lib/names.js';
 import { potAwards } from './PotAward.jsx';
+import { settledAwards } from '../../lib/settledAwards.js';
 import '../../styles/celebration.css';
 
 // C8, mood-agent2.jsx. Positions and colours come from AG_BURST; the board
@@ -14,8 +15,9 @@ export function handCelebration(game, heroSeat = 0) {
   if (!game?.result || game.street !== 'complete') return null;
   const winners = game.result.winners ?? [];
   const mine = winners.filter(w => w.seat === heroSeat);
-  const amount = mine.reduce((sum,w)=>sum+(Number(w.amount)||0),0);
-  const bb = game.bigBlind > 0 ? amount / game.bigBlind : null;
+  const award = settledAwards(game.result).awards.find(w => w.seat === heroSeat);
+  const amount = award ? award.amount : 0;
+  const bb = amount != null && game.bigBlind > 0 ? amount / game.bigBlind : null;
   const busted = (game.seats ?? []).flatMap((seat,index)=>
     index !== heroSeat && seat?.playerId && seat.stack === 0 && seat.contribTotal > 0
       && !winners.some(w=>w.seat===index && w.amount>0) ? [{seat:index,name:seat.displayName || `Seat ${index+1}`}] : []);

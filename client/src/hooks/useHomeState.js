@@ -232,12 +232,12 @@ export function useHomeState({
 
       if (msg?.type === ServerMsg.FLOOR_GAME) {
         setAgents(prev=>{
-          // The server emits one hero's delta per owner/table, even when two
-          // owned agents share it. Only the public table fields are shared;
+          // A hero's delta carries the same public table state for both owned
+          // seats when they share a table. Only public fields are shared;
           // each agent retains his own seat, session net and private REST data.
           const source=prev.find(a=>!a.guest&&String(a.id)===String(msg.agentId)&&a.liveGame?.tableId===msg.tableId);
           if(!source) return prev;
-          const delta=homeTablePreview({tableId:msg.tableId,street:msg.street,board:msg.board,pot:msg.pot,handNumber:msg.handNumber});
+          const delta=homeTablePreview({tableId:msg.tableId,street:msg.street,board:msg.board,pot:msg.pot,handNumber:msg.handNumber,toAct:msg.toAct});
           return prev.map(a=>{
             if(a.guest||a.liveGame?.tableId!==msg.tableId) return a;
             const before=a.liveGame;

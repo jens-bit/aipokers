@@ -136,11 +136,13 @@ jobs:
           HOME2_SHOT_DIR: home2-shots
         run: npm run test:home2
 
-      # Jens's four-agent playtest: the old suites never clicked the felt
-      # while a pending request enlarged an agent's invisible button over it.
-      - name: Railbird home playtest regression
+      # Layout is part of the release gate: the unit suite cannot measure
+      # hit targets, the short-phone room, TV/bubble clearance or Watch's dock.
+      # Includes Jens's original four-agent BUG-55 playtest and the restored
+      # BUG-232/233 assertions, with no retries masking a failure.
+      - name: Railbird Home, casino and Watch regressions
         working-directory: client
-        run: npx playwright test e2e/home.spec.js -g BUG-55
+        run: npx playwright test e2e/home.spec.js e2e/desk.spec.js e2e/floor-recovery.spec.js e2e/watch-repair.spec.js
 
       # Always: a red run is exactly when the pictures and the server log are
       # worth having.
@@ -157,6 +159,8 @@ jobs:
             smoke-shots/
             home2-shots/
             client/e2e/shots/railbird-home-four-*.png
+            client/test-results/
+            artifacts/recovery/
           if-no-files-found: warn
           retention-days: 14
 

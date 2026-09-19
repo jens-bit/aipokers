@@ -196,6 +196,78 @@ async function room(page, cast, viewport = VIEWPORT) {
   await page.waitForTimeout(600);
 }
 
+for (const viewport of [{ width: 390, height: 844 }, { width: 390, height: 590 }]) {
+  test(`BUG-243 / BUG-244: a readable live TV receives real turn changes at ${viewport.height}px`, async ({ page }) => {
+    const cast = { ...CASTS.household, agents: CASTS.household.agents.map(a => a.id !== 'a3' ? a : {
+      ...a, liveGame: { ...a.liveGame, heroSeat: 1, blinds: '25/50', toAct: 0, handNumber: 7,
+        seats: [{ displayName: 'Granite' }, { displayName: 'Big Slick' }] },
+    }) };
+    await room(page, cast, viewport);
+    const guide = page.getByRole('button', { name: /^skip$/i });
+    if (await guide.isVisible()) await guide.click();
+    const tv = page.getByTestId('home-tv');
+    const wall = page.getByTestId('home-frame-a3');
+    await expect(wall.locator('.home-frame__card')).toHaveCount(3);
+    await expect(wall.locator('.home-frame__card').first()).toHaveText('A♥');
+    await expect(wall.locator('.home-frame__action')).toHaveText('Granite to act');
+    await tv.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `../artifacts/home-tv-bug243-${viewport.height}.png` });
+    await expect(tv.locator('.home-tv__pot')).toHaveText('POT $480');
+    await expect(tv.locator('.home-tv__action')).toHaveText('Granite to act');
+    const cards = tv.locator('.home-tv__cards > div');
+    await expect(cards).toHaveCount(3);
+    expect((await cards.first().boundingBox()).width).toBeGreaterThanOrEqual(24);
+    const bounds = await tv.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+    const composerBand = await page.locator('.home-thread__band').boundingBox();
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(composerBand.y);
+    expect(await tv.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    })).toBe(true);
+    // The frame has to fit actual occupants, not just an empty-room screenshot.
+    for (const body of await page.locator('.home-one').all()) {
+      const b = await body.boundingBox();
+      if (b) expect(b.x < bounds.x + bounds.width && b.x + b.width > bounds.x && b.y < bounds.y + bounds.height && b.y + b.height > bounds.y).toBe(false);
+    }
+    await page.screenshot({ path: `../artifacts/home-tv-bug243-${viewport.height}.png` });
+    await page.evaluate(() => window.__homeSockets.forEach(socket => socket.dispatch('message', { data: JSON.stringify({
+      type: 'floor_game', agentId: 'a3', tableId: 't1', handNumber: 7, street: 'turn',
+      board: ['Ah','Kd','2c','9s'], pot: 720, toAct: 1,
+    }) })));
+    await expect(tv.locator('.home-tv__action')).toHaveText('Big Sl to act');
+    await expect(tv.locator('.home-tv__pot')).toHaveText('POT $720');
+    await expect(cards).toHaveCount(4);
+    // On a short phone, viewing the TV scrolls the wall monitor offscreen.
+    // AwayFrame deliberately pauses there; returning to it must show the
+    // newest real state as soon as its visibility observer resumes painting.
+    await wall.scrollIntoViewIfNeeded();
+    await expect(wall).toHaveAttribute('data-live', 'true');
+    await expect(wall.locator('.home-frame__card')).toHaveCount(4);
+    await expect(wall.locator('.home-frame__action')).toHaveText('Big Slick to act');
+  });
+}
+
+test('BUG-242: fridge effects have visible names and distinct semantic colors in each appearance', async ({ page }) => {
+  await room(page, CASTS.household);
+  const appearance = page.getByRole('combobox', { name: 'Home appearance' });
+  for (const theme of ['day','dusk','night']) {
+    await appearance.selectOption(theme);
+    await page.getByTestId('home-fridge').click();
+    const sheet = page.getByTestId('home-fridge-sheet');
+    await expect(sheet.getByText('Stamina', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Discipline', { exact: true })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Buy 1 beer' })).toBeEnabled();
+    const colors = await sheet.evaluate(el => ['stamina','heat','discipline'].map(stat => getComputedStyle(el.querySelector(`.fridge-stock__arrow--${stat}`)).color));
+    expect(new Set(colors).size).toBe(3);
+    await sheet.getByRole('button', { name: /^BEER:/ }).click();
+    await expect(sheet.locator('.fridge-stock__why')).toHaveText('Cools him down, but lowers discipline and increases bluffing next session.');
+    if (theme === 'day') await page.screenshot({ path: '../artifacts/fridge-bug242-390.png' });
+    await sheet.getByRole('button', { name: 'Close', exact: true }).last().click();
+  }
+});
+
 for (const viewport of [{ width: 320, height: 590 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]) {
   test('Home appearance: three readable palettes preserve the room at ' + viewport.width, async ({ page }) => {
     const errors = [];
@@ -598,19 +670,19 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
     await page.getByRole('button', { name: 'More actions' }).click();
     await expect(page.getByRole('button', { name: 'Send to a friend' })).toBeVisible();
   });
-  test('BUG-64: F13 renders stock and buys six from the safe', async ({ page }) => {
+  test('BUG-64: F13 renders stock and buys one from the safe', async ({ page }) => {
     await room(page, CASTS.alone);
     const bought = [];
-    await page.route('**/api/fridge/stock', r => { bought.push(r.request().postDataJSON()); return r.fulfill({ json: { qty: 6, fridge: { beer: 10, snack: 2 } } }); });
+    await page.route('**/api/fridge/stock', r => { bought.push(r.request().postDataJSON()); return r.fulfill({ json: { qty: 1, fridge: { beer: 5, snack: 2 } } }); });
     await page.getByTestId('home-fridge').click();
     const shelf = page.getByTestId('fridge-shelf-beer');
     await expect(shelf).toContainText('× 4');
     await expect(shelf).toContainText('$12 each');
     await expect(page.locator('.fridge-stock')).toHaveCSS('opacity', '1');
     await page.screenshot({ path: '../artifacts/fridge-f13.png' });
-    await shelf.getByRole('button', { name: 'Buy 6 beer' }).click();
-    await expect(shelf).toContainText('× 10');
-    expect(bought).toEqual([{ userId: '4242', item: 'beer', qty: 6 }]);
+    await shelf.getByRole('button', { name: 'Buy 1 beer' }).click();
+    await expect(shelf).toContainText('× 5');
+    expect(bought).toEqual([{ userId: '4242', item: 'beer', qty: 1 }]);
   });
   for (const [frame, companion] of [
     ['c1', agent('bal', 'Balanced v2.1', { nickname: 'Bal', mood: { state: 'confident', heat: 22 }, drinking: true, opener: 'Put me in.', pocket: { balance: 1200, cap: 5000 } })],
@@ -721,7 +793,7 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
   // filed for — the room reduced to a strip — not a separate defect, and the
   // assertion is kept VERBATIM rather than loosened, because y=0 is the whole
   // claim. Un-fixme it when BUG-232 lands.
-  test.fixme('BUG-232: the casino has one header and it sits at the top of the screen', async ({ page }) => {
+  test('BUG-232: the casino has one header and it sits at the top of the screen', async ({ page }) => {
     await room(page, CASTS.alone);
     await page.route('**/api/rooms', r => r.fulfill({ json: roomsResponse }));
     await page.route('**/api/rooms/*/tables', r => r.fulfill({ json: { tables: [] } }));
@@ -737,8 +809,9 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
   // had simply never run, because nothing gates this file. Un-fixme when
   // BUG-233 lands. Do NOT raise the 76 — the strip staying compact is the
   // whole claim.
-  test.fixme('BUG-233: the room conversation stays a compact strip with a round send control', async ({ page }) => {
+  test('BUG-233: the room conversation stays a compact strip with a round send control', async ({ page }) => {
     await room(page, CASTS.alone);
+    await page.screenshot({ path: '../artifacts/home-bug233-band.png' });
     const band = await page.locator('.home-thread__band').boundingBox();
     expect(band.height).toBeLessThanOrEqual(76);
     const send = await page.locator('.home-thread__send').boundingBox();

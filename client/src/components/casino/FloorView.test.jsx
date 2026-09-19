@@ -32,6 +32,16 @@ const room = (over = {}) => ({
 const agent = (id, name, over = {}) => ({ id, name, activeTableId: null, ...over });
 
 describe('CASINO-PLAY: the deploy panel keeps one stable position', () => {
+  it('BUG-236: companions still at home are not invented as bodies at the casino bar', () => {
+    render(<FloorView room={room()} felts={[felt()]} agents={[
+      agent('home', 'Homebody', { location: { where: 'home' } }),
+      agent('visitor', 'Visitor', { location: { where: 'visiting' } }),
+      agent('bar', 'Waiting', { location: { where: 'casino' } }),
+    ]} />);
+    const bar = document.querySelector('.csn-floor58__standing');
+    expect(bar.children).toHaveLength(1);
+    expect(bar.querySelector('[title="Waiting"]')).not.toBeNull();
+  });
   // It used to move from the empty room's own space into the rail the
   // instant the first felt arrived — a different parent in the tree, so
   // React unmounted and remounted it. An owner mid-tap on it when a table

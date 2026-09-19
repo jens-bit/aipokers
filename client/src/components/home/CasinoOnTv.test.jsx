@@ -32,6 +32,23 @@ beforeEach(() => {
   telegram.signIn();
 });
 
+it('BUG-243: the home television shows the public board, pot and acting player without private hands', () => {
+  const live = inHand('bal', 640, { name: 'Balanced', nickname: 'Bal',
+    liveGame: { tableId: 'real-table', street: 'flop', heroSeat: 1, heroHole: ['As','Ad'],
+      board: ['Ah','Kd','2c'], pot: 640, toAct: 0,
+      seats: [{ displayName: 'Granite' }, { displayName: 'Balanced' }] } });
+  const { container, rerender } = render(<CasinoOnTv away={[live]}/>);
+  expect(screen.getByLabelText('Board: Ah Kd 2c')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/holds As/)).not.toBeInTheDocument();
+  expect(screen.getByText('POT $640')).toBeInTheDocument();
+  expect(screen.getByText('Granite to act')).toBeInTheDocument();
+  expect(container.querySelectorAll('.home-tv__cards > div')).toHaveLength(3);
+  rerender(<CasinoOnTv away={[{ ...live, liveGame: { ...live.liveGame, street: 'complete', board: [], heroHole: null, toAct: null } }]}/>);
+  expect(container.querySelectorAll('.home-tv__cards > div')).toHaveLength(0);
+  expect(screen.getByText('Hand complete')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/holds As/)).not.toBeInTheDocument();
+});
+
 it('C7 selects a studied hand before another saved hand and live play before either',()=>{
   const learner={id:'a1',name:'Bal',study:{handNumber:badBeatHand.handNumber},sessionFlagged:[bigBluffHand,badBeatHand]};
   expect(tvProgramme([learner],[])).toMatchObject({kind:'tape',hand:badBeatHand});
@@ -58,12 +75,12 @@ describe('BUG-169: the authored live television', () => {
       ], ...over },
   });
 
-  it('BUG-169: draws each real seat in its saved hood and eyes with his seat at the top', () => {
+  it('BUG-169 / BUG-243: draws each real seat in its saved hood and eyes with his seat first', () => {
     const { container, rerender } = render(<CasinoOnTv away={[live()]} />);
     const own = container.querySelector('.home-tv__ghost.is-own');
     expect(container.querySelectorAll('.home-tv__ghost')).toHaveLength(2);
     expect(own).toHaveAttribute('data-seat', '1');
-    expect(own).toHaveStyle({ left: '50%', top: '16%' });
+    expect(container.querySelector('.home-tv__ghost')).toBe(own);
     expect(own.querySelector('path')).toHaveAttribute('fill', HOODS.find(h => h.id === 'sand').top);
     expect(own.querySelector('ellipse')).toHaveAttribute('fill', GLOWS.find(g => g.id === 'gold').c);
     expect(container.querySelector('[data-seat="0"] path')).toHaveAttribute('fill', HOODS.find(h => h.id === 'moss').top);
@@ -76,9 +93,11 @@ describe('BUG-169: the authored live television', () => {
     const { container } = render(<CasinoOnTv away={[live()]} />);
     expect(screen.getByText('Bal · 25/50')).toBeInTheDocument();
     expect(container.querySelector('.home-tv__live-signal')).toBeInTheDocument();
-    expect(container.querySelector('.home-tv__pot-dot')).toBeInTheDocument();
-    expect(container.querySelectorAll('.home-frame__card, .playing-card')).toHaveLength(0);
-    expect(container.textContent).not.toMatch(/As|Ad|640/);
+    // The founder explicitly replaced C7a's dots with a real public hand.
+    // Keep privacy asserted while requiring the actual board and numeric pot.
+    expect(screen.getByText('POT $640')).toBeInTheDocument();
+    expect(screen.getByLabelText('Board: Ah Kd 2c')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/As|Ad/);
   });
 
   it('BUG-169: unknown or empty seat lists never create demo occupants or an invented hero', () => {
@@ -117,7 +136,7 @@ describe('BUG-169: the authored live television', () => {
     expect(container.querySelector('.home-tv__ghost path')).toHaveAttribute('fill', '#33526B');
     rerender(<CasinoOnTv away={[{ ...second, liveGame: { ...second.liveGame, blinds: null, pot: 0 } }]} />);
     expect(container.querySelector('.home-tv__caption')).toHaveTextContent(/^River$/);
-    expect(container.querySelector('.home-tv__pot-dot')).toBeNull();
+    expect(screen.getByText('POT $0')).toBeInTheDocument();
   });
 });
 

@@ -563,7 +563,7 @@ export function SessionCeremony({
             "LOST · 41 HANDS" with no last hand in it was a scoreboard. */}
         {handLine && (
           <div className="watch-ceremony__hand" aria-label={handLine.line}>
-            <span className="watch-ceremony__hand-who">{handLine.who + ' took'}</span>
+            <span className="watch-ceremony__hand-who">{handLine.who + ' ' + (handLine.verb || 'took')}</span>
             <span className="watch-ceremony__hand-amt">{handLine.amount}</span>
             {handLine.tail
               ? <span className="watch-ceremony__hand-with">{handLine.tail}</span>
@@ -722,7 +722,9 @@ export function WatchFelt({
   // the flop itself just hadn't landed. `between` already fades the whole
   // row to nothing for the gap between hands; this is that same "there is no
   // board to see" reading for the gap before the flop.
-  var noBoardYet = live && community.length === 0;
+  // BUG-238: a fold before the flop is settled but still has no board.
+  var noBoardYet = !between && community.length === 0;
+  var rake = Number.isFinite(result?.rake?.total) ? Math.max(0, result.rake.total) : 0;
 
   var revealed = {};
   if (result && result.showdown) {
@@ -999,6 +1001,7 @@ export function WatchFelt({
         var slot = slots[i];
         return (
           <div key={i} className={'watch-felt__seat watch-felt__seat--' + slot + (celebration?.busted.some(b=>b.seat===o.seat) ? ' is-busted' : '')}
+            style={{ '--watch-seat-index': i, '--watch-seat-count': slots.length }}
             data-align={alignFor(slot)} data-watch-seat={o.seat}>
             {/* WATCH-10 job 1: on the felt his money IS his chips, and the
                 figure stands beside them (the pile, below). The boxed felt has
@@ -1118,6 +1121,7 @@ export function WatchFelt({
           states the pot ("WON 110 BB · $10,976"), so once the hand is
           settled the pill has nothing left to say that isn't said twice —
           ordinaryWin already drops it outright; majorWin now does too. */}
+      <div className="watch-felt__rake" aria-hidden={rake === 0}>{rake > 0 ? `Rake ${potMoney(rake)}` : null}</div>
       {!settled && (
         <div className="watch-felt__pot">
           <div className="watch-felt__pot-pill" ref={potRef}>
@@ -1172,9 +1176,9 @@ export function WatchFelt({
               and in what order. */}
           <div className={`watch-felt__won${majorWin || ordinaryWin ? ' is-celebrating' : ''}${ordinaryWin ? ' is-ordinary-win' : ''}${majorWin && celebration.busted.length ? ' is-busting' : ''}`}>
             <div className="watch-felt__won-pill" role={ordinaryWin ? 'group' : undefined} aria-label={ordinaryLabel || (handLine ? handLine.line : undefined)}>
-              {handLine && <span className="watch-felt__won-to">{winLabel || handLine.who + ' took'}</span>}
-              {(!ordinaryWin || ordinaryAmount != null) && <span className="watch-felt__won-amt">
-                {potMoney(ordinaryWin ? ordinaryAmount : majorWin ? celebration.amount : result.pot || 0)}
+              {handLine && <span className="watch-felt__won-to">{winLabel || handLine.who + ' ' + handLine.verb}</span>}
+              {(ordinaryWin ? ordinaryAmount != null : majorWin || handLine?.amount != null) && <span className="watch-felt__won-amt">
+                {ordinaryWin || majorWin ? potMoney(ordinaryWin ? ordinaryAmount : celebration.amount) : handLine.amount}
               </span>}
               {celebration?.shared && <span className="watch-felt__won-shared">SHARED POT</span>}
               {handLine && handLine.tail
@@ -2006,6 +2010,9 @@ export function WatchScreen({
   var [selectedSeat, setSelectedSeat] = useState(null);
   var [threadOpen, setThreadOpen] = useState(false);
   const [agentView, setAgentView] = useState('chat');
+  const [ceremonyDismissed, setCeremonyDismissed] = useState(false);
+  useEffect(() => { setCeremonyDismissed(false); }, [sessionId]);
+  useEffect(() => { if (!sessionEnd) setCeremonyDismissed(false); }, [sessionEnd]);
 
   var toggleSeat = useCallback(function(seat) {
     setThreadOpen(false);
@@ -2017,10 +2024,13 @@ export function WatchScreen({
 
   var openChat = useCallback(function(ctx) {
     if (onOpenThread && !privateChatInPlace) { onOpenThread(ctx || null); return; }
+    // BUG-247: opening the conversation is an explicit way out of the local
+    // ceremony. Keep the authoritative sessionEnd data for its context.
+    if (sessionEnd) setCeremonyDismissed(true);
     setAgentView(ctx?.view === 'stats' ? 'stats' : 'chat');
     setSelectedSeat(null);
     setThreadOpen(true);
-  }, [onOpenThread, privateChatInPlace]);
+  }, [onOpenThread, privateChatInPlace, sessionEnd]);
 
   // Opening the sheet is the moment the record has to be current; a reconnect
   // is the other one, and the hook owns both.
@@ -2086,7 +2096,9 @@ export function WatchScreen({
   // already receives today, and SESSION_END when SERVER-3 lands it. Either way
   // it arrives here as { reason, hands, finalStack, busted }, all optional.
   var ceremonyNode = null;
-  if (sessionEnd) {
+  // BUG-247: conversation temporarily replaces the ceremony. Closing any
+  // local thread restores its session-end choices, including human rebuy.
+  if (sessionEnd && !(ceremonyDismissed && threadOpen)) {
     var finalStack = Number.isFinite(sessionEnd.finalStack) ? sessionEnd.finalStack : heroStackNow;
     // A bust is a fact about his chips, so the screen can see it for itself when
     // the signal does not spell it out.
@@ -2137,6 +2149,7 @@ export function WatchScreen({
   }
 
   var overlay = null;
+  var agentPanel = null;
   if (selectedSeat != null) {
     overlay = (
       <ReadSheet
@@ -2146,7 +2159,7 @@ export function WatchScreen({
       />
     );
   } else if (threadOpen && privateChatInPlace && agentId) {
-    overlay = <WatchAgentSheet agent={privateAgent} name={agentName || 'Your agent'}
+    agentPanel = <WatchAgentSheet agent={privateAgent} name={agentName || 'Your agent'}
       seat={heroSeatRow} chat={agentThread} pending={agentLoading}
       view={agentView} onView={setAgentView} onClose={() => setThreadOpen(false)}/>;
   } else if (threadOpen) {
@@ -2194,7 +2207,7 @@ export function WatchScreen({
   }
 
   return (
-    <div className="watch-screen" ref={guideRoot}
+    <div className={`watch-screen${agentPanel && !ceremonyNode ? ' watch-screen--agent-open' : ''}`} ref={guideRoot}
       data-pace-lag={Number.isFinite(paceLag) ? Math.round(paceLag) : 0}>
 
       <WatchGuide rootRef={guideRoot} game={game} heroSeat={heroSeatIdx}
@@ -2234,7 +2247,7 @@ export function WatchScreen({
         agentFatigue={heroFatigueStage}
         cost={pinnedCost}
         whispers={whispers}
-        onTapHero={publicWatch ? () => toggleSeat(heroSeatIdx) : function() { openChat({ view: 'stats' }); }}
+        onTapHero={publicWatch ? () => toggleSeat(heroSeatIdx) : function() { openChat(); }}
         heroActionLabel={publicWatch && heroSeatRow ? 'Read ' + seatName(heroSeatIdx, game.seats) : privateChatInPlace ? 'View your agent at the table' : undefined}
         overlay={ceremonyNode ? null : overlay}
         toast={toastNode}
@@ -2246,6 +2259,8 @@ export function WatchScreen({
         bubbles={ceremonyNode ? [] : bubbles} ceremony={ceremonyNode} />
 
       <ActionNarrator game={game} mySeat={mySeat} flipped={faceUp} />
+
+      {!ceremonyNode && agentPanel}
 
       {seated ? (
         // SIT-1 · you are IN the hand, so there is nobody to whisper to. The
@@ -2263,6 +2278,7 @@ export function WatchScreen({
           key={agentId || 'no-agent'}
           onSend={sendToAgent}
           onOpenThread={function() { openChat(); }}
+          onCompose={function() { if (threadOpen && privateChatInPlace) setAgentView('chat'); }}
           agentName={agentName}
           // BUGS-A job 11: while he is answering, and at a table where there is
           // no agent of yours to answer. A composer that takes a line and drops

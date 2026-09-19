@@ -269,7 +269,9 @@ test.describe('WATCH-10 · density on the felt at 390×844', () => {
     await expect(page.locator('.watch-felt__won-amt')).toHaveText('$3,694');
     await expect(page.locator('.watch-felt__won-amt')).toHaveCSS('font-size','19px');
     await expect(page.locator('.watch-felt__won-amt')).toHaveCSS('font-weight','400');
-    await expect(page.locator('.watch-felt__won-to')).toHaveCSS('color','rgb(0, 212, 170)');
+    // Current default Sage appearance; the retired neon literal was not the
+    // palette this fixture actually boots.
+    await expect(page.locator('.watch-felt__won-to')).toHaveCSS('color','rgb(62, 99, 76)');
     await expect(page.locator('.watch-felt__won-pill')).toHaveAttribute('aria-label','The Clock won $3,694 with three kings');
     await expect(page.locator('.watch-felt__won-pill')).toHaveRole('group');
     await expect(page.locator('.watch-felt__won-pill')).toHaveAccessibleName('The Clock won $3,694 with three kings');
@@ -281,9 +283,12 @@ test.describe('WATCH-10 · density on the felt at 390×844', () => {
     const result=await page.locator('.watch-felt__won-pill').boundingBox();
     const board=await page.locator('.watch-felt__board').boundingBox();
     expect(result.y+result.height).toBeLessThanOrEqual(board.y);
-    // Keep the existing compact-height clamp and desktop stage scale. The
-    // standard phone is the reference's 96px; the 590px shell clamps to 72.875.
-    await expect(page.locator('.watch-felt__won')).toHaveCSS('top',viewport.height===590?'72.875px':'96px');
+    // BUG-218: settled awards now occupy the pot's own position, leaving the
+    // reserved rake caption clear. This replaces the old floating 96px card.
+    const feltBox = await page.locator('.watch-felt').boundingBox();
+    expect(result.y - feltBox.y).toBeCloseTo(feltBox.height * .3025, 0);
+    const rake = await page.locator('.watch-felt__rake').boundingBox();
+    expect(rake.y + rake.height).toBeLessThanOrEqual(result.y);
     await page.screenshot({path:`../artifacts/celebration-c8a-${viewport.width}x${viewport.height}.png`});
     const composer=page.getByRole('textbox').first();
     await expect(composer).toBeVisible();
@@ -311,6 +316,10 @@ test.describe('WATCH-10 · density on the felt at 390×844', () => {
       }
       await expect(page.getByTestId('hand-fireworks')).toHaveCount(0);
       const bust={...settled,handNumber:4,seats:settled.seats.map((s,i)=>i===2?{...s,stack:0}:s)};
+      // A cold completed hand intentionally never earns transient effects.
+      // Watch this hand while live before delivering its bust result.
+      await page.evaluate(game=>window.__pushWatchState({...game,handNumber:4}),TABLE);
+      await expect(page.locator('.watch-hero__strip')).toContainText('FLOP');
       await page.evaluate(game=>window.__pushWatchState(game),bust);
       await expect(page.locator('.hand-busted-name')).toHaveText('Granite');
       await expect(page.locator('.watch-felt__seat.is-busted .seat-ghost__chip')).toHaveCSS('visibility','hidden');
@@ -321,6 +330,8 @@ test.describe('WATCH-10 · density on the felt at 390×844', () => {
       await page.getByPlaceholder('Whisper to him…').fill('Nice hand.');
       expect((await page.getByPlaceholder('Whisper to him…').boundingBox()).y).toBeLessThan(viewport.height);
       await page.emulateMedia({reducedMotion:'reduce'});
+      await page.evaluate(game=>window.__pushWatchState({...game,handNumber:5}),TABLE);
+      await expect(page.locator('.watch-hero__strip')).toContainText('FLOP');
       await page.evaluate(game=>window.__pushWatchState({...game,handNumber:5}),bust);
       await expect(page.locator('.hand-fireworks__spark').first()).toHaveCSS('animation-name','none');
       expect(errors).toEqual([]);
@@ -510,7 +521,9 @@ for (const height of [844, 590]) test('AUDIT40 BUG-132/133: Watch whisper, compa
   expect(await page.locator('.watch-felt').boundingBox()).toEqual(feltBox);
   expect(await cards.boundingBox()).toEqual(cardsBox);
   await page.screenshot({ path: '../artifacts/watch40-' + height + '-read.png' });
-  expect(await page.locator('.watch-hero').evaluate(el => +getComputedStyle(el).zIndex), 'BUG-133: owned cards stay above the read glass').toBeGreaterThan(await page.locator('.read-sheet').evaluate(el => +getComputedStyle(el).zIndex));
+  // TABLE-2: an opponent's read is above every hero layer. The owned-agent
+  // conversation now has its own dock and does not cover his cards at all.
+  expect(await page.locator('.watch-hero').evaluate(el => +getComputedStyle(el).zIndex), 'TABLE-2: opponent read stays above owned cards').toBeLessThan(await page.locator('.read-sheet').evaluate(el => +getComputedStyle(el).zIndex));
   await expect(page.locator('.watch-hero__body > .mood-ghost')).toHaveCSS('opacity', '0.4');
   await expect(page.locator('.watch-felt__hero-card').first()).toHaveCSS('opacity', '1');
   if (height === 590) {
@@ -521,14 +534,14 @@ for (const height of [844, 590]) test('AUDIT40 BUG-132/133: Watch whisper, compa
     await page.locator('.read-sheet').evaluate(el => { el.scrollTop = 0; });
   }
   await page.getByRole('button', { name: 'Close read' }).click();
-  // Board42 C1 explicitly replaces 52d: tap him anywhere, including the felt,
-  // and get the full companion. Do not restore the older owner history sheet.
+  // BUG-241: owned conversation stays at the table in a dock, with his cards
+  // visible. Closing it restores the original felt and card geometry.
   await page.route('**/api/agents/*/flagged**', r => r.fulfill({ json: { flagged: [] } }));
   await page.getByRole('button', { name: 'Chat', exact: true }).click();
   await page.waitForTimeout(600);
-  await expect(page.locator('.agent-view')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'The Clock at the table' })).toBeVisible();
   await page.screenshot({ path: '../artifacts/watch40-' + height + '-companion.png' });
-  await page.getByRole('button', { name: 'Watch live game', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to table', exact: true }).click();
   await expect(page.locator('.watch-felt')).toBeVisible();
   expect(await page.locator('.watch-felt').boundingBox()).toEqual(feltBox);
 });

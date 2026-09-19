@@ -17,7 +17,7 @@ export function actionNarration(game, { mySeat = -1, flipped } = {}) {
   if (narrationSettled(game, flipped)) {
     const result = handResult(game.result, { seats:game.seats, community:game.community, money });
     if (!result) return null;
-    if (game.result.type === 'uncontested' && action?.type === 'fold') {
+    if (result.amount != null && game.result.type === 'uncontested' && action?.type === 'fold') {
       return `${seatName(action.seat, game.seats)} folds. ${result.amount} to ${result.who}.`;
     }
     return `${result.line}.`;

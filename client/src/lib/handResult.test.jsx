@@ -19,6 +19,23 @@ const seats = [
 const money = (n) => `$${Number(n).toLocaleString()}`;
 
 describe('BUGS-A job 12 · naming the hand that won', () => {
+  it('BUG-249: shared result sentences use the paid total from an unchanged gross wire result', () => {
+    const result = { type: 'showdown', pot: 12000,
+      winners: [{ seat: 1, amount: 12000, hand: 'three sixes' }], rake: { total: 60, bySeat: { 1: 60 } } };
+    const original = structuredClone(result);
+    expect(handResult(result, { seats, money })).toMatchObject({
+      amount: '$11,940', line: 'Granite took $11,940 with three sixes',
+    });
+    expect(result).toEqual(original);
+  });
+  it('BUG-249: shared side-pot sentences name each recipient once and subtract each cut once', () => {
+    const result = { pot: 2000,
+      winners: [{ seat: 0, amount: 600 }, { seat: 0, amount: 400 }, { seat: 1, amount: 1000 }],
+      rake: { total: 20, bySeat: { 0: 10, 1: 10 } } };
+    expect(handResult(result, { seats, money })).toMatchObject({
+      amount: '$1,980', verb: 'split', line: 'The Grinder and Granite split $1,980',
+    });
+  });
   it('names it off the cards the felt is already showing', () => {
     const line = handResult({
       type: 'showdown',

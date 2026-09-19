@@ -1,4 +1,15 @@
-.thread-sheet.watch-agent-sheet { top: min(calc(var(--wv-board, 37.5%) + 73px), max(0px, calc(100% - 200px))); height: auto; z-index: 11; padding: 8px 14px 12px; background: var(--bg-secondary); }
+.thread-sheet.watch-agent-sheet {
+  /* BUG-241: a dock below the hand, never a layer over his face or cards. */
+  position: relative;
+  inset: auto;
+  height: min(280px, 33%);
+  max-height: calc(var(--tg-h, 100dvh) / 3);
+  flex: 0 0 auto;
+  min-height: 0;
+  z-index: 6;
+  padding: 8px 14px 10px;
+  background: var(--bg-secondary);
+}
 .watch-agent-sheet__head { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .watch-agent-sheet__head > div { flex: 1; min-width: 0; }
 .watch-agent-sheet__head strong { display: block; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
@@ -13,6 +24,81 @@
 .dsk-panel--watch.is-conversation .thread-row__text { min-width: 0; overflow-wrap: anywhere; }
 .watch-agent-stats { color: var(--text-primary); font-size: 13px; }
 .watch-agent-stats__stack { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0 12px; }
+
+/* His face and full-size hole cards remain together above the dock. The
+   horizontal status row gives the shortened felt back its board space. */
+.watch-screen--agent-open .watch-hero {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 4px 10px;
+  bottom: 8px;
+}
+.watch-screen--agent-open .watch-hero__body {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 112px;
+  margin-bottom: 26px;
+}
+.watch-screen--agent-open .watch-hero__body > .mood-ghost { width: 72px; height: 72px; }
+.watch-screen--agent-open .watch-hero__hands { width: 72px; height: 72px; }
+.watch-screen--agent-open .watch-hero__tug { grid-column: 2; grid-row: 1; padding: 0; }
+.watch-screen--agent-open .watch-hero__strip { grid-column: 2; grid-row: 2; }
+.watch-screen--agent-open .watch-hero__says { display: none; }
+.watch-screen--agent-open .watch-felt__hero-stack { top: calc(var(--wv-board) + 48px); bottom: auto; }
+.watch-screen--agent-open .watch-felt__hero-stack .chip-stack { flex-direction: row; gap: 4px; }
+.watch-screen--agent-open .watch-felt__hero-stack .chip-stack__pile { display: none; }
+.watch-screen--agent-open .watch-felt__hero-stack .chip-stack__amt { font-size: 10px; line-height: 11px; }
+.watch-screen--agent-open .watch-felt__hero-stack .chip-stack__label { line-height: 11px; }
+.watch-screen--agent-open .watch-felt__hero-bet { bottom: 122px; justify-content: flex-end; padding-right: 16px; }
+.watch-screen--agent-open .watch-felt--fill { --wv-pot: 138px; --wv-board: 135px; }
+.watch-screen--agent-open .watch-felt__seat {
+  top: 8px;
+  left: calc((var(--watch-seat-index) + .5) * 100% / var(--watch-seat-count));
+  width: calc(100% / var(--watch-seat-count) - 4px);
+}
+.watch-screen--agent-open .seat-ghost { width: 100%; }
+.watch-screen--agent-open .seat-ghost__row { max-width: 100%; }
+.watch-screen--agent-open .seat-ghost__chip { padding-left: 4px; padding-right: 4px; }
+.watch-screen--agent-open .seat-ghost__sat { left: 0; right: auto; top: -38px; transform: none; }
+.watch-screen--agent-open .watch-felt__seat .watch-felt__seat-pile {
+  top: 64px;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  animation: none;
+}
+.watch-screen--agent-open .chip-stack.is-seat { display: grid; grid-template-columns: 11px auto; gap: 2px 3px; }
+.watch-screen--agent-open .chip-stack.is-seat .chip-stack__pile { grid-column: 1; grid-row: 1 / 3; }
+.watch-screen--agent-open .chip-stack.is-seat .chip-stack__label { grid-column: 2; grid-row: 1; }
+.watch-screen--agent-open .chip-stack.is-seat .chip-stack__amt { grid-column: 2; grid-row: 2; }
+.watch-screen--agent-open .watch-felt__seat .watch-felt__seat-bet {
+  top: 88px;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+  animation: none;
+}
+.watch-screen--agent-open .watch-felt__board { justify-content: flex-start; padding-left: 14px; gap: 4px; right: 50%; }
+.watch-screen--agent-open .watch-felt__card > div { width: 32px !important; height: 44px !important; }
+.watch-screen--agent-open .watch-felt__pot { left: 50%; right: 12px; }
+.watch-screen--agent-open .watch-felt__pot-pill { padding: 3px 10px; }
+.watch-screen--agent-open .watch-felt__pot-amt { font-size: 20px; }
+.watch-screen--agent-open .watch-felt__won.is-celebrating { left: 50%; right: 12px; }
+.watch-screen--agent-open .watch-felt__won.is-celebrating .watch-felt__won-pill { max-width: 100%; gap: 2px 6px; }
+.watch-screen--agent-open .watch-felt__won-with { max-width: 100%; }
+.watch-screen--agent-open .watch-felt__rake { left: 75%; width: 120px; }
+.watch-screen--agent-open .watch-felt__bubble { display: none; }
+@media (max-height: 700px) {
+  .watch-screen--agent-open .watch-agent-sheet { height: 160px; }
+  .watch-screen--agent-open .watch-agent-sheet__head small { display: none; }
+  .watch-screen--agent-open .watch-agent-sheet__head > .mood-ghost { display: none; }
+  .watch-screen--agent-open .watch-agent-sheet__views { margin: 2px 0 4px; }
+  .watch-screen--agent-open .watch-felt--fill { --wv-pot: 133px; --wv-board: 130px; }
+  .watch-screen--agent-open .watch-composer { padding-top: 8px; padding-bottom: 8px; }
+  .watch-screen--agent-open .watch-composer__hint { display: none; }
+}
 /* TABLE-2 job B: the four skills are the profile's own AttrCluster now, not
    a <dl> of bare figures — its rows come from agent-profile.css
    (.profile-overview__skills etc., imported by WatchAgentStats.jsx) and

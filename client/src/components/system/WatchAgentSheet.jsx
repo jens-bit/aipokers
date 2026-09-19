@@ -13,7 +13,7 @@ export function WatchAgentSheet({ agent, name, seat, chat, pending, view, onView
   const feed = useRef(null);
   useEffect(() => {
     const sheet = drag.ref.current;
-    const felt = sheet?.closest('.watch-felt');
+    const felt = sheet?.closest('.watch-screen')?.querySelector('.watch-felt') || sheet?.closest('.watch-felt');
     const opener = document.activeElement;
     const outside = event => {
       if (sheet.contains(event.target) || event.target.closest?.('button, a, input, textarea, select, [role="button"]')) return;
