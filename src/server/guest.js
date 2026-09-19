@@ -236,24 +236,10 @@ const isSecureRequest = (req) => req?.secure === true || String(req?.headers?.['
  * global cap of five guests a day for the whole site, which is not the limit
  * anybody meant.
  *
- * So the forwarded chain is read first, leftmost entry, which is the client
- * the proxy saw. That header is forgeable by a client talking to node
- * DIRECTLY, and the honest reading of this cap is therefore "a speed bump
- * against a browser and a script that has not thought about it", not a
- * security control. It is guarding play money and a policy-only agent; the
- * things that actually cost — every model call past the draft — are shut off
- * for a guest whether he made one account or fifty.
- *
- * Express's own `trust proxy` would do the same job, but it would also change
- * what rateLimit.js counts for every other route in the product, and a wider
- * blast radius is not something this tree is entitled to take.
- *
- * MONEY-1 job 4: the blast radius turned out to be the point. Every other
- * limiter wanted exactly this and none of them had it, which is why the safe
- * read came back 429 — see rateLimit.js, which now owns the function and makes
- * it the default key. Re-exported here so nothing that imports it from guest.js
- * has to move, and so the guest routes keep saying out loud which key they
- * count on.
+ * rateLimit.js accepts forwarding only from configured trusted proxies and
+ * walks right-to-left to the first untrusted sender (BUG-250). Direct clients
+ * cannot choose a new budget by forging a header. This IP limit supplements
+ * the guest capability restrictions; it does not authenticate an owner.
  */
 export { clientIp };
 

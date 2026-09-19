@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import { spokenOwnerReply } from './ownerReply.js';
+import { ownerCommand, commandQuestion, conversationMessages, unearnedActionReply, OWNER_MESSAGE_MAX } from './ownerCommands.js';
 // LIFE-1 job 2: three dots, not a bar. One definition of what half-empty
 // means, in src/shared/ so the screen and the server read it the same way.
 import { bodyLevels } from '../shared/levels.js';
@@ -2742,6 +2743,7 @@ export function floorSnapshot(userId, { owner = false } = {}) {
       unseenRecap: p.unseenRecap,
       proposal: p.proposal ? { text: p.proposal.text, basedOn: p.proposal.basedOn } : null,
       activeTableId: p.activeTableId ?? null,
+      ...(owner ? { ownerCommandRevision: p.ownerCommandRevision ?? 0 } : {}),
       liveGame: p.liveGame,
       // The state tag can recognize Home play without changing casino presence.
       homeTableId: p.homeTableId,
@@ -3871,9 +3873,11 @@ export const REST_ACKNOWLEDGEMENTS = Object.freeze({
 
 function benchForRest(agent, userId) {
   agent.restBench = { since: Date.now(), until: 'fresh' };
-  const table = agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null;
+  const table = liveTables?.tableOfAgent?.(agent.id) ?? liveTables?.homeTableOf?.(agent.id)
+    ?? (agent.activeTableId ? (liveTables?.getTable?.(agent.activeTableId) ?? null) : null);
   if (table) benchCutSeat(table, agent.id);
-  const stillSeated = !!agent.activeTableId && !!liveTables?.hasTable?.(agent.activeTableId);
+  const stillSeated = !!table && !table.closed && (typeof table.seatOfAgent === 'function'
+    ? table.seatOfAgent(agent.id) != null : !!table.agentIds?.includes(agent.id));
   agent.lastMoment = {
     text: stillSeated ? 'One more hand and I am out.' : (REST_ACKNOWLEDGEMENTS[agent.nature?.name] ?? 'Taking a short break.'),
     mood: agent.mood?.state ?? 'neutral',
@@ -4093,7 +4097,7 @@ HARD BREVITY LAW: every reply is exactly 1-2 short sentences, casual chat regist
 
 Small talk can be about life at home; do not turn every message into poker coaching. Do not default to "yo" or another stock greeting. Do not call the tables soft without evidence from the current game. Let your nature, your own memories and today's mood distinguish your reply from the other agents.
 
-Speak directly to your owner. Never claim that chat moved you, deployed you, bought anything or transferred chips. Those actions require the existing game controls; explain the control when relevant, without pretending it has been used.${lawsBlock}
+Speak directly to your owner. The server executes supported direct commands before a message reaches you; you cannot perform game actions. Never claim that chat moved you, deployed you, bought anything or transferred chips without an actual server receipt in the recent conversation. Never emit commands, tool calls or owner identifiers. Discuss existing facts; if asked for an unsupported action, say it has not happened.${lawsBlock}
 
 You already exist. Never ask what kind of poker agent to create. Mention hands or opponents only when the supplied facts support them; admit when you do not know.`;
 }
@@ -4143,23 +4147,6 @@ function unavailableOwnerReply(agent, content, table) {
     return { message: `I am ${ownerChatScene(agent, table).description}.`, unavailable: false };
   }
   return { message: 'I cannot answer that right now. Try me again in a moment.', unavailable: true };
-}
-
-// A few explicit requests get factual control guidance, never a side effect.
-// Whole-message matching keeps discussion of movement in ordinary conversation.
-function ownerControlReply(agent, content, table) {
-  const home = /^\s*(?:please\s+)?(?:go|come|head|return)(?:\s+back)?\s+home(?:\s+please)?\s*[.!?]*\s*$/i.test(content);
-  const casino = /^\s*(?:please\s+)?(?:go|head)(?:\s+back)?\s+to\s+(?:the\s+)?casino(?:\s+please)?\s*[.!?]*\s*$/i.test(content);
-  if (!home && !casino) return null;
-  if (agent.visiting) return 'I am visiting another home. Chat does not move me or end the visit.';
-  const scene = ownerChatScene(agent, table);
-  if (home) {
-    if (scene.atHome) return 'I am already home.';
-    return `Open my profile and choose "Call him in".${table?.inHand ? ' I will finish this hand first.' : ' That brings me home.'}`;
-  }
-  if (!scene.atHome) return 'I am already at the casino. Open my profile to see my current game.';
-  return table ? 'I am at the kitchen table. Use Deploy when I am free to choose my casino game.'
-    : 'Use Deploy to choose my casino game. Sending a message does not seat me.';
 }
 
 // BUGS-B/2: the felt, in the two or three lines he would actually have in his
@@ -4663,13 +4650,13 @@ function rosterFor(req, profile) {
  *
  * Returns the response body the chat route answers with.
  */
-export async function ownerChatTurn(existingAgent, userId, content) {
+export async function ownerChatTurn(existingAgent, userId, content, { commandScope = 'agent' } = {}) {
   ensureMood(existingAgent);
   // BUGS-B/2: if he is in a seat, this is a WHISPER. Same turn, same mood
   // bookkeeping, same ledger — but he is answering with a board in front of
-  // him, what you said goes into his thread addressed to him, and what he says
-  // back comes out as a bubble over his head rather than dying in an HTTP
-  // response nothing on the felt ever hears. Away from a table `table` is null
+  // him. Both halves enter his private thread and its owner-gated push; a
+  // reply may contain private cards or owner context and is never public
+  // table CHAT. Away from a table `table` is null
   // and every line below behaves exactly as it did.
   const table = whisperTableFor(existingAgent);
   const tableCtx = table ? table.whisperContext(existingAgent.id) : null;
@@ -4727,7 +4714,31 @@ export async function ownerChatTurn(existingAgent, userId, content) {
   }
 
   if (!Array.isArray(existingAgent.chatHistory)) existingAgent.chatHistory = [];
-  const recentChat = existingAgent.chatHistory.slice(-6);
+  const recentChat = conversationMessages(existingAgent.chatHistory, '').slice(0, -1);
+
+  // BUG-251: commands come only from this authenticated owner's direct text.
+  // A pending answer belongs to this agent, expires, and is consumed before
+  // execution; a later message can never replay its funding confirmation.
+  const command = ownerCommand(content, { pending: commandScope === 'agent' ? existingAgent.ownerCommand : null,
+    stakes: STAKES, agentName: existingAgent.name });
+  existingAgent.ownerCommand = null;
+  if (command) {
+    const outcome = commandScope === 'agent' ? await runOwnerCommand(existingAgent, userId, command)
+      : { status: 'clarification', message: 'Open my private conversation to give me that instruction, so it reaches only me.' };
+    if (outcome.pending) existingAgent.ownerCommand = outcome.pending;
+    existingAgent.ownerCommandRevision = Math.max(0, Number(existingAgent.ownerCommandRevision) || 0) + 1;
+    const msg = outcome.message;
+    existingAgent.chatHistory.push({ role: 'user', content }, { role: 'assistant', content: msg });
+    existingAgent.chatHistory = existingAgent.chatHistory.slice(-12);
+    noteShape(existingAgent, msg);
+    saveStore(userId);
+    emitAgentChange(userId);
+    // Wallet receipts and command clarifications belong only to this owner's
+    // saved conversation. Command receipts need no additional table line.
+    return { chat: [{ role: 'assistant', content: msg }], command: { kind: command.kind, status: outcome.status,
+      ...(outcome.receipt ? { receipt: outcome.receipt } : {}) },
+      agent: presentAgent(existingAgent, { owner: true, wallet: walletFor(userId) }), whisper: null };
+  }
 
   // RELATE-1b: "what do you think of me?" is answered from the ledger, by
   // template, with no model call. It is the one question where a generated
@@ -4753,17 +4764,17 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     };
   }
 
-  let reply = ownerControlReply(existingAgent, content, tableCtx);
+  let reply = null;
   if (!reply) {
     const systemText = buildAgentChatSystem(existingAgent, { pepTalk: pepResult, recentChat, table: tableCtx, said: content });
     try {
-      reply = await callClaude([{ role: 'user', content }], systemText, 100,
+      reply = await callClaude(conversationMessages(recentChat, content), systemText, 100,
         { ownerId: userId, kind: MeterKind.CHAT });
     } catch (err) {
       console.error('[agentProfiles] agent-chat error:', err.message);
     }
   }
-  const spoken = spokenOwnerReply(reply);
+  const spoken = unearnedActionReply(reply) ? '' : spokenOwnerReply(reply);
   // LIFE-1 job 5: grade what came back, against the same four laws the prompt
   // states, and repair it from the facts when it breaks one. Deterministic and
   // free — there is no second model call here, and the cost router is
@@ -4815,8 +4826,8 @@ export async function ownerChatTurn(existingAgent, userId, content) {
     // `npm run talk:eval` able to say WHY a line failed rather than only that
     // it did.
     ...(talkFaults.length ? { talkFaults } : {}),
-    // BUGS-B/2: where his answer landed, so a client can tell "he said it at
-    // the table" from "he said it in the thread". Null when he is not seated.
+    // BUGS-B/2: the seat context for this private conversation, or null when
+    // he is not seated. Delivery uses his owner-gated thread, not public CHAT.
     whisper: whisperView && seat !== null ? whisperView : null,
     pepTalk: pepResult.soothed ? { soothed: true, newState: pepResult.mood.state } : undefined,
     // MOOD-2b: what his mood did with what you said. `kind` is needle |
@@ -4825,6 +4836,109 @@ export async function ownerChatTurn(existingAgent, userId, content) {
             heat: said.mood?.heat ?? existingAgent.mood?.heat ?? null,
             moved: said.moved, kind: said.kind },
   };
+}
+
+// Action receipts, never generated speech, earn these acknowledgements. Each
+// verb reuses the same game service as its existing button and no model runs.
+async function runOwnerCommand(agent, userId, command) {
+  const refuse = message => ({ status: 'refused', message });
+  const question = q => ({ status: 'clarification', message: q.message, pending: q.pending });
+  if (command.kind === 'cancel') return { status: 'cancelled', message: 'Cancelled. I have not acted on that request.' };
+  if (command.kind === 'clarify') return question(command);
+  if (agent.visiting) return refuse('I am visiting another home. End the visit before moving me.');
+  const visiting = visitActionRefusal(agent);
+  if (visiting) return refuse(visiting.body?.message || visiting.body?.error || 'I am visiting another home. End the visit before moving me.');
+  if (agent.archived || agent.retiring) return refuse('I am retired or finishing my last session. That command cannot start a new activity.');
+
+  // The live seat is authoritative. Stored activeTableId can lag settlement or
+  // a reconnect, and a kitchen table is already at home.
+  const storedTable = agent.activeTableId ? liveTables?.getTable?.(agent.activeTableId) : null;
+  const actualCasino = liveTables?.tableOfAgent ? liveTables.tableOfAgent(agent.id)
+    : (storedTable && !storedTable.closed && !storedTable.home && storedTable.seatOfAgent?.(agent.id) != null ? storedTable : null);
+  if (actualCasino) { agent.activeTableId = actualCasino.tableId; agent.status = 'playing'; }
+
+  if (['deploy', 'fundDeploy', 'resumeDeploy'].includes(command.kind)) {
+    const stakes = STAKES.find(s => s.rung === command.rung);
+    if (!stakes) return question(commandQuestion('stakes', { stakes: STAKES }));
+    if (actualCasino) {
+      const label = `$${actualCasino.smallBlind}/$${actualCasino.bigBlind}`;
+      return { status: actualCasino.bigBlind === stakes.bigBlind ? 'done' : 'refused',
+        message: `I am already seated at ${label}. Finish this session before choosing another table.`,
+        receipt: { tableId: actualCasino.tableId, seated: true, funded: 0 } };
+    }
+    const pocket = ensurePocket(agent);
+    const needed = Math.max(0, stakes.buyIn - pocket.balance);
+    if (pocket.mode === 'cut' && command.kind !== 'resumeDeploy') {
+      return question(commandQuestion('resumeDeploy', { stakes: STAKES, rung: stakes.rung, amount: needed }));
+    }
+    let funded = 0;
+    if (command.kind === 'fundDeploy' || command.kind === 'resumeDeploy') {
+      const shortBy = Math.max(0, stakes.buyIn - ensurePocket(agent).balance);
+      if (shortBy > command.amount) return question(commandQuestion(command.kind, { stakes: STAKES, rung: stakes.rung, amount: shortBy }));
+      if (shortBy > 0) {
+        const out = performWantAction(agent, userId, { kind: 'fund', amount: shortBy, ownerCommand: true });
+        if (!out.ok) return refuse(out.refusal?.moment?.text || out.body?.message || out.body?.error || 'Your safe cannot cover that transfer.');
+        funded = out.body?.funded ?? 0;
+      }
+      if (command.kind === 'resumeDeploy' && pocket.mode === 'cut') {
+        walletFund(walletFor(userId), pocket, { mode: 'allowance', amount: 0, cap: pocket.cap });
+        pocket.recall = false;
+      }
+    }
+    const out = deployAgent(userId, agent.id, { body: { rung: stakes.rung } });
+    if (out.status !== 200) {
+      if (out.body?.error === 'cantAfford') {
+        const shortBy = Math.max(0, stakes.buyIn - ensurePocket(agent).balance);
+        if (shortBy > 0 && walletFor(userId).balance >= shortBy) {
+          return question(commandQuestion('fundDeploy', { stakes: STAKES, rung: stakes.rung, amount: shortBy }));
+        }
+        return { ...question(commandQuestion('stakes', { stakes: STAKES })),
+          message: `${out.body.message} Your safe cannot cover the difference. Choose cheaper stakes or cancel.` };
+      }
+      return refuse(`${funded ? `I received $${funded.toLocaleString('en-US')}, but ` : ''}${out.body?.message || out.body?.error || 'I could not take a seat.'}`);
+    }
+    // A registry-less legacy deploy records an intention only. Never describe
+    // it as an actual seat when no live table can confirm one.
+    const table = liveTables?.tableOfAgent?.(agent.id) ?? liveTables?.getTable?.(out.body.tableId);
+    const seated = table && table.seatOfAgent?.(agent.id) != null;
+    return { status: seated ? 'done' : 'pending',
+      message: `${funded ? `I took $${funded.toLocaleString('en-US')} from your safe. ` : ''}${seated ? `I am seated at ${stakes.label}.` : `The ${stakes.label} deployment is requested; I do not have a confirmed seat yet.`}`,
+      receipt: { tableId: out.body.tableId, rung: stakes.rung, funded, seated: !!seated } };
+  }
+
+  if (command.kind === 'home') {
+    const table = actualCasino;
+    if (!table) return { status: 'done', message: 'I am already home.' };
+    const pocket = ensurePocket(agent), wallet = walletFor(userId);
+    pocket.agentId = agent.id;
+    const called = walletCallIn(wallet, pocket, { table, agentId: agent.id, seated: true });
+    recordOwnerEvent(agent, 'cut', { holeCards: agent.recentHands?.[0]?.holeCards ?? [] });
+    if (called.moved > 0) recordCallInMoment(agent, called.moved);
+    mirrorBankroll(agent);
+    const pending = table.seatOfAgent?.(agent.id) != null;
+    return { status: pending ? 'pending' : 'done',
+      message: pending ? 'I am called in. I will finish the hand and bring the remaining chips home.' : 'I am out of the game and home.',
+      receipt: { collected: called.moved, pending } };
+  }
+
+  if (command.kind === 'study') {
+    const { beginStudy } = await import('./tapeRoom.js');
+    const out = beginStudy(agent.id, userId, { handId: command.handId });
+    return out.status === 200 ? { status: 'done', message: `I am studying hand ${out.body.study.handNumber}. I will have the read when the tape finishes.`,
+      receipt: { study: out.body.study } } : refuse(out.body?.error || 'I could not start studying.');
+  }
+
+  const want = command.kind === 'feed' ? { kind: command.item === 'beer' ? 'beer' : 'food', item: command.item }
+    : command.kind === 'fund' ? { kind: 'fund', amount: command.amount, ownerCommand: true } : { kind: 'rest' };
+  const out = performWantAction(agent, userId, want);
+  if (!out.ok) return refuse(out.refusal?.reason || out.body?.message || out.body?.error
+    || (out.refusal?.needs === 'stock' ? `The fridge has no ${command.item}. Stock it first, then ask me again.` : out.refusal?.moment?.text) || 'I could not do that.');
+  const message = command.kind === 'feed' ? `I had one ${command.item === 'beer' ? 'beer' : 'snack'} from the fridge.`
+    : command.kind === 'fund' ? `I took $${Number(out.body?.funded ?? 0).toLocaleString('en-US')} from your safe into my pocket.${ensurePocket(agent).mode === 'cut' ? ' I am still called in; this does not resume casino play.' : ''}`
+      : out.body?.pending ? 'I will finish this hand, then rest.' : 'I am resting now.';
+  return { status: out.body?.pending ? 'pending' : 'done', message,
+    receipt: { ...(command.kind === 'feed' ? { item: command.item } : {}),
+      ...(command.kind === 'fund' ? { funded: out.body?.funded ?? 0 } : {}), ...(out.body?.pending ? { pending: true } : {}) } };
 }
 
 /**
@@ -4963,13 +5077,14 @@ function performWantAction(agent, userId, want, { now = Date.now() } = {}) {
       const pocket = ensurePocket(agent);
       pocket.agentId = agent.id;
       const minBuyIn = (liveTables?.getDefaultBlinds?.()?.bigBlind ?? 20) * 100;
-      const shortBy = Math.max(0, minBuyIn - Math.max(0, Math.floor(Number(pocket.balance) || 0)));
+      const shortBy = Number.isSafeInteger(want.amount) && want.amount > 0 ? want.amount
+        : Math.max(0, minBuyIn - Math.max(0, Math.floor(Number(pocket.balance) || 0)));
       if (shortBy <= 0) {
         // He asked and the world answered while the screen was open. Not a
         // refusal — there is simply nothing left to do.
         return { ok: true, body: { funded: 0, pocket: pocketProjection(pocket) } };
       }
-      const funded = walletFund(wallet, pocket, { amount: shortBy });
+      const funded = walletFund(wallet, pocket, { amount: shortBy, ...(want.ownerCommand ? { cap: pocket.cap } : {}) });
       if (!funded.ok) {
         return { ok: false, refusal: {
           needs: 'fund',
@@ -4979,6 +5094,7 @@ function performWantAction(agent, userId, want, { now = Date.now() } = {}) {
         } };
       }
       appendLedger(agent, { ts: now, type: 'fund', amount: funded.moved, tableId: null });
+      if (want.ownerCommand) recordOwnerEvent(agent, 'funded', { amount: funded.moved });
       mirrorBankroll(agent);
       return {
         ok: true,
@@ -5642,6 +5758,7 @@ export function installAgentProfileRoutes(app) {
     if (mustClaimToTalk(userId)) return res.status(403).json(CLAIM_TO_TALK);
     const text = String(req.body?.text ?? req.body?.content ?? '').trim();
     if (!text) return res.status(400).json({ error: 'text required' });
+    if (text.length > OWNER_MESSAGE_MAX) return res.status(400).json({ error: `Please keep each message under ${OWNER_MESSAGE_MAX} characters.` });
 
     const profile = getOrCreate(userId);
     const sessionId = homeThreadIdFor(userId);
@@ -5707,7 +5824,7 @@ export function installAgentProfileRoutes(app) {
         emitTyping(userId, agent.id, sessionId);
         let body = null;
         try {
-          body = await ownerChatTurn(agent, userId, text);
+          body = await ownerChatTurn(agent, userId, text, { commandScope: 'room' });
         } catch (err) {
           console.error('[home] reply failed:', err.message);
           continue;
@@ -6780,18 +6897,19 @@ export function installAgentProfileRoutes(app) {
     res.json({ ok: true, ...draftProjection(profile).body });
   });
 
-  // POST /api/agents/chat — pure conversational reply, never generates an agent
+  // POST /api/agents/chat — owner conversation/commands or draft conversation; never generates an agent
   app.post('/api/agents/chat', chatLimiter, telegramAuthMiddleware, async (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const content = String(req.body?.content || '').trim();
     const existingAgentId = req.body?.existingAgentId ?? null;
     if (!content) return res.status(400).json({ error: 'content required' });
+    if (existingAgentId && content.length > OWNER_MESSAGE_MAX) return res.status(400).json({ error: `Please keep each message under ${OWNER_MESSAGE_MAX} characters.` });
 
     const profile = getOrCreate(userId);
 
     // ── Existing-agent owner chat ────────────────────────────────────────────
     // When the request comes from AgentChat (an already-built agent), use a
-    // stateless turn with an agent-specific system prompt. This avoids mixing
+    // bounded owner conversation with an agent-specific system prompt. This avoids mixing
     // creation-flow history into the conversation and prevents the model from
     // asking creation questions to the owner of an existing agent.
     const existingAgent = existingAgentId

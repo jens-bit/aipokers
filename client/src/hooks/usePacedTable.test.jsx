@@ -31,8 +31,8 @@ function snap(over = {}) {
 // can assert on the sequence a viewer would have seen rather than on internals.
 function harness() {
   const seen = [];
-  function Probe({ game, lastDecision, chatMessages }) {
-    const paced = usePacedTable({ game, lastDecision, paceFrame: null, chatMessages });
+  function Probe({ game, lastDecision, chatMessages, mySeat }) {
+    const paced = usePacedTable({ game, lastDecision, paceFrame: null, chatMessages, mySeat });
     seen.push(paced);
     return <div data-testid="lag">{paced.behindMs}</div>;
   }
@@ -42,6 +42,38 @@ function harness() {
 describe('W5-1: the paced stream', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
+
+  it('WATCH-MULTI-1: a compacted seat waits with its new hand instead of reinterpreting old cards', () => {
+    const { seen, Probe } = harness();
+    const first = snap({ tableId: 'a' });
+    const { rerender } = render(<Probe game={first} mySeat={2} />);
+    const folded = { ...first, seats: [first.seats[0], { folded: true, contribThisStreet: 0 }] };
+    rerender(<Probe game={folded} mySeat={2} />);
+    const next = snap({ tableId: 'a', handNumber: 2 });
+    rerender(<Probe game={next} mySeat={1} />);
+    expect(seen.at(-1).game).toBe(folded);
+    expect(seen.at(-1).mySeat).toBe(2);
+    act(() => vi.advanceTimersByTime(DWELL_MS.fold + 20));
+    expect(seen.at(-1).game).toBe(next);
+    expect(seen.at(-1).mySeat).toBe(1);
+  });
+
+  it('WATCH-MULTI-1: switching tables discards a held showdown even with equal hand numbers', () => {
+    const { seen, Probe } = harness();
+    const a = snap({ tableId: 'a', street: 'complete', result: { winners: [{ seat: 0 }] } });
+    const { rerender } = render(<Probe game={a} chatMessages={[{ text: 'A wins' }]} />);
+    const queued = snap({ tableId: 'a', handNumber: 2 });
+    rerender(<Probe game={queued} chatMessages={[{ text: 'A deals' }]} />);
+    const b = snap({ tableId: 'b', community: ['Qs', 'Qh', '2h'] });
+    const firstB = seen.length;
+    rerender(<Probe game={b} chatMessages={[{ text: 'B speaks' }]} />);
+    expect(seen.slice(firstB).every((frame) => frame.game === b)).toBe(true);
+    expect(seen.at(-1).chatMessages).toEqual([{ text: 'B speaks' }]);
+    act(() => vi.advanceTimersByTime(10000));
+    expect(seen.at(-1).game).toBe(b);
+    rerender(<Probe game={null} chatMessages={[]} />);
+    expect(seen.at(-1).game).toBeNull();
+  });
 
   it('shows the first snapshot immediately', () => {
     const { seen, Probe } = harness();

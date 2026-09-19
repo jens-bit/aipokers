@@ -21,6 +21,7 @@ import { NotYet } from '../components/ftu/NotYet.jsx';
 // is not on the felt yet, so there is nothing to hold a spinner over.
 const ReplayTheatre = lazy(() => import('../components/replay/ReplayTheatre.jsx').then((m) => ({ default: m.ReplayTheatre })));
 import { AgentView } from '../components/agent/AgentView.jsx';
+import { useCommandAgent } from '../lib/useCommandAgent.js';
 
 // ── Design tokens (verbatim from design refs) ─────────────────────────────
 const M_BG      = '#1A1A1E';
@@ -588,7 +589,8 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
 // top-right avatar (job 9). ChatsScreen below is still the composition of the
 // two and is still what the roster sheet's route resolves to; nothing on the
 // tab bar reaches its list half any more.
-export function AgentThread({ agent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange }) {
+export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange }) {
+  const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
   const userId   = getUserId();
   const accent   = accentFor(agent);
   const agState  = stateOf(agent);
@@ -719,6 +721,8 @@ export function AgentThread({ agent, onBack, onOpenProfile, companion = false, o
       const newAi = (Array.isArray(data?.chat) ? data.chat : []).filter((m) => m?.role === 'assistant').pop();
       if (typeof newAi?.content !== 'string' || !newAi.content.trim()) throw new Error('Chat reply missing');
       setChat((prev) => [...prev, mkMsg('assistant', newAi.content)]);
+      acceptCommand(data);
+      if (data.command && data.agent?.mood) { setLocalMood(moodOf(data.agent)); setLocalHeat(heatOf(data.agent)); }
       if (Number.isFinite(data.mood?.heat)) setLocalHeat(data.mood.heat);
       if (data.pepTalk?.soothed && data.pepTalk.newState) {
         setLocalMood(data.pepTalk.newState);

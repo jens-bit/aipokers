@@ -19,6 +19,16 @@ const entry = (type, amount, extra = {}) => ({
   id: `${type}-${amount}-${extra.ts ?? 0}`, type, amount, ts: NOW, ...extra,
 });
 
+it('BUG-201: pocket buy-ins and cash-outs explain table transfers without becoming safe income', () => {
+  const buyin = entry('buyin', -2000, { agentId: 'a1' });
+  const cashout = entry('cashout', 2400, { agentId: 'a1' });
+  expect(ledgerLine(buyin, nameOf)).toBe('Bluff bought in');
+  expect(ledgerLine(cashout, nameOf)).toBe('Bluff cashed out');
+  expect(ledgerLine(buyin, () => null)).toBe('Bought in at a table');
+  expect(ledgerLine(cashout, () => null)).toBe('Cashed out');
+  expect(tonightOf([buyin, cashout], { nameOf, now: NOW }).map(line => line.amount)).toEqual([0, 0, 0]);
+});
+
 describe('SAFE-2 — the night', () => {
   it('rolls at 04:00, so a session that crossed midnight is one night', () => {
     // 01:00 belongs to the night that started at 04:00 the day before.

@@ -45,6 +45,7 @@
 /* ── the panel ───────────────────────────────────────────────────────────── */
 
 .safe__panel {
+  --wal-panel-2: color-mix(in srgb, var(--text-primary) 4%, transparent);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -53,10 +54,10 @@
   overflow: hidden auto;
   -webkit-overflow-scrolling: touch;
   border-radius: 16px 16px 0 0;
-  border-top: 1px solid var(--glass-edge-up, color-mix(in srgb, var(--text-primary) 17%, transparent));
-  background: var(--glass-raised, color-mix(in srgb, var(--bg-secondary) 84%, transparent));
-  backdrop-filter: var(--glass-blur, blur(18px) saturate(1.2));
-  -webkit-backdrop-filter: var(--glass-blur, blur(18px) saturate(1.2));
+  border-top: 1px solid var(--v5-edge-up);
+  background: var(--v5-raised);
+  backdrop-filter: var(--v5-blur);
+  -webkit-backdrop-filter: var(--v5-blur);
   box-shadow: 0 -18px 44px rgba(0, 0, 0, 0.5);
   /* Over the scrim, and it has to be said out loud: base.css gives EVERY
      button `position: relative; z-index: 1`, and the scrim is a button. Left

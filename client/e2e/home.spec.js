@@ -2,20 +2,10 @@
 //
 // Five pictures of the room at 390×844, the size the Mini App actually opens at.
 //
-// WHY THIS IS NOT IN `npm test` OR IN CI, and why Playwright is not a dependency
-// of this repo:
-//
-//   * It is a LOOK check, not a rule check. Everything with a rule behind it —
-//     the routine ladder, the walks, the want flow, the thread, the money law —
-//     is asserted in HomeScreen.test.jsx under vitest, which runs in seconds and
-//     gates every commit. Screenshots gate nothing; they are for a person's
-//     eyes, and a screenshot diff in CI is a machine asking a person to look at
-//     a picture, every time a shadow moves.
-//   * Playwright plus a browser is a heavy install to put in every
-//     contributor's `npm ci` for a check nothing blocks on. It is run with
-//     `npx playwright test` from client/, which needs no entry in package.json
-//     (CLAUDE.md: no new npm dependencies without a stated reason — the reason
-//     for NOT adding one is this paragraph).
+// This file now includes behavior and hit-target regressions as well as
+// review captures. Its assertions run in the explicit browser CI gate;
+// screenshots remain artifacts for visual inspection. Root dependencies
+// provide Playwright, and client npm test continues to run Vitest.
 //
 // The five states are the brief's own: one agent alone, two home and one away,
 // a want, the thread open, the tape room. Each is served from a fixed fixture

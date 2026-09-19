@@ -1,5 +1,30 @@
 # Changelog — Railbird (formerly Agentic Poker)
 
+## Recovery follow-up — commands, table identity and economy (2026-09-19)
+
+On `codex/railbird-recovery-audit`, continuing the initial recovery commit.
+Watch keeps socket, table, selected agent, cards and paced seat identity
+together through rapid switches and late responses. Owner conversations can
+carry bounded commands through the real game actions, with explicit stakes
+and funding decisions and truthful pending/refusal receipts. House regulars
+have distinct public voices and bounded encounter memory without model calls.
+Private owner replies stay out of public chat and opponents' threads. The live
+conversation shows session net instead of treating its buy-in as a loss.
+
+A reproducible actual-House economy benchmark replaces unsupported progression
+assumptions and exposed an engine stall when a player went all-in posting a
+blind. The engine now refunds unmatched chips and runs out when no decision
+remains. Forwarded-IP rate limits trust only configured proxy hops. The safe
+labels buy-ins/cash-outs, uses shared glass, and its parked input/material
+checks are active. Home speech keeps its TV anchor and pending requests take
+precedence over introductory hints. Browser CI includes the repaired journeys.
+Entry stakes favor Ted on two-thirds of House selections; higher stakes retain
+the original mix, with rake and profiles unchanged. A lonely table's requeue
+preserves its chosen stakes instead of silently promoting a larger pocket.
+
+See `read-me-claude/RAILBIRD_RECOVERY_FOLLOWUP.md` for measurements, final gate
+results and the live-access checks that local testing cannot certify.
+
 ## Recovery review — casino, Watch and Home (2026-09-19)
 
 On `codex/railbird-recovery-audit`; not pushed or deployed. The review repairs

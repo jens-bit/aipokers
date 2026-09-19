@@ -12,6 +12,41 @@ beforeEach(() => {
 });
 const show = (props = {}) => render(<AgentThread agent={agent} companion onBack={() => {}} onDeploy={() => {}} onCarry={() => {}} onOpenProfile={() => {}} {...props} />);
 
+it('BUG-251: command receipt refreshes the actual seat and clears the fulfilled idle want', async () => {
+  const seated = { ...agent, activeTableId: 'live', location: { where: 'table', tableId: 'live' }, want: null,
+    liveGame: { tableId: 'live', smallBlind: 25, bigBlind: 50 }, pocket: { balance: 0 } };
+  fetchMock.route('/api/agents/chat', { chat: [{ role: 'assistant', content: 'I am seated at $25/$50.' }], command: { status: 'done' }, agent: seated });
+  show({ agent: { ...agent, want: { kind: 'deploy', text: 'Put me in now.' } }, onWatch: vi.fn() });
+  await userEvent.type(screen.getByPlaceholderText('Whisper to him…'), 'play 25/50');
+  await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+  expect(await screen.findByRole('button', { name: 'Watch live game' })).toBeInTheDocument();
+  expect(screen.queryByText('Put me in now.')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /deploy/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /watch.*25\/50/i })).toBeInTheDocument();
+});
+
+it('BUG-258: the live action row reports session net, not the outstanding buy-in as a loss', async () => {
+  const seated = { ...agent, activeTableId: 'live', location: { where: 'table' },
+    liveGame: { tableId: 'live', blinds: '25/50', net: 0, heroStack: 5000 },
+    pocket: { balance: 300, pnl: -5000 } };
+  const view = show({ agent: seated, onWatch: vi.fn() });
+  const row = await screen.findByRole('button', { name: /watch.*25\/50/i });
+  expect(row.querySelector('.agent-view__net')).toHaveTextContent('$0');
+  expect(row).not.toHaveTextContent('$5,000');
+  expect(row).not.toHaveTextContent('$300');
+  view.rerender(<AgentThread agent={{ ...seated, liveGame: { ...seated.liveGame, net: 340 } }} companion onWatch={() => {}} />);
+  expect(row.querySelector('.agent-view__net')).toHaveTextContent('+$340');
+  expect(row.querySelector('.agent-view__net--up')).toBeTruthy();
+});
+
+it('BUG-258: a missing live net stays unknown rather than falling back to pocket cashflow', async () => {
+  show({ agent: { ...agent, activeTableId: 'live', liveGame: { tableId: 'live', blinds: '25/50' },
+    pocket: { balance: 0, pnl: -5000 } }, onWatch: vi.fn() });
+  const row = await screen.findByRole('button', { name: /watch.*25\/50/i });
+  expect(row.querySelector('.agent-view__net')).toBeNull();
+  expect(row).not.toHaveTextContent('$5,000');
+});
+
 it('FIRST-CHAT-1: mobile restores a refused draft and shows an application error, then retries once', async () => {
   fetchMock.route('/api/agents/chat', { status: 503, body: {} });
   show();

@@ -1,7 +1,7 @@
 // Board 42 C1–C3: the companion above his conversation. Network chat stays in
 // AgentThread; money and wants use the same authenticated routes as Home.
 import { NotYet } from '../ftu/NotYet.jsx';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { ghostHands, SEAT_GRIP } from '../system/GhostHands.jsx';
 import { PlayingCard, parseCard } from '../system/PlayingCard.jsx';
@@ -52,9 +52,19 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
   const [fridgeOpen, setFridgeOpen] = useState(false);
   const [wallet, setWallet] = useState(null);
   const [pocketOverride, setPocketOverride] = useState(null);
+  useEffect(() => { setWant(agent.want ?? null); }, [agent.want]);
+  useEffect(() => { setPocketOverride(null); }, [agent.pocket]);
   const currentAgent = pocketOverride ? { ...agent, pocket: pocketOverride } : agent;
   const pocket = pocketOf(currentAgent);
   const live = !!(agent.activeTableId || agent.location?.tableId || agent.liveGame?.tableId);
+  // A buy-in leaves the pocket while its chips remain in the live seat.
+  // Only the table's session net measures what that seat has won or lost.
+  const displayedNet = live ? agent.liveGame?.net : pocket?.pnl;
+  const blinds = agent.liveGame?.blinds ?? agent.location?.blinds;
+  const smallBlind = agent.liveGame?.smallBlind ?? blinds?.small;
+  const bigBlind = agent.liveGame?.bigBlind ?? blinds?.big;
+  const liveStakes = Number.isFinite(smallBlind) && Number.isFinite(bigBlind) ? `${smallBlind}/${bigBlind}`
+    : typeof blinds === 'string' && /^\$?\d+\/\$?\d+$/.test(blinds) ? blinds.replaceAll('$', '') : 'Live game';
   const atHome = !agent.location?.where || agent.location.where === 'home';
   const lastLine = (desktop || chat.some(m => m.role === 'user')) ? [...chat].reverse().find(m => m.role === 'assistant' && !m.error)?.content : null;
   const face = size => <MoodGhost mood={mood} heat={heat} size={size} ring={false} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c} />;
@@ -128,17 +138,18 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
       </div>}
     </div>
     <div className="agent-view__actions">
-      <button type="button" className="agent-view__deploy" disabled={!onDeploy || live} onClick={() => onDeploy(currentAgent)}>
-        <b>DEPLOY</b>
+      <button type="button" className="agent-view__deploy" disabled={live ? !onWatch : !onDeploy} onClick={() => live ? onWatch(currentAgent) : onDeploy(currentAgent)}>
+        <b>{live ? 'WATCH' : 'DEPLOY'}</b>
         <span>
-          {stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}
+          {live ? liveStakes : <>{stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}</>}
           {/* UI-3 job C: his NET, not just his stack — a pocket and what he
               has actually made are two different numbers. A `title` alone is
               invisible on a phone (nothing to hover), so the word itself has
               to sit on the button, same as FundSheet's "his net" line. */}
-          {Number.isFinite(pocket?.pnl) && (
+          {Number.isFinite(displayedNet) && (
             <>
-              <b className={`agent-view__net agent-view__net--${pnlTone(pocket.pnl)}`}> {signedMoney(pocket.pnl)}</b>
+              {live ? ' · ' : null}
+              <b className={`agent-view__net agent-view__net--${pnlTone(displayedNet)}`}> {signedMoney(displayedNet)}</b>
               <small className="agent-view__net-label"> net</small>
             </>
           )}

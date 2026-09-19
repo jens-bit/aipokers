@@ -11,6 +11,7 @@ import { normalizeAttrs, recentEntries, seriesFor, toMillis, ATTR_KEYS } from '.
 import { heatOf, moodOf, homeGameOf } from '../floor/agentView.js';
 import { money } from '../../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
+import { useCommandAgent } from '../../lib/useCommandAgent.js';
 import '../../styles/agent.css';
 import '../../styles/agent-profile.css';
 
@@ -61,7 +62,8 @@ function RecentRow({ entry, row, explained, onExplain }) {
   </div>;
 }
 
-export function AgentProfileOverview({ agent, attrLog, actions, career, onBack, onWatch, onOpenChat, explained, onExplain, children, sendWhisper = null }) {
+export function AgentProfileOverview({ agent: suppliedAgent, attrLog, actions, career, onBack, onWatch, onOpenChat, explained, onExplain, children, sendWhisper = null }) {
+  const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
   const identity = identityOf(agent);
   const character = normalizeAttrs(agent);
   const [draft, setDraft] = useState('');
@@ -110,6 +112,7 @@ export function AgentProfileOverview({ agent, attrLog, actions, career, onBack, 
       const answer = (Array.isArray(data?.chat) ? data.chat : []).filter(m => m?.role === 'assistant').at(-1);
       if (typeof answer?.content !== 'string' || !answer.content.trim()) throw new Error('Whisper reply missing');
       setReply(answer.content);
+      acceptCommand(data);
       // The chat endpoint returns this answer, not the whole conversation.
       // Returning to Chat must keep the earlier thread and our sent message.
       setConversation(previous => [

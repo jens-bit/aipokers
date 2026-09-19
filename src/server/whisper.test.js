@@ -8,7 +8,7 @@
 //
 // Four rules, and this file is one test per rule:
 //
-//   1. He ANSWERS, and the answer comes back as a bubble at his seat.
+//   1. He ANSWERS in HTTP and his private seat history, never public CHAT.
 //   2. Both halves are written to his thread, ADDRESSED — you to him, him
 //      back to you.
 //   3. What you said is his alone. No other seat's sheet gets it.
@@ -112,7 +112,7 @@ test.after(() => {
 
 // ── 1. Something comes back ─────────────────────────────────────────────────
 
-test('BUGS-B/2: a whisper during a hand gets an answer, and it lands at his seat', async () => {
+test('BUG-257: a whisper during a hand gets an answer in his private seat history', async () => {
   assert.notEqual(heroSeat, null, 'he is in a seat');
   assert.ok(table.seatSessionIds[heroSeat], 'and the seat is a session, so it has a thread');
 
@@ -124,16 +124,16 @@ test('BUGS-B/2: a whisper during a hand gets an answer, and it lands at his seat
   assert.equal(typeof reply, 'string');
   assert.ok(reply.trim().length > 0, 'he said something back');
 
-  // The whole point: it came back as a BUBBLE, not only as an HTTP body.
+  // The response retains the seat context. Its text belongs to the owner,
+  // so the old public bubble expectation is replaced by a privacy assertion.
   assert.equal(body.whisper?.tableId, 'tbl-whisper');
   assert.equal(body.whisper?.seat, heroSeat);
 
   const bubbles = wire.filter((m) => m.type === ServerMsg.CHAT);
-  assert.equal(bubbles.length, 1, `one bubble, got ${JSON.stringify(wire.map((m) => m.type))}`);
-  assert.equal(bubbles[0].seat, heroSeat);
-  assert.equal(bubbles[0].isAI, true);
-  assert.equal(bubbles[0].text, reply);
-  assert.equal(bubbles[0].displayName, 'Granite');
+  assert.equal(bubbles.length, 0, `private replies cannot use CHAT: ${JSON.stringify(bubbles)}`);
+  const answer = hisThread().find(line => line.text === reply);
+  assert.equal(answer?.from, 'granite');
+  assert.equal(answer?.to, OWNER);
 });
 
 // ── 2. Both halves are written down, and both are addressed ─────────────────

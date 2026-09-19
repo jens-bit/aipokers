@@ -276,9 +276,11 @@ export function DesktopHome({
   // DSK2-3: a live tile is one gesture — subscribe if we are not already, and
   // put that table on the stage.
   const openTable = useCallback((agent) => {
-    if (watchedId !== agent.id) onWatchAgent(agent);
+    const targetTableId = agent.activeTableId || agent.liveGame?.tableId || agent.location?.tableId;
+    const currentTableId = tableConfig?.tableId ?? game?.tableId;
+    if (watchedId !== agent.id || currentTableId !== targetTableId) onWatchAgent(agent);
     setDeskTableId(agent.id);
-  }, [watchedId, onWatchAgent]);
+  }, [watchedId, tableConfig?.tableId, game?.tableId, onWatchAgent]);
 
   // DESK-3: the roster is a permanent column now, on every stage — there is no
   // "collapsed" or "hidden" form of it any more (that was FIX-2c's strip, and
@@ -389,6 +391,12 @@ export function DesktopHome({
   }
 
   if (deskAgent && !refusedBeforeSnapshot) {
+    const targetTableId = deskAgent.activeTableId || deskAgent.liveGame?.tableId || deskAgent.location?.tableId;
+    // Returning home ends the live target, not the table the owner is still
+    // reading. Keep its final result/thread until Back. A different live
+    // target still requires that table's snapshot before showing anything.
+    const selectedTableId = targetTableId || tableConfig?.tableId;
+    const selectedStream = watchedId === deskAgent.id && !!game && game.tableId === selectedTableId;
     return (
       <div className="dsk-root">
         {topBar}
@@ -404,12 +412,12 @@ export function DesktopHome({
           <DeskWatch
             agent={deskAgent}
             mySeat={mySeat}
-            game={watchedId === deskAgent.id ? game : null}
-            lastDecision={watchedId === deskAgent.id ? lastDecision : null}
+            game={selectedStream ? game : null}
+            lastDecision={selectedStream ? lastDecision : null}
             connection={connection}
             guideBlocked={!!tableError || connection === 'reconnecting'}
-            sessionEnd={sessionEnd}
-            threadLines={watchedId === deskAgent.id ? threadLines : null}
+            sessionEnd={selectedStream ? sessionEnd : null}
+            threadLines={selectedStream ? threadLines : null}
             draft={drafts[deskAgent.id] ?? ''}
             onDraftChange={setDraft}
             onBack={() => { setDeskTableId(null); onLeave?.(); }}

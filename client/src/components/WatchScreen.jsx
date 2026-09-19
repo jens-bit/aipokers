@@ -1738,6 +1738,7 @@ export function WatchScreen({
       var newAi = (Array.isArray(data?.chat) ? data.chat : []).filter(function(m) { return m?.role === 'assistant'; }).at(-1);
       if (typeof newAi?.content !== 'string' || !newAi.content.trim()) throw new Error('Whisper reply missing');
       setAgentThread(function(prev) { return prev.concat([{ role: 'assistant', content: newAi.content, t: Date.now() }]); });
+      if (data.command && data.agent?.id === agentId) setAgent(data.agent);
       return true;
     } catch {
       if (agentConversation.current !== token) return true;

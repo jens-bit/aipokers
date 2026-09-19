@@ -4,6 +4,18 @@ import { fetchMock, telegram } from '../../test/harness.js';
 import { useAgentThread } from './useAgentThread.js';
 
 const agent={id:'a1',name:'Balance',opener:'Sit down.',chatHistory:[{role:'user',content:'Why did you call?'},{role:'assistant',content:'It was the sizing.'}]};
+
+it.each(['sync', 'async'])('BUG-251: a %s refresh failure cannot erase a successful command receipt or invite retry', async kind => {
+  fetchMock.route('/api/agents/chat', { chat: [{ role: 'assistant', content: 'I took $500 from your safe.' }],
+    command: { status: 'done' }, agent: { ...agent, ownerCommandRevision: 1 } });
+  const onCommand = () => { if (kind === 'sync') throw new Error('Refresh failed'); return Promise.reject(new Error('Refresh failed')); };
+  const { result } = renderHook(() => useAgentThread(agent, { onCommand }));
+  await waitFor(() => expect(result.current.chat).toHaveLength(2));
+  await act(async () => { expect(await result.current.send('give me 500 chips')).toBe(true); });
+  expect(result.current.chat.at(-1).content).toBe('I took $500 from your safe.');
+  expect(result.current.error).toBe('');
+  expect(fetchMock.requestsMatching('/api/agents/chat')).toHaveLength(1);
+});
 beforeEach(()=>{telegram.signIn();fetchMock.route('/hands',{recentHands:[]});});
 it('FIRST-CHAT-1: malformed success is retryable but a saved unavailable reply remains a completed turn', async()=>{
   fetchMock.route('/api/agents/chat',{chat:[]});

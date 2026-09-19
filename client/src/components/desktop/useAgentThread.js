@@ -10,6 +10,7 @@
 // the draft must not.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../../lib/telegram.js';
+import { useCommandAgent } from '../../lib/useCommandAgent.js';
 
 // WIRE-1: the opener is HIS, and the server writes it — MOOD-2c puts it on the
 // agent as `opener`, chosen by how hot he is and by the one hand he cannot let
@@ -37,7 +38,8 @@ export function openerFor(agent) {
   return LAST_DITCH;
 }
 
-export function useAgentThread(agent) {
+export function useAgentThread(suppliedAgent, { onCommand } = {}) {
+  const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
   const userId = getUserId();
   const [chat, setChat] = useState([]);
   const [hasHands, setHasHands] = useState(false);
@@ -108,6 +110,12 @@ export function useAgentThread(agent) {
       const reply = (Array.isArray(data?.chat) ? data.chat : []).filter((m) => m?.role === 'assistant').pop();
       if (typeof reply?.content !== 'string' || !reply.content.trim()) throw new Error('Chat reply missing');
       setChat((prev) => [...prev, mkMsg('assistant', reply.content)]);
+      acceptCommand(data);
+      if (data.command && onCommand) {
+        // The action already succeeded. A failed background refresh must never
+        // erase its receipt or invite a second execution through Retry.
+        try { Promise.resolve(onCommand(data)).catch(() => {}); } catch { /* keep the confirmed receipt */ }
+      }
       if (data.pepTalk?.soothed && data.pepTalk.newState) {
         setMood(data.pepTalk.newState);
         setCause('feeling better');
@@ -126,7 +134,7 @@ export function useAgentThread(agent) {
         setSending(false);
       }
     }
-  }, [agentId, userId]);
+  }, [agentId, userId, suppliedAgent, onCommand]);
 
   const acceptProposal = useCallback(async (msgId) => {
     if (!agentId) return;
@@ -153,5 +161,5 @@ export function useAgentThread(agent) {
     }
   }, [agentId, userId]);
 
-  return { chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride: mood, causeOverride: cause };
+  return { agent, chat, hasHands, sending, accepting, send, acceptProposal, error, moodOverride: mood, causeOverride: cause };
 }

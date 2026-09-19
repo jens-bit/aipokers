@@ -89,6 +89,7 @@ import { chooseFromPolicy } from '../agent/policyPlay.js';
 // both are injected the same way: table.js supplies the facts and never the
 // prompt.
 import { writeHandTalk, BUBBLE_GAP_MS } from './handTalk.js';
+import { greetHouseTable, finishHouseHand, isHouseSpeaker, replyFromHouse } from './houseTableTalk.js';
 import { writeNightRecap } from './nightRecap.js';
 import { recordDecisionRoute } from './meter.js';
 import { estimateEquity } from '../engine/equity.js';
@@ -142,7 +143,7 @@ import { newSessionId, sessionEndRecord, sessionEndMessage } from './sessions.js
 import { seatedElsewhere, seatedElsewhereMessage } from './seating.js';
 import { appendLine as appendThreadLine, ThreadKind, ThreadCategory, ThreadSource, OWNER as THREAD_OWNER, ROOM as THREAD_ROOM } from './thread.js';
 import { homeSessionId } from './homeNight.js';
-import { canAffordTable } from './wallet.js';
+import { canAffordTable, STAKES } from './wallet.js';
 
 const HOUSE_FALLBACK_MS = 5000;
 
@@ -1023,7 +1024,7 @@ export class Table {
       agentProfile: profile,
       buyIn: stack,
     });
-    const house = pickComplementaryHouse(profile);
+    const house = pickComplementaryHouse(profile, { bigBlind: this.home ? null : this.bigBlind });
     this.seatAI({
       displayName:  house.displayName,
       strategy:     house.strategy,
@@ -1234,7 +1235,7 @@ export class Table {
       const opposing = this._survivingSeats()
         .map((seat) => this.agentProfiles[seat])
         .filter(Boolean);
-      const house = pickHouseRegular(opposing, this._seatedCastIds());
+      const house = pickHouseRegular(opposing, this._seatedCastIds(), { bigBlind: this.home ? null : this.bigBlind });
       if (!house) break;   // the whole cast is already at this felt
       try {
         this.seatAI({
@@ -1275,16 +1276,27 @@ export class Table {
    * is still pointing at a live table and closeTable is what clears that.
    */
   _closeAndRequeue() {
+    // BUG-256: a replacement table continues the same stakes. An omitted
+    // rung asks deploy for the highest affordable room, which can spend a
+    // much larger buy-in than the owner selected before this table stalled.
+    const stakes = STAKES.find((s) => s.smallBlind === this.smallBlind && s.bigBlind === this.bigBlind);
     const stranded = [];
     for (const seat of this._survivingSeats()) {
       if (this.agentIds[seat]) {
         stranded.push({ agentId: this.agentIds[seat], userId: this.agentUserIds[seat] });
       }
     }
-    this.closeTable(RECAP_LONELY, { recap: RECAP_LONELY });
+    const recap = stakes ? RECAP_LONELY : 'that table closed, so I came home';
+    this.closeTable(recap, { recap });
+    // Custom tables have no equivalent deploy rung. Return their chips home
+    // without inventing consent to another room.
+    if (!stakes) {
+      if (stranded.length) console.warn(`[table:${this.tableId}] unsupported re-queue stakes ${this.smallBlind}/${this.bigBlind}; players returned home`);
+      return;
+    }
     for (const who of stranded) {
       try {
-        const out = deployAgent(who.userId, who.agentId, { requeue: true });
+        const out = deployAgent(who.userId, who.agentId, { requeue: true, body: { rung: stakes.rung } });
         if (out.status === 200) {
           console.log(`[table:${this.tableId}] ${who.agentId} re-queued at ${out.body.tableId}`);
         } else {
@@ -1566,7 +1578,7 @@ export class Table {
       // profile and pick a complementary House shape so the table produces
       // action instead of a fold-fest.
       const opposingProfile = this.agentProfiles.find((p) => p) ?? null;
-      const house = pickComplementaryHouse(opposingProfile);
+      const house = pickComplementaryHouse(opposingProfile, { bigBlind: this.home ? null : this.bigBlind });
       console.log(`[table:${this.tableId}] scheduling ${house.displayName} (${house.castMember?.archetype ?? 'House'}) vs opponent T=${opposingProfile?.tightness ?? '?'}`);
       this.maybeAutoSeatAI({
         agentDisplayName: house.displayName,
@@ -2668,6 +2680,7 @@ export class Table {
     // AGENT-5 job G: and who is from his own flat, which since job E is a
     // thing that can happen at a casino table.
     for (let seat = 0; seat < this.maxSeats; seat++) this._maybeGreetHousemate(seat);
+    greetHouseTable(this);
     this._resetAiInactivityTimer();
     this._broadcastState();
     if (this.game.street === Streets.COMPLETE) this._handCompleted();
@@ -2949,6 +2962,7 @@ export class Table {
 
   _finishCompletedHand() {
     if (this.closed) return;
+    finishHouseHand(this, this.game?.result);
 
     // A departure or a bust only ends the TABLE when it can no longer be
     // dealt. With three or more agents seated, one leaving is just a seat
@@ -4707,6 +4721,15 @@ export class Table {
     if (typeof text !== 'string') return;
     const trimmed = text.trim().slice(0, 280);
     if (!trimmed) return;
+    // BUG-257: addressed owner replies can contain cards, instructions or
+    // personal context. Keep both whisperReply and owner-hand comments on
+    // the same private thread path; never copy them into another seat's
+    // history, public CHAT, or the public speech memory used by later talk.
+    if (to != null && to !== THREAD_ROOM) {
+      this._threadTo(seat, isAI ? ThreadKind.HIM : ThreadKind.YOU, isAI ? 'HIM' : 'YOU', trimmed,
+        { from, to, category: ThreadCategory.CHAT });
+      return;
+    }
     const displayName = this.pending[seat]?.displayName ?? `Seat ${seat}`;
     const entry = {
       seat,
@@ -4734,10 +4757,8 @@ export class Table {
     if (entry.isAI && this.aiSeats[seat] && this.pending[seat]) {
       this._lastPublicAiLine[seat] = trimmed;
     }
-    // An owner-addressed whisper reply is not room speech, even though the
-    // legacy table CHAT transport above also carries it. Never widen its
-    // audience to the casino floor or retain owner/thread metadata here.
-    if (this.pending[seat] && (to == null || to === THREAD_ROOM)) {
+    // Only public speech reaches the casino miniature.
+    if (this.pending[seat]) {
       this._recentFloorChat = {
         ...entry, seq: ++this._floorChatSeq, expiresAt: entry.timestamp + FLOOR_CHAT_MS,
         playerId: this.pending[seat].playerId,
@@ -4757,10 +4778,9 @@ export class Table {
   //   1. IT IS ADDRESSED. Owner → him, and him → owner. Every other line at a
   //      felt is said to the room and carries no from/to; these two carry
   //      both, which is what lets the sheet draw "YOU → GRANITE".
-  //   2. WHAT YOU SAID IS YOURS. The whisper itself is written into HIS thread
-  //      only — no other seat heard it, and no other seat's sheet gets it. His
-  //      ANSWER is out loud, so it goes on the wire as an ordinary CHAT bubble
-  //      over his head, exactly as his trash talk does.
+  //   2. BOTH HALVES ARE PRIVATE. The whisper and answer are written into HIS
+  //      thread only. Its owner-gated THREAD_LINE push delivers the reply;
+  //      neither half is public CHAT or another seat's history.
   //   3. IT NEVER BREAKS A HAND. Everything here is best-effort and returns
   //      null rather than throwing: a whisper that can wedge a table is worse
   //      than a whisper that goes unanswered.
@@ -4821,7 +4841,7 @@ export class Table {
   }
 
   /**
-   * His answer: a bubble over his head, and a HIM line addressed back to you.
+   * His answer: a private HIM line addressed back to you, pushed to his owner.
    * Returns the seat, or null.
    */
   whisperReply(agentId, text) {
@@ -4888,6 +4908,7 @@ export class Table {
       if (seat === fromSeat) continue;
       if (!this.aiSeats[seat] || !this.pending[seat]) continue;
       const cast = this.seatTalkLines?.[seat];
+      if (replyFromHouse(this, seat)) continue;
       if (Array.isArray(cast) && cast.length > 0) {
         this._speakOnce(seat, cast[Math.floor(Math.random() * cast.length)]);
         continue;
@@ -4925,6 +4946,9 @@ export class Table {
 
     for (let seat = 0; seat < this.maxSeats; seat++) {
       if (!this.aiSeats[seat] || !this.pending[seat]) continue;
+      // House regulars use public outcome dialogue after the paced award.
+      // They never enter the model writer or its private-equity triggers.
+      if (isHouseSpeaker(this, seat)) continue;
       if (!this._seatIsInGame(seat)) continue;
 
       const myDecisions = this.currentHandDecisions.filter((d) => d.seat === seat);
@@ -5663,7 +5687,7 @@ export class Table {
       // What they were for now happens once, at the end of the hand, in
       // _maybeSendAgentTalk, which can see the whole hand instead of one
       // action out of it.
-      if (decision.say) this._speakOnce(aiSeat, decision.say);
+      if (decision.say && !isHouseSpeaker(this, aiSeat)) this._speakOnce(aiSeat, decision.say);
       this._broadcastState();
       if (this.game.street === Streets.COMPLETE) this._handCompleted();
     } catch (err) {

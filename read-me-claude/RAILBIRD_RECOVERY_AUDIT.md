@@ -4,6 +4,11 @@ Review branch: `codex/railbird-recovery-audit`, from `19b34a4`.
 Status: regression repair batch complete and locally verified; ready for review.
 No push or deployment. Product gaps below remain open.
 
+The continuation, new findings and current release evidence are in
+[RAILBIRD_RECOVERY_FOLLOWUP.md](RAILBIRD_RECOVERY_FOLLOWUP.md). This file retains
+the initial `71bed13` audit and its gate results; its product-gap section is a
+historical snapshot, not the latest outstanding list.
+
 ## Authority and baseline
 
 Jens asked for an audit, cleanup, design ownership, and the complete pre-push

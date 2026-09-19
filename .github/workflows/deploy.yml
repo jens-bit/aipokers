@@ -142,7 +142,7 @@ jobs:
       # BUG-232/233 assertions, with no retries masking a failure.
       - name: Railbird Home, casino and Watch regressions
         working-directory: client
-        run: npx playwright test e2e/home.spec.js e2e/desk.spec.js e2e/floor-recovery.spec.js e2e/watch-repair.spec.js
+        run: npx playwright test e2e/home.spec.js e2e/desk.spec.js e2e/floor-recovery.spec.js e2e/watch-repair.spec.js e2e/watch-switch.spec.js e2e/roster-ink.spec.js e2e/home-pill.spec.js e2e/home-bubble-anatomy.spec.js e2e/owner-commands.spec.js
 
       # Always: a red run is exactly when the pictures and the server log are
       # worth having.

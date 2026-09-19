@@ -6,12 +6,21 @@ delete process.env.DEV_API_SECRET;
 
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import express from 'express';
 import { NATURES } from '../agent/attributes.js';
 import { deriveRoles } from '../agent/bio.js';
 import { saveProfile, loadProfile, _closeForTests } from './store.js';
 import { buildAgentChatSystem, installAgentProfileRoutes, setLiveTableProvider, reloadOwners, restAgent, ownerChatTurn, agentsOf } from './agentProfiles.js';
 import { idleCycle, ROUTINE_LABELS } from './home.js';
+
+// Safe even when run directly instead of through runScript's scratch cwd.
+const originalCwd = process.cwd();
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'railbird-owner-voice-'));
+_closeForTests();
+process.chdir(scratch);
 
 function character(nature = 'Rock', extra = {}) {
   return {
@@ -24,7 +33,11 @@ function character(nature = 'Rock', extra = {}) {
 }
 
 const emptyRegistry = { hasTable: () => false, getTable: () => null, homeTableOf: () => null };
-after(() => { setLiveTableProvider(null); _closeForTests(); });
+after(() => {
+  setLiveTableProvider(null); _closeForTests(); process.chdir(originalCwd);
+  assert.equal(path.dirname(path.resolve(scratch)), path.resolve(os.tmpdir()));
+  fs.rmSync(scratch, { recursive: true, force: true });
+});
 
 // LIFE-1 — the labels a nature's idle cycle can produce, as one alternation.
 // Written here rather than inlined three times so a cycle that gains a habit
@@ -33,7 +46,9 @@ function labelsFor(nature) {
   return [...new Set(idleCycle(nature).map((key) => ROUTINE_LABELS[key]))].join('|');
 }
 
-test('FIRST-CHAT-1: chat offers existing movement controls without calling a model or moving money or seats', async t => {
+// TALK-1 intentionally replaces FIRST-CHAT-1's guidance-only restriction:
+// commands now execute authenticated services, while clarification is free.
+test('BUG-251: movement clarification and call-in are factual and do not call a model', async t => {
   process.env.ANTHROPIC_API_KEY = 'test-must-not-call';
   t.after(() => { delete process.env.ANTHROPIC_API_KEY; setLiveTableProvider(null); });
   const network = t.mock.method(globalThis, 'fetch', () => { throw new Error('Movement guidance must not call a model'); });
@@ -41,23 +56,28 @@ test('FIRST-CHAT-1: chat offers existing movement controls without calling a mod
   const home = character();
   const balance = home.pocket.balance;
   assert.match((await ownerChatTurn(home, 'chat-guidance', 'go home')).chat[0].content, /already.*home/i);
-  assert.match((await ownerChatTurn(home, 'chat-guidance', 'Please go to the casino.')).chat[0].content, /Deploy/);
+  assert.equal((await ownerChatTurn(home, 'chat-guidance', 'Please go to the casino.')).command.status, 'clarification');
   assert.equal(home.pocket.balance, balance);
   assert.equal(home.activeTableId, null);
   const heard = [];
+  const cuts = [];
   const table = { tableId: 'casino', closed: false, seatOfAgent: () => 0,
+    agentIds: ['stone'], pending: [{ playerId: 'stone' }], sitOutSeat: (seat, opts) => cuts.push({ seat, opts }),
     whisperContext: () => ({ tableId: 'casino', inHand: true, blinds: '1/2', opponents: [] }),
     receiveWhisper: () => {}, whisperReply: (_, text) => { heard.push(text); return 0; } };
   setLiveTableProvider({ ...emptyRegistry, hasTable: () => true, getTable: () => table });
   const away = character('Rock', { activeTableId: 'casino' });
   const reply = await ownerChatTurn(away, 'chat-guidance', 'come home');
-  assert.match(reply.chat[0].content, /profile.*Call him in.*finish.*hand/i);
+  assert.match(reply.chat[0].content, /called in.*finish.*hand/i);
+  assert.deepEqual(cuts, [{ seat: 0, opts: { afterHand: true } }]);
   assert.equal(away.activeTableId, 'casino');
-  assert.equal(away.pocket.balance, balance);
-  assert.deepEqual(heard, [reply.chat[0].content]);
+  assert.equal(away.pocket.balance, 0);
+  assert.equal(away.pocket.recall, true);
+  assert.deepEqual(heard, [], 'private command receipts never broadcast to table chat');
   setLiveTableProvider(emptyRegistry);
   const visit = await ownerChatTurn(character('Rock', { visiting: { hostOwnerId: 'friend' } }), 'chat-guidance', 'go home');
-  assert.equal(visit.chat[0].content, 'I am visiting another home. Chat does not move me or end the visit.');
+  assert.equal(visit.command.status, 'refused');
+  assert.match(visit.chat[0].content, /visit/i);
   assert.equal(network.mock.callCount(), 0);
 });
 

@@ -17,11 +17,10 @@ import { useEffect, useRef, useState } from 'react';
 import { createQueue, pushFrame, advance, nextWaitMs } from '../lib/pace.js';
 
 /**
- * @param live    { game, lastDecision, paceFrame, chatMessages } off useTable
- * @param options { enabled } — false renders the live stream untouched, which
- *                is what a replay theatre (already paced by its own timeline)
- *                and the desktop rail want.
- * @returns the same four fields, delayed together, plus `behindMs` — how long
+ * @param live    { game, lastDecision, paceFrame, chatMessages, mySeat } off useTable
+ * @param options { enabled, streamKey } — enabled=false renders the stream untouched;
+ *                streamKey identifies the selected table and agent perspective.
+ * @returns the same fields, delayed together, plus `behindMs` — how long
  *          the frame now on screen waited before it was shown, which is how far
  *          behind the live table this viewer is. Zero for most of a hand, and
  *          it holds its value between releases rather than only being true at
@@ -34,8 +33,12 @@ export function usePacedTable(live, options) {
   const lastDecision = live ? live.lastDecision : null;
   const paceFrame    = live ? live.paceFrame : null;
   const chatMessages = live ? live.chatMessages : null;
+  const mySeat = live?.mySeat ?? null;
 
   const queueRef = useRef(null);
+  const identity = options?.streamKey ?? game?.tableId ?? null;
+  const identityRef = useRef(identity);
+  const hasGameRef = useRef(!!game);
   const timerRef = useRef(null);
   const [, force] = useState(0);
 
@@ -58,9 +61,15 @@ export function usePacedTable(live, options) {
     if (changed) force(function (n) { return n + 1; });
   };
 
-  if (queueRef.current === null) {
+  // A different table/POV is a new stream, even if its hand number is equal.
+  // Reset before rendering so the first paint cannot combine old cards with
+  // the new owner's seat/config. A disconnect also drops every queued frame.
+  if (queueRef.current === null || identityRef.current !== identity || hasGameRef.current !== !!game) {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    identityRef.current = identity;
+    hasGameRef.current = !!game;
     queueRef.current = createQueue(
-      { game: game, lastDecision: lastDecision, paceFrame: paceFrame, chatMessages: chatMessages },
+      { game, lastDecision, paceFrame, chatMessages, mySeat },
       Date.now(),
     );
   }
@@ -68,10 +77,10 @@ export function usePacedTable(live, options) {
   useEffect(function () {
     if (!enabled) return;
     pushFrame(queueRef.current, {
-      game: game, lastDecision: lastDecision, paceFrame: paceFrame, chatMessages: chatMessages,
+      game, lastDecision, paceFrame, chatMessages, mySeat,
     }, Date.now());
     pumpRef.current();
-  }, [game, lastDecision, paceFrame, chatMessages, enabled]);
+  }, [game, lastDecision, paceFrame, chatMessages, mySeat, enabled]);
 
   useEffect(function () {
     return function () { if (timerRef.current) clearTimeout(timerRef.current); };
@@ -80,7 +89,7 @@ export function usePacedTable(live, options) {
   if (!enabled) {
     return {
       game: game, lastDecision: lastDecision, paceFrame: paceFrame,
-      chatMessages: chatMessages, behindMs: 0,
+      chatMessages: chatMessages, mySeat, behindMs: 0,
     };
   }
 
@@ -90,6 +99,7 @@ export function usePacedTable(live, options) {
     lastDecision: shown.lastDecision != null ? shown.lastDecision : null,
     paceFrame: shown.paceFrame != null ? shown.paceFrame : null,
     chatMessages: shown.chatMessages != null ? shown.chatMessages : null,
+    mySeat: shown.mySeat ?? null,
     behindMs: queueRef.current.waitedMs,
   };
 }

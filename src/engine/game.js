@@ -331,6 +331,11 @@ export class Game {
   _streetComplete() {
     const active = this.seats.filter((s) => !s.folded);
     if (active.length <= 1) return true;
+    // BUG-254: posting a short blind can exhaust the only opponent. Once
+    // the sole live stack already covers the bet, nobody has a decision left
+    // to make. Close the street so excess is refunded before the runout.
+    const canAct = active.filter((s) => !s.allIn);
+    if (canAct.length === 1 && canAct[0].contribThisStreet >= this.currentBet) return true;
     for (const s of active) {
       if (s.allIn) continue;
       if (!s.actedThisStreet) return false;

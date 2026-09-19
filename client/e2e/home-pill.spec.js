@@ -4,14 +4,14 @@ import { mkdir } from 'node:fs/promises';
 // BUG-166: rendered Home pills, not an imitation of the component. API/socket
 // fixtures keep this visual check local and preserve served resource values.
 const agents = [
-  ['Balanced', 'Bal', 'ash', 'teal', 14],
-  ['Professor', 'Prof', 'indigo', 'violet', 58],
-  ['Wild Card', 'Wild C', 'moss', 'lime', 81],
-  ['Loose Cannon', 'Loose', 'oxblood', 'ember', 30],
-].map(([name, nickname, hood, glow, heat], index) => ({
+  ['Balanced', 'Bal', 'ash', 'teal', 14, 1],
+  ['Professor', 'Prof', 'indigo', 'violet', 58, 2],
+  ['Wild Card', 'Wild C', 'moss', 'lime', 81, 3],
+  ['Loose Cannon', 'Loose', 'oxblood', 'ember', 30, 1],
+].map(([name, nickname, hood, glow, heat, heatDots], index) => ({
   id: `pill-${index}`, name, nickname, identity: { hood, glow },
   style: 'Balanced', risk: 'Medium', nature: { name: 'Rock' },
-  mood: { state: 'neutral', heat }, fatigue: 'fresh',
+  mood: { state: 'neutral', heat }, fatigue: 'fresh', heatDots,
   location: { where: 'home', tableId: null, room: null, since: 1700000000000 },
   routine: { key: 'plays', label: 'in a hand' },
   unseenRecap: false, want: index === 3 ? {
@@ -69,7 +69,7 @@ async function room(page) {
 }
 
 for (const height of [844, 590]) {
-  test(`BUG-166: neutral compact Home names preserve identities, bars and taps at 390x${height}`, async ({page}) => {
+  test(`BUG-166: neutral compact Home names preserve identities, readings and taps at 390x${height}`, async ({page}) => {
     await page.setViewportSize({width: 390, height});
     await room(page);
     const boxes = [];
@@ -77,13 +77,24 @@ for (const height of [844, 590]) {
       const body = page.locator(`.home-one[data-agent="${agent.id}"]`);
       const pill = body.locator('.home-pill');
       const name = pill.locator('.home-pill__name');
-      await expect(name).toHaveCSS('color', 'rgb(237, 237, 237)');
+      const primary = await pill.evaluate(element => {
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--text-primary)';
+        element.append(probe);
+        const color = getComputedStyle(probe).color;
+        probe.remove();
+        return color;
+      });
+      await expect(name).toHaveCSS('color', primary);
       await expect(name).toHaveCSS('font-size', '8.5px');
       expect((await name.textContent()).length).toBeLessThanOrEqual(6);
       await expect(body.locator('.mood-ghost')).toHaveAttribute('data-hood', agent.identity.hood);
-      await expect(pill.locator('[data-bar="stamina"]')).toHaveCSS('width', '44px');
-      await expect(pill.locator('[data-bar="stamina"] i')).toHaveAttribute('style', /width: 100%/);
-      await expect(pill.locator('[data-bar="heat"] i')).toHaveAttribute('style', new RegExp(`width: ${agent.mood.heat}%`));
+      // LIFE-1-B replaced percentage bars with three-state readings. Keep
+      // exact served-resource checks on the current product's dot vocabulary.
+      await expect(pill.locator('[data-bar="stamina"] .body-dots__dot')).toHaveCount(3);
+      await expect(pill.locator('[data-bar="stamina"] [data-lit="true"]')).toHaveCount(3);
+      await expect(pill.locator('[data-bar="heat"] .body-dots__dot')).toHaveCount(3);
+      await expect(pill.locator('[data-bar="heat"] [data-lit="true"]')).toHaveCount(agent.heatDots);
       const p = await pill.boundingBox(), n = await name.boundingBox();
       expect(n.x).toBeGreaterThanOrEqual(p.x);
       expect(n.x + n.width).toBeLessThanOrEqual(p.x + p.width);

@@ -992,6 +992,16 @@ export function saveHouseBank(balance) {
   metaSet(conn(), 'house_bank', Math.floor(Number(balance) || 0));
 }
 
+// VILLAIN-1: bounded public encounter notes, owned by houseDialogue.js.
+// This is separate from private agent memory and the poker opponent model.
+export function loadHouseDialogueMemory() {
+  return jsonParse(metaGet(conn(), 'house_dialogue_memory'), []);
+}
+
+export function saveHouseDialogueMemory(rows) {
+  metaSet(conn(), 'house_dialogue_memory', JSON.stringify(rows));
+}
+
 // SEED-1: one-time seed of every owner's wallet from the per-agent bankrolls
 // that existed before this feature. The rule and its justification are in
 // docs/WALLET_DESIGN.md; seedOwner() in wallet.js is the rule itself, kept

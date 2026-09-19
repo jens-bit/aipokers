@@ -680,6 +680,9 @@ button.home-flat__table:active { filter: brightness(1.12); }
 .home-one--shuffles .home-prop--cards { animation: home-shuffle 1.6s ease-in-out var(--home-idle-phase, 0ms) infinite; }
 .home-one--counts .home-prop--chips { animation: home-count 2.2s ease-in-out var(--home-idle-phase, 0ms) infinite; }
 .home-one--tape .home-one__body { animation: home-lean 4s ease-in-out var(--home-idle-phase, 0ms) infinite; }
+/* The side bubble shares the resting anchor. Hold the student's 3px idle
+   lean while he speaks so his head cannot drift away from its tail. */
+.home-one--tape.is-speaking .home-one__body { animation: none; }
 
 /* ── The pill, ABOVE the head (Jens's correction) ─────────────────────────── */
 

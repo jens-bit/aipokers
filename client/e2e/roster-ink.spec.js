@@ -16,12 +16,28 @@ async function openRoster(page){
   await expect(page.locator('.roster__row')).toHaveCount(2);
   await page.evaluate(()=>document.fonts.ready);
 }
+
+// APPEARANCE-1 replaced fixed teal with shared palettes. Resolve the intended
+// semantic color in the browser so this also protects non-default themes.
+async function tokenColor(page, token) {
+  return page.locator('.roster__panel').evaluate((panel, name) => {
+    const probe = document.createElement('span');
+    probe.style.color = `var(${name})`;
+    panel.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  }, token);
+}
 test.describe('BUG-171: C5 readable muted roster text',()=>{
   test.use({viewport:{width:390,height:844}});
   for(const [label,selector] of [['whereabouts','.roster__where'],['count','.roster__count'],['unknown result','.roster__result:not(.is-up):not(.is-down)']]){
     test(`${label} uses the current C5 M_MUTED text color`,async({page})=>{
       await openRoster(page);
-      for(const node of await page.locator(selector).all()) await expect(node).toHaveCSS('color','rgb(158, 158, 162)');
+      const nodes = page.locator(selector);
+      expect(await nodes.count()).toBeGreaterThan(0);
+      const color = await tokenColor(page, '--text-muted');
+      for(const node of await nodes.all()) await expect(node).toHaveCSS('color', color);
     });
   }
   test('keeps factual money, status colors and navigation intact',async({page})=>{
@@ -30,7 +46,7 @@ test.describe('BUG-171: C5 readable muted roster text',()=>{
     await expect(sheet).toContainText('2 agents · 1 live');
     await expect(sheet).toContainText('+$95');
     await expect(sheet).toContainText('$2,000');
-    await expect(sheet.locator('.roster__result.is-up')).toHaveCSS('color','rgb(0, 212, 170)');
+    await expect(sheet.locator('.roster__result.is-up')).toHaveCSS('color', await tokenColor(page, '--accent'));
     for(const row of await sheet.locator('.roster__row').all()){
       const box=await row.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);expect(box.height).toBeLessThanOrEqual(64);
     }

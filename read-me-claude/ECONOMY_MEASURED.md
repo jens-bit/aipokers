@@ -1,5 +1,13 @@
 # ECONOMY_MEASURED.md — the four assumed numbers, replaced with real ones
 
+> **Historical report; corrected on 19 September 2026.** The long-term model
+> below assumes chair purchase costs and promotion rules that differ from the
+> shipped game. Its 100% household-collapse claim is not a validated forecast.
+> The original simulator also uses a synthetic initial opponent and incompletely
+> seeded decisions. See [the recovery benchmark](ECONOMY_RECOVERY_BENCHMARK.md)
+> for reproducible real-House comparisons, current progression rules and limits.
+> The original text remains here as an audit record.
+
 ECON-1, 2026-09-16, on `chore/econ-1` (branched from `origin/main`, worktree at
 `C:\Projects\ai-poker-tableview`). This is a measurement job — nothing in `src/`
 or `client/` changed. `data/arena/` is gitignored everywhere except this

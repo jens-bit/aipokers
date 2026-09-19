@@ -1,9 +1,8 @@
 // client/playwright.config.js — HOME-1
 //
-// Visual checks only, and deliberately outside `npm test` and outside CI. See
-// the header of e2e/home.spec.js for why: everything with a rule behind it is
-// asserted in vitest, and Playwright is not a dependency of this repo — it is
-// run with `npx playwright test` when somebody wants to LOOK at the room.
+// Browser behavior, geometry and review captures. The explicit recovery spec
+// list in .github/workflows/deploy.yml gates CI; npm test remains Vitest.
+// Playwright is installed through the root development dependencies.
 //
 //   cd client && npx playwright test
 //
@@ -14,8 +13,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  // A picture is not a gate: a flake here must never be read as a failure of
-  // the product, so there are no retries dressing one up as a pass.
+  // Failures stay visible; retries must not turn intermittent defects green.
   retries: 0,
   workers: 1,
   reporter: [['list']],

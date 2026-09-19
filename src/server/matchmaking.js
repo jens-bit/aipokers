@@ -91,8 +91,8 @@ export const HOUSE_PROFILE = HOUSE_TAG.profile;
 // Pick the House cast member whose archetype best complements the agents already
 // at the table. Returns a house descriptor with display-ready fields plus the
 // stable id and full castMember reference for table plumbing.
-export function pickComplementaryHouse(opposing) {
-  const member = pickCastMember(opposing);
+export function pickComplementaryHouse(opposing, options = {}) {
+  const member = pickCastMember(opposing, options);
   return {
     displayName: member.name,
     strategy:    member.strategy,
@@ -107,8 +107,8 @@ export function pickComplementaryHouse(opposing) {
 // BUGS-B/1: the same descriptor for a table that is filling EMPTY seats rather
 // than seating one opponent. `exclude` is the cast ids already sitting there.
 // Returns null when the whole cast is at the felt already.
-export function pickHouseRegular(opposing, exclude = []) {
-  const member = pickCastMemberExcluding(opposing, exclude);
+export function pickHouseRegular(opposing, exclude = [], options = {}) {
+  const member = pickCastMemberExcluding(opposing, exclude, options);
   if (!member) return null;
   return {
     displayName: member.name,

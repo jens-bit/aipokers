@@ -141,6 +141,66 @@ describe('W3-6 useTable handles PACE', () => {
     vi.stubGlobal('WebSocket', ListenerSocket);
   });
 
+  it('WATCH-MULTI-1: retired sockets cannot change a new table or start a reconnect', () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+      const old = connectWatching(result);
+      act(() => result.current.watch({ tableId: 'table-b', agentId: 'agent-b' }));
+      const current = lastSocket();
+      const b = { ...STATE, tableId: 'table-b', community: ['2h', '3h', '4h'], seats: [{ playerId: 'agent-b', holeCards: ['Qs', 'Qh'] }] };
+      act(() => {
+        current.open();
+        current.emit({ type: 'watching', tableId: 'table-b', spectatorSeat: 1 });
+        current.emit({ type: 'state', state: b });
+        old.emit({ type: 'state', state: STATE });
+        old.emit({ type: 'decision', seat: 0, reasoning: 'old table' });
+        old.emit({ type: 'pace', pace: 'showdown', board: ['As'] });
+        old.emit({ type: 'chat', text: 'old chat', seat: 0 });
+        old.emit({ type: 'watching', spectatorSeat: 0 });
+        old._fire('close', { code: 1006 });
+        old.open();
+      });
+      expect(result.current.game.tableId).toBe('table-b');
+      expect(result.current.game.community).toEqual(b.community);
+      expect(result.current.game.seats[0].holeCards).toEqual(['Qs', 'Qh']);
+      expect(result.current.mySeat).toBe(1);
+      expect(result.current.lastDecision).toBeNull();
+      expect(result.current.paceFrame).toBeNull();
+      expect(result.current.chatMessages).toEqual([]);
+      expect(old.sent).toHaveLength(1);
+      act(() => vi.advanceTimersByTime(20000));
+      expect(sockets).toHaveLength(2);
+      expect(result.current.status).toBe('playing');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('WATCH-MULTI-1: a current socket rejects explicit frames for another table', () => {
+    const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+    const ws = connectWatching(result);
+    act(() => {
+      ws.emit({ type: 'state', state: { ...STATE, tableId: 'wrong-table', community: ['As'] } });
+      ws.emit({ type: 'pace', tableId: 'wrong-table', pace: 'showdown', board: ['As'] });
+    });
+    expect(result.current.game.tableId).toBe('tbl-pace');
+    expect(result.current.game.community).toEqual(STATE.community);
+    expect(result.current.paceFrame).toBeNull();
+  });
+
+  it('WATCH-MULTI-1: leaving then watching again retains network reconnection', () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
+      connectWatching(result);
+      act(() => result.current.disconnect());
+      const ws = connectWatching(result);
+      act(() => ws._fire('close', { code: 1006 }));
+      expect(result.current.status).toBe('reconnecting');
+      act(() => vi.advanceTimersByTime(1100));
+      expect(sockets).toHaveLength(3);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('BUG-141: a queued human sees the public hand, then follows their compacted seat into the next deal', () => {
     const { result } = renderHook(() => useTable({ wsUrl: WS_URL }));
     act(() => { result.current.connect({ tableId: 'tbl-pace', displayName: 'YOU', buyIn: 2000 }); });
@@ -280,7 +340,10 @@ describe('W3-6 useTable handles PACE', () => {
     act(() => { ws.emit({ type: 'state', state: { ...STATE, street: 'complete', community: RUNOUT[0].board }, legalActions: [] }); });
     expect(result.current.paceFrame).toEqual(heldFrame);
     expect(result.current.game.paceFrame).toEqual(heldFrame);
-    act(() => { ws.emit({ type: 'state', state: { ...STATE, tableId: 'another-table' }, legalActions: [] }); });
+    // A real selection opens a new socket. Unsolicited cross-table frames
+    // on the old socket are rejected by WATCH-MULTI-1.
+    act(() => result.current.watch({ tableId: 'another-table' }));
+    act(() => { lastSocket().open(); lastSocket().emit({ type: 'state', state: { ...STATE, tableId: 'another-table' }, legalActions: [] }); });
     expect(result.current.paceFrame).toBeNull();
     expect(result.current.game.paceFrame).toBeNull();
   });

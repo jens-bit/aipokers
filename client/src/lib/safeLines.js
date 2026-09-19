@@ -90,6 +90,10 @@ export function ledgerLine(entry, nameOf) {
     }
     case 'seed':
       return 'Opening balance';
+    case 'buyin':
+      return who ? `${who} bought in` : 'Bought in at a table';
+    case 'cashout':
+      return who ? `${who} cashed out` : 'Cashed out';
     default:
       return 'Adjustment';
   }

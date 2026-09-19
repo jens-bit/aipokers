@@ -124,10 +124,53 @@ describe('DesktopHome roster', () => {
     const liveAgent = { ...playingAgent, location: { where: 'table', tableId: playingAgent.liveGame.tableId, room: 'floor' } };
     fetchMock.route('/api/agents', { agents: [liveAgent, restingAgent] });
     const watch = vi.fn();
-    renderHome({ onWatchAgent: watch, isWatching: true, watchingAgent: playingAgent });
+    renderHome({ onWatchAgent: watch, isWatching: true, watchingAgent: playingAgent, tableConfig: { tableId: playingAgent.liveGame.tableId } });
     await userEvent.click(await screen.findByTestId('home-tv'));
     expect(watch).not.toHaveBeenCalled();
     expect(await screen.findByTestId('desk-casino-table')).toHaveAccessibleName(`${playingAgent.name} at the table`);
+  });
+
+  it('WATCH-MULTI-1: an agent who moved tables needs a new subscription and cannot show the old pot', async () => {
+    const agent = { ...playingAgent, activeTableId: 'new-table', liveGame: { ...playingAgent.liveGame, tableId: 'new-table' },
+      location: { where: 'table', tableId: 'new-table', room: 'floor' } };
+    fetchMock.route('/api/agents', { agents: [agent] });
+    const watch = vi.fn();
+    renderHome({ onWatchAgent: watch, isWatching: true, watchingAgent: agent,
+      tableConfig: { tableId: 'old-table' }, game: { ...midHandGame, tableId: 'old-table', pot: 999777 } });
+    fireEvent.click(await screen.findByTestId('home-tv'));
+    expect(watch).toHaveBeenCalledWith(expect.objectContaining({ id: agent.id, activeTableId: 'new-table' }));
+    const felt = await screen.findByTestId('desk-casino-table');
+    expect(felt).not.toHaveTextContent('999,777');
+  });
+
+  it('WATCH-MULTI-1: returning home preserves the selected table result and hand log until Back', async () => {
+    const agent = { ...playingAgent, location: { where: 'table', tableId: midHandGame.tableId, room: 'floor' } };
+    fetchMock.route('/api/agents', { agents: [agent] });
+    fetchMock.route('/thread?', { lines: [] });
+    const finalGame = { ...midHandGame, street: 'complete', toAct: null, sessionId: 'ended-session',
+      result: { type: 'uncontested', winners: [{ seat: 0, amount: 100 }], deltas: [40, -20, -20] } };
+    const leave = vi.fn();
+    renderHome({ isWatching: true, watchingAgent: agent, tableConfig: { tableId: finalGame.tableId },
+      game: finalGame, mySeat: 0, connection: 'closed', sessionEnd: { reason: 'Session complete' }, onLeave: leave,
+      threadLines: [{ id: 'last-result', kind: 'table', category: 'result', sessionId: 'ended-session',
+        text: 'The last pot was yours.', ts: 1234 }] });
+    fireEvent.click(await screen.findByTestId('home-tv'));
+    expect(screen.getByTestId('desk-casino-table').querySelector('.action-narrator'))
+      .toHaveTextContent('The Grinder took $100 uncontested.');
+    fireEvent.click(screen.getByRole('button', { name: 'Hand log', exact: true }));
+    expect(await screen.findByText('The last pot was yours.')).toBeInTheDocument();
+
+    fetchMock.route('/api/agents', { agents: [{ ...agent, status: 'idle', presence: 'resting',
+      activeTableId: null, liveGame: null, location: { where: 'home', tableId: null, room: null } }] });
+    fireEvent(window, new Event('focus'));
+    await waitFor(() => expect(rosterRow(agent.name).querySelector('.dsk-roster-place')).toHaveTextContent('at home'));
+    expect(screen.getByTestId('desk-casino-table').querySelector('.action-narrator'))
+      .toHaveTextContent('The Grinder took $100 uncontested.');
+    expect(screen.getByText('The last pot was yours.')).toBeInTheDocument();
+    expect(leave).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }));
+    expect(await screen.findByTestId('home-tv')).toBeInTheDocument();
+    expect(leave).toHaveBeenCalledOnce();
   });
 
   it('BUG-157: desktop does not offer a first agent or claim an empty flat during the initial roster read', async () => {

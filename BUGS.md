@@ -1,5 +1,101 @@
 # Bug Report — Railbird
 
+## Recovery follow-up — 2026-09-19
+
+Current evidence: `read-me-claude/RAILBIRD_RECOVERY_FOLLOWUP.md` on
+`codex/railbird-recovery-audit`. The initial recovery and older reports below
+remain historical records.
+
+### BUG-257 — private owner replies broadcast as public table speech — FIXED in review
+Owner-addressed replies previously entered CHAT, opponent threads and public
+repeat memory. Route addressed lines only to the speaking agent's private
+thread and authenticated owner delivery. Signed real HTTP/WATCH coverage
+verifies the owner receives the reply while other owners, forged selections
+and anonymous watchers do not. Deliberate room speech remains public.
+
+### BUG-258 — seated chat action row labels a buy-in as a loss — FIXED in review
+Pocket cashflow drops by the buy-in even though those chips remain in the seat.
+The Watch action now shows the authoritative live session net and omits pocket
+cash from its seat summary. Missing live net stays unknown. Failure-first
+component tests and real-backend phone/desktop journeys verify $0 net directly
+after a $5,000 buy-in.
+
+### TALK-1 / BUG-251 — conversation cannot execute owner requests — FIXED in review
+Direct owner text selects bounded commands through existing authenticated game
+services. Stakes, funding and resuming a called-in agent require explicit
+choices; generated replies cannot execute actions. Funding preserves the
+existing pocket mode/cap, and live seats determine return/rest behavior.
+Private receipts refresh conversation controls with an owner-only command
+revision. Real-route tests cover ownership, stale seats and replayed answers;
+phone and desktop browser journeys verify funding, actual seating and return.
+
+### VILLAIN-1 / BUG-252 — House regulars have no distinct public voice — FIXED in review
+Six deterministic voices greet, react to public outcomes and remember bounded
+public encounters. One line per table/hand and four hands between a regular's
+lines prevent flooding. Memory expires after 30 days and is capped at 64
+opponents per regular. No private cards/conversations or paid model calls.
+
+### BUG-253 — starter economy evidence and House selection — MEASURED and adjusted in review
+The old long-term report used non-shipped progression assumptions. The new
+seeded real-House benchmark verifies chip conservation and records policy
+history, actual rake and lifetime-earnings unlocks. Entry selection favors Ted
+on two-thirds of draws; other stakes and every profile remain unchanged.
+The balanced-policy mixed arm measured +14.43 bb/100 across 13,317 hands, with
+31 busted sessions out of 150 and an approximate 95% interval +0.24 to +28.63.
+This supports the stated modest-positive starter assumption within the tested
+scenario; it does not establish profitability for every profile or live model.
+See `read-me-claude/ECONOMY_RECOVERY_BENCHMARK.md` for reproduction and limits.
+
+### BUG-256 — lonely-table requeue silently changes the chosen stakes — FIXED in review
+Requeue omitted the current rung, so a larger pocket could send an explicitly
+placed agent to 50/100. Match the table's exact standard blinds and carry that
+rung through settlement and redeploy. Unsupported custom stakes settle home;
+an unaffordable original rung is not silently replaced. Four real-registry
+tests verify one seat, the original buy-in, unchanged safe and
+chip conservation; the related lonely/start suites also pass.
+
+### BUG-185 / BUG-255 — TV speech drifts and a tutorial hint covers Later — FIXED in review
+Hold the TV student's idle lean only while speaking, preserving the authored
+bubble anchor. Home's existing guide predicate now yields to a pending want;
+the hint remains eligible afterward. All 25 affected Home browser cases pass
+with original geometry thresholds. Old pill color/bar assertions now follow
+the shipped appearance token and three-state dots rather than retired visuals.
+
+### WATCH-MULTI-1 — table switches can combine old cards with a new selection — FIXED in review
+Failing regressions reproduced old-socket messages, wrong-table snapshots and
+held frames crossing a table switch. Socket identity and table guards now
+reject them; optional memory loading respects later selections/navigation.
+The pacing queue resets before painting a new table/agent and carries the
+seat with its hand, including next-hand compaction. Desktop also resubscribes
+when the same agent moves tables. Browser checks alternate distinct tables
+with identical hand numbers and inspect every rendered frame for card mixes.
+
+### BUG-250 — a forged forwarded-IP prefix can evade rate limits — FIXED locally; ingress verification outstanding
+Trust is explicit (`TRUSTED_PROXY_CIDRS`, loopback by default). The parser walks
+from the real socket to the first untrusted hop, validates and canonicalizes
+IP addresses, and ignores invalid forwarding. Unit and real HTTP regressions
+cover spoofed prefixes, direct sockets, independent clients and IPv6. SSH
+authentication failed, so production proxy/firewall verification is still open.
+
+### BUG-254 — an all-in blind leaves the hand waiting for an impossible action — FIXED in review
+The strict economy harness rejected the production state SB stack 4 against
+BB 20, which asked the exhausted small blind to act. When only one live stack
+remains and already covers the bet, close the street and refund/run out.
+Five new regressions cover both dealer orientations, short big blinds,
+unmatched returns, call/fold still owed, and live multiway betting. The full
+engine suite and hand/session money invariants pass.
+
+### BUG-201 — safe buy-in/cash-out labels remained unfinished — FIXED in review
+The current client now renders the named table transfers rather than
+“Adjustment,” with anonymous fallbacks. They remain excluded from Tonight's
+safe-income totals. The failing-first regression and affected safe tests pass.
+
+### BUG-20 / glass BUG-39 — parked client regressions — ACTIVE and passing
+The old input already computes to 16px; remove its audit exemption and TODO.
+The glass test now covers the actual SafeSheet instead of deleted MoneySheet.
+Safe funding/pocket sections use a tint over shared glass rather than an opaque
+inner panel. No assertion threshold was relaxed.
+
 ## Recovery review — 2026-09-19
 
 Work on `codex/railbird-recovery-audit`; final gate and visual evidence are
