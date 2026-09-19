@@ -68,6 +68,11 @@ profiles.setLiveTableProvider(registry);
 
 // A real table with him in a seat and a House regular opposite.
 const table = registry.getOrCreateTable('tbl-whisper', { smallBlind: 10, bigBlind: 20 });
+// This suite exercises HTTP/private-thread delivery against a dealt hand,
+// not autonomous poker. Keep the hand stable while requests are in flight.
+// Otherwise the 250ms initial deal can greet the House in the middle of an
+// unrelated chat assertion (the release CI failure counted that public line).
+table._maybeRunAiTurn = async () => {};
 table.startAgentSession({
   agentId: 'granite',
   userId: 'u1',
@@ -75,6 +80,8 @@ table.startAgentSession({
   strategy: 'You wait for premiums.',
   agentProfile: { tightness: 88, aggression: 45, bluffFreq: 8, discipline: 88 },
 });
+table._clearTimers();
+table.autoPlay = false;
 const heroSeat = table.seatOfAgent('granite');
 
 // A watcher at his seat, so "it went out on the wire" is something this file
@@ -82,6 +89,9 @@ const heroSeat = table.seatOfAgent('granite');
 const wire = [];
 const watcher = { readyState: 1, OPEN: 1, send: (raw) => wire.push(JSON.parse(raw)) };
 table.spectators.push({ ws: watcher, spectatorSeat: heroSeat });
+// Let the native deal and public arrival greeting finish before any request
+// capture. No clock speed or HTTP latency now determines whether they race.
+table.maybeStartHand();
 
 const app = express();
 app.use(express.json());
@@ -115,6 +125,8 @@ test.after(() => {
 test('BUG-257: a whisper during a hand gets an answer in his private seat history', async () => {
   assert.notEqual(heroSeat, null, 'he is in a seat');
   assert.ok(table.seatSessionIds[heroSeat], 'and the seat is a session, so it has a thread');
+  assert.equal(table.handInProgress(), true, 'the whisper reaches an actual dealt hand');
+  assert.equal(table.game.seats[heroSeat].holeCards.length, 2, 'private cards exist during the privacy check');
 
   wire.length = 0;
   const { status, body } = await whisper('what have you got?');
@@ -160,6 +172,9 @@ test('BUGS-B/2: an ordinary table line is still said to nobody in particular', (
   // The rule the from/to pair must not break: the room announces, it does not
   // address, and a seat talking out loud is talking to the felt.
   table.sendChat(heroSeat, 'nice hand', true);
+  const bubble = wire.filter(m => m.type === ServerMsg.CHAT).at(-1);
+  assert.equal(bubble?.text, 'nice hand', 'public table speech still reaches the wire');
+  assert.equal(bubble?.seat, heroSeat);
   const last = hisThread().filter((l) => l.kind === ThreadKind.HIM).at(-1);
   assert.equal(last.text, 'nice hand');
   assert.equal(last.from, null);
@@ -188,13 +203,16 @@ test('BUGS-B/2: with no seat under him it is an ordinary chat turn again', async
   record.activeTableId = null;
 
   wire.length = 0;
-  const { status, body } = await whisper('how was the session');
-  assert.equal(status, 200, JSON.stringify(body));
-  assert.ok(body.chat?.[0]?.content, 'he still answers');
-  assert.equal(body.whisper, null, 'but there is no felt for it to land on');
-  assert.equal(wire.filter((m) => m.type === ServerMsg.CHAT).length, 0, 'and no bubble');
-
-  record.activeTableId = seatedTable;
+  try {
+    const { status, body } = await whisper('how was the session');
+    assert.equal(status, 200, JSON.stringify(body));
+    assert.ok(body.chat?.[0]?.content, 'he still answers');
+    assert.equal(body.whisper, null, 'but there is no felt for it to land on');
+    const bubbles = wire.filter((m) => m.type === ServerMsg.CHAT);
+    assert.equal(bubbles.length, 0, `and no bubble: ${JSON.stringify(bubbles)}`);
+  } finally {
+    record.activeTableId = seatedTable;
+  }
 });
 
 test('BUGS-B/2: a table that no longer exists is not a felt to whisper into', async () => {

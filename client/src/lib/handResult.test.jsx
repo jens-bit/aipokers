@@ -16,7 +16,9 @@ const seats = [
   {},
 ];
 
-const money = (n) => `$${Number(n).toLocaleString()}`;
+// This injected formatter's expected strings use commas. Keep the fixture
+// independent of the runner's locale (sv-SE uses a nonbreaking space).
+const money = (n) => `$${Number(n).toLocaleString('en-US')}`;
 
 describe('BUGS-A job 12 · naming the hand that won', () => {
   it('BUG-249: shared result sentences use the paid total from an unchanged gross wire result', () => {

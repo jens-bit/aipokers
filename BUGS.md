@@ -52,6 +52,18 @@ The full traced first-session group then passed 25/25; the affected journey
 took 1.9s. Cause remains unknown. Do not count this as a diagnosed product fix
 or discard the initial failure; evidence is in the current document-recovery report.
 
+### BUG-276 — release tests depend on timing and machine locale — FIXED in review
+PR #8's initial server gate counted an unrelated House greeting during a
+private-whisper assertion, and the 600-hand career verifier exceeded the fast
+group's 60-second budget. The whisper fixture now holds a real dealt hand
+stable while retaining zero-public-CHAT assertions. The unchanged career runs
+in the existing required slow E2E group; no hands, equity samples or checks
+were removed and no timeout constant was increased. Both causes and focused
+reproduction evidence are recorded in the document-recovery report.
+The repeated client gate also found two payout assertions using an injected
+formatter with the machine's locale. The fixture now explicitly uses en-US;
+the exact payout and sentence assertions remain unchanged.
+
 ## Playability audit — 2026-09-19
 
 Current work and final validation: `read-me-claude/RAILBIRD_PLAYABILITY_AUDIT.md`

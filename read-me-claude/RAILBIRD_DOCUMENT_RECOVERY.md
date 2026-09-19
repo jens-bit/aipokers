@@ -3,7 +3,10 @@
 Continues the [playability audit](RAILBIRD_PLAYABILITY_AUDIT.md) and commits
 `71bed13`, `0a3ad74`, `66f8e97` on `codex/railbird-recovery-audit`.
 Jens owns the product decisions: this task owns design fixes and uses a review
-branch. Main remains `19b34a4`; nothing here has been pushed or deployed.
+branch. At this audit snapshot, main remained `19b34a4` and the work was local.
+Jens subsequently authorized production release through
+[PR #8](https://github.com/jens-bit/aipokers/pull/8). Its workflow records the
+release outcome; the local validation below remains the original evidence.
 
 ## What Claude reported
 
@@ -127,6 +130,41 @@ unfunded casino human JOIN is deliberately refused by BUG-270. It retains
 the wire/timing checks and adds result-thread timing assertions.
 
 ## Remaining evidence and product work
+
+### Production preflight follow-through
+
+After Jens authorized release, the first GitHub gate on PR #8 exposed two
+test timing defects (BUG-276). It did not deploy. A 250ms automatic first deal
+emitted a public House greeting during a private-chat assertion. An isolated
+reproduction retained the exact greeting and failed 5/6; holding a native
+dealt hand stable passed 6/6 under the same delayed request and again without
+the diagnostic delay. The strict zero-public-CHAT checks remain, and the
+fixture now proves private hole cards and ordinary public speech both exist.
+
+The growth verifier was still calculating decisions at its 60-second cutoff.
+The preceding local full gate had already taken 59,374ms. Its complete
+600-hand, 200-equity-iteration workload now belongs to the existing slow E2E
+group, which CI also requires. No simulation assertion, hand count, sample
+count or timeout constant changed. Isolated validation completed all twelve
+sessions and fifteen checks in 36.7s. Per-session progress now distinguishes
+slow calculation from a lingering process. Evidence is under
+`artifacts/docs-continuation/whisper-ci-*.log`, `growth-ci-*.log` and
+`release-pr-ci-failure.log`.
+
+The repeated full client gate then passed 3,012/3,014: two result-sentence
+assertions expected comma grouping while their injected test formatter used
+the machine locale's nonbreaking space. The numeric payouts were correct.
+The fixture now requests en-US explicitly; exact amount/sentence expectations
+and production formatting code are unchanged. The original failure remains in
+`client-release.log`.
+
+After these test-only corrections, the full local server gate passed 202
+checks with two intentional exclusions, the full E2E group passed 8/8, and
+the full client passed 3,014/3,014 across 249 files. The changed group counts
+reflect the career verifier moving, not lost coverage. Final logs are
+`server-release.log`, `e2e-release.log` and `client-release-final.log`.
+
+### Product and external evidence still open
 
 - READS and DISCIPLINE still lack their documented numeric hooks in the free
   policy. Across 924 paired legal offers, different compiled discipline dice

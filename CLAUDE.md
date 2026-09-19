@@ -20,7 +20,7 @@ historical main/port-only handoffs do not override that choice.
 - Run locally: `npm start` (builds client + serves on :8765). Dev client hot-reload: `npm run dev` in client/.
 - Tests: `npm test` (server) + `npm run test:client` MUST pass before any commit. `npm run test:all` runs server, client AND e2e. `npm run test:e2e` (~100s) MUST pass before any merge to main. See **Testing law** below.
 - Smoke: `npm run smoke` (one hand, no browser). `npm run smoke:browser` is CI-2's browser smoke — start the app first (`npm start`), then it walks HOME/CASINO/YOU/WATCH at 390×844 and 1440×900 in chromium and drops a screenshot per screen in `smoke-shots/`.
-- Deploy: a push to main runs the gates and VPS workflow in `.github/workflows/deploy.yml`. The workflow uses `pm2 restart all` without `--update-env`, since noninteractive SSH lacks the runtime environment. Current persistence is SQLite `data/app.db` with WAL; the old JSON checkout/copy recipe is obsolete. This recovery has not been pushed or deployed.
+- Deploy: a push to main runs the gates and VPS workflow in `.github/workflows/deploy.yml`. The workflow uses `pm2 restart all` without `--update-env`, since noninteractive SSH lacks the runtime environment. Current persistence is SQLite `data/app.db` with WAL; the old JSON checkout/copy recipe is obsolete. Jens authorized the recovery's production release on 19 September through [PR #8](https://github.com/jens-bit/aipokers/pull/8); check its main-push workflow for deployment status.
 
 ## Architecture map
 - `src/engine/` — pure NLHE engine (game.js is correct and tested: side pots, min-raise, HU blind reversal). Change with extreme care.

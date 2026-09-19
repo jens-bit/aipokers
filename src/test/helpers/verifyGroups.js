@@ -27,11 +27,17 @@ export const EXCLUDED = new Map([
   ['verify-chips.js', 'asserts against the machine\'s live data/app.db (gitignored, absent on CI) — run `npm run test:data`'],
 ]);
 
-// Boot a real server, deploy agents and play hands to completion. Each takes
-// tens of seconds, which is why they are their own command: `npm test` has to
+// Play real hands to completion, with server orchestration where applicable.
+// Each takes tens of seconds, which is why they are their own command: `npm test` has to
 // stay fast enough that nobody is tempted to skip it before a commit.
 // Required before every merge to main.
 export const E2E = new Set([
+  // The real-handler fallback now plays the compiled policy instead of cheap
+  // automatic folds. Its 600-hand career/200-iteration equity work measured
+  // 59,374ms locally and exceeded the fast group's 60s deadline in release CI.
+  // Keep every hand, equity sample and assertion; run this CPU-heavy verifier
+  // with the existing slow group's lower concurrency and 120s budget.
+  'verify-growth.js',
   'verify-multi-seat.js',
   // GUEST-1: boots the stack, drafts a guest, plays his night out through the
   // compiled policy and claims him. ~22s of real hands and real waiting, which
