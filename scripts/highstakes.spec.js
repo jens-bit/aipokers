@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
 
 const ROOMS = [
-  { rung: 0, id: 'floor', title: 'the floor', door: /^the floor,/i, smallBlind: 10, bigBlind: 20, buyIn: 2000 },
-  { rung: 1, id: 'upstairs', title: 'upstairs', door: /^upstairs,/i, smallBlind: 25, bigBlind: 50, buyIn: 5000 },
-  { rung: 2, id: 'backroom', title: 'the back room', door: /^the back room,/i, smallBlind: 50, bigBlind: 100, buyIn: 10000 },
+  { rung: 0, id: 'floor', title: 'the floor', smallBlind: 10, bigBlind: 20, buyIn: 2000 },
+  { rung: 1, id: 'upstairs', title: 'upstairs', smallBlind: 25, bigBlind: 50, buyIn: 5000 },
+  { rung: 2, id: 'backroom', title: 'the back room', smallBlind: 50, bigBlind: 100, buyIn: 10000 },
 ];
 
 // Normal development owners and actual API funding, as in smoke.spec.js.
@@ -40,10 +40,13 @@ async function deployFromHome(page, owner, room) {
   await page.goto('/');
   await expect(page.getByTestId('home-screen')).toBeVisible();
   await page.locator('.dsk-roster-row').filter({ hasText: owner.agent.name }).click();
+  await page.getByRole('button', { name: 'More actions', exact: true }).click();
   await page.getByRole('button', { name: 'Carry', exact: true }).click();
   await page.getByTestId('home-door').click();
   const queued = page.waitForResponse(response => new URL(response.url()).pathname === `/api/agents/${owner.agent.id}/queue` && response.request().method() === 'POST');
-  await page.getByRole('button', { name: room.door }).click();
+  // The unified floor replaced room doors with stake chips. Carrying an
+  // agent into it keeps the one-tap queue action on the chosen stake.
+  await page.locator(`.csn-stake[data-stake="${room.id}"]`).click();
   const response = await queued;
   expect(response.ok()).toBe(true);
   const result = await response.json();
@@ -62,7 +65,7 @@ for (const room of ROOMS) test(`HIGHSTAKES: ${room.id} starts with a House oppon
     const queued = await deployFromHome(page, owner, room);
     expect(queued.matched, 'the first owner opens this fresh room match').toBe(false);
     await expect.poll(() => traffic.sent.some(frame => frame.type === 'watch' && frame.tableId === queued.tableId)).toBe(true);
-    await page.getByRole('button', { name: 'BACK TO THE FLOOR', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
     await expect.poll(() => traffic.sent.some(frame => frame.type === 'leave')).toBe(true);
     const firstWatch = traffic.sent.find(frame => frame.type === 'watch' && frame.tableId === queued.tableId);
     const firstLeave = traffic.sent.find(frame => frame.type === 'leave' && frame.at >= firstWatch.at);
@@ -73,7 +76,8 @@ for (const room of ROOMS) test(`HIGHSTAKES: ${room.id} starts with a House oppon
     // not advance the server and would therefore miss the bug.
     await page.waitForTimeout(6100);
     await expect(page.getByTestId('floor-view')).toBeVisible();
-    await expect(page.getByRole('heading', { name: room.title, exact: true }), 'return to the room where this agent is playing').toBeVisible();
+    await expect(page.getByRole('heading', { name: 'The casino floor', exact: true })).toBeVisible();
+    await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');
     const resumedAt = traffic.received.length;
     await page.locator(`.csn-felt58[data-table="${queued.tableId}"]`).click();
     await expect(page.getByTestId('desk-casino-table')).toBeVisible();
@@ -83,6 +87,7 @@ for (const room of ROOMS) test(`HIGHSTAKES: ${room.id} starts with a House oppon
       message: 'the owned agent and a House opponent must deal without another player rescuing the table',
     }).toBe(true);
     const firstHand = traffic.received.findLast(stateFor).state;
+    expect(firstHand).toMatchObject({ smallBlind: room.smallBlind, bigBlind: room.bigBlind });
     expect(firstHand.seats.some(seat => seat.playerId === `agent_${owner.agent.id}`)).toBe(true);
     expect(firstHand.seats.some(seat => seat.playerId !== `agent_${owner.agent.id}`)).toBe(true);
     const rosterRow = page.locator('.dsk-roster-row').filter({ hasText: owner.agent.name });
@@ -93,6 +98,7 @@ for (const room of ROOMS) test(`HIGHSTAKES: ${room.id} starts with a House oppon
     const roomResponse = await request.get(`/api/rooms/${room.id}/tables`);
     const roomData = await roomResponse.json();
     const table = roomData.tables.find(item => item.tableId === queued.tableId);
+    expect(table).toMatchObject({ room: room.id, smallBlind: room.smallBlind, bigBlind: room.bigBlind });
     expect(table.seated).toBeGreaterThanOrEqual(2);
     expect(table.seated).toBeLessThan(table.maxSeats);
     expect(table.seats.some(seat => seat.agentId === null), 'a House seat supplies the first opponent').toBe(true);
@@ -149,6 +155,7 @@ test('HIGHSTAKES: simultaneous owners keep their chosen rooms and each get a Hou
       const response = await request.get(`/api/rooms/${entry.room.id}/tables`);
       const table = (await response.json()).tables.find(item => item.tableId === entry.queued.tableId);
       expect(table).toBeTruthy();
+      expect(table).toMatchObject({ room: entry.room.id, smallBlind: entry.room.smallBlind, bigBlind: entry.room.bigBlind });
       expect(table.seats.some(seat => seat.agentId === null)).toBe(true);
       expect(table.seated).toBeLessThan(table.maxSeats);
       expect(entry.traffic.received.filter(frame => frame.type === 'error')).toEqual([]);

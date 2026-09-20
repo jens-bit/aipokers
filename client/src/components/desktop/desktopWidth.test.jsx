@@ -111,15 +111,22 @@ describe('DESK-3: the roster never collapses', () => {
     fetchMock.route('/hands', { recentHands: [] });
   });
 
-  // Query the permanent roster itself. Repeated whole-room accessible-name
-  // searches made these transition checks exceed five seconds in Actions.
+  // Locate the row by its visible name, then verify that exact native button's
+  // accessible name and visibility. Recomputing every decorative roster SVG's
+  // accessible name on every waitFor poll makes this CPU-bound in the gate.
   function rosterRow(name) {
     const row = within(screen.getByTestId('desk-roster'))
-      .getAllByRole('button', { name: new RegExp(name) })
-      .find((el) => el.classList.contains('dsk-roster-row'));
-    if (!row) throw new Error(`no roster row for ${name}`);
+      .getByText(name, { selector: '.dsk-roster-row__name' }).closest('button.dsk-roster-row');
+    expect(row).not.toBeNull();
+    expect(row).toHaveAccessibleName(new RegExp(name));
+    expect(row).toBeVisible();
     return row;
   }
+
+  const expectActive = row => {
+    expect(row).toBeInTheDocument();
+    expect(row.classList.contains('is-active')).toBe(true);
+  };
 
   const roster = () => document.querySelector('.dsk3-roster');
   const strip = () => document.querySelector('.dsk-strip');
@@ -144,7 +151,9 @@ describe('DESK-3: the roster never collapses', () => {
     await userEvent.click(rosterRow(restingAgent.name));
 
     await waitFor(() => {
-      expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
+      const tabs = screen.getByTestId('home-rail').querySelector('.agent-view__tabs');
+      expect(tabs).not.toBeNull();
+      expect(within(tabs).getByRole('tab', { name: 'Stats', exact: true })).toBeInTheDocument();
     });
     expect(rosterRow(playingAgent.name)).toBeInTheDocument();
     expect(rosterRow(restingAgent.name)).toBeInTheDocument();
@@ -154,24 +163,22 @@ describe('DESK-3: the roster never collapses', () => {
   it('marks the open agent in the roster', async () => {
     desk();
     await waitFor(() => rosterRow(playingAgent.name));
-    await userEvent.click(rosterRow(restingAgent.name));
+    const restingRow = rosterRow(restingAgent.name);
+    await userEvent.click(restingRow);
 
-    await waitFor(() => {
-      expect(rosterRow(restingAgent.name).classList.contains('is-active')).toBe(true);
-    });
+    await waitFor(() => expectActive(restingRow));
   });
 
   it('switches threads from the roster, with no strip ever appearing', async () => {
     desk();
-    await waitFor(() => rosterRow(playingAgent.name));
-    await userEvent.click(rosterRow(restingAgent.name));
-    await waitFor(() => expect(rosterRow(restingAgent.name).classList.contains('is-active')).toBe(true));
+    const playingRow = await waitFor(() => rosterRow(playingAgent.name));
+    const restingRow = rosterRow(restingAgent.name);
+    await userEvent.click(restingRow);
+    await waitFor(() => expectActive(restingRow));
 
-    await userEvent.click(rosterRow(playingAgent.name));
+    await userEvent.click(playingRow);
 
-    await waitFor(() => {
-      expect(rosterRow(playingAgent.name).classList.contains('is-active')).toBe(true);
-    });
+    await waitFor(() => expectActive(playingRow));
     expect(strip()).toBeNull();
   });
 });

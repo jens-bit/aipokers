@@ -151,8 +151,9 @@
         }
       },
       "patch": {
-        "summary": "Update agent name or strategy",
+        "summary": "Update agent name, strategy or Wardrobe look",
         "operationId": "updateAgent",
+        "description": "Owner-only. An identity update validates both existing palette IDs before changing any field, persists the look and increments ownerCommandRevision. The response is the sanitized owner projection with Cache-Control: no-store. A refused save restores the previous cached look and returns 503. Active felts receive the saved look on their next normal state frame.",
         "parameters": [
           { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
@@ -164,7 +165,8 @@
                 "properties": {
                   "userId": { "type": "string" },
                   "name": { "type": "string" },
-                  "strategy": { "type": "string", "description": "Natural-language poker personality injected into the decision prompt" }
+                  "strategy": { "type": "string", "description": "Natural-language poker personality injected into the decision prompt" },
+                  "identity": { "$ref": "#/components/schemas/WardrobeLook" }
                 }
               }
             }
@@ -172,7 +174,11 @@
         },
         "responses": {
           "200": { "description": "Updated agent", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Agent" } } } },
-          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+          "400": { "description": "Invalid hood or glow palette IDs" },
+          "401": { "description": "Missing authentication" },
+          "403": { "description": "Owner identity does not match" },
+          "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "503": { "description": "Appearance could not be persisted; the previous look is retained" }
         }
       }
     },
@@ -1123,11 +1129,21 @@
         "at": { "type": "integer", "nullable": true, "description": "Epoch ms he raised it." }
       }
     },
+    "WardrobeLook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hood", "glow"],
+      "properties": {
+        "hood": { "type": "string", "enum": ["ash", "oxblood", "moss", "indigo", "sand", "slate"] },
+        "glow": { "type": "string", "enum": ["teal", "gold", "ember", "violet", "ice", "lime"] }
+      }
+    },
     "Agent": {
         "type": "object",
         "properties": {
           "id": { "type": "string" },
           "name": { "type": "string" },
+          "identity": { "$ref": "#/components/schemas/WardrobeLook" },
           "style": { "type": "string", "enum": ["Aggressive", "Balanced", "Tight"] },
           "risk": { "type": "string", "enum": ["High", "Medium", "Low"] },
           "strategy": { "type": "string", "description": "Natural-language poker personality injected into the decision-time system prompt" },

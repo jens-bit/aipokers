@@ -42,7 +42,7 @@ describe('HOME-3: Profile hydrates the agent opened from Home', () => {
     expect(fetchMock.requests).toHaveLength(0);
   });
 
-  it('BUG-264: Profile hydrates real stats after cancelling the compact Home chat refresh before roster REST completes', async () => {
+  it('BUG-264 / CHARACTER-MENU: Stats hydrates a compact Home agent while the character and unsent chat stay mounted', async () => {
     const roster = deferred(), chatDetail = deferred(), detail = deferred(), user = userEvent.setup();
     let profileReads = 0;
     fetchMock.route('/api/agents?', () => roster.promise);
@@ -55,40 +55,52 @@ describe('HOME-3: Profile hydrates the agent opened from Home', () => {
       socket.emit({ type: 'home_state', userId: '4242', agents: [compact], game: null });
     });
     await user.click(await screen.findByRole('button', { name: /^The Clock — / }));
-    await waitFor(() => expect(detailsRead('a1')).toHaveLength(1));
+    await waitFor(() => expect(detailsRead('a1')).toHaveLength(2));
     const chatRequest = fetch.mock.calls.find(([url]) => url.startsWith('/api/agents/a1?'));
     expect(chatRequest[1].signal.aborted).toBe(false);
-    await user.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
+    const stage = screen.getByTestId('agent-stage');
+    await user.type(screen.getByPlaceholderText('Whisper to him…'), 'Keep this thought.');
+    await user.click(screen.getByRole('tab', { name: 'Stats', exact: true }));
     await screen.findByRole('region', { name: 'Career' });
     expect(career().getAllByText('—')).toHaveLength(5);
     expect(career().queryByText('0')).toBeNull();
 
-    // Both Home's roster and Chat's private refresh belonged to closed views.
-    // Profile must hydrate from its own authenticated request, even if those
-    // older requests complete later with different data.
+    // The new menu deliberately keeps Chat mounted. Stats still owns its
+    // authenticated detail read; neither a late Home roster nor a lower
+    // revision private read may replace its confirmed record.
     await act(async () => { roster.resolve({ agents: [detailed] }); });
     await waitFor(() => expect(detailsRead('a1')).toHaveLength(2));
     const requests = fetch.mock.calls.filter(([url]) => url.startsWith('/api/agents/a1?'));
-    expect(chatRequest[1].signal.aborted).toBe(true);
+    expect(chatRequest[1].signal.aborted).toBe(false);
     expect(requests[1][1].signal.aborted).toBe(false);
     for (const request of detailsRead('a1')) expect(request).toMatchObject({
         url: '/api/agents/a1?userId=4242',
         headers: { 'x-telegram-init-data': telegram.webApp.initData },
       });
-    await act(async () => { chatDetail.resolve({ ...detailed, ownerCommandRevision: 99, careerStats: { hands: 999 },
-      attrLog: [{ key: 'READS', from: 61, to: 62, cause: 'Stale chat history.', ts: Date.now() }] }); });
-    expect(career().getAllByText('—')).toHaveLength(5);
+    await act(async () => { detail.resolve({...detailed, ownerCommandRevision:1}); });
+    await act(async () => { chatDetail.resolve({ ...detailed, ownerCommandRevision:0, careerStats:{hands:999} }); });
     expect(career().queryByText('999')).toBeNull();
-    expect(screen.queryByText('Stale chat history.')).toBeNull();
-    await act(async () => { detail.resolve(detailed); });
     expect(career().getByText('123')).toBeInTheDocument();
     expect(career().getByText('42%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'READS 62' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'DECEPTION 0' })).toBeInTheDocument();
     expect(screen.getByText('Read the river sizing.')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Back to chat' }));
-    await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
+    await user.click(screen.getByRole('tab', { name: 'Chat', exact: true }));
+    expect(screen.getByPlaceholderText('Whisper to him…')).toHaveValue('Keep this thought.');
+    expect(screen.getByTestId('agent-stage')).toBe(stage);
+    await user.click(screen.getByRole('tab', { name: 'Stats', exact: true }));
     expect(career().getByText('123')).toBeInTheDocument();
+  });
+
+  it('CHARACTER-MENU: mounted Stats follows later owner receipts and keeps omitted private history', async () => {
+    fetchMock.route('/api/agents/a1?', detailed);
+    const {rerender} = render(<AgentProfileScreen embedded agent={compact}/>);
+    expect(await career().findByText('123')).toBeInTheDocument();
+    rerender(<AgentProfileScreen embedded agent={{...compact, ownerCommandRevision:1,
+      attrs:{...detailed.attrs, READS:64}, careerStats:{...detailed.careerStats,hands:125}}}/>);
+    expect(career().getByText('125')).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'READS 64'})).toBeInTheDocument();
+    expect(screen.getByText('Read the river sizing.')).toBeInTheDocument();
   });
 
   it('keeps cached stats while refreshing and replaces them with the same agent server record', async () => {

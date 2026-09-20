@@ -148,6 +148,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
   const [agentChatTarget, setAgentChatTarget] = useState(null);
+  const [agentChatTab, setAgentChatTab] = useState('chat');
   // A Profile or Watch visit unmounts the thread. Its unsent words belong to
   // this owner and this agent, and stay in memory until sent or the app closes.
   const [agentDrafts, setAgentDrafts] = useState(() => new Map());
@@ -301,10 +302,11 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   // that must never see a stale copy.
   const chatOriginRef = useRef(null);
 
-  function openAgentChat(agent, origin = null) {
+  function openAgentChat(agent, origin = null, tab = 'chat') {
     cancelWatch();
     chatOriginRef.current = origin ?? { tab: activeTab, profileAgent: null };
     setAgentChatTarget(agent);
+    setAgentChatTab(tab);
     setActiveTab('chats');
   }
 
@@ -321,7 +323,13 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   }
 
   function openAgentProfile(agent) {
+    const origin = activeTab === 'chats' && agentChatTarget?.id === agent.id ? chatOriginRef.current : null;
+    openAgentChat(agent, origin, 'stats');
+  }
+
+  function openAgentSheet(agent) {
     cancelWatch();
+    if (agentChatTarget?.id === agent.id) setAgentChatTarget(agent);
     setAgentProfileTarget(agent);
   }
 
@@ -748,6 +756,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
           <Suspense fallback={null}>
           <AgentProfileScreen
             companion
+            initialDetails
             agent={agentProfileTarget}
             onBack={() => { cancelWatch(); setAgentProfileTarget(null); }}
             onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}
@@ -954,10 +963,12 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
               key={agentDraftKey}
               companion
               agent={agentChatTarget}
+              initialTab={agentChatTab}
+              onTabChange={setAgentChatTab}
               draftValue={agentDrafts.get(agentDraftKey) ?? ''}
               onDraftChange={saveAgentDraft}
               onBack={closeAgentChat}
-              onOpenProfile={openAgentProfile}
+              onOpenProfile={openAgentSheet}
               onDeploy={placeInCasino}
               onWatch={watchCompanion}
               onCarry={(agent) => { setCarryAgentId(agent.id); setAgentChatTarget(null); setActiveTab('home'); }}

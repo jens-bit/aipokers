@@ -72,6 +72,14 @@ async function waitForWatch() {
   expect(document.querySelector('.watch-screen')).toBeTruthy();
 }
 
+// His sheet still has a separate navigation boundary; the character menu's
+// More action replaces the old Profile button without weakening return tests.
+async function openHisSheet(user) {
+  await user.click(screen.getByRole('button', { name: 'More actions', exact: true }));
+  await user.click(screen.getByRole('button', { name: 'His sheet', exact: true }));
+  await screen.findByRole('button', { name: 'Back to chat' });
+}
+
 // MERGE-7: these nine cases boot the whole app and drive multi-screen journeys
 // through it, and they cost 1.7-3.8s EACH when they have the machine to
 // themselves. vitest's default deadline is 5s, and vite.config.js already
@@ -103,12 +111,12 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     expect(await screen.findByTestId('home-screen')).toBeVisible();
   });
 
-  it('retains an unsent draft through Profile and separates drafts by agent and owner', async () => {
+  it('retains an unsent draft through His sheet and separates drafts by agent and owner', async () => {
     const user = userEvent.setup();
     const view = render(<App />);
     await openHomeAgent(user, restingAgent.name);
     await user.type(draft(), 'Keep this thought.');
-    await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
+    await openHisSheet(user);
     await user.click(await screen.findByRole('button', { name: 'Back', exact: true }));
     expect(draft()).toHaveValue('Keep this thought.');
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
@@ -125,13 +133,13 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     expect(fetchMock.posts).toHaveLength(0);
   });
 
-  it.each(['home', 'casino'])('Profile CHAT resumes the thread and Back returns to its original %s', async origin => {
+  it.each(['home', 'casino'])('His sheet CHAT resumes the thread and Back returns to its original %s', async origin => {
     const user = userEvent.setup();
     render(<App />);
     if (origin === 'casino') { await enterCasino(user); await openRosterAgent(user, restingAgent.name); }
     else await openHomeAgent(user, restingAgent.name);
     await user.type(draft(), 'Still writing.');
-    await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
+    await openHisSheet(user);
     await user.click(await screen.findByRole('button', { name: 'Back to chat' }));
     await screen.findByPlaceholderText('Whisper to him…');
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
@@ -144,10 +152,10 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
   // direction — "Open him" on an away frame landed on the numbers Profile,
   // and Chat opened from it returned there. Jens's playtest instruction was
   // explicit that this was the bug, not the design: "Open him" now opens the
-  // agent view directly, and PROFILE is one tap deeper from there. What this
-  // test still protects — that hopping to Profile and back preserves the
+  // agent view directly, and His sheet is reached through More. What this
+  // test still protects — that hopping to His sheet and back preserves the
   // thread — is exercised in the other direction below.
-  it('an away-agent Open lands on his agent view, and Profile from it returns to that view', async () => {
+  it('an away-agent Open lands on his agent view, and His sheet returns to that view', async () => {
     const away = { ...restingAgent, location: { where: 'casino', room: 'floor' } };
     fetchMock.route('/api/agents?', { agents: [away] });
     fetchMock.route(`/api/agents/${away.id}?`, away);
@@ -155,7 +163,7 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     render(<App />);
     await user.click(await screen.findByRole('button', { name: /Loose Cannon at the casino.*Open him/ }));
     await screen.findByPlaceholderText('Whisper to him…');
-    await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
+    await openHisSheet(user);
     await user.click(await screen.findByRole('button', { name: 'Back to chat' }));
     await screen.findByPlaceholderText('Whisper to him…');
     await user.click(screen.getByRole('button', { name: 'Back', exact: true }));
@@ -170,7 +178,7 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     await user.type(draft(), 'Send this thought.');
     await user.click(screen.getByRole('button', { name: 'Send', exact: true }));
     await screen.findByText('Heard you.', { selector: '.agent-view__text' });
-    await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
+    await openHisSheet(user);
     await user.click(await screen.findByRole('button', { name: 'Back', exact: true }));
     expect(draft()).toHaveValue('');
     expect(fetchMock.posts.map(request => request.body)).toEqual([
@@ -196,7 +204,7 @@ describe('HOME-3: existing phone journeys preserve their place', () => {
     render(<App />);
     await openHomeAgent(user, restingAgent.name);
     await user.type(draft(), 'Finish writing after the game.');
-    await user.click(screen.getByRole('button', { name: 'Profile', exact: true }));
+    await openHisSheet(user);
     await user.click(await screen.findByRole('button', { name: 'Deploy', exact: true }));
     await user.click(await screen.findByRole('button', { name: 'Deal him in' }));
     await waitForWatch();

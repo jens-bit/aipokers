@@ -148,7 +148,7 @@ const SCREENS = [
       const box = await body.boundingBox();
       await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
       await expect(page.getByTestId('agent-stage')).toBeVisible({ timeout: 20_000 });
-      await page.getByRole('button', { name: 'Profile', exact: true }).click();
+      await page.getByRole('tab', { name: 'Stats', exact: true }).click();
       await expect(page.getByRole('region', { name: 'Skills' }).or(page.getByLabel('Skills'))).toBeVisible({ timeout: 20_000 });
     },
   },

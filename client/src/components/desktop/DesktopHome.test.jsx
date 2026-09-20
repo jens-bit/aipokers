@@ -244,7 +244,7 @@ describe('DesktopHome roster', () => {
     renderHome();
     await waitFor(() => expect(screen.getByTestId('home-screen')).toBeInTheDocument());
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
-    expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('home-rail')).queryByRole('tab', { name: 'Stats', exact: true })).not.toBeInTheDocument();
 
     await openStandup();
     expect(panelHead('Standup')).toBe(true);
@@ -269,9 +269,16 @@ describe('DesktopHome panel', () => {
     renderHome();
     await openAgent(restingAgent.name);
 
-    await waitFor(() => {
-      expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
-    });
+    const rail = within(screen.getByTestId('home-rail'));
+    const stats = await rail.findByRole('tab', { name: 'Stats', exact: true });
+    expect(rail.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    // The character menu replaces the removed Profile shortcut. Stats stays
+    // in this agent's rail and Chat is still one tab away.
+    await userEvent.click(stats);
+    expect(stats).toHaveAttribute('aria-selected', 'true');
+    expect(rail.getByRole('tabpanel', { name: 'Stats', exact: true })).toBeVisible();
+    await userEvent.click(rail.getByRole('tab', { name: 'Chat', exact: true }));
+    expect(rail.getByRole('textbox')).toBeVisible();
   });
 
   it('keeps a half-typed draft when the open agent changes', async () => {
@@ -299,11 +306,13 @@ describe('DesktopHome panel', () => {
   it('closes the panel on Escape', async () => {
     renderHome();
     await openAgent(restingAgent.name);
-    await waitFor(() => expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument());
+    const stats = await within(screen.getByTestId('home-rail')).findByRole('tab', { name: 'Stats', exact: true });
+    await userEvent.click(stats);
+    expect(stats).toHaveAttribute('aria-selected', 'true');
 
     await userEvent.keyboard('{Escape}');
     await waitFor(() => {
-      expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+      expect(within(screen.getByTestId('home-rail')).queryByRole('tab', { name: 'Stats', exact: true })).not.toBeInTheDocument();
     });
     // ...and back to the resting panel, which on the HOME stage is the room.
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
@@ -331,7 +340,7 @@ it('BUG-107: a newly arrived agent opens his birth card and can be dealt in', as
   await userEvent.click(deal);
   expect(onDeployAgent).toHaveBeenCalledOnce();
   expect(onDeployAgent).toHaveBeenCalledWith(expect.objectContaining({ id: newborn.id }));
-  expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+  expect(within(screen.getByTestId('home-rail')).queryByRole('tab', { name: 'Stats', exact: true })).not.toBeInTheDocument();
 });
 
 it.each([true, false])('a birth handled by the draft never opens a second birth card (draft still open: %s)', async (stillDrafting) => {

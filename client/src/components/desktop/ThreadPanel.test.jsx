@@ -82,10 +82,22 @@ describe('ThreadPanel', () => {
 });
 
 describe('ThreadPanel player card (ATTR-2e-1)', () => {
+  it('CHARACTER-1: His sheet Back restores Stats while explicit Chat returns to the conversation',async()=>{
+    renderPanel();
+    await userEvent.click(screen.getByRole('tab',{name:'Stats'}));
+    await userEvent.click(screen.getByRole('button',{name:'More actions'}));
+    await userEvent.click(screen.getByRole('button',{name:'His sheet'}));
+    await userEvent.click(screen.getByRole('button',{name:'Back',exact:true}));
+    expect(screen.getByRole('tab',{name:'Stats'})).toHaveAttribute('aria-selected','true');
+    await userEvent.click(screen.getByRole('button',{name:'More actions'}));
+    await userEvent.click(screen.getByRole('button',{name:'His sheet'}));
+    await userEvent.click(screen.getByRole('button',{name:'Back to chat',exact:true}));
+    expect(screen.getByRole('tab',{name:'Chat'})).toHaveAttribute('aria-selected','true');
+  });
   it('BUG-83 keeps his saved identity when the desktop profile opens',async()=>{
     renderPanel({agent:{...playingAgent,identity:{hood:'sand',glow:'gold'}}});
-    await userEvent.click(screen.getByRole('button',{name:'Profile',exact:true}));
-    const ghost=document.querySelector('.profile-overview__identity svg');
+    await userEvent.click(screen.getByRole('tab',{name:'Stats',exact:true}));
+    const ghost=screen.getByTestId('agent-stage').querySelector('.mood-ghost');
     expect(ghost.querySelector('stop[stop-color="#6E5836"]')).not.toBeNull();
     expect(ghost.outerHTML).toContain('#C9A227');
   });
@@ -97,22 +109,24 @@ describe('ThreadPanel player card (ATTR-2e-1)', () => {
 
   it('offers the player card beside the thread', async () => {
     renderPanel();
-    expect(await screen.findByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Stats', exact: true })).toBeInTheDocument();
   });
 
-  it('C4 replaces the duplicate player-card heading with his compact profile', async () => {
+  it('CHARACTER-1: Stats retains one character header and puts the single composer in Chat', async () => {
     renderPanel();
-    await userEvent.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Stats', exact: true }));
 
     expect(screen.getAllByText(playingAgent.name)).toHaveLength(1);
     expect(screen.getByText('Condition')).toBeInTheDocument();
     expect(screen.getByText('RECENT')).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Whisper to him' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: 'Chat' }));
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
   });
 
   it('His sheet keeps PROFILE-2 body readings separate from the four skills', async () => {
     renderPanel();
-    await userEvent.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Stats', exact: true }));
     await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
     await userEvent.click(screen.getByRole('button', { name: 'His sheet' }));
 
@@ -125,7 +139,7 @@ describe('ThreadPanel player card (ATTR-2e-1)', () => {
 
   it('never prints the ceiling as a number on a bar', async () => {
     renderPanel();
-    await userEvent.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Stats', exact: true }));
     await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
     await userEvent.click(screen.getByRole('button', { name: 'His sheet' }));
 
@@ -135,7 +149,7 @@ describe('ThreadPanel player card (ATTR-2e-1)', () => {
 
   it('prints the exact band only when a bar is tapped — the user asking for it', async () => {
     renderPanel();
-    await userEvent.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Stats', exact: true }));
     await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
     await userEvent.click(screen.getByRole('button', { name: 'His sheet' }));
     await userEvent.click(screen.getByRole('button', { name: /^READS \d+$/ }));
@@ -145,7 +159,7 @@ describe('ThreadPanel player card (ATTR-2e-1)', () => {
 
   it('offers no way to buy or re-roll anything', async () => {
     renderPanel();
-    await userEvent.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Stats', exact: true }));
     await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
     await userEvent.click(screen.getByRole('button', { name: 'His sheet' }));
 
@@ -153,25 +167,30 @@ describe('ThreadPanel player card (ATTR-2e-1)', () => {
   });
 });
 
-// Desktop embeds the phone profile, but its existing thread remains the owner.
-it('C4/C9 profile whispers share authenticated history and preserve the conversation draft', async()=>{
+// One shared composer replaces the profile's independent whisper box.
+it('CHARACTER-1: Stats preserves the private thread and draft; Chat sends through the same authenticated path', async()=>{
   telegram.signIn(); fetchMock.route('/hands',{recentHands:[]}); fetchMock.route('/flagged',{flaggedHands:[]});
   const onDraftChange=vi.fn();
   const history=[{role:'user',content:'Why did you call?'},{role:'assistant',content:'It was the sizing.'}];
   fetchMock.route('/api/agents/chat',{chat:[{role:'assistant',content:'I will wait for the button.'}]});
   renderPanel({agent:{...playingAgent,chatHistory:history},draft:'An unfinished thought',onDraftChange});
   await screen.findByText('Why did you call?');
-  await userEvent.click(screen.getByRole('button',{name:'Profile',exact:true}));
-  await userEvent.type(screen.getByRole('textbox',{name:'Whisper to him'}),'Slow down.');
-  await userEvent.click(screen.getByRole('button',{name:'Send whisper'}));
-  await userEvent.click(await screen.findByRole('button',{name:'Open conversation'}));
-  const feed=within(document.querySelector('.agent-view__thread'));
-  for(const content of ['Why did you call?','It was the sizing.','Slow down.','I will wait for the button.']) expect(feed.getAllByText(content)).toHaveLength(1);
-  expect(screen.getByRole('textbox')).toHaveValue('An unfinished thought');
+  const composer=screen.getByRole('textbox');
+  await userEvent.click(screen.getByRole('tab',{name:'Stats',exact:true}));
+  expect(composer).not.toBeVisible();
+  expect(screen.queryByRole('textbox')).toBeNull();
+  await userEvent.click(screen.getByRole('tab',{name:'Chat',exact:true}));
+  expect(screen.getByRole('textbox')).toBe(composer);
+  expect(composer).toHaveValue('An unfinished thought');
   expect(onDraftChange).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button',{name:'Send',exact:true}));
+  await screen.findAllByText('I will wait for the button.');
+  const feed=within(document.querySelector('.agent-view__thread'));
+  for(const content of ['Why did you call?','It was the sizing.','An unfinished thought','I will wait for the button.']) expect(feed.getAllByText(content)).toHaveLength(1);
+  expect(onDraftChange).toHaveBeenCalledWith('');
   const requests=fetchMock.posts.filter(c=>c.url==='/api/agents/chat');
   expect(requests).toHaveLength(1);
-  expect(requests[0].body).toMatchObject({userId:'4242',existingAgentId:playingAgent.id,content:'Slow down.'});
+  expect(requests[0].body).toMatchObject({userId:'4242',existingAgentId:playingAgent.id,content:'An unfinished thought'});
   expect(requests[0].headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
 });
 it('C4/C9 keeps a refused funding decision visible and retries the authenticated transfer',async()=>{
@@ -180,8 +199,8 @@ it('C4/C9 keeps a refused funding decision visible and retries the authenticated
   let attempts=0;
   fetchMock.route('/fund',()=>++attempts===1?{status:503,body:{}}:{pocket:{balance:2000,cap:2000,mode:'topup'}});
   renderPanel();
-  await userEvent.click(screen.getByRole('button',{name:'Profile',exact:true}));
-  await userEvent.click(screen.getByRole('button',{name:'Give him chips',exact:true}));
+  await userEvent.click(screen.getByRole('tab',{name:'Stats',exact:true}));
+  await userEvent.click(screen.getByRole('button',{name:'Give chips',exact:true}));
   const dialog=await screen.findByRole('dialog',{name:'Fund The Grinder'});
   await userEvent.click(within(dialog).getByRole('button',{name:'Give him chips',exact:true}));
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not move the chips');
@@ -196,7 +215,9 @@ it('C4/C9 keeps a refused funding decision visible and retries the authenticated
 it('C4/C9 calls a live agent in through the existing wallet verb',async()=>{
   telegram.signIn(); fetchMock.route('/hands',{recentHands:[]}); fetchMock.route('/flagged',{flaggedHands:[]});fetchMock.route('/fund',{ok:true});
   const onClose=vi.fn();renderPanel({onClose});
-  await userEvent.click(screen.getByRole('button',{name:'Profile',exact:true}));
+  await userEvent.click(screen.getByRole('tab',{name:'Stats',exact:true}));
+  await userEvent.click(screen.getByRole('button',{name:'More actions'}));
+  await userEvent.click(screen.getByRole('button',{name:'His sheet'}));
   await userEvent.click(screen.getByRole('button',{name:'Call him in',exact:true}));
   await waitFor(()=>expect(onClose).toHaveBeenCalledOnce());
   expect(fetchMock.posts.find(c=>c.url.endsWith('/fund')).body).toMatchObject({verb:'callin',userId:'4242'});

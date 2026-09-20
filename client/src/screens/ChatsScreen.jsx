@@ -21,6 +21,8 @@ import { NotYet } from '../components/ftu/NotYet.jsx';
 // is not on the felt yet, so there is nothing to hold a spinner over.
 const ReplayTheatre = lazy(() => import('../components/replay/ReplayTheatre.jsx').then((m) => ({ default: m.ReplayTheatre })));
 import { AgentView } from '../components/agent/AgentView.jsx';
+import { AgentWardrobe } from '../components/agent/AgentWardrobe.jsx';
+const AgentProfileScreen = lazy(() => import('./AgentProfileScreen.jsx').then(m => ({ default: m.AgentProfileScreen })));
 import { useCommandAgent } from '../lib/useCommandAgent.js';
 import { useProposalAcceptance } from '../lib/useProposalAcceptance.js';
 import { savedChatMessage } from '../lib/conversationReports.js';
@@ -593,7 +595,7 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
 // top-right avatar (job 9). ChatsScreen below is still the composition of the
 // two and is still what the roster sheet's route resolves to; nothing on the
 // tab bar reaches its list half any more.
-export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange }) {
+export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange, initialTab = 'chat', onTabChange }) {
   const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
   const privateRead = usePrivateAgentRefresh(suppliedAgent?.id, acceptCommand);
   const userId   = getUserId();
@@ -779,7 +781,12 @@ export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, compa
     );
   }
 
-  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} externalError={proposalError || sendError} />;
+  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} externalError={proposalError || sendError}
+    initialTab={initialTab}
+    onTabChange={onTabChange}
+    statsContent={<Suspense fallback={<p role="status">Loading stats…</p>}><AgentProfileScreen embedded agent={agent}/></Suspense>}
+    wardrobeContent={({onPreview, onSaved}) => <AgentWardrobe agent={agent} onPreview={onPreview} onSaved={onSaved}/>}
+    onAppearanceSaved={updated => acceptCommand({profileRefresh:true, agent:updated})}/>;
 
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>

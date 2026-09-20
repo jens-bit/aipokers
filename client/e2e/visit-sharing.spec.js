@@ -46,7 +46,8 @@ for (const viewport of [{width:390,height:844},{width:390,height:590},{width:144
     });
     await page.goto('/');
     await page.getByRole('button',{name:/^Away Day —/}).first().click();
-    await page.getByRole('button',{name:'Profile',exact:true}).click();
+    await page.getByRole('button', { name: 'More actions', exact: true }).click();
+    await page.getByRole('button', { name: 'His sheet', exact: true }).click();
     await page.getByRole('button',{name:'More actions'}).click();
     const send=page.getByRole('button',{name:'Send to a friend'});
     await send.click(); await expect(send).toBeDisabled();

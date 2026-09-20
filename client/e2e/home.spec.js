@@ -608,22 +608,25 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       const whispers=[];
       await page.route('**/api/agents/chat',r=>{whispers.push(r.request().postDataJSON());return r.fulfill({json:{chat:[{role:'assistant',content:'I will watch his river bet.'}]}});});
       await page.getByRole('button',{name:/^Balanced v2.1 —/}).click();
-      await page.getByRole('button',{name:'Profile',exact:true}).click();
+      await page.getByRole('tab',{name:'Stats',exact:true}).click();
       const profile=page.locator('.profile-overview');
       await expect(profile.getByRole('region',{name:'Skills',exact:true})).toBeVisible();
       await expect(profile.getByRole('region',{name:'Career',exact:true})).toBeVisible();
-      await expect(profile.getByText(ag.name,{exact:true})).toHaveCount(1);
+      await expect(page.locator('.agent-view__header').getByText(ag.name,{exact:true})).toHaveCount(1);
       await expect(profile.getByText('Called the river sizing.')).toBeVisible();
       expect((await profile.boundingBox()).width).toBe(viewport.width);
-      expect((await profile.locator('.agent-view__header').boundingBox()).height).toBe(40);
-      const composer=profile.getByRole('textbox',{name:'Whisper to him'});
+      expect((await page.locator('.agent-view__header').boundingBox()).height).toBe(48);
+       await expect(page.getByTestId('agent-stage')).toBeVisible();
+       await page.getByRole('tab',{name:'Chat',exact:true}).click();
+      const composer=page.getByPlaceholder('Whisper to him…');
       expect((await composer.boundingBox()).y+(await composer.boundingBox()).height).toBeLessThanOrEqual(viewport.height);
-      if(viewport.width===390&&viewport.height===844){await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/profile-c4.png'});}
+      if(viewport.width===390&&viewport.height===844){await page.getByRole('tab',{name:'Stats',exact:true}).click();await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:'../artifacts/profile-c4.png'});await page.getByRole('tab',{name:'Chat',exact:true}).click();}
       await composer.fill('Watch that river.');
-      await profile.getByRole('button',{name:'Send whisper'}).click();
-      await expect(profile.getByText('I will watch his river bet.')).toBeVisible();
+      await page.getByRole('button',{name:'Send',exact:true}).click();
+      await expect(page.locator('.agent-view__thread').getByText('I will watch his river bet.')).toBeVisible();
       expect(whispers).toEqual([{userId:'4242',content:'Watch that river.',existingAgentId:'bal'}]);
-      await profile.getByRole('button',{name:'More actions'}).click();
+      await page.getByRole('tab',{name:'Stats',exact:true}).click();
+       await page.getByRole('button',{name:'More actions'}).click();
       await page.getByRole('button',{name:'His sheet'}).click();
       await expect(page.getByText('Skills',{exact:true})).toBeVisible();
       await page.getByRole('button',{name:'Back',exact:true}).click();
@@ -656,7 +659,8 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
     await page.route('**/api/agents/agg/hands?**', r => r.fulfill({ json: { recentHands: [] } }));
     await page.route('**/api/agents/agg/flagged?**', r => r.fulfill({ json: { flaggedHands: [] } }));
     await sheet.getByRole('button', { name: /^Aggressive v1.3 —/ }).click();
-    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('button', { name: 'His sheet' }).click();
     await page.getByRole('button', { name: 'More actions' }).click();
     await expect(page.getByRole('button', { name: 'Send to a friend' })).toBeVisible();
   });
@@ -712,7 +716,9 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       await expect(page.getByTestId('agent-stage')).toBeVisible();
       await expect(page.getByPlaceholder('Whisper to him…')).toBeVisible();
       await expect(page.locator('.dr-app-header')).toHaveCount(0);
-      expect((await page.locator('.agent-view__header').boundingBox()).height).toBe(40);
+      // CHARACTER-MENU gives Back and More 44px targets inside a 48px header.
+      // Keep the exact new height and the short-phone composer-fit check below.
+      expect((await page.locator('.agent-view__header').boundingBox()).height).toBe(48);
       expect((await page.getByTestId('agent-stage').boundingBox()).width).toBe(viewport.width);
       const stage = await page.getByTestId('agent-stage').boundingBox();
       const namePill = await page.locator('.agent-view__body .home-pill').boundingBox();
@@ -739,6 +745,7 @@ test.describe('HOME-1 · board 29 at 390×844', () => {
       await page.screenshot({ path: `../artifacts/agent-view-${viewport.width}-${viewport.height}.png` });
       const placements = [];
       await page.route('**/api/agents/*/place**', r => { placements.push(r.request().postDataJSON()); return r.fulfill({ json: { ok: true, line: 'I needed a rest.' } }); });
+      await page.getByRole('button', { name: 'More actions', exact: true }).click();
       await page.getByRole('button', { name: 'Carry', exact: true }).click();
       await expect(page.getByTestId('home-screen')).toBeVisible();
       await expect(page.locator('.home-carry-help')).toBeVisible();
@@ -1100,7 +1107,8 @@ for(const viewport of [{width:390,height:844},{width:1440,height:900}]) {
     await page.route('**/api/agents/*/attributes/log?**',r=>r.fulfill({json:{entries:[]}}));
     await page.route('**/api/agents/*/flagged?**',r=>r.fulfill({json:{flaggedHands:[]}}));
     await page.locator('.home-one[data-agent="a1"]').click();
-    await page.getByRole('button',{name:'Carry',exact:true}).click();
+    await page.getByRole('button', { name: 'More actions', exact: true }).click();
+  await page.getByRole('button',{name:'Carry',exact:true}).click();
     const held=page.locator('.home-one.is-carried'); await expect(held).toContainText('Fine. Carry me.');
     const flat=await page.locator('.home-flat').boundingBox();
     const scale=flat.width/(viewport.width===1440?560:390);

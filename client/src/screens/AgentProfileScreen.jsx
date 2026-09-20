@@ -568,7 +568,7 @@ async function retireAgent(agentId) {
 
 
 // ── Main screen ────────────────────────────────────────────────────────────
-export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired, companion = false, sendWhisper = null }) {
+export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onWatch, onFund, onDeploy, onCallIn, onRetired, companion = false, sendWhisper = null, embedded = false, initialDetails = false }) {
   // Home can hand us its compact socket projection before the roster REST
   // response arrives. Keep what is already known while the full profile loads;
   // career, skills and action targets must all read the same presented agent.
@@ -576,11 +576,17 @@ export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onW
   const ownerId = getUserId();
   const initData = getTelegramInitData();
   const [detail, setDetail] = useState(null);
-  const agent = useMemo(() => (
-    detail && detail.agentId === agentId && detail.ownerId === ownerId && detail.initData === initData
-      ? { ...openedAgent, ...detail.agent }
-      : openedAgent
-  ), [openedAgent, detail, agentId, ownerId, initData]);
+  const agent = useMemo(() => {
+    if (!detail || detail.agentId !== agentId || detail.ownerId !== ownerId || detail.initData !== initData) return openedAgent;
+    const sourceRevision = Number(openedAgent?.ownerCommandRevision ?? 0);
+    const detailRevision = Number(detail.agent.ownerCommandRevision ?? 0);
+    // Stats stays mounted while the companion changes. A fresh owner receipt
+    // or later parent projection supersedes this one-time detail read, while
+    // fields omitted from the compact room projection remain available.
+    const sourceIsNewer = sourceRevision > detailRevision
+      || (sourceRevision === detailRevision && openedAgent !== detail.source);
+    return sourceIsNewer ? {...detail.agent, ...openedAgent} : {...openedAgent, ...detail.agent};
+  }, [openedAgent, detail, agentId, ownerId, initData]);
 
   useEffect(() => {
     if (!agentId) return;
@@ -597,14 +603,14 @@ export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onW
         // A scoped attrLog-only reply can still extend the cached profile;
         // an unrelated successful envelope is not an agent record.
         if (view.id == null && !Array.isArray(view.attrLog)) return;
-        setDetail({ agentId, ownerId, initData, agent: view });
+        setDetail({ agentId, ownerId, initData, agent: view, source: openedAgent });
       })
       .catch(() => { /* Keep the last confirmed readings on a failed read. */ });
     return () => { alive = false; request.abort(); };
   }, [agentId, ownerId, initData]);
 
-  const [showDetails, setShowDetails] = useState(false);
-  useEffect(() => { setShowDetails(false); }, [agent?.id]);
+  const [showDetails, setShowDetails] = useState(initialDetails);
+  useEffect(() => { setShowDetails(initialDetails); }, [agent?.id, initialDetails]);
   const [visitStatus, setVisitStatus] = useState(null);
   const visitRequest = useRef({ busy:false, prepared:null });
   useEffect(() => {
@@ -768,7 +774,7 @@ export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onW
     else { onOpenChat?.(agent); }
   }
 
-  if (companion && !showDetails) return <AgentProfileOverview sendWhisper={sendWhisper} key={agent.id} agent={agent} attrLog={attrLog} career={<CareerGrid compact careerStats={agent.careerStats}/>} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
+  if (embedded || (companion && !showDetails)) return <AgentProfileOverview embedded={embedded} sendWhisper={sendWhisper} key={agent.id} agent={agent} attrLog={attrLog} career={<CareerGrid compact careerStats={agent.careerStats}/>} onBack={onBack} onWatch={onWatch} onOpenChat={onOpenChat}
     explained={explained} onExplain={key => { markExplained(key); setExplained(prev => new Set(prev).add(key)); }}
     actions={({ chatAgent }) => <>
       <ActionRow compact agent={agent} live={isLive} homeLive={homeLive} muted={isMuted} showFund onPrimary={onPrimary} onFund={() => onFund?.(agent)} onRetire={() => { setRetireError(null); setRetirePending(true); }} onToggleMute={handleToggleMute} onVisit={canSendVisiting(agent) ? () => handleVisit() : undefined} visitStatus={visitStatus} onCopyVisit={() => handleVisit(true)} onSheet={() => setShowDetails(true)} onChat={() => onOpenChat?.(chatAgent)}/>
@@ -787,7 +793,7 @@ export function AgentProfileScreen({ agent: openedAgent, onBack, onOpenChat, onW
       }}>
         <button
           type="button"
-          onClick={companion ? () => setShowDetails(false) : onBack}
+          onClick={companion && !initialDetails ? () => setShowDetails(false) : onBack}
           aria-label="Back"
           style={{ width: 36, height: 36, borderRadius: 10, background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', color: M_TEXT, cursor: 'pointer', padding: 0, marginLeft: -8, flexShrink: 0 }}
         >

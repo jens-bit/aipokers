@@ -37,7 +37,8 @@ describe('desktop casino replay', () => {
     const row = await screen.findByRole('button', { name: "Replay tonight's hand" });
     expect(row).toBeEnabled();
     await userEvent.click(row);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Stats', exact: true })).toBeInTheDocument());
+    expect(screen.getByTestId('agent-stage')).toBeInTheDocument();
     expect(document.querySelector('.dsk-replay')).toBeNull();
   });
 });

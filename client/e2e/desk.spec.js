@@ -331,7 +331,7 @@ test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)',
     await desk(page, SIZES[0]);
     await page.locator('.home-one[data-agent="a2"]').click();
 
-    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Stats', exact: true })).toBeVisible();
     await expect(page.locator('.home-flat')).toHaveCount(1);
     for (const a of AGENTS) await expect(rosterRow(page, a.name)).toBeVisible();
     await page.waitForTimeout(400);
@@ -341,10 +341,10 @@ test.describe('DESK-3 · three columns, always open (1440×900 and 1920×1080)',
   test('the roster switches threads on its own, with no strip ever appearing', async ({ page }) => {
     await desk(page, SIZES[0]);
     await rosterRow(page, GRANITE.name).click();
-    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Stats', exact: true })).toBeVisible();
 
     await rosterRow(page, BALANCE.name).click();
-    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Stats', exact: true })).toBeVisible();
     await expect(page.locator('.dsk-strip')).toHaveCount(0);
   });
 });
@@ -411,41 +411,46 @@ test.describe('DESK-3, job 2 · hover does what a tap does on the phone', () => 
       await column.getByRole('button',{name:'Send',exact:true}).click();
       await expect(column.getByRole('alert')).toContainText('try again');
       await expect(composer).toHaveValue('Wait for me.');
-      await column.getByRole('button',{name:'Profile',exact:true}).click();
-      await expect(column.locator('.profile-overview__identity stop[stop-color="#6E5836"]')).toHaveCount(1);
+      await column.getByRole('tab',{name:'Stats',exact:true}).click();
+      await expect(column.locator('[data-testid=agent-stage] stop[stop-color="#6E5836"]')).toHaveCount(1);
       await expect(column.getByText('Condition',{exact:true})).toBeVisible();
       await expect(column.getByText('RECENT',{exact:true})).toBeVisible();
-      const profileComposer=column.getByRole('textbox',{name:'Whisper to him',exact:true});
-      expect((await profileComposer.boundingBox()).y).toBeLessThan(size.height-20);
+      await expect(composer).toBeHidden();
+      await expect(column.getByTestId('agent-stage')).toBeVisible();
       if(size.width===1440) {
         await page.screenshot({path:'../artifacts/desktop-profile-c4.png'});
         await column.screenshot({path:'../artifacts/desktop-profile-column-c4.png'});
       }
+      await column.getByRole('tab',{name:'Chat',exact:true}).click();
+      await expect(composer).toHaveValue('Wait for me.');
+      const profileComposer=composer;
+      expect((await profileComposer.boundingBox()).y).toBeLessThan(size.height-20);
       await profileComposer.fill('Wait for the button.');
-      await column.getByRole('button',{name:'Send whisper'}).click();
+      await column.getByRole('button',{name:'Send',exact:true}).click();
       await expect(profileComposer).toHaveValue('Wait for the button.');
-      await expect(column.getByRole('alert')).toContainText('Could not send your whisper');
+      await expect(column.getByRole('alert')).toContainText('try again');
       const whispers=[];
       await page.route('**/api/agents/chat',route=>{whispers.push(route.request().postDataJSON());return route.fulfill({json:{chat:[{role:'assistant',content:'Yes. The button.'}]}});});
-      await column.getByRole('button',{name:'Send whisper'}).click();
-      await column.getByRole('button',{name:'Open conversation'}).click();
+      await column.getByRole('button',{name:'Send',exact:true}).click();
+      await expect(column.getByRole('tab',{name:'Chat',exact:true})).toHaveAttribute('aria-selected','true');
       await expect(column.locator('.agent-view__thread').getByText('Wait for the button.',{exact:true})).toHaveCount(1);
       await expect(column.locator('.agent-view__thread').getByText('Yes. The button.',{exact:true})).toHaveCount(1);
       expect(whispers).toEqual([expect.objectContaining({existingAgentId:'a2',content:'Wait for the button.'})]);
-      await expect(composer).toHaveValue('Wait for me.');
+      await expect(composer).toHaveValue('');
       await page.route('**/api/wallet?**',route=>route.fulfill({json:{balance:9000}}));
-      await column.getByRole('button',{name:'Profile',exact:true}).click();
-      await column.getByRole('button',{name:'Give him chips',exact:true}).click();
+      await column.getByRole('tab',{name:'Stats',exact:true}).click();
+      await column.getByRole('button',{name:'Give chips',exact:true}).click();
       const funding=column.locator('.agent-view__fund');
       await expect(funding.getByRole('dialog')).toBeVisible();
       const columnBox=await column.boundingBox();
       // The column owns a 1px left border; the inset sheet fills its content box.
       expect(await funding.boundingBox()).toEqual({...columnBox,x:columnBox.x+1,width:columnBox.width-1});
       await funding.getByRole('button',{name:'Back',exact:true}).click();
-      await column.getByRole('button',{name:'Back',exact:true}).click();
+      await column.getByRole('tab',{name:'Chat',exact:true}).click();
       expect(await page.locator('.home-flat').boundingBox()).toEqual(roomBefore);
       const requests=[];
       await page.route('**/api/agents/a2/place?**',route=>{requests.push(route.request().postDataJSON());return route.fulfill({json:{ok:true,line:'I will rest here.'}});});
+      await column.getByRole('button',{name:'More actions',exact:true}).click();
       await column.getByRole('button',{name:'Carry',exact:true}).click();
       await expect(page.locator('.home-carry-help')).toBeVisible();
       await page.locator('.home-flat__couch').click();
@@ -964,6 +969,7 @@ test('BUG-105 BUG-106: deploying through the casino opens the game with its queu
     window.WebSocket=class extends Base{send(raw){super.send(raw);const m=JSON.parse(raw);if(m.type==='watch')window.__deployWatch.push(m);}};
   });
   await page.reload();await rosterRow(page,'Balance').click();
+  await page.getByRole('button', { name: 'More actions', exact: true }).click();
   await page.getByRole('button',{name:'Carry',exact:true}).click();
   await page.getByTestId('home-door').click();
   await expect(page.locator('.csn-tray')).toBeVisible();
@@ -987,7 +993,9 @@ test('BUG-107: an agent arriving on an open desktop can continue to the casino',
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await desk(page,{width:1440,height:900});
   await rosterRow(page,'Balance').click();
+  await page.getByRole('button', { name: 'More actions', exact: true }).click();
   await expect(page.getByRole('button',{name:'Carry',exact:true})).toBeVisible();
+  await page.getByRole('button', { name: 'Close actions', exact: true }).click();
   const newborn=agent('newborn-107','New Arrival');
   await page.route('**/api/agents?**',route=>route.fulfill({json:{agents:[...AGENTS,newborn]}}));
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
@@ -1119,7 +1127,8 @@ for(const width of [390,1440])test('BUG-123: retirement keeps the room and remai
   await expect(page.locator('.home-flat')).toBeVisible();
   const room=await page.locator('.home-flat').boundingBox();
   if(width<1100)await page.locator('.home-one[data-agent="a1"]').click();else await rosterRow(page,'Balance').click();
-  await page.getByRole('button',{name:'Profile',exact:true}).click();
+  await page.getByRole('button',{name:'More actions',exact:true}).click();
+  await page.getByRole('button',{name:'His sheet',exact:true}).click();
   await page.getByRole('button',{name:'More actions',exact:true}).click();await page.getByRole('button',{name:'Retire',exact:true}).click();
   await expect(page.getByText('He finishes the hand, his chips come home, his record is kept.')).toBeVisible();
   await page.getByRole('button',{name:'Cancel',exact:true}).click();expect(requests).toEqual([]);

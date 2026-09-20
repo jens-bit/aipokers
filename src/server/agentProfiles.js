@@ -128,7 +128,7 @@ import { appendReadBookLine, readBookProjection } from '../agent/reads.js';
 import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet, saveWallet, agentHasActiveVisit, loadAgentById } from './store.js';
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ensureRosterIdentities } from './identity.js';
-import { identityOf } from '../shared/identity.js';
+import { identityOf, HOODS, GLOWS } from '../shared/identity.js';
 import { emitSessionEnd } from './sessions.js';
 import {
   readThread, latestSessionFor, appendLine as appendThreadLine,
@@ -2728,6 +2728,7 @@ export function floorSnapshot(userId, { owner = false } = {}) {
     return {
       id: p.id,
       name: p.name,
+      identity: p.identity,
       style: p.style,
       risk: p.risk,
       presence: p.presence,
@@ -6400,13 +6401,46 @@ export function installAgentProfileRoutes(app) {
     res.json({ success: true });
   });
 
-  // PATCH /api/agents/:agentId — update name and/or strategy
+  // PATCH /api/agents/:agentId — update name, strategy or Wardrobe palette.
   app.patch('/api/agents/:agentId', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (Object.hasOwn(req.body, 'identity')) {
+      const look = req.body.identity;
+      // Explicit owner choice supersedes the birth roll; only the existing
+      // cosmetic palette is writable. Validate before ANY field is changed.
+      if (!look || typeof look !== 'object' || Array.isArray(look)
+        || Object.keys(look).length !== 2
+        || !HOODS.some(hood => hood.id === look.hood)
+        || !GLOWS.some(glow => glow.id === look.glow)) {
+        return res.status(400).json({ error: 'invalidAppearance', message: 'Choose one of the existing hood and glow colours.' });
+      }
+      const updates = {
+        identity: { hood: look.hood, glow: look.glow },
+        ownerCommandRevision: Math.max(0, Number(agent.ownerCommandRevision) || 0) + 1,
+        ...(req.body.name !== undefined ? { name: String(req.body.name) } : {}),
+        ...(req.body.strategy !== undefined ? { strategy: String(req.body.strategy) } : {}),
+      };
+      const previous = Object.keys(updates).map(key => ({ key, present: Object.hasOwn(agent, key), value: agent[key] }));
+      Object.assign(agent, updates);
+      try { saveStore(userId); }
+      catch (err) {
+        // SQLite rolls back disk. Restore the cache too, so a failed save
+        // cannot appear successful on the next read or ride a later write.
+        for (const old of previous) {
+          if (old.present) agent[old.key] = old.value;
+          else delete agent[old.key];
+        }
+        console.error('[agents] appearance save failed:', err.message);
+        return res.status(503).json({ error: 'appearanceSaveFailed', message: 'Could not save this look. Please try again.' });
+      }
+      emitAgentChange(userId);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(presentAgent(agent, { owner: true, wallet: walletFor(userId) }));
+    }
     if (req.body.name !== undefined) agent.name = String(req.body.name);
     if (req.body.strategy !== undefined) agent.strategy = String(req.body.strategy);
     saveStore(userId);

@@ -92,14 +92,14 @@ test(`BUG-207: Open him lands on his agent view, and Profile preserves identity 
     await expect(room.locator('.agent-view__thread').getByText(text,{exact:true})).toHaveCount(1);
   const sends=requests.filter(r=>r.path==='/api/agents/chat'&&r.method==='POST');
   expect(sends).toEqual([expect.objectContaining({body:expect.objectContaining({existingAgentId:'slick',userId:'4242',content:'Wait for my next hand.'}),headers:expect.objectContaining({'x-telegram-init-data':expect.stringContaining('4242')})})]);
-  await room.getByRole('button',{name:'Profile',exact:true}).click();
-  const profile=page.getByRole('region',{name:"Big Slick's profile",exact:true});
+  await room.getByRole('tab',{name:'Stats',exact:true}).click();
+  const profile=page.getByRole('region',{name:"Big Slick's stats",exact:true});
   await expect(profile).toBeVisible();
-  await expect(profile.locator('.agent-view__name')).toHaveText('Big Slick');
+  await expect(room.locator('.agent-view__name')).toHaveText('Big Slick');
   await expect(profile.getByText('Condition',{exact:true})).toBeVisible();
   if(desktop)expect(await page.locator('.home-flat').boundingBox()).toEqual(before);
   await page.screenshot({path:testInfo.outputPath(`profile-${size.width}x${size.height}.png`)});
-  await profile.getByRole('button',{name:'Back to chat',exact:true}).click();
+  await room.getByRole('tab',{name:'Chat',exact:true}).click();
   await expect(room).toBeVisible();
   if(desktop){
     const composer=room.getByPlaceholder('Whisper to him…');await composer.fill('Keep my draft');

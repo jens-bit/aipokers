@@ -214,7 +214,7 @@ test('HOME-3 roster → Chat draft → fresh Profile career → both ways back p
     await openRosterThread(page);
     const draft = page.getByPlaceholder('Whisper to him…');
     await draft.fill('Ask about that river after the hand.');
-    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await page.getByRole('tab', { name: 'Stats', exact: true }).click();
     const career = page.getByRole('region', { name: 'Career', exact: true });
     await expect(career.getByText('7', { exact: true })).toBeVisible();
     await expect.poll(() => fixture.requests.some(request => request.path === '/api/agents/clock')).toBe(true);
@@ -227,10 +227,14 @@ test('HOME-3 roster → Chat draft → fresh Profile career → both ways back p
     await expect(page.getByRole('button', { name: 'READS 62', exact: true })).toBeVisible();
     await career.scrollIntoViewIfNeeded();
     await checkpoint(page, 'home-3-phone-profile-populated');
+    await page.getByRole('button', { name: 'More actions', exact: true }).click();
+    await page.getByRole('button', { name: 'His sheet', exact: true }).click();
     await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await expect(page.getByRole('tab', { name: 'Stats', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(draft).toHaveValue('Ask about that river after the hand.');
-    await page.getByRole('button', { name: 'Profile', exact: true }).click();
-    await page.getByRole('button', { name: 'Back to chat', exact: true }).click();
+    await page.getByRole('tab', { name: 'Stats', exact: true }).click();
+    await page.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(draft).toHaveValue('Ask about that river after the hand.');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(page.getByTestId('home-screen')).toBeVisible();
@@ -244,7 +248,7 @@ test('HOME-3 compact Home opens Profile before roster REST and hydrates unknown 
   try {
     await openHome(page);
     await page.locator('.home-one[data-agent="clock"]').click();
-    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await page.getByRole('tab', { name: 'Stats', exact: true }).click();
     const career = page.getByRole('region', { name: 'Career', exact: true });
     await expect(career.getByText('—', { exact: true })).toHaveCount(5);
     await expect(career.getByText('0', { exact: true })).toHaveCount(0);
@@ -322,8 +326,8 @@ test('HOME-3 Upstairs floor → Watch twice and nested Profile CHAT return to th
   await checkpoint(page, 'home-3-phone-upstairs-return');
   await openRosterThread(page);
   await page.getByPlaceholder('Whisper to him…').fill('Keep my place upstairs.');
-  await page.getByRole('button', { name: 'Profile', exact: true }).click();
-  await page.getByRole('button', { name: 'Back to chat', exact: true }).click();
+  await page.getByRole('tab', { name: 'Stats', exact: true }).click();
+  await page.getByRole('tab', { name: 'Chat', exact: true }).click();
   await expect(page.getByPlaceholder('Whisper to him…')).toHaveValue('Keep my place upstairs.');
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page.getByTestId('floor-view')).toHaveAttribute('data-room', 'floor');

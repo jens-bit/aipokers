@@ -62,7 +62,7 @@ function RecentRow({ entry, row, explained, onExplain }) {
   </div>;
 }
 
-export function AgentProfileOverview({ agent: suppliedAgent, attrLog, actions, career, onBack, onWatch, onOpenChat, explained, onExplain, children, sendWhisper = null }) {
+export function AgentProfileOverview({ agent: suppliedAgent, attrLog, actions, career, onBack, onWatch, onOpenChat, explained, onExplain, children, sendWhisper = null, embedded = false }) {
   const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
   const identity = identityOf(agent);
   const character = normalizeAttrs(agent);
@@ -127,23 +127,23 @@ export function AgentProfileOverview({ agent: suppliedAgent, attrLog, actions, c
       if (conversationVersion.current === token) { sending.current = false; setBusy(false); }
     }
   }
-  return <section className="agent-view profile-overview" aria-label={`${agent.name}'s profile`}>
-    <header className="agent-view__header">
+  return <section className={`${embedded ? 'profile-overview--embedded' : 'agent-view'} profile-overview`} aria-label={`${agent.name}'s ${embedded ? 'stats' : 'profile'}`}>
+    {!embedded && <header className="agent-view__header">
       <button type="button" className="agent-view__back" aria-label="Back" onClick={onBack}>‹</button>
       <span className="agent-view__name">{agent.name}</span><MoodChip mood={mood} small />
       {agent.liveGame?.tableId && onWatch && <button type="button" className="agent-view__live" aria-label="Watch live game" onClick={() => onWatch(agent)}>● LIVE</button>}
       {onOpenChat && <button type="button" className="profile-overview__chat" aria-label="Back to chat" onClick={() => onOpenChat(chatAgent)}>CHAT</button>}
-    </header>
+    </header>}
     <div className="profile-overview__scroll">
       <div className="profile-overview__identity">
-        <MoodGhost mood={mood} heat={heat} size={62} ring={false} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>
+        {!embedded && <MoodGhost mood={mood} heat={heat} size={62} ring={false} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>}
         <div><div className="profile-overview__nature"><b>{character.nature?.name ?? 'Still forming'}</b>{bornDate && !Number.isNaN(bornDate.valueOf()) && <span>born {bornDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}</div>
           <div className="profile-overview__resource" title={stamina == null ? 'Stamina not recorded yet' : `Stamina: ${stamina}`}><b>STAMINA</b><i><em style={{ width: `${stamina ?? 0}%` }}/></i><span>{stamina ?? '—'}</span></div>
           <div className="profile-overview__resource is-heat"><b>HEAT</b><i><em style={{ width: `${heat}%` }}/></i><span>{Number.isFinite(agent.mood?.heat) || localMood ? Math.round(heat) : '—'}</span></div>
           <div className="profile-overview__composure">composure {composure ?? '—'}</div>
         </div>
       </div>
-      {typeof actions === 'function' ? actions({ chatAgent }) : actions}
+      {!embedded && (typeof actions === 'function' ? actions({ chatAgent }) : actions)}
       <FatigueLine stage={character.fatigue}/>
       <section className="profile-overview__skills" aria-label="Skills">
         <div className="profile-overview__recent-heading"><b>Skills</b><span>tap a skill to see its history</span></div>
@@ -155,9 +155,11 @@ export function AgentProfileOverview({ agent: suppliedAgent, attrLog, actions, c
       <div aria-label="Recent changes">{recent.length ? recent.map((e, i) => <RecentRow key={`${e.key}-${e.at}-${i}`} entry={e} row={character.rows.find(r => r.key === e.key)} explained={explained?.has(e.key)} onExplain={onExplain}/>) : <p className="profile-overview__empty">Nothing recorded yet. It comes with play.</p>}</div>
       {session && <div className="profile-overview__session"><b>{session.label}</b><strong className={session.net < 0 ? 'is-loss' : ''}>{session.net == null ? '—' : `${session.net > 0 ? '+' : session.net < 0 ? '−' : ''}${money(Math.abs(session.net))}`}</strong><span>{session.hands != null && `${session.hands} hands`}{session.flagged != null && ` · ${session.flagged} flagged`}</span></div>}
     </div>
-    {reply && <div className="profile-overview__reply"><span>{reply}</span><button type="button" onClick={() => onOpenChat?.(chatAgent)}>Open conversation</button></div>}
-    {error && <div className="agent-view__error" role="alert">{error}</div>}
-    <form className="agent-view__composer" onSubmit={whisper}><div><input aria-label="Whisper to him" placeholder="Whisper to him" value={draft} disabled={busy} onChange={e => setDraft(e.target.value)}/><button type="submit" disabled={busy || !draft.trim()} aria-label="Send whisper"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m21 3-7 18-4-7-7-4 18-7ZM21 3 10 14"/></svg></button></div></form>
-    {children}
+    {!embedded && <>
+      {reply && <div className="profile-overview__reply"><span>{reply}</span><button type="button" onClick={() => onOpenChat?.(chatAgent)}>Open conversation</button></div>}
+      {error && <div className="agent-view__error" role="alert">{error}</div>}
+      <form className="agent-view__composer" onSubmit={whisper}><div><input aria-label="Whisper to him" placeholder="Whisper to him" value={draft} disabled={busy} onChange={e => setDraft(e.target.value)}/><button type="submit" disabled={busy || !draft.trim()} aria-label="Send whisper"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path d="m21 3-7 18-4-7-7-4 18-7ZM21 3 10 14"/></svg></button></div></form>
+      {children}
+    </>}
   </section>;
 }

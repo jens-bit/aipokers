@@ -279,9 +279,12 @@ describe('DESK-2 · the man in the room', () => {
     });
     await userEvent.click(body);
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
-    });
+    const rail = within(screen.getByTestId('home-rail'));
+    const stats = await rail.findByRole('tab', { name: 'Stats', exact: true });
+    expect(rail.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await userEvent.click(stats);
+    expect(stats).toHaveAttribute('aria-selected', 'true');
+    expect(rail.getByRole('tabpanel', { name: 'Stats', exact: true })).toBeVisible();
     expect(screen.queryByTestId('room-thread')).not.toBeInTheDocument();
     expect(document.querySelectorAll('.home-flat')).toHaveLength(1);
   });

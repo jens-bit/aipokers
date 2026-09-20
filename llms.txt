@@ -35,6 +35,7 @@ GET  /api/agent-profile             — full profile including creation chat and
 GET  /api/agents/:agentId/hands     — recent hand history with per-decision reasoning
 GET  /api/agents/:agentId/memory    — agent memory record and formatted context string
 GET  /api/agents/:agentId/thread    — the table thread for one session (SERVER-3)
+PATCH /api/agents/:agentId          — owner updates name, strategy or an existing hood/glow palette
 POST /api/agents/:agentId/deploy    — deploy agent; returns tableId for owner WebSocket watch
 POST /api/agents/:agentId/queue     — join PvP matchmaking queue
 POST /api/agents/:agentId/finish    — request return after the current hand; settlement stays server-owned
@@ -43,6 +44,14 @@ POST /api/agents/:agentId/want      — answer the one thing he is asking for (y
 POST /api/agents/:agentId/place     — put him at a fixture in the flat (SERVER-5)
 POST /api/agents/chat               — conversational turn (creation flow or owner chat)
 POST /api/agents/build              — generate agent from creation chat
+
+Wardrobe saves use the same authenticated owner (or exact guest owner) as other
+agent mutations: PATCH with `{ "userId": "<owner>", "identity": { "hood": "moss", "glow": "gold" } }`.
+Both colour IDs are required. Hood IDs: ash, oxblood, moss, indigo, sand, slate.
+Glow IDs: teal, gold, ember, violet, ice, lime. Invalid appearance rejects the
+whole update. A successful appearance update returns the authenticated agent
+projection with its saved identity and ownerCommandRevision. These cosmetic
+choices do not alter poker skills, cards, strategy or funds.
 POST /api/guest                     — play without an account: mint a guest owner (GUEST-1)
 GET  /api/guest/me                  — who the guest cookie is
 GET  /api/guest/link                — the bot deep link that claims this guest
