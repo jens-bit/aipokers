@@ -10,6 +10,8 @@
 // replaces a fuller REST seat list with this trimmed one wholesale the moment
 // any push lands, and a number this allowlist does not carry is gone for the
 // rest of the session, not just delayed.
+import { equipmentOf } from './wardrobe.js';
+
 export function homeTablePreview(game) {
   if (!game || typeof game.tableId !== 'string' || !game.tableId) return null;
   const view = {tableId:game.tableId};
@@ -26,6 +28,7 @@ export function homeTablePreview(game) {
     if(typeof seat?.displayName==='string') visible.displayName=seat.displayName;
     if(Number.isFinite(seat?.stack)) visible.stack=seat.stack;
     if(seat?.identity && typeof seat.identity.hood==='string' && typeof seat.identity.glow==='string') visible.identity={hood:seat.identity.hood,glow:seat.identity.glow};
+    if(seat?.equipment) visible.equipment=equipmentOf(seat);
     if(seat?.mood && typeof seat.mood.state==='string') visible.mood={state:seat.mood.state,...(Number.isFinite(seat.mood.heat)?{heat:seat.mood.heat}:{})};
     return visible;
   });

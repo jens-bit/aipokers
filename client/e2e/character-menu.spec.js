@@ -245,11 +245,11 @@ for (const size of [{ width: 390, height: 844 }, { width: 390, height: 590 }, { 
 
     await menu.getByRole('tab', { name: 'Wardrobe', exact: true }).click();
     const wardrobe = menu.getByRole('tabpanel', { name: 'Wardrobe', exact: true });
-    await wardrobe.getByRole('button', { name: 'Moss hood', exact: true }).click();
-    await wardrobe.getByRole('button', { name: 'Gold glow', exact: true }).click();
+    await wardrobe.getByRole('button', { name: 'Rail cap', exact: true }).click();
+    await wardrobe.getByRole('button', { name: 'Round glasses', exact: true }).click();
     expect((await rpc('state')).saved.identity).toEqual({ hood: 'indigo', glow: 'violet' });
     await wardrobe.getByRole('button', { name: 'Try on', exact: true }).click();
-    await expect(stage.locator('.mood-ghost')).toHaveAttribute('data-hood', 'moss');
+    await expect(stage.locator('.mood-ghost')).toHaveAttribute('data-hood', 'indigo');
     expect((await rpc('state')).saved.identity).toEqual({ hood: 'indigo', glow: 'violet' });
     await visibleGeometry(page, menu);
     expect(await cards.evaluate((element, original) => element === original, originalCards)).toBe(true);
@@ -266,11 +266,14 @@ for (const size of [{ width: 390, height: 844 }, { width: 390, height: 590 }, { 
     await wardrobe.getByRole('button', { name: 'Save look', exact: true }).click();
     await expect(wardrobe.getByRole('alert')).toContainText(/save|try again/i);
     expect((await rpc('state')).saved.identity).toEqual({ hood: 'indigo', glow: 'violet' });
-    await expect(wardrobe.getByRole('button', { name: 'Moss hood', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(wardrobe.getByRole('button', { name: 'Rail cap', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.screenshot({ path: info.outputPath(`character-save-error-${size.width}x${size.height}.png`), animations: 'disabled' });
     await wardrobe.getByRole('button', { name: 'Save look', exact: true }).click();
     await expect(wardrobe.getByText('Look saved.', { exact: true })).toBeVisible();
-    expect((await rpc('state')).saved.identity).toEqual({ hood: 'moss', glow: 'gold' });
+    expect((await rpc('state')).saved.identity).toEqual({ hood: 'indigo', glow: 'violet' });
+    expect((await rpc('state')).saved.wardrobe.equipped).toEqual({ head: 'rail-cap', face: 'round-glasses', neck: null });
+    await expect(stage.locator('[data-item=rail-cap]')).toBeVisible();
+    await expect(stage.locator('[data-item=round-glasses]')).toBeVisible();
     expect(attempts).toBe(2);
     await visibleGeometry(page, menu);
     await page.screenshot({ path: info.outputPath(`character-wardrobe-${size.width}x${size.height}.png`), animations: 'disabled' });
@@ -282,12 +285,20 @@ for (const size of [{ width: 390, height: 844 }, { width: 390, height: 590 }, { 
     expect((await visibleGeometry(page, menu)).stage.height).toBe(chatGeometry.stage.height);
     await menu.getByRole('button', { name: size.width > 1000 ? 'Close panel' : 'Back', exact: true }).click();
     const reopened = await openCharacter(page, size.width);
-    await expect(reopened.getByTestId('agent-stage').locator('.mood-ghost')).toHaveAttribute('data-hood', 'moss');
+    await expect(reopened.getByTestId('agent-stage').locator('.mood-ghost')).toHaveAttribute('data-hood', 'indigo');
     await page.reload();
     const reloaded = await openCharacter(page, size.width);
     await reloaded.getByRole('tab', { name: 'Wardrobe', exact: true }).click();
-    await expect(reloaded.getByRole('button', { name: 'Moss hood', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(reloaded.getByRole('button', { name: 'Gold glow', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(reloaded.getByRole('button', { name: 'Rail cap', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(reloaded.getByRole('button', { name: 'Round glasses', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(reloaded.getByTestId('agent-stage').locator('[data-item=rail-cap]')).toBeVisible();
+    // Taking off the hat is a real persisted change; his birth cloth stays.
+    await reloaded.getByRole('button', { name: 'Rail cap', exact: true }).click();
+    await reloaded.getByRole('button', { name: 'Try on', exact: true }).click();
+    await reloaded.getByRole('button', { name: 'Save look', exact: true }).click();
+    await expect(reloaded.getByText('Look saved.', { exact: true })).toBeVisible();
+    expect((await rpc('state')).saved.wardrobe.equipped.head).toBeNull();
+    expect((await rpc('state')).saved.identity).toEqual({ hood: 'indigo', glow: 'violet' });
     expect(requests.filter(r => r.path === '/api/agents/chat')).toEqual([]);
     expect(errors).toEqual([]);
   });

@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { normalizeFelts } from '../../hooks/useCasinoRooms.js';
-import { TinyGhost } from './TheFloor.jsx';
+import { TheFloor, TinyGhost } from './TheFloor.jsx';
 import { TableFelt } from './TableFelt.jsx';
 import { DeployTray } from './CasinoBuilding.jsx';
 import { HOODS, GLOWS } from '../../lib/identity.js';
@@ -38,4 +38,18 @@ it('BUG-111: room normalization retains palette IDs without copying stored metad
   const raw=[{tableId:'a',seats:[{identity:{...identity,privateNote:'hidden'}},{}]}];
   const seats=normalizeFelts(raw)[0].seats;
   expect(seats[0].identity).toEqual(identity);expect(seats[1].identity).toBeNull();
+});
+
+it('served equipment survives public normalization and both floor scales without changing birth identity',()=>{
+  const equipment={head:'rail-cap',face:'round-glasses',neck:'knit-scarf'};
+  const [felt]=normalizeFelts([{tableId:'clothed',seated:1,seats:[{seat:0,agentId:'a',identity,equipment:{...equipment,privateNote:'hidden'}}]}]);
+  expect(felt.seats[0].equipment).toEqual(equipment);
+  const {container,rerender}=render(<TheFloor felts={[felt]}/>);
+  expect(container.querySelectorAll('.csn-tiny [data-item]')).toHaveLength(3);
+  expect(container.querySelector('.csn-tiny')).toHaveAttribute('data-hood',identity.hood);
+  rerender(<TableFelt felt={felt} agentId="a"/>);
+  expect(container.querySelectorAll('.mood-ghost [data-item]')).toHaveLength(3);
+  appearance(container.querySelector('.mood-ghost'));
+  rerender(<TableFelt felt={felt}/>);
+  expect(container.querySelectorAll('.mood-ghost [data-item]')).toHaveLength(3);
 });

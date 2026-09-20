@@ -81,12 +81,14 @@ describe('BUG-169: the authored live television', () => {
     expect(container.querySelectorAll('.home-tv__ghost')).toHaveLength(2);
     expect(own).toHaveAttribute('data-seat', '1');
     expect(container.querySelector('.home-tv__ghost')).toBe(own);
-    expect(own.querySelector('path')).toHaveAttribute('fill', HOODS.find(h => h.id === 'sand').top);
-    expect(own.querySelector('ellipse')).toHaveAttribute('fill', GLOWS.find(g => g.id === 'gold').c);
-    expect(container.querySelector('[data-seat="0"] path')).toHaveAttribute('fill', HOODS.find(h => h.id === 'moss').top);
+    // TV now uses the same clothed MoodGhost as the character and felt.
+    // Assert the actual gradient cloth and eye pigment, not the retired silhouette.
+    expect(own.querySelector('linearGradient stop')).toHaveAttribute('stop-color', HOODS.find(h => h.id === 'sand').top);
+    expect(own.querySelector('[data-face="neutral"] ellipse')).toHaveAttribute('fill', GLOWS.find(g => g.id === 'gold').c);
+    expect(container.querySelector('[data-seat="0"] linearGradient stop')).toHaveAttribute('stop-color', HOODS.find(h => h.id === 'moss').top);
     const changedMood = live(); changedMood.mood = { state: 'tilted', heat: 99 };
     rerender(<CasinoOnTv away={[changedMood]} />);
-    expect(container.querySelector('.home-tv__ghost.is-own path')).toHaveAttribute('fill', '#6E5836');
+    expect(container.querySelector('.home-tv__ghost.is-own linearGradient stop')).toHaveAttribute('stop-color', '#6E5836');
   });
 
   it('BUG-169: shows the selected short name, actual blinds and live signal without displaying private cards', () => {
@@ -119,8 +121,8 @@ describe('BUG-169: the authored live television', () => {
 
   it('BUG-169: an older seat projection still uses his saved identity instead of re-rolling it from the name', () => {
     const { container } = render(<CasinoOnTv away={[live({ heroSeat: 0, seats: [{ displayName: 'Balanced' }] })]} />);
-    expect(container.querySelector('.home-tv__ghost.is-own path')).toHaveAttribute('fill', '#6E5836');
-    expect(container.querySelector('.home-tv__ghost.is-own ellipse')).toHaveAttribute('fill', '#C9A227');
+    expect(container.querySelector('.home-tv__ghost.is-own linearGradient stop')).toHaveAttribute('stop-color', '#6E5836');
+    expect(container.querySelector('.home-tv__ghost.is-own [data-face="neutral"] ellipse')).toHaveAttribute('fill', '#C9A227');
   });
 
   it('BUG-169: a changed selected table replaces caption and identities together and omits unknown stakes', () => {
@@ -133,10 +135,21 @@ describe('BUG-169: the authored live television', () => {
     expect(screen.getByText('River · 50/100')).toBeInTheDocument();
     expect(screen.queryByText('Bal · 25/50')).toBeNull();
     expect(container.querySelectorAll('.home-tv__ghost')).toHaveLength(1);
-    expect(container.querySelector('.home-tv__ghost path')).toHaveAttribute('fill', '#33526B');
+    expect(container.querySelector('.home-tv__ghost linearGradient stop')).toHaveAttribute('stop-color', '#33526B');
     rerender(<CasinoOnTv away={[{ ...second, liveGame: { ...second.liveGame, blinds: null, pot: 0 } }]} />);
     expect(container.querySelector('.home-tv__caption')).toHaveTextContent(/^River$/);
     expect(screen.getByText('POT $0')).toBeInTheDocument();
+  });
+
+  it('BUG-277: the television wears public removable items and preserves both birth colours', () => {
+    const bird = live();
+    bird.liveGame.seats[1].equipment = { head: 'rail-cap', face: 'round-glasses', neck: null };
+    const { container } = render(<CasinoOnTv away={[bird]}/>);
+    const own = container.querySelector('.home-tv__ghost.is-own');
+    expect(own.querySelectorAll('[data-item]')).toHaveLength(2);
+    expect(own.querySelector('linearGradient stop')).toHaveAttribute('stop-color', '#6E5836');
+    expect(own.querySelector('[data-face="neutral"] ellipse')).toHaveAttribute('fill', '#C9A227');
+    expect(container.querySelector('[data-seat="0"] [data-item]')).toBeNull();
   });
 });
 

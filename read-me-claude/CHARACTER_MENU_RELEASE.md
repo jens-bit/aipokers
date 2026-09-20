@@ -19,18 +19,26 @@ retirement controls. Back from His sheet restores the selected character pane;
 its explicit Chat control returns to the conversation. Existing return origins,
 owner-scoped drafts and watch privacy are preserved.
 
-Wardrobe offers the six existing hoods and six existing eye glows. Selection and
-Try on are local. Save persists validated palette IDs; Cancel restores the saved
-look. A refused save retains the draft for retry. Old responses cannot repaint a
-different agent or owner. The authenticated saved projection updates the character
-immediately; live felts read the saved palette on their next normal state frame.
-
-This intentionally supersedes v15's fixed-at-birth colour rule under Jens's
-request to implement Wardrobe. It adds no cosmetic store, item inventory, stat
-boosts, chip purchase or real-money behavior. Private chat/cards remain private.
+Jens corrected the initial palette proposal before PR #9 merged. Birth hood and
+eye colours are permanent. The server rejects every identity PATCH, including a
+mixed rename request. Wardrobe now offers a free starter cap, glasses and scarf.
+Selection/Try on are local, Save persists removable equipment, and tapping a
+selected item removes it. Cancel restores the saved outfit. A refused save keeps
+the draft for retry; responses from another agent/owner cannot change this room.
+Saved items appear on room, roster and public table portraits on their next frame.
+This adds no stat boosts, paid cosmetics or real-money behavior. Private chat/cards remain private.
 The proposed three-friend host invitation is a separate subsequent feature.
 
-## Verification and release status
+## Earlier verification — superseded by the playtest repair gate
+
+The corrected starter Wardrobe and playtest repairs passed the full local gate:
+209 server checks, 8 end-to-end tests, 3,101 client tests, production build,
+8 browser smoke tests, 20 phone layout checks and 212 integrated journeys.
+See `PLAYTEST_2026-09-20.md` for the final bar-layer regression and exact receipts.
+
+The following receipts cover the original character menu at 76c4eb6, before the
+founder corrections. They do not authorize release of the revised code. PR #9
+was made draft; `PLAYTEST_2026-09-20.md` tracks the current repair gate.
 
 Focused new behavior was reproduced red before implementation. Verification uses
 Node 22.22.2, isolated scratch databases and no paid provider or Telegram bot keys.

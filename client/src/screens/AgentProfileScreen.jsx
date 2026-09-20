@@ -1,3 +1,5 @@
+import { identityOf } from '../lib/identity.js';
+import { equipmentOf } from '../../../src/shared/wardrobe.js';
 // NAV PROFILE-1a — agent profile screen.
 // Port of AgentProfileScreenM from design-refs/mood-screens-e.jsx.
 // Uses real careerStats + sessionLog from presentAgent; activity feed from sessionFlagged.
@@ -328,7 +330,7 @@ function IdentityBlock({ agent, accent, mood, heat = 45, nature, compact }) {
         background: 'var(--bg-tertiary)', border: `1px solid color-mix(in srgb, ${accent} 27%, transparent)`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <MoodGhost mood={mood} heat={heat} accent={accent} size={52} ring={false} />
+        <MoodGhost hood={identityOf(agent).hood} glow={identityOf(agent).glow.c} equipment={equipmentOf(agent)} mood={mood} heat={heat} accent={accent} size={52} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: PLAYFAIR, fontSize: 19, fontWeight: 600, color: M_TEXT, letterSpacing: '-0.01em' }}>

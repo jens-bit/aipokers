@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 // Board 42 C4 with the founder's BUG-143 correction: his statistics belong on
 // Profile itself, alongside recent life. His sheet retains the longer history.
 import { useEffect, useRef, useState } from 'react';
@@ -136,7 +137,7 @@ export function AgentProfileOverview({ agent: suppliedAgent, attrLog, actions, c
     </header>}
     <div className="profile-overview__scroll">
       <div className="profile-overview__identity">
-        {!embedded && <MoodGhost mood={mood} heat={heat} size={62} ring={false} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>}
+        {!embedded && <MoodGhost equipment={equipmentOf(agent)} mood={mood} heat={heat} size={62} ring={false} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>}
         <div><div className="profile-overview__nature"><b>{character.nature?.name ?? 'Still forming'}</b>{bornDate && !Number.isNaN(bornDate.valueOf()) && <span>born {bornDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>}</div>
           <div className="profile-overview__resource" title={stamina == null ? 'Stamina not recorded yet' : `Stamina: ${stamina}`}><b>STAMINA</b><i><em style={{ width: `${stamina ?? 0}%` }}/></i><span>{stamina ?? '—'}</span></div>
           <div className="profile-overview__resource is-heat"><b>HEAT</b><i><em style={{ width: `${heat}%` }}/></i><span>{Number.isFinite(agent.mood?.heat) || localMood ? Math.round(heat) : '—'}</span></div>

@@ -111,38 +111,42 @@ describe('GUEST-1 · and the room, directly under it', () => {
       born = true;
       return { ...ready, draftStep: 'created', agentId: newborn.id, agentName: newborn.name, createdAgent: newborn, firstAgent: true };
     }, { method: 'POST' });
-    const view = render(<StrictMode><GuestLanding showDetails /></StrictMode>);
-    const room = view.container.querySelector('.guest-landing__room');
+    let view, room;
     const arrivals = [];
-    room.scrollIntoView = vi.fn(function (options) {
-      // This is a navigation request after Home commits, not a scroll of the
-      // disappearing birth card or a guide target. Browser tests own geometry.
-      arrivals.push({ options, home: this.querySelector('[data-testid="home-screen"]'), draft: this.querySelector('[data-testid="draft-screen"]') });
-    });
-    const deal = await screen.findByRole('button', { name: 'Deal him in', exact: true });
-    await waitFor(() => expect(deal).toBeEnabled(), { timeout: 2500 });
-    // Advance only the known nature-reveal delay; the request, card and
-    // acknowledgment still use the actual production components.
+    // Own the formation/reveal animation clock from mount. This regression
+    // checks navigation, while the actual request, card and Home stay mounted.
     vi.useFakeTimers();
     try {
+      await act(async () => { view = render(<StrictMode><GuestLanding showDetails /></StrictMode>); });
+      room = view.container.querySelector('.guest-landing__room');
+      room.scrollIntoView = vi.fn(function (options) {
+        // Scroll the committed Home, never the disappearing birth card.
+        arrivals.push({ options, home: this.querySelector('[data-testid="home-screen"]'), draft: this.querySelector('[data-testid="draft-screen"]') });
+      });
+      // Query the live room, not the demo and eight marketing sections.
+      const deal = within(room).getByRole('button', { name: 'Deal him in', exact: true });
+      for (const delay of [0, 650, 650]) {
+        await act(async () => { await vi.advanceTimersByTimeAsync(delay); });
+      }
+      expect(deal).toBeEnabled();
       fireEvent.click(deal);
       await act(async () => {});
       await act(async () => { await vi.advanceTimersByTimeAsync(2200); });
     } finally { vi.useRealTimers(); }
-    const goHome = screen.getByRole('button', { name: 'Go home', exact: true });
+    const goHome = within(room).getByRole('button', { name: 'Go home', exact: true });
     expect(room.scrollIntoView).not.toHaveBeenCalled();
     await user.click(goHome);
-    const home = await screen.findByTestId('home-screen');
+    const home = await within(room).findByTestId('home-screen');
     expect(room.scrollIntoView).toHaveBeenCalledOnce();
     expect(arrivals).toEqual([{ options: { behavior: 'instant', block: 'start' }, home, draft: null }]);
     expect(view.container.querySelector('.guest-landing__room')).toBe(room);
-    expect(screen.getByRole('heading', { name: 'Thirty seconds of conversation, and he exists.' })).toBeInTheDocument();
+    expect(within(view.container.querySelector('.landing-details')).getByRole('heading', { name: 'Thirty seconds of conversation, and he exists.' })).toBeInTheDocument();
 
     // Scrolling marketing copy, updating the landing and opening/closing a
     // normal Home sheet must not take the reader back to the anchor again.
     fireEvent.scroll(window);
     view.rerender(<StrictMode><GuestLanding showDetails ctaNote="Free · play money only" /></StrictMode>);
-    await user.click(within(home).getByRole('button', { name: 'Your agents', exact: true }));
+    await user.click(within(home.querySelector('.room-header')).getByRole('button', { name: 'Your agents', exact: true }));
     const roster = await screen.findByTestId('roster-sheet');
     await user.click(within(roster.querySelector('.roster__head')).getByRole('button', { name: 'Close', exact: true }));
     expect(room.scrollIntoView).toHaveBeenCalledOnce();

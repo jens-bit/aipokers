@@ -342,6 +342,26 @@
 fieldset.safe__pages { min-width: 0; margin: 0; padding: 0; border: 0; }
 .safe__verb:disabled { opacity: .45; cursor: wait; }
 
+/* BUG-280: FundSheet is positioned, so it cannot supply the safe panel's
+   intrinsic height. Give the transfer page real space; its body scrolls while
+   Back and the confirmation footer remain reachable. */
+.safe--sheet[data-page='fund'] .safe__panel {
+  height: 92%;
+  max-height: 92%;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+.safe[data-page='fund'] .safe__pages {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.safe[data-page='fund'] .safe__page {
+  position: absolute;
+  inset: 0;
+  animation: none;
+}
+
 /* ── the rail (DESK-2) ───────────────────────────────────────────────────── */
 
 .safe--rail {
@@ -367,6 +387,7 @@ fieldset.safe__pages { min-width: 0; margin: 0; padding: 0; border: 0; }
   animation: none;
   padding-bottom: 22px;
 }
+.safe--rail[data-page='fund'] .safe__panel { overflow: hidden; padding-bottom: 0; }
 
 /* The head is not drawn at all on the rail's number page — see SafeSheet.jsx.
    A panel head and a sheet head saying the same word is the same door twice. */

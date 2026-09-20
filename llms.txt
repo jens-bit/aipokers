@@ -35,7 +35,8 @@ GET  /api/agent-profile             — full profile including creation chat and
 GET  /api/agents/:agentId/hands     — recent hand history with per-decision reasoning
 GET  /api/agents/:agentId/memory    — agent memory record and formatted context string
 GET  /api/agents/:agentId/thread    — the table thread for one session (SERVER-3)
-PATCH /api/agents/:agentId          — owner updates name, strategy or an existing hood/glow palette
+PATCH /api/agents/:agentId          — owner updates name, strategy or removable wardrobe equipment
+POST /api/agents/:agentId/bar-order — serve a stocked drink/snack, or explicitly buy and serve one
 POST /api/agents/:agentId/deploy    — deploy agent; returns tableId for owner WebSocket watch
 POST /api/agents/:agentId/queue     — join PvP matchmaking queue
 POST /api/agents/:agentId/finish    — request return after the current hand; settlement stays server-owned
@@ -46,12 +47,31 @@ POST /api/agents/chat               — conversational turn (creation flow or ow
 POST /api/agents/build              — generate agent from creation chat
 
 Wardrobe saves use the same authenticated owner (or exact guest owner) as other
-agent mutations: PATCH with `{ "userId": "<owner>", "identity": { "hood": "moss", "glow": "gold" } }`.
-Both colour IDs are required. Hood IDs: ash, oxblood, moss, indigo, sand, slate.
-Glow IDs: teal, gold, ember, violet, ice, lime. Invalid appearance rejects the
-whole update. A successful appearance update returns the authenticated agent
-projection with its saved identity and ownerCommandRevision. These cosmetic
-choices do not alter poker skills, cards, strategy or funds.
+agent mutations: PATCH with `{ "userId": "<owner>", "equipment": { "head": "rail-cap", "face": "round-glasses", "neck": null } }`.
+The free starter rack has rail-cap (head), round-glasses (face), knit-scarf (neck).
+All three slots are required; null removes that item. Unknown or wrong-slot items
+reject the whole update. Birth hood/eye colours are permanent: any PATCH identity
+field returns 400 immutableIdentity before any mutation. Saved equipment travels
+with public agent/seat portraits; only the owner gets the wardrobe inventory.
+The successful owner projection increments ownerCommandRevision. Clothing does
+not alter skills, cards, strategy or funds.
+
+Casino bar orders take userId, item (beer|snack), buyIfEmpty (boolean), and a unique
+orderId. The selected owned agent must have an actual casino seat. Stock is used
+first; buyIfEmpty:true authorizes one item at the existing fridge price from the
+safe. A refusal spends nothing. Reusing a recent orderId with the same choice
+returns its receipt; a different choice returns 409. Private order receipts never
+appear in agent projections. Table stacks, commitments and pending hands remain.
+
+A subscribed, authenticated Home socket can send `{ "type": "home_observe", "visible": true }`
+only while the owner can see the room. Renew every five seconds; the server lease
+expires after fifteen seconds. Send visible:false on hide/leave; disconnect also
+ends observation. Hungry Home agents may eat real stocked snacks at six-second
+intervals, with an owner-visible fridge trip. Multiple tabs share that cadence.
+This never buys stock or drains it offline. Empty shelves produce a stock request.
+Spent-agent refusals retain structured needs/stamina details so the client can
+offer Home/fridge remedies; opening Watch never silently retries a paid deploy.
+
 POST /api/guest                     — play without an account: mint a guest owner (GUEST-1)
 GET  /api/guest/me                  — who the guest cookie is
 GET  /api/guest/link                — the bot deep link that claims this guest

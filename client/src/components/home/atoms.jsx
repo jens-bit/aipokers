@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 // client/src/components/home/atoms.jsx — HOME-1
 //
 // The bodies in the room. Ported from design-refs/mood-home.jsx (HomeBubble,
@@ -20,6 +21,7 @@
 // where the body stands, so it flips near an edge rather than clipping.
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
+import { GhostClothes } from '../system/GhostClothes.jsx';
 import { GhostHandLayer, SEAT_GRIP } from '../system/GhostHands.jsx';
 import { CardBack } from '../system/PlayingCard.jsx';
 import { PHONE_ROOM, bubbleSide } from './flat.js';
@@ -274,9 +276,10 @@ export function HomeOne({
               d="M40 6 C57.6 6 70 18.4 70 36 L70 70 C70 78.4 62.4 76.8 57.6 81.6 C53.6 85.6 46.4 85.6 40 81.6 C33.6 85.6 26.4 85.6 22.4 81.6 C17.6 76.8 10 78.4 10 70 L10 36 C10 18.4 22.4 6 40 6 Z"
               fill={identity?.hood?.top ?? '#161F1E'} stroke={`${glow}33`} strokeWidth="1.5"
             />
+            <GhostClothes equipment={{ ...equipmentOf(agent), face: null }}/>
           </svg>
         ) : (
-          <MoodGhost
+          <MoodGhost equipment={equipmentOf(agent)}
             mood={mood}
             heat={heat}
             accent={glow}

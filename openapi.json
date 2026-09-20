@@ -19,7 +19,8 @@
     "humanTimeout": "check if free, otherwise fold",
     "humanReconnectGraceMs": 30000,
     "reconnect": "Use the same authenticated playerId to restore the reserved seat/cards. The existing action deadline is not reset. Explicit leave folds on its legal turn and preserves all-in showdown entitlement.",
-    "state": "Wire type state carries state.toAct, legalActions and actionTimer:{seat,deadlineTs,totalMs}|null. Private cards/reasoning require ownership.",
+    "state": "Wire type state carries state.toAct, legalActions and actionTimer:{seat,deadlineTs,totalMs}|null. Private cards/reasoning require ownership. Public seat equipment describes removable items independently of permanent identity.",
+    "homeObservation": "Authenticated floor subscribers send home_observe with visible:true only while Home is visible, renewing every 5s. Lease expires at 15s; visible:false or disconnect stops it. Hungry Home agents visibly eat stocked snacks at least 6s apart, shared across tabs. No offline consumption or automatic purchases.",
     "result": "hand_result and the persisted table-thread result publish at award after any paced reveal/hold. Emitted result.deltas sum to -(result.rake?.total ?? 0); Home has no rake."
   },
   "paths": {
@@ -153,7 +154,7 @@
       "patch": {
         "summary": "Update agent name, strategy or Wardrobe look",
         "operationId": "updateAgent",
-        "description": "Owner-only. An identity update validates both existing palette IDs before changing any field, persists the look and increments ownerCommandRevision. The response is the sanitized owner projection with Cache-Control: no-store. A refused save restores the previous cached look and returns 503. Active felts receive the saved look on their next normal state frame.",
+        "description": "Owner-only. Birth identity is permanent; any identity field rejects with 400 immutableIdentity before changing anything. Equipment validates removable starter items in all three slots, persists wardrobe.equipped and increments ownerCommandRevision. The sanitized owner projection uses Cache-Control: no-store. Failed persistence restores the cache and returns 503. Live seat portraits receive equipment on their next normal state frame. The starter rack is free and has no gameplay effects.",
         "parameters": [
           { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
@@ -166,7 +167,7 @@
                   "userId": { "type": "string" },
                   "name": { "type": "string" },
                   "strategy": { "type": "string", "description": "Natural-language poker personality injected into the decision prompt" },
-                  "identity": { "$ref": "#/components/schemas/WardrobeLook" }
+                  "equipment": { "$ref": "#/components/schemas/WardrobeEquipment" }
                 }
               }
             }
@@ -174,11 +175,32 @@
         },
         "responses": {
           "200": { "description": "Updated agent", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Agent" } } } },
-          "400": { "description": "Invalid hood or glow palette IDs" },
+          "400": { "description": "Immutable birth identity, unknown item or invalid equipment slot" },
           "401": { "description": "Missing authentication" },
           "403": { "description": "Owner identity does not match" },
           "404": { "description": "Agent not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
           "503": { "description": "Appearance could not be persisted; the previous look is retained" }
+        }
+      }
+    },
+    "/api/agents/{agentId}/bar-order": {
+      "post": {
+        "summary": "Serve a drink or snack to an owned casino player",
+        "operationId": "orderAtCasinoBar",
+        "description": "Owner-only. Requires an actual casino seat. Uses one stocked item, or with buyIfEmpty:true buys one at the existing fridge price from the safe and serves it atomically. A refusal spends nothing. Retry the same recent orderId and payload for its receipt; changed payload returns 409. No table chips or hand state change. Internal receipt history is private.",
+        "parameters": [{ "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["userId", "item", "buyIfEmpty", "orderId"], "properties": {
+            "userId": { "type": "string" }, "item": { "type": "string", "enum": ["beer", "snack"] },
+            "buyIfEmpty": { "type": "boolean" }, "orderId": { "type": "string", "minLength": 8, "maxLength": 100, "pattern": "^[A-Za-z0-9_-]+$" }
+          }
+        } } } },
+        "responses": {
+          "200": { "description": "Committed order receipt with orderId, given, spent, agent and fridge; repeated orderIds do not charge twice" },
+          "400": { "description": "Invalid order, unhelpful item or insufficient safe funds" },
+          "401": { "description": "Missing authentication" }, "403": { "description": "Wrong owner" },
+          "404": { "description": "Agent not found" }, "409": { "description": "Not at the casino, empty stock or reused orderId with a different payload" },
+          "503": { "description": "Persistence failed; no order committed" }
         }
       }
     },
@@ -1129,7 +1151,15 @@
         "at": { "type": "integer", "nullable": true, "description": "Epoch ms he raised it." }
       }
     },
-    "WardrobeLook": {
+    "WardrobeEquipment": {
+      "type": "object", "additionalProperties": false, "required": ["head", "face", "neck"],
+      "properties": {
+        "head": { "type": "string", "nullable": true, "enum": ["rail-cap", null] },
+        "face": { "type": "string", "nullable": true, "enum": ["round-glasses", null] },
+        "neck": { "type": "string", "nullable": true, "enum": ["knit-scarf", null] }
+      }
+    },
+    "BirthIdentity": {
       "type": "object",
       "additionalProperties": false,
       "required": ["hood", "glow"],
@@ -1143,7 +1173,8 @@
         "properties": {
           "id": { "type": "string" },
           "name": { "type": "string" },
-          "identity": { "$ref": "#/components/schemas/WardrobeLook" },
+          "identity": { "$ref": "#/components/schemas/BirthIdentity" },
+          "equipment": { "$ref": "#/components/schemas/WardrobeEquipment" },
           "style": { "type": "string", "enum": ["Aggressive", "Balanced", "Tight"] },
           "risk": { "type": "string", "enum": ["High", "Medium", "Low"] },
           "strategy": { "type": "string", "description": "Natural-language poker personality injected into the decision-time system prompt" },

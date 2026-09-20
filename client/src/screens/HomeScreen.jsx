@@ -318,6 +318,7 @@ export function HomeScreen({
   onDeploy,
   onCreateAgent,
   guideEnabled = true,
+  observing = true,
   // HOME-2 job 1 · the casino is the door. There is no bottom bar to reach it
   // by any more, so the room carries the only way in — and the phone is the
   // only shell that needs it: the desk has the building beside it in a rail.
@@ -334,6 +335,9 @@ export function HomeScreen({
   // beside it; `renderRail` is given everything the rail needs so this screen
   // stays the only reader of the household.
   desktop = false,
+  // The shell's wallet can change while its own panel covers this room.
+  // Re-read the room safe on that change, rather than waiting for its poll.
+  walletRevision = 0,
   renderRail = null,
   // The rail's panel is CONTROLLED when the caller offers a setter: the desktop
   // shell's top bar can put the standup in it, and Escape can take it out, and
@@ -358,12 +362,18 @@ export function HomeScreen({
   const guide = useFirstRunGuide();
   const guideRoot = useRef(null);
   const [phoneRoomHeight, setPhoneRoomHeight] = useState(PHONE_ROOM.height);
+  const [threadOpen, setThreadOpen] = useState(false);
+  const [fridgeOpen, setFridgeOpen] = useState(false);
+  const [safeOpen, setSafeOpen] = useState(false);
+  const [tableOpen, setTableOpen] = useState(openTable && !desktop);
+  const [roomCarryId, setRoomCarryId] = useState(null);
   // HomeFlat in the reference fills its wrapper, with a 612px minimum. The
   // furniture keeps its authored coordinates; extra height belongs to the room.
   const geometry = useMemo(() => desktop ? DESK_ROOM : {...PHONE_ROOM, height:phoneRoomHeight}, [desktop, phoneRoomHeight]);
   const { flat: FLAT, width: F_W, height: F_H } = geometry;
   const { agents, home, away, game, gameKnown, arrival, clearArrival, refresh, clearWant, loaded, visitor, ownerLines, status: roomConnection } =
-    useHomeState({ wsUrl, onOwnerLine });
+    useHomeState({ wsUrl, onOwnerLine, observing: observing && !roomCarryId && !carryAgentId
+      && (desktop || !(threadOpen || fridgeOpen || safeOpen || tableOpen)) });
 
   // The home game runs on its own spectator socket. The app's table socket
   // belongs to whatever the owner chose to watch, and the kitchen table must
@@ -371,11 +381,9 @@ export function HomeScreen({
   const homeTable = useTable({ wsUrl });
   useHomeTable(homeTable, game?.state === 'running' ? game.tableId : null);
 
-  const [threadOpen, setThreadOpen] = useState(false);
   const [focusIdLocal, setFocusIdLocal] = useState(null);
   const focusId = focusIdProp ?? focusIdLocal;
   const setFocusId = onFocusId ?? setFocusIdLocal;
-  const [fridgeOpen, setFridgeOpen] = useState(false);
   // HOME-2 job 8: the safe, as a sheet over the room rather than a screen away
   // from it. `wallet` is read when it is opened, not on every mount — the same
   // rule the table sheet's useSlots follows.
@@ -383,7 +391,6 @@ export function HomeScreen({
   // send the owner to the YOU tab, which answered "how much is in the safe"
   // with a screen change and a second tap; board 29 F12 opens it where he is
   // standing, over the room he opened it from.
-  const [safeOpen, setSafeOpen] = useState(false);
   const [roomWallet, setRoomWallet] = useState(null);
   const [roomWalletRevision, setRoomWalletRevision] = useState(0);
   const refreshRoomWallet = useCallback(() => setRoomWalletRevision(value => value + 1), []);
@@ -396,7 +403,7 @@ export function HomeScreen({
     load();
     const timer = setInterval(load, 30_000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [safeOpen, fridgeOpen, roomWalletRevision]);
+  }, [safeOpen, fridgeOpen, roomWalletRevision, walletRevision]);
   // DESK-2 — which panel the rail is showing: the room's own thread, one of the
   // three fixtures, one man's thread, or nothing at all when the shell has put
   // something else beside the room. Only ever read on the desk.
@@ -430,7 +437,6 @@ export function HomeScreen({
   const setRail = onPanel ?? setRailLocal;
   // BIRTH-5 — the phone's own answer to the same fixture: a sheet over the room
   // where the desk raises a rail panel.
-  const [tableOpen, setTableOpen] = useState(openTable && !desktop);
 
   // A second request to open it re-opens it, which is what makes the birth
   // screen's link work twice. Closing is the owner's own business and is never
@@ -488,7 +494,6 @@ export function HomeScreen({
   // BUG-32: a newborn stands in the doorway for one beat first, so the walk
   // machinery below has a previous position to cross him from.
   const birthPositions = useBirthWalk(agents, settled, geometry.doorSpot);
-  const [roomCarryId, setRoomCarryId] = useState(null);
   const itemMotion = useHomeItemMotion({ agents, positions: birthPositions, geometry, ownerScope: getUserId(), carriedId: roomCarryId });
   const positions = itemMotion.positions;
   const walking = useWalks(positions);
@@ -1071,13 +1076,14 @@ export function HomeScreen({
         <MobileSafeSheet
           agents={agents}
           onClose={() => setSafeOpen(false)}
-          onMoved={() => refresh()}
+          onMoved={() => { refresh(); refreshRoomWallet(); }}
           onOpenProfile={onProfile}
         />
       ) : null}
 
       {fridgeOpen ? (
           <FridgeSheet
+            refreshKey={agents.map(agent => `${agent.id}:${agent.homeItem?.at ?? ''}`).join('|')}
             onClose={() => setFridgeOpen(false)}
             onStocked={() => refresh()}
         />

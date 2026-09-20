@@ -16,6 +16,7 @@ import {
   pnlTone,
   pocketFill,
   pocketOf,
+  pocketResultOf,
   rowActions,
   collectsEverything,
   signedMoney,
@@ -26,6 +27,35 @@ import {
   noPocketAgent, shortAgent, toppedUpAgent, upAndSeatedAgent, wallet,
 } from '../test/fixtures/wallet.js';
 import { fetchMock, telegram } from '../test/harness.js';
+
+describe('BUG-280 — a buy-in is committed money, not a loss', () => {
+  const boughtIn = { ...aggressiveAgent, pocket: { ...aggressiveAgent.pocket, pnl: -2000 } };
+
+  it.each([0, 450, -90])('uses the confirmed casino session result %s', (net) => {
+    expect(pocketResultOf({ ...boughtIn, liveGame: { tableId: 'tbl-1', net } }))
+      .toEqual({ net, label: 'session net' });
+  });
+
+  it.each([undefined, null, NaN])('does not turn an unknown casino result into a loss or zero (%s)', (net) => {
+    expect(pocketResultOf({ ...boughtIn, liveGame: { tableId: 'tbl-1', net } }))
+      .toEqual({ net: null, label: 'session net' });
+  });
+
+  it.each([
+    { liveGame: { tableId: 'home-42', net: 9999 } },
+    { liveGame: { tableId: 'kitchen', home: true, net: 9999 } },
+    { liveGame: { tableId: 'kitchen', net: 9999 }, homeTableId: 'kitchen' },
+    { liveGame: { tableId: 'kitchen', net: 9999 }, location: { where: 'visiting', tableId: 'kitchen' } },
+  ])('keeps Home practice results separate from settled money (%j)', (home) => {
+    expect(pocketResultOf({ ...boughtIn, ...home }))
+      .toEqual({ net: -2000, label: 'his net' });
+  });
+
+  it('preserves the settled pocket result while idle', () => {
+    expect(pocketResultOf({ ...boughtIn, presence: 'resting', activeTableId: null }))
+      .toEqual({ net: -2000, label: 'his net' });
+  });
+});
 
 describe('money', () => {
   // Deliberately locale-independent: toLocaleString would print "2 340,50" on

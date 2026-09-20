@@ -30,7 +30,7 @@ it('BUG-160: a visiting agent profile watches its actual kitchen and keeps the o
   render(<App />);
   await user.click(await screen.findByRole('tab', { name: 'Stats', exact: true }));
   expect(screen.getByRole('tabpanel', { name: 'Stats', exact: true })).toBeVisible();
-  await user.click(await screen.findByRole('button', { name: 'Watch live game' }));
+  await user.click(await screen.findByRole('button', { name: 'Watch home game' }));
   await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
   act(() => { for (const socket of socketMock.instances) if (socket.readyState === 0) socket.open(); });
   expect(socketMock.instances.flatMap(socket => socket.sent).find(message => message.type === 'watch')).toMatchObject({ tableId: 'home-9402', agentId: visitor.id, userId: '4242' });

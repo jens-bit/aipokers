@@ -85,17 +85,28 @@ it('BUG-192: removing the selected owner agent returns to the room', async () =>
 });
 
 it('BUG-192: switching back from Stats after funding keeps the new pocket in his agent view', async () => {
+  const user = userEvent.setup();
   fetchMock.route('/api/wallet', { balance: 9000 });
   fetchMock.route('/fund', { pocket: { balance: 3500, cap: 3500, mode: 'topup' } });
   mount();
-  await userEvent.click(await screen.findByTestId('home-frame-oak'));
-  await userEvent.click(within(await screen.findByRole('region', { name: "Professor Oak's room" })).getByRole('tab', { name: 'Stats' }));
-  const profile = await screen.findByRole('region', { name: "Professor Oak's stats" });
-  await userEvent.click(screen.getByRole('button', { name: 'Give chips', exact: true }));
-  const dialog = await screen.findByRole('dialog', { name: 'Fund Professor Oak' });
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Give him chips', exact: true }));
-  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  await userEvent.click(screen.getByRole('tab', { name: 'Chat', exact: true }));
+  await user.click(await screen.findByTestId('home-frame-oak'));
+  const character = await screen.findByRole('region', { name: "Professor Oak's room" });
+  // All three character panes stay mounted. Query each control's own small
+  // region so hidden Stats/Wardrobe controls and the Home stage don't make
+  // this interaction CPU-bound under the parallel client/browser gates.
+  const tabs = within(character.querySelector('.agent-view__tabs'));
+  const actions = within(character.querySelector('.agent-view__actions'));
+  await user.click(tabs.getByRole('tab', { name: 'Stats', exact: true }));
+  expect(within(character.querySelector('.agent-view__pane--stats'))
+    .getByRole('region', { name: "Professor Oak's stats" })).toBeVisible();
+  await user.click(actions.getByRole('button', { name: 'Give chips', exact: true }));
+  const dialog = within(character.querySelector('.agent-view__fund'))
+    .getByRole('dialog', { name: 'Fund Professor Oak' });
+  await user.click(within(dialog.querySelector('.wal-sheet__foot'))
+    .getByRole('button', { name: 'Give him chips', exact: true }));
+  await waitFor(() => expect(dialog).not.toBeInTheDocument());
+  await user.click(tabs.getByRole('tab', { name: 'Chat', exact: true }));
+  expect(tabs.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
   const room = await screen.findByRole('region', { name: "Professor Oak's room" });
-  expect(within(room).getByRole('button', { name: /DEPLOY/ })).toHaveTextContent('$3,500');
+  expect(within(room.querySelector('.agent-view__actions')).getByRole('button', { name: /DEPLOY/ })).toHaveTextContent('$3,500');
 });

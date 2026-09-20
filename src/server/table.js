@@ -14,6 +14,7 @@ import {
   updateComputedMemory,
   getAgentMood,
   getAgentIdentity,
+  getAgentEquipment,
   setAgentMood,
   getAgentAttributes,
   noteAgentFatigue,
@@ -1661,7 +1662,7 @@ export class Table {
     // and the doors above catch it or refuse earlier with the full body.
     if (!this.home && agentId) {
       const spent = restRefusalFor(agentId, userId, { displayName });
-      if (spent) throw new Error(spent.message);
+      if (spent) throw Object.assign(new Error(spent.message), { refusal: spent });
     }
 
     // Match the human player's buy-in if not specified.
@@ -1739,6 +1740,11 @@ export class Table {
   _seatIdentity(seat) {
     const agentId = this.agentIds[seat];
     return agentId ? getAgentIdentity(agentId, this.agentUserIds[seat]) : null;
+  }
+
+  _seatEquipment(seat) {
+    const agentId = this.agentIds[seat];
+    return agentId ? getAgentEquipment(agentId, this.agentUserIds[seat]) : null;
   }
 
   // SEAT-1a: the posture a seat is holding, for the felt.
@@ -2382,6 +2388,7 @@ export class Table {
         // SEAT-1a: { state, heat } — see _seatMood.
         mood:        this._seatMood(i),
         identity:    this._seatIdentity(i),
+        equipment:   this._seatEquipment(i),
         // WATCH-8: 'fresh' | 'settled' | 'worn', or null — see _seatFatigue.
         fatigue:     this._seatFatigue(i),
         body:        this._seatBody(i),   // LIFE-1 job 2
@@ -2458,6 +2465,7 @@ export class Table {
           accentColor: this.seatAccentColors[i] ?? null,
           mood: this._seatMood(i),
           identity: this._seatIdentity(i),
+          equipment: this._seatEquipment(i),
           fatigue: this._seatFatigue(i),
           body: this._seatBody(i),   // LIFE-1 job 2
           drinking: !!this.seatDrinking[i],
@@ -4200,6 +4208,7 @@ export class Table {
         net: Number.isFinite(this.currentHandStartStacks[seat]) && Number.isFinite(this.game.seats[seat]?.stack)
           ? this.game.seats[seat].stack - this.currentHandStartStacks[seat] : null,
         identity: this._seatIdentity(seat),
+        equipment: this._seatEquipment(seat),
         pot,
         holeCards,
         won,
@@ -4517,6 +4526,7 @@ export class Table {
       // a mood that only rode the poll would never reach a SeatGhost.
       mood: this._seatMood(i),
       identity: this._seatIdentity(i),
+      equipment: this._seatEquipment(i),
       // WATCH-8: and how worn he is, for the second of the two body bars.
       fatigue: this._seatFatigue(i),
       // LIFE-1 job 2: the same pair as three states. On STATE as well as on

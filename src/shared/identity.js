@@ -1,9 +1,9 @@
 // Shared reference identity — HOME-2 palette, persisted by the server at birth.
 //
-// His initial look is rolled at birth; the owner can change it in Wardrobe.
+// His colours are rolled at birth and permanent. Wardrobe adds removable items.
 //
-// Six hoods by six glows, thirty-six creatures. The initial roll uses his id;
-// an explicit Wardrobe save can replace it. Mood moves the face, never colour.
+// Six hoods by six glows, thirty-six creatures. The initial roll uses his id.
+// Mood moves the face, never colour.
 // That is the whole point of drawing identity in colour and expression in
 // geometry — you can tell four agents apart while all four of them are tilted,
 // which is exactly the moment an owner most needs to.
@@ -11,7 +11,7 @@
 // Ported from design-refs/mood-atoms.jsx (`HOODS`, `GLOWS`, `h32`, `idFor`,
 // `rollRoster`), verbatim in its numbers. What this file adds is the seam to
 // the server: `identityOf` reads `agent.identity` when it is there and rolls
-// when it is not. Persisted birth rolls and owner-selected looks therefore
+// when it is not. Persisted birth rolls therefore
 // render consistently in the room, character view and on the felt.
 //
 // ── Why the hoods are these six colours ────────────────────────────────────
@@ -31,8 +31,7 @@
 // THE OWNER'S ROOM rather than about the hash. So the roll is a PREFERENCE and
 // the roster is the authority: a hood already worn in your room is taken, and
 // the next free one along is worn instead. Deterministic in birth order, which
-// keeps new arrivals distinct. Explicit owner choices are preserved even when
-// two characters are given the same hood.
+// keeps new arrivals distinct. Existing birth rolls are always preserved.
 
 export const HOODS = [
   { id: 'ash',     name: 'ASH',     top: '#5A5F63', bot: '#383C40' },

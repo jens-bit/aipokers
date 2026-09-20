@@ -193,7 +193,7 @@ it('CHARACTER-1: Stats preserves the private thread and draft; Chat sends throug
   expect(requests[0].body).toMatchObject({userId:'4242',existingAgentId:playingAgent.id,content:'An unfinished thought'});
   expect(requests[0].headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
 });
-it('C4/C9 keeps a refused funding decision visible and retries the authenticated transfer',async()=>{
+it('BUG-280 / C4/C9 keeps one refused funding message visible and retries the authenticated transfer',async()=>{
   telegram.signIn(); fetchMock.route('/hands',{recentHands:[]}); fetchMock.route('/flagged',{flaggedHands:[]});
   fetchMock.route('/api/wallet',{balance:9000});
   let attempts=0;

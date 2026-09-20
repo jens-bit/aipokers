@@ -117,6 +117,23 @@ it('BUG-251: a private command refreshes both the room safe and the desktop owne
   await waitFor(() => expect(screen.getByTestId('home-safe')).toHaveTextContent('$53,500'));
 });
 
+it('BUG-279: stocking the desktop fridge refreshes the actual room safe immediately', async () => {
+  let balance = 54000;
+  const onRefreshWallet = vi.fn();
+  await boot({ props: { onRefreshWallet, panel: 'fridge' } });
+  fetchMock.route('/api/wallet', () => ({ balance, ledger: [] }));
+  fetchMock.route('/api/fridge?', { items: [{ id: 'snack', count: 0, price: 100 }, { id: 'beer', count: 0, price: 200 }] });
+  fetchMock.route('/api/fridge/stock', () => {
+    balance = 53900;
+    return { qty: 1, fridge: { snack: 1, beer: 0 } };
+  }, { method: 'POST' });
+  // Remount the fixture with its real shelf read now registered.
+  await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Buy 1 snack' }));
+  expect(onRefreshWallet).toHaveBeenCalledOnce();
+  await waitFor(() => expect(screen.getByTestId('home-safe')).toHaveTextContent('$53,900'));
+});
+
 describe('C9 · the shared room with desktop coordinates', () => {
   it('draws ONE room at the reference desktop size', async () => {
     await boot();

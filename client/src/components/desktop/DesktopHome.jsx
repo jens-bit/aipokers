@@ -34,7 +34,7 @@ const IDLE_KEY = '__standup__';
 
 export function DesktopHome({
   game, lastDecision, watchingAgent, isWatching,
-  tableConfig = null, tableError = null, chatMessages = [], mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
+  tableConfig = null, tableError = null, tableErrorDetails = null, chatMessages = [], mySeat = null, legalActions = [], onAct, onLeave, onSitAtTable,
   sessionEnd = null, onRebuy,
   onWatchAgent, onDeployAgent, onCreateAgent, onSitOut,
   birthHandledId = null,
@@ -155,8 +155,9 @@ export function DesktopHome({
   // DP-2: after a fund or a collect, re-read both sides of the transfer rather
   // than guessing at either locally.
   const refreshWallet = useCallback(async () => {
-    await readWallet();
+    const freshWallet = await readWallet();
     load();
+    return freshWallet;
   }, [load, readWallet]);
 
   useEffect(() => {
@@ -271,7 +272,7 @@ export function DesktopHome({
         setStage(next);
       }}
     />
-    {refusedBeforeSnapshot && <WatchAccessNotice message={tableError} onBack={goHome}/>}</>
+    {refusedBeforeSnapshot && <WatchAccessNotice message={tableError} refusal={tableErrorDetails} onBack={goHome}/>}</>
   );
 
   // DSK2-3: a live tile is one gesture — subscribe if we are not already, and
@@ -538,8 +539,13 @@ export function DesktopHome({
             agents={agents}
             onClose={() => setWalletOpen(false)}
             onFund={async (agent, decision) => {
-              try { await fundAgent(agent.id, decision); await refreshWallet(); }
-              catch { /* the panel stays where it is */ }
+              // The shared transfer sheet retains its draft and shows failure.
+              const receipt = await fundAgent(agent.id, decision);
+              let refreshFailed = false;
+              try { refreshFailed = !(await refreshWallet()); }
+              catch { refreshFailed = true; }
+              // A failed read cannot turn a committed transfer into a retry.
+              return { ...receipt, refreshFailed };
             }}
             onCollect={async (agent) => {
               // WALLET-7: the winnings, unless he has already been called in.

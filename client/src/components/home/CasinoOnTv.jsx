@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { identityOf } from '../../lib/identity.js';
 import { PlayingCard } from '../system/PlayingCard.jsx';
+import { MoodGhost } from '../system/MoodGhost.jsx';
 import { FLAGS } from '../replay/timeline.js';
 import { pillName, shortName } from '../../lib/names.js';
 import { money } from '../../lib/wallet.js';
@@ -97,12 +98,7 @@ export function CasinoOnTv({ away = [] }) {
           return (
             <span key={seat.seat} className={`home-tv__ghost${isOwn ? ' is-own' : ''}`}
               data-seat={seat.seat}>
-              <svg width="10" height="10" viewBox="0 0 80 80">
-              <path d="M40 8 C58 8 70 20 70 38 L70 68 C70 76 62 75 58 79 C54 83 46 83 40 79 C34 83 26 83 22 79 C18 75 10 76 10 68 L10 38 C10 20 22 8 40 8Z"
-                fill={look.hood.top} stroke={isOwn ? '#00D4AAAA' : 'rgba(0,0,0,0.5)'} strokeWidth={isOwn ? 5 : 2} />
-              <ellipse cx="29" cy="40" rx="7" ry="7" fill={look.glow.c} />
-              <ellipse cx="51" cy="40" rx="7" ry="7" fill={look.glow.c} />
-              </svg>
+              <MoodGhost size={10} hood={look.hood} glow={look.glow.c} equipment={seat.equipment ?? (isOwn ? showing.equipment : undefined)} ring={isOwn}/>
             </span>
           );
         })}</span>

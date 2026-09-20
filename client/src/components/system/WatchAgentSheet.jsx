@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 import { useEffect, useRef } from 'react';
 import { useSheetDrag } from '../../hooks/useSheetDrag.js';
 import { ThreadRow } from './ThreadSheet.jsx';
@@ -39,7 +40,7 @@ export function WatchAgentSheet({ agent, name, seat, chat, pending, view, onView
   return <section className={`thread-sheet watch-agent-sheet${drag.dragging ? ' is-dragging' : ''}`}
     role="dialog" aria-label={`${name} at the table`} ref={drag.ref} style={drag.style} {...drag.handlers}>
     <header className="watch-agent-sheet__head">
-      <MoodGhost size={32} ring={false} hood={identity.hood} glow={identity.glow.c}
+      <MoodGhost equipment={equipmentOf(seat?.equipment ? seat : agent)} size={32} ring={false} hood={identity.hood} glow={identity.glow.c}
         mood={seat?.mood?.state ?? agent?.mood?.state ?? 'neutral'} />
       <div><strong>{name}</strong><small>Your agent · Private conversation</small></div>
       <button type="button" onClick={onClose} aria-label="Back to table">Close ×</button>

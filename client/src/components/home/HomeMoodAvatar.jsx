@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 // Board29's20px Home avatar, shared by the collapsed room line and want.
 // Identity is supplied by the caller's existing roster map; never rolled here.
 import { MoodGhost } from '../system/MoodGhost.jsx';
@@ -17,7 +18,7 @@ export function HomeMoodAvatar({ agent, identity, className = '' }) {
   const pip = MOODS[mood];
   return <span className={`home-mood-avatar ${className}`.trim()} data-agent-id={agent.id} aria-hidden="true">
     <span className="home-mood-avatar__tile home-thread__avatar-tile" style={{ borderColor: `${identity.glow.c}44` }}>
-      <MoodGhost size={18.8} ring={false} mood={mood} heat={agent.mood?.heat}
+      <MoodGhost equipment={equipmentOf(agent)} size={18.8} ring={false} mood={mood} heat={agent.mood?.heat}
         hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c} />
     </span>
     {/* Keep the footer measurement alias while the shared class owns styling. */}

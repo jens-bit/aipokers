@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../src/shared/wardrobe.js';
 // client/src/components/RosterSheet.jsx — BUGS-A job 9
 //
 // EVERYBODY WHO WORKS FOR YOU, BEHIND THE AVATAR.
@@ -136,7 +137,7 @@ export function RosterRow({ agent, index, onOpen }) {
         aria-label={`${agent.name} — ${whereabouts.where}${whereabouts.detail ? ` · ${whereabouts.detail}` : ''}. Open his thread.`}
       >
         <span className={`roster__face${away ? ' roster__face--away' : ''}`}>
-          <MoodGhost
+          <MoodGhost equipment={equipmentOf(agent)}
             mood={moodOf(agent)}
             heat={heatOf(agent)}
             accent={accentFor(agent, index)}

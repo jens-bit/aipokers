@@ -2,50 +2,54 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { AgentWardrobe } from './AgentWardrobe.jsx';
-import { HOODS, GLOWS } from '../../lib/identity.js';
+import { STARTER_ITEMS } from '../../../../src/shared/wardrobe.js';
 import { telegram } from '../../test/harness.js';
 
-const original = { hood: 'ash', glow: 'teal' };
-const chosen = { hood: 'moss', glow: 'gold' };
-const agent = { id: 'bird/a', name: 'Moss', identity: original, ownerCommandRevision: 4 };
-const result = { ...agent, identity: chosen, ownerCommandRevision: 5 };
+const original = { head: null, face: null, neck: null };
+const chosen = { head: 'rail-cap', face: 'round-glasses', neck: null };
+const agent = { id: 'bird/a', name: 'Moss', identity: { hood: 'ash', glow: 'teal' }, equipment: original, ownerCommandRevision: 4 };
+const result = { ...agent, equipment: chosen, ownerCommandRevision: 5 };
 const response = (data = result, ok = true, status = ok ? 200 : 503) => ({ ok, status, json: async () => data });
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 beforeEach(() => { telegram.signIn(); });
+
+it('BUG-277: Wardrobe cannot offer a repaint of permanent hood or eye colours', () => {
+  render(<AgentWardrobe agent={agent} />);
+  expect(screen.queryByRole('button', { name: 'Moss hood' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Gold glow' })).not.toBeInTheDocument();
+  expect(screen.getByText(/birth colours.*permanent/i)).toBeVisible();
+});
 async function selectAndTry(user = userEvent.setup()) {
-  await user.click(screen.getByRole('button', { name: 'Moss hood' }));
-  await user.click(screen.getByRole('button', { name: 'Gold glow' }));
+  await user.click(screen.getByRole('button', { name: 'Rail cap' }));
+  await user.click(screen.getByRole('button', { name: 'Round glasses' }));
   await user.click(screen.getByRole('button', { name: 'Try on' }));
   return user;
 }
 
-it('Wardrobe offers exactly the existing six hood and glow choices with the saved look selected', () => {
+it('Wardrobe offers a free starter rack with each removable item initially off', () => {
   render(<AgentWardrobe agent={agent} />);
-  for (const [list, part] of [[HOODS, 'hood'], [GLOWS, 'glow']]) for (const entry of list) {
-    expect(screen.getByRole('button', { name: new RegExp(`^${entry.name} ${part}$`, 'i') })).toHaveAttribute('aria-pressed', String(original[part] === entry.id));
-  }
-  expect(screen.getByRole('group', { name: 'Hood' }).querySelectorAll('button')).toHaveLength(6);
-  expect(screen.getByRole('group', { name: 'Glow' }).querySelectorAll('button')).toHaveLength(6);
+  for (const item of STARTER_ITEMS) expect(screen.getByRole('button', { name: item.name })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('group', { name: /Starter rack/ }).querySelectorAll('button')).toHaveLength(3);
   expect(screen.getByRole('button', { name: 'Save look' })).toBeDisabled();
   expect(fetch).not.toHaveBeenCalled();
-  expect(screen.getByText('Appearance only. Poker skills stay the same.')).toBeVisible();
+  expect(screen.getByText('Removable items. No cost or change to poker skills.')).toBeVisible();
 });
 
 it('Wardrobe selects locally, previews only on Try on, and Cancel restores the saved look without a write', async () => {
   const onPreview = vi.fn();
   const user = userEvent.setup();
   render(<AgentWardrobe agent={agent} onPreview={onPreview} />);
-  await user.click(screen.getByRole('button', { name: 'Moss hood' }));
+  await user.click(screen.getByRole('button', { name: 'Rail cap' }));
   expect(onPreview).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Save look' })).toBeDisabled();
-  await user.click(screen.getByRole('button', { name: 'Gold glow' }));
+  await user.click(screen.getByRole('button', { name: 'Round glasses' }));
   await user.click(screen.getByRole('button', { name: 'Try on' }));
   expect(onPreview).toHaveBeenLastCalledWith(chosen);
   expect(screen.getByRole('status')).toHaveTextContent('Preview only. Save to keep this look.');
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(onPreview).toHaveBeenLastCalledWith(null);
-  expect(screen.getByRole('button', { name: 'Ash hood' })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByRole('button', { name: 'Teal glow' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Rail cap' })).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('button', { name: 'Round glasses' })).toHaveAttribute('aria-pressed', 'false');
   expect(fetch).not.toHaveBeenCalled();
 });
 
@@ -62,9 +66,9 @@ it('Wardrobe authenticates one save, keeps controls pending, and uses only the c
   expect(options.method).toBe('PATCH');
   expect(options.credentials).toBe('same-origin');
   expect(options.headers['x-telegram-init-data']).toBe(telegram.webApp.initData);
-  expect(JSON.parse(options.body)).toEqual({ userId: 'explicit-owner', identity: chosen });
+  expect(JSON.parse(options.body)).toEqual({ userId: 'explicit-owner', equipment: chosen });
   expect(screen.getByRole('status')).toHaveTextContent('Saving…');
-  for (const name of ['Cancel', 'Moss hood', 'Gold glow', 'Try on']) expect(screen.getByRole('button', { name })).toBeDisabled();
+  for (const name of ['Cancel', 'Rail cap', 'Round glasses', 'Try on']) expect(screen.getByRole('button', { name })).toBeDisabled();
   expect(onSaved).not.toHaveBeenCalled();
   await act(async () => pending.resolve(response()));
   expect(onSaved).toHaveBeenCalledTimes(1);
@@ -74,13 +78,13 @@ it('Wardrobe authenticates one save, keeps controls pending, and uses only the c
   expect(screen.getByRole('button', { name: 'Save look' })).toBeDisabled();
 });
 
-it.each(['server', 'network', 'unauthorized', 'malformed', 'wrong agent', 'wrong colors'])('Wardrobe preserves the draft and preview after a %s failure, and can retry', async kind => {
+it.each(['server', 'network', 'unauthorized', 'malformed', 'wrong agent', 'wrong equipment'])('Wardrobe preserves the draft and preview after a %s failure, and can retry', async kind => {
   const onSaved = vi.fn(), onPreview = vi.fn();
   const fetcher = vi.fn();
   if (kind === 'network') fetcher.mockRejectedValueOnce(new Error('offline'));
   else if (kind === 'malformed') fetcher.mockResolvedValueOnce({ ok: true, json: async () => { throw new SyntaxError('JSON'); } });
   else if (kind === 'wrong agent') fetcher.mockResolvedValueOnce(response({ ...result, id: 'bird/b' }));
-  else if (kind === 'wrong colors') fetcher.mockResolvedValueOnce(response(agent));
+  else if (kind === 'wrong equipment') fetcher.mockResolvedValueOnce(response(agent));
   else fetcher.mockResolvedValueOnce(response({}, false, kind === 'unauthorized' ? 403 : 503));
   fetcher.mockResolvedValueOnce(response());
   vi.stubGlobal('fetch', fetcher);
@@ -90,27 +94,27 @@ it.each(['server', 'network', 'unauthorized', 'malformed', 'wrong agent', 'wrong
   expect(await screen.findByRole('alert')).toHaveTextContent(/could not/i);
   expect(onSaved).not.toHaveBeenCalled();
   expect(onPreview).toHaveBeenLastCalledWith(chosen);
-  expect(screen.getByRole('button', { name: 'Moss hood' })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByRole('button', { name: 'Gold glow' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Rail cap' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Round glasses' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('button', { name: 'Save look' })).toBeEnabled();
   await user.click(screen.getByRole('button', { name: 'Save look' }));
   expect(onSaved).toHaveBeenCalledTimes(1);
   expect(onSaved).toHaveBeenCalledWith(result);
 });
 
-it('Wardrobe requires trying changed colors again and retains a failed draft through same-agent hydration', async () => {
+it('Wardrobe requires trying changed items again and retains a failed draft through same-agent hydration', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => response({}, false)));
   const onPreview = vi.fn();
   const view = render(<AgentWardrobe agent={agent} onPreview={onPreview} />);
   const user = await selectAndTry();
   await user.click(screen.getByRole('button', { name: 'Save look' }));
   view.rerender(<AgentWardrobe agent={{ ...agent, mood: { heat: 45 } }} onPreview={onPreview} />);
-  expect(screen.getByRole('button', { name: 'Moss hood' })).toHaveAttribute('aria-pressed', 'true');
-  await user.click(screen.getByRole('button', { name: 'Ice glow' }));
+  expect(screen.getByRole('button', { name: 'Rail cap' })).toHaveAttribute('aria-pressed', 'true');
+  await user.click(screen.getByRole('button', { name: 'Knit scarf' }));
   expect(screen.getByRole('button', { name: 'Save look' })).toBeDisabled();
   expect(onPreview).toHaveBeenLastCalledWith(chosen);
   await user.click(screen.getByRole('button', { name: 'Try on' }));
-  expect(onPreview).toHaveBeenLastCalledWith({ hood: 'moss', glow: 'ice' });
+  expect(onPreview).toHaveBeenLastCalledWith({ ...chosen, neck: 'knit-scarf' });
   expect(screen.getByRole('button', { name: 'Save look' })).toBeEnabled();
 });
 
@@ -122,7 +126,7 @@ it.each(['success', 'failure'])('Wardrobe ignores late %s across agent A → B �
   await user.click(screen.getByRole('button', { name: 'Save look' }));
   view.rerender(<AgentWardrobe agent={{ ...agent, id: 'bird/b', name: 'B' }} onSaved={onSaved} onPreview={onPreview} />);
   view.rerender(<AgentWardrobe agent={agent} onSaved={onSaved} onPreview={onPreview} />);
-  expect(screen.getByRole('button', { name: 'Ash hood' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Rail cap' })).toHaveAttribute('aria-pressed', 'false');
   onPreview.mockClear();
   await act(async () => kind === 'success' ? pending.resolve(response()) : pending.reject(new Error('offline')));
   expect(onSaved).not.toHaveBeenCalled();
@@ -155,7 +159,7 @@ it.each(['owner', 'credential'])('Wardrobe ignores a save outcome after the %s c
   await act(async () => pending.resolve(response()));
   expect(onSaved).not.toHaveBeenCalled();
   expect(onPreview).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: 'Ash hood' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Rail cap' })).toHaveAttribute('aria-pressed', 'false');
 });
 
 it('Wardrobe keeps a confirmed save successful even if a parent refresh rejects', async () => {
@@ -172,7 +176,7 @@ it('Wardrobe keeps a confirmed save successful even if a parent refresh rejects'
 it('Wardrobe follows a fresh persisted appearance only while its draft is untouched', () => {
   const view = render(<AgentWardrobe agent={agent} />);
   view.rerender(<AgentWardrobe agent={result} />);
-  expect(screen.getByRole('button', { name: 'Moss hood' })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByRole('button', { name: 'Gold glow' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Rail cap' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Round glasses' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('button', { name: 'Save look' })).toBeDisabled();
 });

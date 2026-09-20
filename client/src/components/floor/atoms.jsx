@@ -1,3 +1,4 @@
+import { GhostClothes } from '../system/GhostClothes.jsx';
 // Casino floor atoms — ported from design-refs/mood-atoms.jsx and
 // design-refs/mood-casino.jsx. SVG paths, gradients and animation timings
 // are verbatim; only React plumbing (useId, class names) is adapted.
@@ -55,7 +56,7 @@ export function safeMood(mood) {
 // floor kept drawing the flat face months after the face system shipped. There
 // is one face function now; the body (scalloped wisp, bob, posture) is all this
 // component still owns.
-export function FloorGhost({ hood = null, glow = null, mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45, event = null, brow = null }) {
+export function FloorGhost({ hood = null, glow = null, equipment, mood = 'neutral', accent = M_TEAL, size = 56, speed = 5, heat = 45, event = null, brow = null }) {
   const uid = useId().replace(/:/g, '');
   const key = safeMood(mood);
   const m = MOODS[key];
@@ -98,8 +99,9 @@ export function FloorGhost({ hood = null, glow = null, mood = 'neutral', accent 
         )}
         <path d={body} fill={`url(#fb${uid})`} stroke={`${glow || accent}55`} strokeWidth="1.1" />
         <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C" />
-        {ghostFace({ mood: key, heat, size, event, eye, cy })}
+        {ghostFace({ mood: key, heat, size, event, eye, cy, fixedEye: !!glow })}
         {brow && ghostBrow({ brow, eye, cy })}
+        {equipment && <GhostClothes equipment={equipment} cy={cy}/>}
       </svg>
     </div>
   );

@@ -29,27 +29,52 @@ export function DeskWalletPanel({
   // way it takes the screen on mobile: choosing how an agent gets money is a
   // decision, not a popover over a list.
   const [fundTarget, setFundTarget] = useState(null);
+  const [direction, setDirection] = useState('both');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const readStatus = refreshFailed ? 'error' : walletStatus;
+  async function retryRead() {
+    try {
+      const result = await onRetry?.();
+      if (result !== null) setRefreshFailed(false);
+    } catch { /* the completed transfer remains distinct from this read */ }
+  }
+
+  function openFunds(agent, nextDirection = 'both') {
+    setError(''); setDirection(nextDirection); setFundTarget(agent);
+  }
+
+  async function takeAll(agent) {
+    if (busy || readStatus !== 'ready') return;
+    setBusy(true); setError('');
+    try { const receipt = await onFund?.(agent, { verb: 'take', amount: null }); setRefreshFailed(!!receipt?.refreshFailed); }
+    catch { setError('Could not move the chips. Try again.'); }
+    finally { setBusy(false); }
+  }
 
   const pocketAgents = agents.filter((a) => a?.pocket);
 
   if (fundTarget) {
     return (
-      <div className="dsk-panel dsk-wallet">
+      <div className="dsk-panel dsk-wallet wal">
         <PanelHead
-          title="Fund"
+          title={direction === 'take' ? 'Take' : 'Fund'}
           sub={(fundTarget.name || 'AGENT').toUpperCase()}
           onClose={() => setFundTarget(null)}
         />
-        <SafeReadStatus status={walletStatus} wallet={wallet} onRetry={onRetry} />
+        <SafeReadStatus status={readStatus} wallet={wallet} onRetry={onRetry ? retryRead : undefined} />
         <div className="dsk-wallet__sheet">
           <FundSheet
             agent={fundTarget}
             wallet={wallet}
-            disabled={walletStatus !== 'ready'}
+            disabled={readStatus !== 'ready'}
             index={pocketAgents.findIndex((a) => a.id === fundTarget.id)}
             onCancel={() => setFundTarget(null)}
+            direction={direction}
             onConfirm={async (decision) => {
-              await onFund?.(fundTarget, decision);
+              const receipt = await onFund?.(fundTarget, decision);
+              setRefreshFailed(!!receipt?.refreshFailed);
               setFundTarget(null);
             }}
           />
@@ -59,16 +84,17 @@ export function DeskWalletPanel({
   }
 
   return (
-    <div className="dsk-panel dsk-wallet">
+    <div className="dsk-panel dsk-wallet wal">
       <PanelHead
         title="Your wallet"
         sub={wallet ? 'BACKER AND HORSE' : 'YOUR SAFE'}
         onClose={onClose}
       />
       <RailBody>
-        <SafeReadStatus status={walletStatus} wallet={wallet} onRetry={onRetry} />
+        {refreshFailed && <p className="safe__absent" role="status">Chips moved. Refresh the safe before making another transfer.</p>}
+        <SafeReadStatus status={readStatus} wallet={wallet} onRetry={onRetry ? retryRead : undefined} />
         {wallet ? (
-          <fieldset className="safe__pages" disabled={walletStatus !== 'ready'}>
+          <fieldset className="safe__pages" disabled={readStatus !== 'ready'}>
             <WalletBlock wallet={wallet} />
             {/* PocketList already carries "pocket size sets his stakes" as its
                 own header. The desktop ref's line is four words longer — "…
@@ -77,10 +103,16 @@ export function DeskWalletPanel({
                 port is meant to avoid. The component's line stands. */}
             <PocketList
               agents={pocketAgents}
-              onFund={setFundTarget}
-              onCollect={onCollect}
+              only={['fund', 'take', 'callIn']}
+              sub="uncommitted chips only"
+              onFund={openFunds}
+              onTake={takeAll}
+              onTakeAmount={agent => openFunds(agent, 'take')}
+              busy={busy}
               onCallIn={onCallIn}
             />
+            {busy && <p className="safe__absent" role="status">Moving chips…</p>}
+            {error && <p className="safe__absent" role="alert">{error}</p>}
           </fieldset>
         ) : null}
       </RailBody>

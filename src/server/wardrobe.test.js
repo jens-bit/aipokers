@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
-import { HOODS, GLOWS } from '../shared/identity.js';
+import { STARTER_ITEMS } from '../shared/wardrobe.js';
 
 // Isolate before importing any persistence-owning module. No model calls.
 delete process.env.ANTHROPIC_API_KEY;
@@ -50,58 +50,72 @@ function signed(id) {
 const patch = (body, headers = signed('9101'), owner = '9101', query = '') => fetch(`${base}/api/agents/bird-${owner}${query}`, {
   method: 'PATCH', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify({ userId: owner, ...body }),
 });
-const look = { hood: 'moss', glow: 'gold' };
+const birth = { hood: 'ash', glow: 'teal' };
+const look = { head: 'rail-cap', face: 'round-glasses', neck: null };
 
-test('Wardrobe: signed owner saves palette IDs durably, receives a sanitized revision and notifies the roster', async () => {
+test('BUG-277: even the signed owner cannot repaint permanent birth colours or smuggle a rename', async () => {
+  const before = structuredClone(agentsOf('9101')[0]);
+  const response = await patch({ identity: { hood: 'moss', glow: 'gold' }, name: 'Must not change' });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, 'immutableIdentity');
+  assert.deepEqual(agentsOf('9101')[0], before);
+  assert.deepEqual(loadProfile('9101').agents[0].identity, before.identity);
+});
+
+test('Wardrobe: signed owner saves removable items durably, receives a sanitized revision and notifies the roster', async () => {
   const before = agentsOf('9101')[0].ownerCommandRevision;
-  const response = await patch({ identity: look });
+  const response = await patch({ equipment: look });
   assert.equal(response.status, 200);
   const data = await response.json();
-  assert.deepEqual(data.identity, look);
+  assert.deepEqual(data.equipment, look);
+  assert.deepEqual(data.identity, birth);
   assert.equal(data.ownerCommandRevision, before + 1);
   assert.equal(data.ownerReportIds, undefined);
   assert.equal(data.lastProposalAcceptance, undefined);
   assert.deepEqual(changes, ['9101']);
-  assert.deepEqual(loadProfile('9101').agents[0].identity, look);
+  assert.deepEqual(loadProfile('9101').agents[0].wardrobe.equipped, look);
   reloadOwners('9101');
-  assert.deepEqual(agentsOf('9101')[0].identity, look);
+  assert.deepEqual(agentsOf('9101')[0].wardrobe.equipped, look);
   assert.equal(agentsOf('9101')[0].ownerCommandRevision, before + 1);
 });
 
-test('Wardrobe: missing credentials, another owner and conflicting identities cannot recolor an agent', async () => {
+test('Wardrobe: missing credentials, another owner and conflicting owner IDs cannot change clothes', async () => {
   const before = structuredClone(agentsOf('9101')[0]);
-  assert.equal((await patch({ identity: look }, {})).status, 401);
-  assert.equal((await patch({ identity: look }, signed('9102'))).status, 403);
-  assert.equal((await patch({ identity: look }, signed('9101'), '9101', '?userId=9102')).status, 403);
+  assert.equal((await patch({ equipment: look }, {})).status, 401);
+  assert.equal((await patch({ equipment: look }, signed('9102'))).status, 403);
+  assert.equal((await patch({ equipment: look }, signed('9101'), '9101', '?userId=9102')).status, 403);
   assert.deepEqual(agentsOf('9101')[0], before);
 });
 
-test('Wardrobe: malformed or unrecognized palettes reject before rename or strategy can change', async () => {
+test('Wardrobe: malformed, unknown or wrong-slot items reject before rename or strategy can change', async () => {
   const before = structuredClone(agentsOf('9101')[0]);
   const emissions = changes.length;
-  for (const identity of [null, [], 'moss', {}, { hood: 'moss' }, { hood: 'rainbow', glow: 'gold' },
-    { hood: 'moss', glow: '#C9A227' }, { hood: { id: 'moss' }, glow: 'gold' }, { ...look, attrs: { focus: 100 } }]) {
-    const response = await patch({ identity, name: 'Should not change', strategy: 'Should not change' });
-    assert.equal(response.status, 400, JSON.stringify(identity));
-    assert.equal((await response.json()).error, 'invalidAppearance');
+  for (const equipment of [null, [], 'hat', {}, { head: 'rail-cap' }, { ...look, head: 'unknown' },
+    { ...look, head: 'knit-scarf' }, { ...look, head: { id: 'rail-cap' } }, { ...look, attrs: { focus: 100 } }]) {
+    const response = await patch({ equipment, name: 'Should not change', strategy: 'Should not change' });
+    assert.equal(response.status, 400, JSON.stringify(equipment));
+    assert.equal((await response.json()).error, 'invalidEquipment');
     assert.deepEqual(agentsOf('9101')[0], before);
   }
   assert.equal(changes.length, emissions);
 });
 
-test('Wardrobe: all existing palette combinations are accepted without changing gameplay or private records', async () => {
+test('Wardrobe: all starter combinations and taking everything off preserve identity, gameplay and private records', async () => {
   // A restored legacy record receives ordinary attribute/pocket backfills on
   // its first read. Compare the loaded playable record, not a partial seed.
   await fetch(`${base}/api/agents/bird-9101?userId=9101`, { headers: signed('9101') });
   const before = structuredClone(agentsOf('9101')[0]);
-  for (const hood of HOODS) for (const glow of GLOWS) {
-    const response = await patch({ identity: { hood: hood.id, glow: glow.id },
+  for (let mask = 0; mask < 8; mask++) {
+    const equipment = Object.fromEntries(STARTER_ITEMS.map((item, i) => [item.slot, mask & (1 << i) ? item.id : null]));
+    const response = await patch({ equipment,
       attrs: { focus: 100 }, pocket: { balance: 999999 }, profile: { aggression: 100 }, ownerReportIds: [] });
     assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).identity, { hood: hood.id, glow: glow.id });
+    const body = await response.json();
+    assert.deepEqual(body.equipment, equipment);
+    assert.deepEqual(body.identity, birth);
   }
   const after = agentsOf('9101')[0];
-  for (const key of ['attrs', 'pocket', 'profile', 'strategy', 'ownerReportIds', 'lastProposalAcceptance']) {
+  for (const key of ['identity', 'attrs', 'pocket', 'profile', 'strategy', 'ownerReportIds', 'lastProposalAcceptance']) {
     assert.deepEqual(after[key], before[key], key);
   }
 });
@@ -109,30 +123,34 @@ test('Wardrobe: all existing palette combinations are accepted without changing 
 test('Wardrobe: a valid guest cookie may change only its own existing agent', async () => {
   setGuestResolver(req => req.headers.cookie === 'fixture=wardrobe' ? 'guest-wardrobe' : null);
   try {
-    const response = await patch({ identity: look }, { cookie: 'fixture=wardrobe' }, 'guest-wardrobe');
+    const response = await patch({ equipment: look }, { cookie: 'fixture=wardrobe' }, 'guest-wardrobe');
     assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).identity, look);
+    assert.deepEqual((await response.json()).equipment, look);
     const before = structuredClone(agentsOf('9101')[0]);
-    assert.equal((await patch({ identity: look }, { cookie: 'fixture=wardrobe' })).status, 403);
+    assert.equal((await patch({ equipment: look }, { cookie: 'fixture=wardrobe' })).status, 403);
     assert.deepEqual(agentsOf('9101')[0], before);
   } finally { setGuestResolver(null); }
 });
 
-test('Wardrobe: public and compact projections show saved colors without private receipt data', async () => {
+test('Wardrobe: public and compact projections show equipped items without private receipt data', async () => {
   const response = await fetch(`${base}/api/agents/bird-9101?userId=9101`, { headers: signed('9102') });
   const data = await response.json();
   assert.deepEqual(data.identity, agentsOf('9101')[0].identity);
+  assert.deepEqual(data.equipment, agentsOf('9101')[0].wardrobe.equipped);
+  assert.equal(data.wardrobe, undefined);
+  assert.equal(data.barOrders, undefined);
   assert.equal(data.ownerCommandRevision, undefined);
   assert.equal(data.strategy, undefined);
   for (const owner of [false, true]) {
     const compact = floorSnapshot('9101', { owner })[0];
     assert.deepEqual(compact.identity, data.identity);
+    assert.deepEqual(compact.equipment, data.equipment);
     assert.equal(compact.ownerCommandRevision, owner ? agentsOf('9101')[0].ownerCommandRevision : undefined);
     assert.equal(compact.ownerReportIds, undefined);
   }
 });
 
-test('Wardrobe: the next real table snapshot reads saved colors without changing the hand or exposing cards', async () => {
+test('Wardrobe: the next real table snapshot wears saved items without changing birth colours, the hand or card privacy', async () => {
   const { Table } = await import('./table.js');
   const { Game } = await import('../engine/game.js');
   const table = new Table({ tableId: 'wardrobe-live', smallBlind: 10, bigBlind: 20 });
@@ -143,13 +161,14 @@ test('Wardrobe: the next real table snapshot reads saved colors without changing
   table.game = new Game({ tableId: table.tableId, seats, smallBlind: 10, bigBlind: 20 });
   table.game.startHand(); table.autoPlay = true;
   const unchangedHand = structuredClone(table.game.getPublicState(0));
-  const next = { hood: 'indigo', glow: 'ember' };
-  assert.notDeepEqual(table._seatIdentity(0), next);
-  assert.equal((await patch({ identity: next })).status, 200);
+  const next = { ...look, head: null, neck: 'knit-scarf' };
+  assert.notDeepEqual(table._seatEquipment(0), next);
+  assert.equal((await patch({ equipment: next })).status, 200);
   const publicState = table._augmentState(table.game.getPublicState(-1), -1);
   const ownState = table._augmentState(table.game.getPublicState(0), 0);
   for (const view of [publicState, ownState, table.feltView(), table.liveGameView('bird-9101')]) {
-    assert.deepEqual(view.seats[0].identity, next);
+    assert.deepEqual(view.seats[0].identity, birth);
+    assert.deepEqual(view.seats[0].equipment, next);
     assert.equal(view.seats[1].identity, null);
     assert.equal(JSON.stringify(view).includes('PRIVATE'), false);
   }
@@ -160,21 +179,22 @@ test('Wardrobe: the next real table snapshot reads saved colors without changing
   assert.equal(table.actionTimer, null);
 });
 
-test('Wardrobe: a rejected database write leaves in-memory colors and revision unchanged and can be retried', async () => {
+test('Wardrobe: a rejected database write leaves in-memory clothes and revision unchanged and can be retried', async () => {
   const before = structuredClone(agentsOf('9101')[0]);
   const storedBefore = loadProfile('9101');
   const emissions = changes.length;
   adminDb().exec("CREATE TRIGGER wardrobe_write_failure BEFORE INSERT ON agents WHEN NEW.owner_id='9101' BEGIN SELECT RAISE(ABORT, 'wardrobe fixture failure'); END");
   try {
-    const response = await patch({ identity: look, name: 'No partial rename' });
+    const response = await patch({ equipment: look, name: 'No partial rename' });
     assert.equal(response.status, 503);
     assert.equal((await response.json()).error, 'appearanceSaveFailed');
     assert.deepEqual(agentsOf('9101')[0], before);
     assert.deepEqual(loadProfile('9101'), storedBefore);
     assert.equal(changes.length, emissions);
   } finally { adminDb().exec('DROP TRIGGER wardrobe_write_failure'); }
-  assert.equal((await patch({ identity: look })).status, 200);
-  assert.deepEqual(loadProfile('9101').agents[0].identity, look);
+  assert.equal((await patch({ equipment: look })).status, 200);
+  assert.deepEqual(loadProfile('9101').agents[0].wardrobe.equipped, look);
+  assert.deepEqual(loadProfile('9101').agents[0].identity, birth);
 });
 
 test('Wardrobe: legacy rename/strategy PATCH retains its existing response contract', async () => {

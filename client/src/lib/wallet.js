@@ -83,7 +83,10 @@ export const CALL_IN = 'Call him in';
 
 // The refill toggle, and the promise it makes. One toggle, one sentence.
 export function refillLabel(cap) {
-  return `Refill from the wallet when he busts (cap ${money(cap)})`;
+  // Mirrors wallet.floatFor's existing auto-refill bounds; a freely chosen
+  // transfer amount is not a promise to refill below/above those bounds.
+  const target = Math.max(2_000, Math.min(Number.isFinite(cap) ? cap : 2_000, 10_000));
+  return `Refill from the wallet when he busts (cap ${money(target)})`;
 }
 
 // What "call him in" does, in his own register: a promise about the next few
@@ -215,6 +218,21 @@ export function pocketOf(agent) {
 
 export function hasPocket(agent) {
   return pocketOf(agent) !== null;
+}
+
+// A casino buy-in leaves the pocket before its cash-out arrives. During that
+// interval pocket.pnl includes committed chips, so it is not a poker result.
+// Match the Character menu's distinction between paid casino and Home practice.
+export function pocketResultOf(agent) {
+  const tableId = agent?.liveGame?.tableId ?? agent?.activeTableId ?? agent?.location?.tableId;
+  const homeLive = !!tableId && (agent?.liveGame?.home === true
+    || String(tableId).startsWith('home-')
+    || (agent?.homeTableId != null && String(agent.homeTableId) === String(tableId))
+    || (['home', 'visiting'].includes(agent?.location?.where) && agent.location.tableId === tableId));
+  if (tableId && !homeLive) {
+    return { net: Number.isFinite(agent?.liveGame?.net) ? agent.liveGame.net : null, label: 'session net' };
+  }
+  return { net: pocketOf(agent)?.pnl ?? null, label: 'his net' };
 }
 
 // How full the pocket bar draws: money he has against the roll he was given.

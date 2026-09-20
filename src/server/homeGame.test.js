@@ -123,6 +123,14 @@ test('BUG-78: the resume timer survives a household cooldown with no new owner a
 
 // ── Eligibility ─────────────────────────────────────────────────────────────
 
+test('BUG-279: a real meal or explicit rest finishes before automatic kitchen seating', () => {
+  assert.deepEqual(eligible([
+    home('eating', 'Eating', { routine: { key: 'eats' } }),
+    home('resting', 'Resting', { routine: { key: 'sleeps' } }),
+    home('ready', 'Ready', { routine: { key: 'paces' } }),
+  ]).map(a => a.id), ['ready']);
+});
+
 test('HOME-STATE-1: home and idle — out, studying and worn are none of it', () => {
   const roster = [
     home('a', 'A'),

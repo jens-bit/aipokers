@@ -9,7 +9,7 @@
 // three things you can do about it. So the front of this surface is:
 //
 //   ONE NUMBER      what is in the safe, and no second money figure beside it
-//   THREE VERBS     GIVE to a pocket · TAKE the winnings out · RULES per agent
+//   THREE VERBS     GIVE to a pocket · TAKE from a pocket · RULES per agent
 //   TONIGHT         three lines, every figure carrying the sentence that
 //                   caused it (lib/safeLines.js). No number floats anywhere.
 //
@@ -43,7 +43,7 @@ import { LedgerList } from './LedgerList.jsx';
 import { PocketList } from './PocketRow.jsx';
 import { Lbl, ModeTag, Num } from './atoms.jsx';
 import {
-  callInAgent, collectFrom, collectsEverything, fundAgent, hasPocket, money,
+  collectFrom, fundAgent, hasPocket, money,
   pocketOf, refillLabel, signedMoney,
 } from '../../lib/wallet.js';
 import { tonightOf } from '../../lib/safeLines.js';
@@ -60,13 +60,13 @@ const M_MUTED = 'var(--text-muted)';
 // do to it that is not one of these.
 export const VERBS = [
   { key: 'give',  label: 'GIVE',  note: 'to a pocket',   color: M_TEAL },
-  { key: 'take',  label: 'TAKE',  note: 'winnings out',  color: M_GOLD },
+  { key: 'take',  label: 'TAKE',  note: 'from a pocket',  color: M_GOLD },
   { key: 'rules', label: 'RULES', note: 'per agent',     color: M_DIM },
 ];
 
 const TITLES = {
   give:  { title: 'Give', sub: 'to a pocket' },
-  take:  { title: 'Take', sub: 'winnings out' },
+  take:  { title: 'Take', sub: 'from a pocket' },
   rules: { title: 'Rules', sub: 'how each one is backed' },
 };
 
@@ -134,6 +134,15 @@ export function SafeSheet({
   const [page, setPage] = useState('safe');
   const [fundTarget, setFundTarget] = useState(null);
   const [busyAgentId, setBusyAgentId] = useState(null);
+  const [transferError, setTransferError] = useState('');
+  const [refreshIssue, setRefreshIssue] = useState(null);
+  const readStatus = refreshIssue ?? walletStatus;
+
+  async function refreshMoney(read = onRefresh) {
+    setRefreshIssue('loading');
+    try { await read?.(); setRefreshIssue(null); }
+    catch { setRefreshIssue('error'); }
+  }
   // Rule 2: the ledger is this sheet's second size. On the desk there is a
   // column for both, so F12's own note — "desktop puts tonight and the ledger
   // in one scroll" — is the whole of the difference.
@@ -168,41 +177,32 @@ export function SafeSheet({
     [wallet?.ledger, nameOf, now],
   );
 
-  // Who has something to bring home. `collectable` is the server's own answer —
-  // the winnings, or the whole pocket once he has been called in — so TAKE
-  // offers exactly what a collect would actually move.
+  // BUG-280: pocket principal is transferable too. Keep an empty seated
+  // pocket visible so its committed table stack cannot be mistaken for cash.
   const takeable = pocketAgents.filter((a) => {
     const p = pocketOf(a);
     const seated = presenceOf(a) === 'playing';
-    return (p.collectable ?? 0) > 0 || (seated && p.balance > 0);
+    return p.balance > 0 || seated;
   });
 
   async function handleFund(decision) {
     if (!fundTarget) return;
-    try {
-      await fundAgent(fundTarget.id, decision);
-      await onRefresh?.();
-      setFundTarget(null);
-      setPage('safe');
-    } catch { /* the page stays open, the choice is not lost */ }
+    await fundAgent(fundTarget.id, decision);
+    // The receipt is final even if the subsequent read fails. Never leave a
+    // completed GIVE open for the owner to unknowingly submit a second time.
+    setFundTarget(null);
+    setPage('safe');
+    await refreshMoney();
   }
 
-  async function handleCollect(agent) {
+  async function handleTake(agent) {
     if (busyAgentId) return;
     setBusyAgentId(agent.id);
-    // WALLET-7: Collect takes the winnings. A called-in pocket is the one that
-    // hands back all of it — he is not sitting down again.
-    const all = collectsEverything(pocketOf(agent));
-    try { await collectFrom(agent.id, { all }); await onRefresh?.(); }
-    catch { /* the row simply stays as it was */ }
-    finally { setBusyAgentId(null); }
-  }
-
-  async function handleCallIn(agent) {
-    if (busyAgentId) return;
-    setBusyAgentId(agent.id);
-    try { await callInAgent(agent.id); await onRefresh?.(); }
-    catch { /* the row simply stays as it was */ }
+    setTransferError('');
+    // BUG-280: principal in the pocket is transferable. A buy-in already left
+    // the pocket, so /collect cannot touch the felt or request a departure.
+    try { await collectFrom(agent.id, { all: true }); await refreshMoney(); }
+    catch { setTransferError('Could not move the chips. Try again.'); }
     finally { setBusyAgentId(null); }
   }
 
@@ -250,7 +250,7 @@ export function SafeSheet({
               key={v.key}
               type="button"
               className="safe__verb"
-              disabled={walletStatus !== 'ready'}
+              disabled={readStatus !== 'ready'}
               data-verb={v.key}
               style={{ '--verb': v.color, borderColor: `color-mix(in srgb, ${v.color} 30%, transparent)`, background: `color-mix(in srgb, ${v.color} 6%, transparent)` }}
               onClick={() => setPage(v.key)}
@@ -312,7 +312,7 @@ export function SafeSheet({
         agents={pocketAgents}
         only={['fund']}
         label="Who gets it"
-        sub="pocket size sets his stakes"
+        sub="any whole-chip amount"
         onFund={setFundTarget}
         onOpenProfile={onOpenProfile}
         empty={<p className="safe__absent">Nobody here has a pocket yet.</p>}
@@ -322,20 +322,24 @@ export function SafeSheet({
 
   const takePage = (
     <div className="safe__page" key="take">
+      <p className="safe__absent">Take any part of a pocket. Chips and bets in play stay at the table.</p>
       <PocketList
         agents={takeable}
-        only={['collect', 'callIn']}
-        label="What is yours to take"
-        sub="winnings only"
-        onCollect={handleCollect}
-        onCallIn={handleCallIn}
+        only={['take']}
+        label="Uncommitted pockets"
+        sub={null}
+        onTake={handleTake}
+        onTakeAmount={setFundTarget}
+        busy={!!busyAgentId}
         onOpenProfile={onOpenProfile}
         empty={(
           <p className="safe__absent">
-            Nothing to bring home. What is in a pocket is what he sits down with.
+            No uncommitted chips in these pockets.
           </p>
         )}
       />
+      {busyAgentId && <p className="safe__absent" role="status">Moving chips…</p>}
+      {transferError && <p className="safe__absent" role="alert">{transferError}</p>}
     </div>
   );
 
@@ -363,11 +367,12 @@ export function SafeSheet({
       <FundSheet
         agent={fundTarget}
         wallet={wallet}
-        disabled={walletStatus !== 'ready'}
+        disabled={readStatus !== 'ready'}
         index={pocketAgents.findIndex((a) => a.id === fundTarget.id)}
         onCancel={() => setFundTarget(null)}
         onConfirm={handleFund}
         onOpenProfile={onOpenProfile}
+        direction={page === 'take' ? 'take' : 'both'}
       />
     </div>
   ) : null;
@@ -442,8 +447,9 @@ export function SafeSheet({
         </div>
         )}
 
-        <SafeReadStatus status={walletStatus} wallet={wallet} onRetry={onRetry} />
-        <fieldset className="safe__pages" disabled={walletStatus !== 'ready' && !fundTarget}>{body}</fieldset>
+        {refreshIssue === 'error' && <p className="safe__absent" role="status">Chips moved. Refresh the safe before making another transfer.</p>}
+        <SafeReadStatus status={readStatus} wallet={wallet} onRetry={onRetry ? () => refreshMoney(onRetry) : undefined} />
+        <fieldset className="safe__pages" disabled={readStatus !== 'ready' && !fundTarget}>{body}</fieldset>
       </div>
     </div>
   );

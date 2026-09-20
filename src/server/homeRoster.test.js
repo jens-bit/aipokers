@@ -218,3 +218,31 @@ test('BUG-46: a guest seat at the kitchen table is booked under his own owner', 
   assert.equal(table.agentUserIds[seat], OTHER,
     'the visit is credited to his own household, never to the one he is standing in');
 });
+
+test('Home retains resident and visiting outfits without exposing wardrobe inventory or foreign owner data', () => {
+  const mine={head:'rail-cap',face:null,neck:null};
+  const theirs={head:null,face:'round-glasses',neck:'knit-scarf'};
+  profiles.agentsOf(OWNER)[0].wardrobe={owned:['PRIVATE RESIDENT INVENTORY'],equipped:mine};
+  profiles.agentsOf(OTHER)[0].wardrobe={owned:['PRIVATE GUEST INVENTORY'],equipped:theirs,privateNote:'PRIVATE FITTING'};
+  profiles.saveOwner(OWNER);profiles.saveOwner(OTHER);
+  const visit=invitedVisit();assert.equal(visit.status,200,JSON.stringify(visit.body));
+  const assertSnapshot=()=>{
+    for(const owner of [false,true]){
+      const snapshot=profiles.homeSnapshot(OWNER,{owner,visitors:visitMod.visitBodiesFor(OWNER)});
+      const resident=snapshot.agents.find(agent=>agent.id==='mine-a');
+      const guest=snapshot.agents.find(agent=>agent.id==='theirs');
+      assert.deepEqual(resident.equipment,mine);
+      assert.deepEqual(guest.equipment,theirs);
+      assert.equal(guest.guest,true);assert.equal(guest.ownerId,undefined);
+      for(const body of [resident,guest])assert.equal(body.wardrobe,undefined);
+      assert.equal(JSON.stringify(snapshot).includes('PRIVATE'),false);
+    }
+  };
+  assertSnapshot();
+  assert.equal(visitMod.answerVisit(visit.body.visitId,OWNER,true).status,200);
+  assertSnapshot();
+  const untrustedGuest={...visitMod.visitBodiesFor(OWNER)[0],equipment:{...theirs,head:'unowned-hat',privateNote:'PRIVATE FIELD'}};
+  const guest=profiles.homeSnapshot(OWNER,{owner:true,visitors:[untrustedGuest]}).agents.find(agent=>agent.id==='theirs');
+  assert.deepEqual(guest.equipment,theirs);
+  assert.equal(JSON.stringify(guest).includes('PRIVATE'),false);
+});

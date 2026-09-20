@@ -1,0 +1,160 @@
+import { test, expect } from '@playwright/test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fork } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+let child, ready, scratch, sequence = 0, output = '';
+const calls = new Map();
+const rpc = method => new Promise((resolve, reject) => {
+  const id = ++sequence;
+  const timer = setTimeout(() => { calls.delete(id); reject(new Error(`${method} timed out: ${output}`)); }, 12000);
+  calls.set(id, { resolve, reject, timer }); child.send({ id, method });
+});
+test.beforeAll(async () => {
+  scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'railbird-pocket-browser-'));
+  child = fork(fileURLToPath(new URL('./fixtures/pocketTransferServer.mjs', import.meta.url)), [], { cwd: scratch, execArgv: [], silent: true });
+  child.stdout.on('data', data => { output = (output + data).slice(-8000); });
+  child.stderr.on('data', data => { output = (output + data).slice(-8000); });
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Pocket fixture did not start: ${output}`)), 12000);
+    child.once('error', reject);
+    child.once('exit', code => { if (!ready) reject(new Error(`Pocket fixture exit ${code}: ${output}`)); });
+    child.on('message', message => {
+      if (message.event === 'ready') { clearTimeout(timer); ready = message; resolve(); }
+      else {
+        const call = calls.get(message.id); calls.delete(message.id);
+        if (!call) return;
+        clearTimeout(call.timer);
+        if (message.error) call.reject(new Error(message.error)); else call.resolve(message.result);
+      }
+    });
+  });
+});
+test.afterAll(async () => {
+  if (child?.connected) {
+    const exited = new Promise(resolve => child.once('exit', resolve));
+    await rpc('stop'); await exited;
+  }
+  expect(path.dirname(path.resolve(scratch))).toBe(path.resolve(os.tmpdir()));
+  fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+});
+
+async function connect(page) {
+  const requests = [], errors = [];
+  let refuseFirstTake = true;
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('https://telegram.org/**', route => route.fulfill({ body: '', contentType: 'application/javascript' }));
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url()), method = route.request().method();
+    const fixtures = { '/api/auth/config': { botUsername: '' }, '/api/rooms': { rooms: [], hotWindowMs: 20000 },
+      '/api/events': { events: [], lastId: 0 }, '/api/stats': { totalAgents: 1, handsPlayedToday: 1 } };
+    if (fixtures[url.pathname]) return route.fulfill({ json: fixtures[url.pathname] });
+    if (method === 'POST' && /\/(fund|collect|finish)$/.test(url.pathname)) {
+      requests.push({ path: url.pathname, body: route.request().postDataJSON() });
+      // Only this one refusal is synthetic. Successful transfers are signed,
+      // persisted native routes and are independently read from the ledger.
+      if (url.pathname.endsWith('/collect') && refuseFirstTake) {
+        refuseFirstTake = false;
+        return route.fulfill({ status: 503, json: { error: 'fixture unavailable' } });
+      }
+    }
+    const response = await route.fetch({ url: `${ready.backend}${url.pathname}${url.search}` });
+    await route.fulfill({ response });
+  });
+  await page.addInitScript(({ owner, credential, backend }) => {
+    window.Telegram = { WebApp: { initData: credential, initDataUnsafe: { user: { id: Number(owner), first_name: 'Jens' } },
+      viewportHeight: innerHeight, ready() {}, expand() {}, disableVerticalSwipes() {}, onEvent() {}, offEvent() {} } };
+    const NativeSocket = window.WebSocket;
+    window.WebSocket = class extends NativeSocket {
+      constructor(url, protocols) { super(protocols === 'vite-hmr' ? url : backend.replace('http:', 'ws:'), protocols); }
+    };
+  }, ready);
+  return { requests, errors };
+}
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test(`BUG-280: real pocket transfers preserve a committed hand at ${viewport.width}`, async ({ page }, testInfo) => {
+    const initial = await rpc('seed');
+    await page.setViewportSize(viewport);
+    const { requests, errors } = await connect(page);
+    await page.goto('/');
+    await expect(page.getByTestId('home-safe')).toBeVisible();
+    const skip = page.getByRole('button', { name: 'Skip', exact: true });
+    if (await skip.isVisible()) await skip.click();
+    const desktop = viewport.width > 1000;
+    if (desktop) await page.getByRole('button', { name: /^Wallet for / }).click();
+    else await page.getByTestId('home-safe').click();
+    const panel = desktop ? page.locator('.dsk-wallet') : page.getByTestId('safe-sheet');
+    const takePage = async () => {
+      if (!desktop) await panel.getByRole('button', { name: /^TAKE/ }).click();
+    };
+    const row = () => panel.locator(`.wal-row[data-agent="${ready.agentId}"]`);
+    const intact = async (pocket, safe) => {
+      const state = await rpc('state');
+      expect(state.pocket.balance).toBe(pocket); expect(state.safe).toBe(safe);
+      expect(state.pocket.balance + state.safe).toBe(initial.pocket.balance + initial.safe);
+      expect(state.game).toEqual(initial.game);
+      expect(state.pocket.openBuyIns).toEqual(initial.pocket.openBuyIns);
+      expect(state.activeTableId).toBe(initial.tableId); expect(state.pending).toBe(false);
+      expect(state.saved.balance).toBe(pocket);
+      return state;
+    };
+
+    await takePage();
+    if (desktop) await expect(row().getByRole('button', { name: 'Give him chips', exact: true }))
+      .not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await row().getByRole('button', { name: 'Take all — $2,000' }).click();
+    await expect(panel.getByRole('alert')).toContainText('Could not move the chips');
+    await intact(2000, 10000);
+    await row().getByRole('button', { name: 'Choose amount' }).click();
+    let sheet = panel.getByRole('dialog', { name: 'Take from The Clock' });
+    await sheet.getByLabel('Amount to take').fill('137');
+    await sheet.getByRole('button', { name: 'Take $137', exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+    await intact(1863, 10137);
+
+    await takePage();
+    await row().getByRole('button', { name: 'Take all — $1,863' }).click();
+    await expect(row().getByRole('button', { name: 'Take all — $0' })).toBeDisabled();
+    await expect(row()).toContainText('committed');
+    await intact(0, 12000);
+    await expect(page.getByTestId('home-safe')).toContainText('$12,000');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`pocket-only-${viewport.width}.png`) });
+
+    if (!desktop) {
+      await panel.getByRole('button', { name: 'Back', exact: true }).click();
+      await panel.getByRole('button', { name: /^GIVE/ }).click();
+    }
+    await row().getByRole('button', { name: 'Give him chips', exact: true }).click();
+    sheet = panel.getByRole('dialog', { name: 'Fund The Clock' });
+    await sheet.getByRole('button', { name: 'All from safe' }).click();
+    await expect(sheet.getByLabel('Amount to give')).toHaveValue('12000');
+    await sheet.getByLabel('Amount to give').fill('137');
+    await expect(sheet).toContainText('Pocket after giving: $137');
+    await testInfo.attach('funding-geometry', { contentType: 'application/json', body: JSON.stringify(await sheet.evaluate(node => ({
+      sheet: node.getBoundingClientRect().toJSON(), body: node.querySelector('.wal-sheet__body').getBoundingClientRect().toJSON(),
+      parent: node.closest('.safe__panel')?.getBoundingClientRect().toJSON(),
+      amount: node.querySelector('[aria-label="Amount to give"]').getBoundingClientRect().toJSON(),
+      all: node.querySelector('.wal-preset--all').getBoundingClientRect().toJSON(),
+    })), null, 2) });
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`give-any-amount-${viewport.width}.png`) });
+    await expect(sheet.getByRole('button', { name: 'All from safe' })).toBeInViewport();
+    const bodyBox = await sheet.locator('.wal-sheet__body').boundingBox();
+    expect(bodyBox.height).toBeGreaterThan(200);
+    await expect(sheet.getByLabel('Amount to give')).toBeInViewport();
+    await expect(sheet.getByRole('button', { name: 'Give him chips', exact: true })).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+    await sheet.getByRole('button', { name: 'Give him chips', exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+    const final = await intact(137, 11863);
+    expect(final.pocket.ledger.filter(entry => entry.type === 'collect').map(entry => entry.amount)).toEqual([-137, -1863]);
+    expect(final.pocket.ledger.filter(entry => entry.type === 'fund').map(entry => entry.amount)).toEqual([137]);
+    expect(requests.some(request => request.path.endsWith('/finish') || request.body.verb === 'callin')).toBe(false);
+    expect(requests.filter(request => request.path.endsWith('/collect')).map(request => request.body))
+      .toEqual([null, 137, null].map(amount => ({ userId: ready.owner, all: true, amount })));
+    expect(errors).toEqual([]);
+  });
+}

@@ -135,6 +135,7 @@ export function eligible(roster) {
     .filter((a) => a
       && a.location?.where === Where.HOME
       && !a.study
+      && !['eats', 'sleeps'].includes(a.routine?.key)
       && a.fatigue !== 'worn')
     .slice(0, HOME_SEATS);
 }

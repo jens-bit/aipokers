@@ -26,6 +26,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientMsg, ServerMsg } from '../lib/protocol.js';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { homeTablePreview } from '../../../src/shared/homePreview.js';
+import { HOME_OBSERVE_HEARTBEAT_MS } from '../../../src/shared/homeCare.js';
 
 // The socket is the primary path; this is the floor under it, not a poll loop.
 const REFRESH_MS = 30_000;
@@ -48,6 +49,7 @@ export function useHomeState({
   userId = undefined,
   initData = undefined,
   enabled = true,
+  observing = false,
   onOwnerLine = null,
 } = {}) {
   const [agents, setAgentState] = useState([]);
@@ -344,6 +346,31 @@ export function useHomeState({
       } catch { /* already gone */ }
     };
   }, [enabled, wsUrl, wireUserId, wireInitData, refresh, clearTimer]);
+
+  // A floor subscription is also used away from Home. Only the mounted,
+  // visible room renews this short owner-proved lease. Wait for the first
+  // room snapshot so a real item event arrives after the animation baseline.
+  useEffect(() => {
+    if (!enabled || !observing || !gameKnown || status !== 'live') return undefined;
+    const ws = wsRef.current;
+    const scope = scopeRef.current;
+    const send = visible => {
+      if (ws && wsRef.current === ws && scopeRef.current === scope && ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify({ type: ClientMsg.HOME_OBSERVE, visible }));
+      }
+    };
+    const visibility = () => send(document.visibilityState !== 'hidden');
+    visibility();
+    document.addEventListener('visibilitychange', visibility);
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState !== 'hidden') send(true);
+    }, HOME_OBSERVE_HEARTBEAT_MS);
+    return () => {
+      clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', visibility);
+      send(false);
+    };
+  }, [enabled, observing, gameKnown, status, wireUserId, wireInitData]);
 
   /**
    * Clear a want locally, and keep it cleared.

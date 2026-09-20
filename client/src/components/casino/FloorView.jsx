@@ -213,7 +213,7 @@ export function feltsForRoom(felts = [], agents = []) {
  */
 export function FloorView({
   room, felts = [], agents = [], events = [], deployPanel = null,
-  onWatch, onHome = null, onOpenRoster = null, desktop = false,
+  onWatch, onHome = null, onOpenRoster = null, onOpenBar = null, desktop = false,
   headerOwned = false, zoom = null, onZoom = null,
   ticker = null, yourTables = null,
 }) {
@@ -307,6 +307,7 @@ export function FloorView({
                 mineAt={mineAt}
                 standing={standing}
                 onWatch={onWatch}
+                onOpenBar={onOpenBar}
                 onHome={zoom ? null : onHome}
                 width={floorW}
                 height={zoom && !desktop ? floorH : floorW * ((desktop ? FLOOR_H : 330) / FLOOR_W)}
@@ -323,6 +324,8 @@ export function FloorView({
                 : 'Nothing is running right now.'}
             </p>
           )}
+
+          {!ranked.length && onOpenBar && <button type="button" className="csn-floor__bar-entry" onClick={onOpenBar}>Open casino bar</button>}
 
           {!zoom && beyond > 0 && (
             <p className="csn-floor__unnamed">

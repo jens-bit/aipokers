@@ -35,3 +35,18 @@ test('BUG-229: a non-finite toAct or stack is dropped rather than coerced',()=>{
   assert.equal('toAct' in view,false);
   assert.deepEqual(view.seats,[{displayName:'Bird'}]);
 });
+
+test('Home television retains removable seat clothes but never inventory, hidden cards or arbitrary equipment fields',()=>{
+  const view=homeTablePreview({tableId:'dressed-table',seats:[
+    {seat:0,equipment:{head:'rail-cap',face:'round-glasses',neck:null,privateNote:'PRIVATE CLOTHES'},wardrobe:{owned:['PRIVATE INVENTORY']},holeCards:['As','Ad']},
+    {seat:1,equipment:{head:'knit-scarf',face:'unknown',neck:'knit-scarf',strategy:'PRIVATE STRATEGY'}},
+  ]});
+  assert.deepEqual(view.seats,[
+    {seat:0,equipment:{head:'rail-cap',face:'round-glasses',neck:null}},
+    {seat:1,equipment:{head:null,face:null,neck:'knit-scarf'}},
+  ]);
+  assert.equal(JSON.stringify(view).includes('PRIVATE'),false);
+  assert.equal(JSON.stringify(view).includes('As'),false);
+  // Both server projection and client merge can normalize this same frame.
+  assert.deepEqual(homeTablePreview(view),view);
+});

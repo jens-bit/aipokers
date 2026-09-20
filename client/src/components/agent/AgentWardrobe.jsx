@@ -1,14 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { HOODS, GLOWS, identityOf } from '../../lib/identity.js';
+import { STARTER_ITEMS, equipmentOf, sameEquipment as sameLook, validEquipment } from '../../../../src/shared/wardrobe.js';
+import { WardrobeItem } from '../system/GhostClothes.jsx';
 import { getTelegramInitData, getUserId } from '../../lib/telegram.js';
 import '../../styles/agent-wardrobe.css';
-
-const sameLook = (a, b) => a?.hood === b?.hood && a?.glow === b?.glow;
-const appearanceOf = agent => {
-  const { hood, glow } = identityOf(agent);
-  return { hood: hood.id, glow: glow.id };
-};
-const title = name => name[0] + name.slice(1).toLowerCase();
 
 // A change of agent OR authenticated owner starts a separate fitting. Old
 // requests may finish on the server, but cannot paint or update the new room.
@@ -19,7 +13,7 @@ export function AgentWardrobe({ agent, userId = getUserId(), onPreview, onSaved 
 }
 
 function WardrobeSession({ agent, userId, credential, onPreview, onSaved }) {
-  const source = appearanceOf(agent);
+  const source = equipmentOf(agent);
   const [saved, setSaved] = useState(source);
   const [draft, setDraft] = useState(source);
   const [tried, setTried] = useState(null);
@@ -36,14 +30,14 @@ function WardrobeSession({ agent, userId, credential, onPreview, onSaved }) {
   }, []);
   useLayoutEffect(() => { callbacks.current = { onPreview, onSaved }; });
   useLayoutEffect(() => {
-    const next = { hood: source.hood, glow: source.glow };
+    const next = { ...source };
     const previous = savedRef.current;
     savedRef.current = next;
     setSaved(next);
     // Background hydration must not erase an unsaved selection or a failed
     // save. Only an untouched fitting follows a newly confirmed server look.
     setDraft(value => sameLook(value, previous) ? next : value);
-  }, [source.hood, source.glow]);
+  }, [source.head, source.face, source.neck]);
 
   const dirty = !sameLook(draft, saved);
   const previewing = !!tried;
@@ -73,15 +67,15 @@ function WardrobeSession({ agent, userId, credential, onPreview, onSaved }) {
       const response = await fetch(`/api/agents/${encodeURIComponent(agent.id)}`, {
         method: 'PATCH', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': credential },
-        body: JSON.stringify({ userId, identity: wanted }),
+        body: JSON.stringify({ userId, equipment: wanted }),
       });
       result = await response.json();
       if (!current.current) return;
       if (!response.ok) throw new Error(response.status === 401 || response.status === 403
         ? 'Your session could not save this look. Sign in again and retry.'
         : 'Could not save this look. Your choices are still here; try again.');
-      // A 200 from an older server that ignores identity is not confirmation.
-      if (result?.id !== agent.id || !sameLook(result.identity, wanted)) {
+      // A 200 from an older server that ignores equipment is not confirmation.
+      if (result?.id !== agent.id || !validEquipment(result.equipment) || !sameLook(result.equipment, wanted)) {
         throw new Error('Could not confirm this look was saved. Your choices are still here; try again.');
       }
     } catch (err) {
@@ -101,28 +95,18 @@ function WardrobeSession({ agent, userId, credential, onPreview, onSaved }) {
   }
 
   return <section className="agent-wardrobe" aria-label={`${agent.name}'s wardrobe`} aria-busy={saving}>
-    <p className="agent-wardrobe__intro">Choose your colours, then try them on.</p>
-    <fieldset disabled={saving} className="agent-wardrobe__palette">
-      <legend>Hood</legend>
-      <div className="agent-wardrobe__options">{HOODS.map(hood => <button key={hood.id} type="button"
-        aria-label={`${title(hood.name)} hood`} aria-pressed={draft.hood === hood.id}
-        onClick={() => choose('hood', hood.id)}>
-        <span className="agent-wardrobe__swatch agent-wardrobe__swatch--hood" aria-hidden="true"
-          style={{ background: `linear-gradient(145deg, ${hood.top}, ${hood.bot})` }} />
-        <span>{title(hood.name)}</span>
+    <p className="agent-wardrobe__intro">His birth colours are permanent. Dress him in something from the rack.</p>
+    <fieldset disabled={saving} className="agent-wardrobe__rack">
+      <legend>Starter rack <small>Yours to keep</small></legend>
+      <div className="agent-wardrobe__options">{STARTER_ITEMS.map(item => <button key={item.id} type="button"
+        aria-label={item.name} aria-pressed={draft[item.slot] === item.id}
+        onClick={() => choose(item.slot, draft[item.slot] === item.id ? null : item.id)}>
+        <span className="agent-wardrobe__hanger" aria-hidden="true">⌁</span>
+        <WardrobeItem item={item}/><span>{item.name}</span>
+        <small>{draft[item.slot] === item.id ? 'Take off' : 'Put on'}</small>
       </button>)}</div>
     </fieldset>
-    <fieldset disabled={saving} className="agent-wardrobe__palette">
-      <legend>Glow</legend>
-      <div className="agent-wardrobe__options">{GLOWS.map(glow => <button key={glow.id} type="button"
-        aria-label={`${title(glow.name)} glow`} aria-pressed={draft.glow === glow.id}
-        onClick={() => choose('glow', glow.id)}>
-        <span className="agent-wardrobe__swatch agent-wardrobe__swatch--glow" aria-hidden="true"
-          style={{ background: glow.c, boxShadow: `0 0 14px ${glow.c}70` }} />
-        <span>{title(glow.name)}</span>
-      </button>)}</div>
-    </fieldset>
-    <p className="agent-wardrobe__note">Appearance only. Poker skills stay the same.</p>
+    <p className="agent-wardrobe__note">Removable items. No cost or change to poker skills.</p>
     <div className="agent-wardrobe__feedback" aria-live="polite">
       {error ? <p role="alert">{error}</p> : <p role="status">{saving ? 'Saving…' : message || (ready
         ? 'Preview only. Save to keep this look.'

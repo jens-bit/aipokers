@@ -8,6 +8,7 @@ import { PlayingCard, parseCard } from '../system/PlayingCard.jsx';
 import { NamePill } from '../home/atoms.jsx';
 import { MoodChip } from '../floor/atoms.jsx';
 import { identityOf } from '../../lib/identity.js';
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 import { answersFor, answerWant } from '../home/WantToast.jsx';
 import { FundSheet } from '../wallet/FundSheet.jsx';
 import { fetchWallet, fundAgent, money, pnlTone, pocketOf, signedMoney, stakesFor } from '../../lib/wallet.js';
@@ -44,8 +45,8 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
   const scope = `${getUserId()}\0${getTelegramInitData()}\0${agent.id}`;
   const currentScope = useRef(scope);
   currentScope.current = scope;
-  const servedAppearance = JSON.stringify(agent.identity ?? null);
-  const savedIdentity = savedAppearance?.scope === scope && savedAppearance.base === servedAppearance ? savedAppearance.identity : null;
+  const servedAppearance = JSON.stringify(equipmentOf(agent));
+  const savedEquipment = savedAppearance?.scope === scope && savedAppearance.base === servedAppearance ? savedAppearance.equipment : null;
   useEffect(() => { setTab(menuTab(initialTab)); setMoreOpen(false); }, [scope, initialTab]);
   useEffect(() => { setPreview(null); setSavedAppearance(null); }, [scope]);
   useEffect(() => {
@@ -55,11 +56,11 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
     return () => document.removeEventListener('keydown', close);
   }, [moreOpen]);
   const onPreview = useCallback(appearance => {
-    if (currentScope.current === scope) setPreview(appearance ? { scope, identity: appearance } : null);
+    if (currentScope.current === scope) setPreview(appearance ? { scope, equipment: appearance } : null);
   }, [scope]);
   const onSaved = useCallback(nextAgent => {
-    if (currentScope.current !== scope || String(nextAgent?.id) !== String(agent.id) || !nextAgent?.identity) return;
-    setSavedAppearance({ scope, base: servedAppearance, identity: nextAgent.identity });
+    if (currentScope.current !== scope || String(nextAgent?.id) !== String(agent.id) || !nextAgent?.equipment) return;
+    setSavedAppearance({ scope, base: servedAppearance, equipment: equipmentOf(nextAgent) });
     setPreview(null);
     onAppearanceSaved?.(nextAgent);
   }, [scope, agent.id, servedAppearance, onAppearanceSaved]);
@@ -83,14 +84,23 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
   const [pocketOverride, setPocketOverride] = useState(null);
   useEffect(() => { setWant(agent.want ?? null); }, [agent.want]);
   useEffect(() => { setPocketOverride(null); }, [agent.pocket]);
-  const currentAgent = pocketOverride || savedIdentity ? { ...agent, ...(pocketOverride ? { pocket: pocketOverride } : {}), ...(savedIdentity ? { identity: savedIdentity } : {}) } : agent;
+  const currentAgent = pocketOverride || savedEquipment ? { ...agent, ...(pocketOverride ? { pocket: pocketOverride } : {}), ...(savedEquipment ? { equipment: savedEquipment } : {}) } : agent;
   const identity = identityOf(currentAgent);
-  const stageIdentity = tab === 'wardrobe' && preview?.scope === scope ? identityOf({ ...currentAgent, identity: preview.identity }) : identity;
+  const stageIdentity = identity;
+  const stageEquipment = tab === 'wardrobe' && preview?.scope === scope ? preview.equipment : equipmentOf(currentAgent);
   const pocket = pocketOf(currentAgent);
-  const live = !!(agent.activeTableId || agent.location?.tableId || agent.liveGame?.tableId);
+  const liveTableId = agent.liveGame?.tableId ?? agent.activeTableId ?? agent.location?.tableId;
+  const live = !!liveTableId;
+  // Kitchen practice remains watchable while its player can be sent to the
+  // casino. Its practice stack, stakes and net never describe a casino outing.
+  const homeLive = live && (agent.liveGame?.home === true
+    || String(liveTableId).startsWith('home-')
+    || (agent.homeTableId != null && String(agent.homeTableId) === String(liveTableId))
+    || (['home', 'visiting'].includes(agent.location?.where) && agent.location?.tableId === liveTableId));
+  const casinoLive = live && !homeLive;
   // A buy-in leaves the pocket while its chips remain in the live seat.
   // Only the table's session net measures what that seat has won or lost.
-  const displayedNet = live ? agent.liveGame?.net : pocket?.pnl;
+  const displayedNet = casinoLive ? agent.liveGame?.net : pocket?.pnl;
   const blinds = agent.liveGame?.blinds ?? agent.location?.blinds;
   const smallBlind = agent.liveGame?.smallBlind ?? blinds?.small;
   const bigBlind = agent.liveGame?.bigBlind ?? blinds?.big;
@@ -98,7 +108,7 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
     : typeof blinds === 'string' && /^\$?\d+\/\$?\d+$/.test(blinds) ? blinds.replaceAll('$', '') : 'Live game';
   const atHome = !agent.location?.where || agent.location.where === 'home';
   const lastLine = (desktop || chat.some(m => m.role === 'user')) ? [...chat].reverse().find(m => m.role === 'assistant' && !m.error)?.content : null;
-  const face = (size, look = identity) => <MoodGhost mood={mood} heat={heat} size={size} ring={false} hood={look.hood} glow={look.glow.c} accent={look.glow.c} />;
+  const face = (size, equipment = equipmentOf(currentAgent)) => <MoodGhost mood={mood} heat={heat} size={size} ring={false} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c} equipment={equipment} />;
 
   function selectTab(next) { setTab(next); setMoreOpen(false); onTabChange?.(next); }
   function navigateTabs(event) {
@@ -120,12 +130,11 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
   }
   async function fund(decision) {
     setError('');
-    try {
-      const result = await fundAgent(agent.id, decision);
-      if (result.pocket) setPocketOverride(result.pocket);
-      else if (result.agent?.pocket) setPocketOverride(result.agent.pocket);
-      setFunding(false);
-    } catch { setError('Could not move the chips. Please try again.'); }
+    // Let FundSheet own the single retryable error when this rejects.
+    const result = await fundAgent(agent.id, decision);
+    if (result.pocket) setPocketOverride(result.pocket);
+    else if (result.agent?.pocket) setPocketOverride(result.agent.pocket);
+    setFunding(false);
   }
   async function answer(value) {
     if (busy) return;
@@ -159,7 +168,7 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
     <header className="agent-view__header">
       {!desktop && <button className="agent-view__back" type="button" aria-label="Back" onClick={onBack}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M15 18l-6-6 6-6"/></svg></button>}
       <span className="agent-view__name">{agent.name}</span><MoodChip mood={mood} small />
-      {live && onWatch && <button type="button" className="agent-view__live" aria-label="Watch live game" onClick={() => onWatch(currentAgent)}>● LIVE</button>}
+      {live && onWatch && <button type="button" className="agent-view__live" aria-label={homeLive ? 'Watch home game' : 'Watch live game'} onClick={() => onWatch(currentAgent)}>{homeLive ? '● HOME GAME' : '● LIVE'}</button>}
       <button ref={moreButton} className="agent-view__more" type="button" aria-label="More actions" aria-expanded={moreOpen} aria-controls={`${tabId}-actions`} onClick={() => setMoreOpen(!moreOpen)}>···</button>
       {desktop && <button type="button" className="agent-view__close" aria-label="Close panel" onClick={onBack}>×</button>}
     </header>
@@ -170,7 +179,7 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
     <div className="agent-view__stage" data-testid="agent-stage">
       <div className="agent-view__glow" style={{ background: `radial-gradient(ellipse at 50% 74%, ${stageIdentity.glow.c}14, transparent 68%)` }} />
       <div className="agent-view__shadow" />
-      <div className="agent-view__body"><NamePill name={agent.name} nickname={agent.nickname} fatigue={agent.fatigue} heat={heat} accent="#EDEDED"/><div className="agent-view__breath">{face(bodySize, stageIdentity)}<svg className="agent-view__hands" width={bodySize} height={bodySize} viewBox="0 0 80 80" aria-hidden>{ghostHands({ pose: 'rest', size: bodySize, grip: SEAT_GRIP })}</svg>
+      <div className="agent-view__body"><NamePill name={agent.name} nickname={agent.nickname} fatigue={agent.fatigue} heat={heat} accent="#EDEDED"/><div className="agent-view__breath">{face(bodySize, stageEquipment)}<svg className="agent-view__hands" width={bodySize} height={bodySize} viewBox="0 0 80 80" aria-hidden>{ghostHands({ pose: 'rest', size: bodySize, grip: SEAT_GRIP })}</svg>
         {/* TABLE-1 job F: his own two cards, face up — the server only sends
             heroHole to the authenticated owner, so a card drawn here is
             always one this viewer is entitled to (WatchHero's own rule). */}
@@ -187,17 +196,17 @@ export function AgentView({ agent, mood, heat, chat, loading, draft, setDraft, s
       </div>}
     </div>
     <div className="agent-view__actions">
-      <button type="button" className="agent-view__deploy" disabled={live ? !onWatch : !onDeploy} onClick={() => live ? onWatch(currentAgent) : onDeploy(currentAgent)}>
-        <b>{live ? 'WATCH' : 'DEPLOY'}</b>
+      <button type="button" className="agent-view__deploy" disabled={casinoLive ? !onWatch : !onDeploy} onClick={() => casinoLive ? onWatch(currentAgent) : onDeploy(currentAgent)}>
+        <b>{casinoLive ? 'WATCH' : 'DEPLOY'}</b>
         <span>
-          {live ? liveStakes : <>{stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}</>}
+          {casinoLive ? liveStakes : <>{stakesFor(pocket).replaceAll('$', '')} · {money(pocket?.balance)}</>}
           {/* UI-3 job C: his NET, not just his stack — a pocket and what he
               has actually made are two different numbers. A `title` alone is
               invisible on a phone (nothing to hover), so the word itself has
               to sit on the button, same as FundSheet's "his net" line. */}
           {Number.isFinite(displayedNet) && (
             <>
-              {live ? ' · ' : null}
+              {casinoLive ? ' · ' : null}
               <b className={`agent-view__net agent-view__net--${pnlTone(displayedNet)}`}> {signedMoney(displayedNet)}</b>
               <small className="agent-view__net-label"> net</small>
             </>

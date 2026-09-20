@@ -21,6 +21,7 @@ export const ClientMsg = Object.freeze({
                               // initData / apiSecret are the same credentials the
                               // REST layer takes; without them heroHole is withheld.
   FLOOR_UNSUB: 'floor_unsub', // { type } — stop pushes (disconnect does this too)
+  HOME_OBSERVE: 'home_observe', // { type, visible } — foreground Home lease on an owner-proved FLOOR_SUB
   PING: 'ping',
 });
 

@@ -78,25 +78,32 @@ it('CHARACTER-1: reports explicit pane changes without reporting initial selecti
   expect(onTabChange).toHaveBeenCalledTimes(2);
 });
 
-it('CHARACTER-1: a wardrobe preview changes only the stage; saved appearance survives leaving the tab', async () => {
+it('BUG-277: clothes preview changes only the stage; saved items persist without repainting birth colours', async () => {
   const saved=vi.fn();let callbacks;
   const base={...agent,identity:{hood:'slate',glow:'lime'}};
-  const wardrobeContent=api=>{callbacks=api;return <button onClick={()=>api.onPreview({hood:'moss',glow:'gold'})}>Try moss</button>;};
+  const equipment={head:'rail-cap',face:'round-glasses',neck:null};
+  const wardrobeContent=api=>{callbacks=api;return <button onClick={()=>api.onPreview(equipment)}>Try cap</button>;};
   const view=render(<MenuFixture agent={base} chat={[{role:'assistant',content:'Same voice.',_id:1}]} wardrobeContent={wardrobeContent} onAppearanceSaved={saved}/>);
   const hood=()=>screen.getByTestId('agent-stage').querySelector('.mood-ghost').dataset.hood;
+  const clothes=()=>screen.getByTestId('agent-stage').querySelectorAll('[data-item]');
   await userEvent.click(screen.getByRole('tab',{name:'Wardrobe'}));
-  await userEvent.click(screen.getByRole('button',{name:'Try moss'}));
-  expect(hood()).toBe('moss');
+  await userEvent.click(screen.getByRole('button',{name:'Try cap'}));
+  expect(hood()).toBe('slate');
+  expect(clothes()).toHaveLength(2);
+  expect(document.querySelector('.agent-view__head [data-item]')).toBeNull();
   expect(document.querySelector('.agent-view__head .mood-ghost').dataset.hood).toBe('slate');
   await userEvent.click(screen.getByRole('tab',{name:'Chat'}));
   expect(hood()).toBe('slate');
-  await act(async()=>{callbacks.onSaved({...base,identity:{hood:'moss',glow:'gold'}});callbacks.onPreview(null);});
-  expect(hood()).toBe('moss');
-  expect(saved).toHaveBeenCalledWith(expect.objectContaining({id:agent.id,identity:{hood:'moss',glow:'gold'}}));
+  expect(clothes()).toHaveLength(0);
+  await act(async()=>{callbacks.onSaved({...base,equipment});callbacks.onPreview(null);});
+  expect(hood()).toBe('slate');
+  expect(clothes()).toHaveLength(2);
+  expect(saved).toHaveBeenCalledWith(expect.objectContaining({id:agent.id,identity:base.identity,equipment}));
   const stale=callbacks;
   view.rerender(<MenuFixture agent={{...base,id:'next'}} wardrobeContent={wardrobeContent} onAppearanceSaved={saved}/>);
-  await act(async()=>{stale.onSaved({...base,identity:{hood:'oxblood',glow:'ember'}});stale.onPreview({hood:'oxblood',glow:'ember'});});
+  await act(async()=>{stale.onSaved({...base,equipment});stale.onPreview(equipment);});
   expect(hood()).toBe('slate');
+  expect(clothes()).toHaveLength(0);
   expect(saved).toHaveBeenCalledTimes(1);
 });
 
@@ -209,6 +216,29 @@ it('AGENT-1: an away agent can be watched but cannot be carried from the casino'
   expect(onWatch).toHaveBeenCalledWith(away);
   await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
   expect(screen.getByRole('button', { name: 'Carry' })).toBeDisabled();
+});
+
+it.each([false, true])('BUG-278: a live kitchen hand keeps casino Deploy reachable alongside Home Watch (desktop=%s)', async desktop => {
+  const kitchen = { ...agent, homeTableId: 'home-4242', location: { where: 'home', tableId: 'home-4242' },
+    pocket: { balance: 2000, pnl: 340 }, liveGame: { tableId: 'home-4242', home: true, smallBlind: 1, bigBlind: 2,
+      heroHole: ['As', 'Kh'], net: -900 } };
+  const onDeploy = vi.fn(), onWatch = vi.fn();
+  render(<MenuFixture agent={kitchen} desktop={desktop} onDeploy={onDeploy} onWatch={onWatch}/>);
+  const deploy = screen.getByRole('button', { name: /^DEPLOY/ });
+  expect(deploy).toBeEnabled();
+  expect(deploy).toHaveTextContent('10/20');
+  expect(deploy).toHaveTextContent('$2,000');
+  expect(deploy).toHaveTextContent('+$340');
+  expect(deploy).not.toHaveTextContent('1/2');
+  expect(deploy).not.toHaveTextContent('$900');
+  expect(screen.getByTestId('agent-view-hole').querySelectorAll('svg')).toHaveLength(2);
+  await userEvent.click(deploy);
+  expect(onDeploy).toHaveBeenCalledTimes(1);
+  expect(onDeploy).toHaveBeenCalledWith(kitchen);
+  expect(onWatch).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Watch home game' }));
+  expect(onWatch).toHaveBeenCalledTimes(1);
+  expect(onWatch).toHaveBeenCalledWith(kitchen);
 });
 
 it('TABLE-1 job F: opening his room mid-hand shows his own two cards, not just his figure', async () => {

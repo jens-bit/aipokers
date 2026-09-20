@@ -22,6 +22,7 @@ describe('protocol', () => {
       SIT_OUT: 'sit_out',
       FLOOR_SUB: 'floor_sub',
       FLOOR_UNSUB: 'floor_unsub',
+      HOME_OBSERVE: 'home_observe',
     });
   });
 

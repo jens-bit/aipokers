@@ -25,11 +25,13 @@
 // without a shred of guilt. It says what he keeps, never what he loses.
 
 import { useState } from 'react';
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
+import { identityOf } from '../../lib/identity.js';
 
 import { MoodGhost } from '../system/MoodGhost.jsx';
 import { moodOf, heatOf, presenceOf } from '../floor/agentView.js';
 import { accentFor } from '../floor/atoms.jsx';
-import { CALL_IN, CALL_IN_LINE, GIVE, money, pocketOf, refillLabel, signedMoney, stakesFor } from '../../lib/wallet.js';
+import { CALL_IN, CALL_IN_LINE, GIVE, money, pocketOf, pocketResultOf, refillLabel, signedMoney, stakesFor } from '../../lib/wallet.js';
 import { Lbl, Num } from './atoms.jsx';
 
 const M_TEXT = 'var(--text-primary)';
@@ -44,8 +46,9 @@ const M_BORDER = 'var(--edge)';
 const PRESETS = [2_000, 5_000, 10_000];
 const DEFAULT_AMOUNT = PRESETS[0];
 
-export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpenProfile, disabled = false }) {
+export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpenProfile, disabled = false, direction = 'both' }) {
   const pocket = pocketOf(agent);
+  const result = pocketResultOf(agent);
   const seated = presenceOf(agent) === 'playing';
 
   // The sheet opens on where he actually stands: the size he was last set at,
@@ -60,11 +63,14 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
   // never silently snapping back to the ceiling mid-edit).
   const [takeAmount, setTakeAmount] = useState(pocketBalance);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   const accent = accentFor(agent, index);
+  const identity = identityOf(agent);
 
-  // What the amount buys, in the ref's own words.
-  const impliedStakes = stakesFor({ balance: amount ?? 0, cap: amount, broke: false });
+  const wholeAmount = Number.isSafeInteger(amount) && amount > 0;
+  const wholeTake = Number.isSafeInteger(takeAmount) && takeAmount > 0;
+  const transferOnly = direction === 'take';
 
   // Job C: GIVE is a real transfer out of the safe, so it cannot ask for more
   // than the safe holds — the safe's balance is GIVE's own ceiling, the same
@@ -75,27 +81,30 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
   // a seat at a table, or chips in the pocket.
   const canCallIn = seated || pocketBalance > 0;
   const takeCeiling = pocketBalance;
-  const canTake = pocketBalance > 0;
+  const canTake = pocketBalance > 0 || seated || transferOnly;
 
   async function send(decision) {
     if (busy || disabled) return;
+    setError('');
     setBusy(true);
     try {
       await onConfirm(decision);
+    } catch {
+      setError('Could not move the chips. Your amount is still here; try again.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="wal-sheet" role="dialog" aria-label={`Fund ${agent.name}`}>
+    <div className="wal-sheet" role="dialog" aria-label={`${transferOnly ? 'Take from' : 'Fund'} ${agent.name}`}>
       <div className="wal-sheet__head">
         <button type="button" className="wal-sheet__back" onClick={onCancel} aria-label="Back">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <span className="wal-sheet__title">Fund {agent.name}</span>
+        <span className="wal-sheet__title">{transferOnly ? 'Take from' : 'Fund'} {agent.name}</span>
       </div>
 
       <div className="wal-sheet__body">
@@ -112,7 +121,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
               border: `1px solid color-mix(in srgb, ${accent} 27%, transparent)`, display: 'flex', alignItems: 'flex-end',
               justifyContent: 'center', overflow: 'hidden',
             };
-            const face = <MoodGhost mood={moodOf(agent)} heat={heatOf(agent)} accent={accent} size={42} ring={false} />;
+            const face = <MoodGhost mood={moodOf(agent)} heat={heatOf(agent)} accent={accent} hood={identity.hood} glow={identity.glow.c} equipment={equipmentOf(agent)} size={42} ring={false} />;
             return onOpenProfile ? (
               <button
                 type="button"
@@ -137,12 +146,12 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
                 $64,000 pocket and a +$1,200 net are two different facts, and
                 the sheet used to state only the one that looks like the
                 other. */}
-            {pocket && Number.isFinite(pocket.pnl) && (
+            {pocket && Number.isFinite(result.net) && (
               <div style={{ marginTop: 3 }}>
-                <Num size={10.5} weight={600} color={pocket.pnl >= 0 ? 'var(--success)' : 'var(--error)'}>
-                  {signedMoney(pocket.pnl)}
+                <Num size={10.5} weight={600} color={result.net >= 0 ? 'var(--success)' : 'var(--error)'}>
+                  {signedMoney(result.net)}
                 </Num>
-                <span style={{ fontSize: 9, color: M_MUTED, marginLeft: 4 }}>his net</span>
+                <span style={{ fontSize: 9, color: M_MUTED, marginLeft: 4 }}>{result.label}</span>
               </div>
             )}
           </div>
@@ -155,6 +164,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
         </div>
 
         {/* ── verb one: give him chips ───────────────────────────────── */}
+        {!transferOnly && <>
         <Lbl size={9.5}>{GIVE}</Lbl>
         <div style={{ height: 8 }} />
 
@@ -165,26 +175,29 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
               type="button"
               className="wal-preset"
               aria-pressed={amount === preset}
-              disabled={disabled}
+              disabled={busy || disabled}
               onClick={() => setAmount(preset)}
             >
               {money(preset)}
             </button>
           ))}
+          {wallet && <button type="button" className="wal-preset wal-preset--all" disabled={busy || disabled || wallet.balance < 1}
+            onClick={() => setAmount(Math.floor(wallet.balance))}>All from safe</button>}
         </div>
 
         <div style={{ marginTop: 10, marginBottom: 10 }}>
           <label>
-            <Lbl size={8.5}>{wallet ? `Amount — up to the safe's ${money(wallet.balance)}` : 'Amount'}</Lbl>
+            <Lbl size={8.5}>{wallet ? `Whole chips — up to the safe's ${money(wallet.balance)}` : 'Whole chips'}</Lbl>
             <div style={{ marginTop: 5 }}>
               <input
                 className="wal-cap"
                 aria-label="Amount to give"
                 type="number"
                 inputMode="numeric"
-                min="0"
-                step="10"
-                disabled={disabled}
+                min="1"
+                max={wallet?.balance}
+                step="1"
+                disabled={busy || disabled}
                 value={amount ?? ''}
                 onChange={(e) => setAmount(e.target.value === '' ? null : Number(e.target.value))}
               />
@@ -203,13 +216,13 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
           <input
             type="checkbox"
             checked={refill}
-            disabled={disabled}
+            disabled={busy || disabled}
             onChange={(e) => setRefill(e.target.checked)}
           />
           <span className="wal-toggle__text">{refillLabel(amount ?? 0)}</span>
         </label>
 
-        {/* Bigger pocket, bigger stakes — stated, never buried. */}
+        {/* Funding adds to the uncommitted pocket. It never changes a live buy-in. */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
           borderRadius: 10, background: `color-mix(in srgb, ${M_GOLD} 5%, transparent)`, border: `1px solid color-mix(in srgb, ${M_GOLD} 20%, transparent)`,
@@ -219,31 +232,38 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
             <path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
           </svg>
           <span style={{ flex: 1, fontSize: 11.5, color: M_DIM, lineHeight: 1.45 }}>
-            A {money(amount)} pocket seats him at <b style={{ color: M_TEXT }}>{impliedStakes}</b>. Bigger pocket, bigger stakes.
+            Pocket after giving: <b style={{ color: M_TEXT }}>{money(pocketBalance + (wholeAmount ? amount : 0))}</b>.
+            {' '}Choose stakes when sending him to play.
           </span>
         </div>
+        </>}
+
+        {seated && <p className="wal-callin__line">
+          {Number.isFinite(agent.liveGame?.heroStack) ? `At table: ${money(agent.liveGame.heroStack)} stack. ` : ''}
+          Chips and bets at the table stay committed to the game. These transfers only move his uncommitted pocket.
+        </p>}
 
         {/* ── verb two: take his chips (UI-3 job C) ──────────────────── */}
         {canTake && (
           <div className="wal-take">
-            <Lbl size={9.5}>Or take his chips</Lbl>
+            <Lbl size={9.5}>{transferOnly ? 'Take his chips' : 'Or take his chips'}</Lbl>
             <p className="wal-callin__line">
-              Any amount up to what he is actually holding — {money(pocketBalance)} — comes back
+              Any amount up to his uncommitted pocket — {money(pocketBalance)} — comes back
               to the safe. He keeps his seat; this is not calling him in.
             </p>
             <div style={{ marginTop: 8, marginBottom: 8 }}>
               <label>
-                <Lbl size={8.5}>{`Amount — up to his pocket's ${money(pocketBalance)}`}</Lbl>
+                <Lbl size={8.5}>{`Whole chips — up to his pocket's ${money(pocketBalance)}`}</Lbl>
                 <div style={{ marginTop: 5 }}>
                   <input
                     className="wal-cap"
                     aria-label="Amount to take"
                     type="number"
                     inputMode="numeric"
-                    min="0"
+                    min="1"
                     max={takeCeiling}
-                    step="10"
-                    disabled={disabled}
+                    step="1"
+                    disabled={busy || disabled || !pocketBalance}
                     value={takeAmount ?? ''}
                     onChange={(e) => setTakeAmount(e.target.value === '' ? null : Number(e.target.value))}
                   />
@@ -259,8 +279,8 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
               type="button"
               className="wal-btn wal-btn--ghost"
               style={{ height: 40, width: '100%' }}
-              disabled={busy || disabled || !(takeAmount > 0) || takeAmount > takeCeiling}
-              onClick={() => send({ verb: 'take', amount: takeAmount })}
+              disabled={busy || disabled || !wholeTake || takeAmount > takeCeiling}
+              onClick={() => send({ verb: 'take', amount: takeAmount === takeCeiling ? null : takeAmount })}
             >
               {!(takeAmount > 0) ? 'Take his chips'
                 : takeAmount >= takeCeiling ? `Take all of it — ${money(takeCeiling)}` : `Take ${money(takeAmount)}`}
@@ -269,7 +289,7 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
         )}
 
         {/* ── verb three: call him in ─────────────────────────────────── */}
-        {canCallIn && (
+        {canCallIn && !transferOnly && (
           <div className="wal-callin">
             <Lbl size={9.5}>Or call him in</Lbl>
             <p className="wal-callin__line">{CALL_IN_LINE}</p>
@@ -286,23 +306,26 @@ export function FundSheet({ agent, wallet, onCancel, onConfirm, index = 0, onOpe
         )}
       </div>
 
+      {error && <p className="wal-callin__line" role="alert">{error}</p>}
+      {busy && <p className="wal-callin__line" role="status">Moving chips…</p>}
+
       <div className="wal-sheet__foot">
         <div style={{ flex: 1 }}>
           <button type="button" className="wal-btn wal-btn--ghost" style={{ height: 46, width: '100%' }} onClick={onCancel}>
             Cancel
           </button>
         </div>
-        <div style={{ flex: 1.4 }}>
+        {!transferOnly && <div style={{ flex: 1.4 }}>
           <button
             type="button"
             className="wal-btn wal-btn--primary"
             style={{ height: 46, width: '100%' }}
-            disabled={busy || disabled || !(amount > 0) || overSafe}
+            disabled={busy || disabled || !wholeAmount || overSafe}
             onClick={() => send({ verb: 'give', amount, cap: amount, refill })}
           >
             {GIVE}
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   );

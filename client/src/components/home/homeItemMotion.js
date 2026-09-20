@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PHONE_ROOM } from './flat.js';
+import { HOME_ITEM_TRIP_MS } from '../../../../src/shared/homeCare.js';
 
-export const HOME_WALK_MS = 1600;
+export const HOME_WALK_MS = HOME_ITEM_TRIP_MS / 3;
 export const HOME_ITEM_WAIT_MS = 15_000;
 // Display memory only: no read acknowledgment, inventory change or synthetic
 // action. An owner HOME_STATE repeats this accepted event on every snapshot.

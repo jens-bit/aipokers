@@ -40,7 +40,9 @@ export function useTable({ wsUrl }) {
   const [game, setGame] = useState(null);
   const [legalActions, setLegalActions] = useState([]);
   const [history, setHistory] = useState([]);
-  const [error, setError] = useState(null);
+  const [error, setErrorMessage] = useState(null);
+  const [errorDetails, setErrorDetails] = useState(null);
+  const setError = message => { setErrorMessage(message); setErrorDetails(null); };
   const [status, setStatus] = useState('idle');
   // status: idle | connecting | waiting | playing | reconnecting | closed | error
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
@@ -229,6 +231,7 @@ export function useTable({ wsUrl }) {
 
       case ServerMsg.ERROR:
         setError(msg.message);
+        setErrorDetails(msg.refusal?.error === 'agentSpent' ? msg.refusal : null);
         break;
 
       case ServerMsg.PONG:
@@ -477,7 +480,7 @@ export function useTable({ wsUrl }) {
     send({ type: ClientMsg.CHAT, text: String(text).trim() });
   }, [send]);
   const sitOut = useCallback(() => { send({ type: ClientMsg.SIT_OUT }); }, [send]);
-  const dismissError = useCallback(() => setError(null), []);
+  const dismissError = useCallback(() => { setError(null); setErrorDetails(null); }, []);
 
   // Cleanup on unmount.
   useEffect(() => () => {
@@ -493,6 +496,7 @@ export function useTable({ wsUrl }) {
     legalActions,
     history,
     error,
+    errorDetails: error ? errorDetails : null,
     dismissError,
     status,
     reconnectAttempt,
