@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { forwardNative } from './fixtures/forwardNative.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -34,8 +35,7 @@ async function connect(page) {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/config') return route.fulfill({ json: { botUsername: '' } });
     if (url.pathname === '/api/stats') return route.fulfill({ json: { totalAgents: 1, handsPlayedToday: 0 } });
-    const response = await route.fetch({ url: `${ready.backend}${url.pathname}${url.search}` });
-    await route.fulfill({ response });
+    return forwardNative(route, ready.backend);
   });
   await page.addInitScript(({ owner, credential, backend }) => {
     window.Telegram = { WebApp: { initData: credential, initDataUnsafe: { user: { id: Number(owner), first_name: 'Jens' } },

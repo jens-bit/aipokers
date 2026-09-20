@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { forwardNative } from './fixtures/forwardNative.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -43,9 +44,8 @@ test.beforeEach(async () => {
 });
 test.afterEach(async ({ page }) => {
   pageForChanges = null;
-  // A background private read can outlive the final UI assertion. Drain its
-  // real fetch + fulfill before resetting server state or allowing the page's
-  // request context to dispose the fetched response. Handler errors still fail.
+  // Finish routing callbacks before resetting server state. Native response
+  // completion belongs to the browser; handler errors still fail.
   await page.unrouteAll({ behavior: 'wait' });
   await rpc('reset');
 });
@@ -64,8 +64,7 @@ async function connect(page) {
     if (url.pathname === '/api/rooms') return route.fulfill({ json: { rooms: [], hotWindowMs: 20000 } });
     if (url.pathname === '/api/events') return route.fulfill({ json: { events: [], lastId: 0 } });
     if (url.pathname === '/api/stats') return route.fulfill({ json: { totalAgents: 1, handsPlayedToday: 0 } });
-    const response = await route.fetch({ url: `${backend}${url.pathname}${url.search}` });
-    await route.fulfill({ response });
+    return forwardNative(route, backend);
   });
   await page.exposeFunction('__commandHomeSnapshot', () => rpc('snapshot'));
   await page.addInitScript(({ owner }) => {
@@ -117,9 +116,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     page.on('request', request => { if (new URL(request.url()).pathname === '/api/agents/chat' && request.method() === 'POST') generatedChat++; });
     await page.route('**/proposal/accept', async route => {
       if (++accepts === 1) return route.fulfill({ status: 503, json: { error: 'Temporarily unavailable' } });
-      const url = new URL(route.request().url());
-      const response = await route.fetch({ url: `${backend}${url.pathname}${url.search}` });
-      await route.fulfill({ response });
+      return forwardNative(route, backend);
     });
     await page.goto('/');
     await page.locator(`.home-one[data-agent="${ID}"]`).click();

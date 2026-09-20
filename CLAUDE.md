@@ -6,6 +6,11 @@ Read this first in every session. It is the map; the deeper docs are the territo
 Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claude-powered) via chat and deploy them to play. **Identity: a GAME first** — "a Tamagotchi that plays poker": agents are companions with personalities, moods, and their own poker skill. Play money. Real money is a maybe-later, not the foundation.
 
 ## Read next, in order
+Release gate follow-up (20 September): `read-me-claude/RELEASE_SAFE_PROXY_2026-09-20.md`.
+PR #10 merged, but its main deployment was stopped by a native browser-proxy
+teardown failure. The fixture repair uses `codex/safe-proxy-lifecycle`; keep the
+all-in/Safe release pending until a main deployment and public checks succeed.
+
 Latest follow-up (20 September): `read-me-claude/PLAYTEST_ALLIN_SAFE_2026-09-20.md`.
 PR #9 is deployed. The follow-up uses `codex/all-in-safe-repair` for literal
 every-hand all-in execution and the confirmed desktop Safe funding collapse;

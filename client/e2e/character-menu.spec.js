@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { forwardNative } from './fixtures/forwardNative.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -128,8 +129,7 @@ async function connect(page) {
     if (fixtures[url.pathname]) return route.fulfill({ json: fixtures[url.pathname] });
     // An accidental submit is a test failure and can never spend a model call.
     if (url.pathname === '/api/agents/chat') return route.fulfill({ status: 503, json: { error: 'This journey does not send chat' } });
-    const response = await route.fetch({ url: `${backend}${url.pathname}${url.search}` });
-    await route.fulfill({ response });
+    return forwardNative(route, backend);
   });
   await page.exposeFunction('__characterHomeSnapshot', () => rpc('snapshot'));
   await page.addInitScript(({ owner }) => {
