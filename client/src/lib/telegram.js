@@ -85,36 +85,38 @@ export function isAuthenticated() {
   return isMiniAppSession() || getWebLogin() != null;
 }
 
-// Tracks Telegram.WebApp.viewportHeight (shrinks when iOS keyboard opens) and
-// writes it to --tg-h on <html>. All keyboard-aware containers use
-// height: var(--tg-h, 100dvh) instead of 100dvh so the layout compresses and
-// the composer rides just above the keyboard. Falls back to visualViewport on
-// plain browsers, then 100dvh (left unset) outside any supported context.
+// Keep keyboard-aware containers inside both Telegram and the visible browser
+// bounds. Either can report a smaller height first during a resize/keyboard
+// transition; a late SDK event must not put the footer below the window.
+// Without SDK/visual viewport measurements, leave CSS's 100dvh fallback intact.
 // Returns a cleanup function suitable for useEffect.
 export function initViewportTracking() {
+  const tg = window.Telegram?.WebApp;
+  const viewport = window.visualViewport;
+  const positive = value => Number.isFinite(value) && value > 0;
+  let unzoomedVisualHeight;
   function update() {
-    const tg = window.Telegram?.WebApp;
-    let h;
-    if (tg && tg.viewportHeight > 0) {
-      h = tg.viewportHeight;
-    } else if (window.visualViewport) {
-      h = window.visualViewport.height;
-    } else {
-      return; // leave --tg-h unset; CSS fallback (100dvh) takes over
+    // Pinch zoom changes visible CSS pixels without changing layout height.
+    // Retain the last normal-scale bound, including an already-open keyboard,
+    // until normal-scale measurements resume instead of shrinking or growing
+    // the application merely because the user zoomed.
+    if (viewport && Math.abs((viewport.scale ?? 1) - 1) < 0.01) {
+      unzoomedVisualHeight = positive(viewport.height) ? viewport.height : undefined;
     }
-    document.documentElement.style.setProperty('--tg-h', `${Math.round(h)}px`);
+    const bounds = [tg?.viewportHeight, unzoomedVisualHeight].filter(positive);
+    if (!bounds.length) return;
+    if (positive(window.innerHeight)) bounds.push(window.innerHeight);
+    document.documentElement.style.setProperty('--tg-h', `${Math.round(Math.min(...bounds))}px`);
   }
   update();
-  const tg = window.Telegram?.WebApp;
-  if (tg) {
-    tg.onEvent('viewportChanged', update);
-    return () => tg.offEvent('viewportChanged', update);
-  }
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', update);
-    return () => window.visualViewport.removeEventListener('resize', update);
-  }
-  return () => {};
+  tg?.onEvent('viewportChanged', update);
+  window.addEventListener('resize', update);
+  viewport?.addEventListener('resize', update);
+  return () => {
+    tg?.offEvent('viewportChanged', update);
+    window.removeEventListener('resize', update);
+    viewport?.removeEventListener('resize', update);
+  };
 }
 
 // Returns the credential string sent as x-telegram-init-data. Inside Telegram

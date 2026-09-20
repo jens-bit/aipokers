@@ -5,7 +5,7 @@
 // how the app is opened in a browser during development — and because the
 // LAND-2 guard depends on the no-initData case being detectable.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getTelegramDisplayName,
@@ -88,7 +88,7 @@ describe('telegram helpers inside Telegram', () => {
 describe('initViewportTracking (KEY-1)', () => {
   const tgH = () => document.documentElement.style.getPropertyValue('--tg-h');
 
-  beforeEach(() => { telegram.signIn(); });
+  beforeEach(() => { telegram.signIn(); vi.stubGlobal('innerHeight', 900); });
 
   it('writes the current viewport height on the first call', () => {
     telegram.webApp.viewportHeight = 800;
@@ -125,5 +125,120 @@ describe('initViewportTracking (KEY-1)', () => {
     const stop = initViewportTracking();
     expect(tgH()).toBe('');
     stop();
+  });
+});
+
+describe('BUG-287: visible viewport bounds while Telegram height lags', () => {
+  const tgH = () => document.documentElement.style.getPropertyValue('--tg-h');
+  let stop;
+  const visualViewport = (height = 844, scale = 1) => {
+    const viewport = Object.assign(new EventTarget(), { height, scale });
+    vi.stubGlobal('visualViewport', viewport);
+    return viewport;
+  };
+
+  beforeEach(() => {
+    telegram.signIn();
+    telegram.webApp.viewportHeight = 844;
+    vi.stubGlobal('innerHeight', 844);
+    stop = undefined;
+  });
+  afterEach(() => { stop?.(); vi.restoreAllMocks(); });
+
+  it('uses a browser resize immediately and rejects a later oversized SDK event', () => {
+    stop = initViewportTracking();
+    vi.stubGlobal('innerHeight', 590);
+    window.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('590px');
+    telegram.setViewportHeight(844);
+    expect(tgH()).toBe('590px');
+    telegram.setViewportHeight(590);
+    vi.stubGlobal('innerHeight', 844);
+    window.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('590px'); // retain the smaller native bound until it updates
+    telegram.setViewportHeight(844);
+    expect(tgH()).toBe('844px');
+  });
+
+  it('uses a visual-only keyboard resize even when the SDK object exists', () => {
+    const viewport = visualViewport();
+    stop = initViewportTracking();
+    viewport.height = 420;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('420px');
+    viewport.height = 844;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('844px');
+  });
+
+  it('keeps a smaller Telegram keyboard bound when browser metrics remain tall', () => {
+    visualViewport();
+    stop = initViewportTracking();
+    telegram.setViewportHeight(390);
+    window.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('390px');
+  });
+
+  it('does not collapse the layout when pinch zoom shrinks the visual viewport', () => {
+    const viewport = visualViewport();
+    stop = initViewportTracking();
+    viewport.height = 422;
+    viewport.scale = 2;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('844px');
+  });
+
+  it('retains the last unzoomed keyboard bound during pinch zoom', () => {
+    const viewport = visualViewport(420);
+    stop = initViewportTracking();
+    expect(tgH()).toBe('420px');
+    viewport.height = 210;
+    viewport.scale = 2;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('420px');
+    viewport.height = 844;
+    viewport.scale = 1;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('844px');
+  });
+
+  it('ignores invalid native metrics and supports the SDK present outside Telegram', () => {
+    const viewport = visualViewport(590);
+    telegram.signOut();
+    telegram.webApp.viewportHeight = Infinity;
+    stop = initViewportTracking();
+    expect(tgH()).toBe('590px');
+    telegram.setViewportHeight(-1);
+    viewport.height = 420;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('420px');
+  });
+
+  it('tracks visual viewport changes outside Telegram without treating zoom as layout height', () => {
+    telegram.uninstall();
+    const viewport = visualViewport();
+    stop = initViewportTracking();
+    viewport.height = 422;
+    viewport.scale = 2;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('844px');
+  });
+
+  it('removes all listeners from their original targets and stops subsequent writes', () => {
+    const viewport = visualViewport();
+    const removeVisual = vi.spyOn(viewport, 'removeEventListener');
+    const removeWindow = vi.spyOn(window, 'removeEventListener');
+    stop = initViewportTracking();
+    const replacement = visualViewport(500);
+    stop();
+    expect(telegram.listenerCount('viewportChanged')).toBe(0);
+    expect(removeVisual).toHaveBeenCalledWith('resize', expect.any(Function));
+    expect(removeWindow).toHaveBeenCalledWith('resize', expect.any(Function));
+    telegram.setViewportHeight(300);
+    vi.stubGlobal('innerHeight', 300);
+    window.dispatchEvent(new Event('resize'));
+    viewport.dispatchEvent(new Event('resize'));
+    replacement.dispatchEvent(new Event('resize'));
+    expect(tgH()).toBe('844px');
   });
 });
