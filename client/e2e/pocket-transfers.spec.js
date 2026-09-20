@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fork } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import http from 'node:http';
+import { forwardNative } from './fixtures/forwardNative.js';
 
 let child, ready, scratch, sequence = 0, output = '';
 const calls = new Map();
@@ -42,7 +44,7 @@ test.afterAll(async () => {
 });
 
 test.afterEach(async ({ page }) => {
-  // Finish native proxy responses before their request context is disposed.
+  // Drain fixture handlers; the browser owns continued native responses.
   await page.unrouteAll({ behavior: 'wait' });
 });
 
@@ -65,8 +67,7 @@ async function connect(page) {
         return route.fulfill({ status: 503, json: { error: 'fixture unavailable' } });
       }
     }
-    const response = await route.fetch({ url: `${ready.backend}${url.pathname}${url.search}` });
-    await route.fulfill({ response });
+    return forwardNative(route, ready.backend);
   });
   await page.addInitScript(({ owner, credential, backend }) => {
     window.Telegram = { WebApp: { initData: credential, initDataUnsafe: { user: { id: Number(owner), first_name: 'Jens' } },
@@ -78,6 +79,65 @@ async function connect(page) {
   }, ready);
   return { requests, errors };
 }
+
+test('BUG-286: unregistering the native proxy preserves both concurrent backend responses', async ({ page }) => {
+  let markBothHeld;
+  const bothHeld = new Promise(resolve => { markBothHeld = resolve; });
+  const held = new Map(), escaped = [];
+  const reply = key => {
+    const response = held.get(key);
+    if (!response || response.writableEnded) return;
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({ source: 'native backend', key }));
+  };
+  const backend = http.createServer((request, response) => {
+    const key = new URL(request.url, 'http://local').searchParams.get('key');
+    held.set(key, response);
+    if (held.size === 2) markBothHeld();
+  });
+  const origin = http.createServer((request, response) => {
+    if (request.url.startsWith('/api/')) {
+      escaped.push(request.url);
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ source: 'unproxied origin' }));
+      // If interception wrongly falls through, complete the held native
+      // response too. This exposes its rejected late fulfillment rather than
+      // leaving a diagnostic request pending until the test timeout.
+      reply('slow');
+    } else response.end('<!doctype html><title>Native proxy lifecycle</title>');
+  });
+  const listen = async server => {
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    return `http://127.0.0.1:${server.address().port}`;
+  };
+  const backendUrl = await listen(backend), originUrl = await listen(origin);
+  try {
+    await page.route('**/api/proxy-lifetime?*', route => forwardNative(route, backendUrl));
+    await page.goto(originUrl);
+    await page.evaluate(() => {
+      window.proxyResponses = Promise.all(['fast', 'slow'].map(key =>
+        fetch(`/api/proxy-lifetime?key=${key}`).then(response => response.json())));
+    });
+    await bothHeld;
+    // Two real responses are pending when interception is removed. With
+    // fetch+fulfill, fast completion can unregister slow before it fulfills.
+    // Direct continuation hands both responses to the browser before removal.
+    const draining = page.unrouteAll({ behavior: 'wait' });
+    reply('fast');
+    await draining;
+    reply('slow');
+    expect(await page.evaluate(() => window.proxyResponses)).toEqual([
+      { source: 'native backend', key: 'fast' },
+      { source: 'native backend', key: 'slow' },
+    ]);
+    expect(escaped).toEqual([]);
+  } finally {
+    reply('fast'); reply('slow');
+    await page.unrouteAll({ behavior: 'wait' });
+    await new Promise(resolve => origin.close(resolve));
+    await new Promise(resolve => backend.close(resolve));
+  }
+});
 
 for (const viewport of [{ width: 390, height: 590 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]) {
   test(`BUG-284: Safe GIVE controls stay inside the mini-app at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {

@@ -1,5 +1,19 @@
 # Bug Report — Railbird
 
+## Release gate follow-up — 2026-09-20
+
+### BUG-286 — native browser-test proxy races during teardown — FIXED IN REVIEW
+PR #10's main deployment was blocked after 215/216 integrated checks passed:
+one delayed native response threw `route.fulfill: Route is already handled!`.
+A controlled two-response reproduction confirmed Playwright's interception
+removal could continue the slower request before its proxy fulfilled it.
+Use the shared `forwardNative` helper for eight unchanged response forwarders
+across seven specs, letting the browser finish the real backend response.
+The permanent regression checks both exact backend bodies and zero escaped
+requests. Signed money routes, deliberate failures and every balance/hand
+assertion remain intact; no errors are ignored and no retries/deadlines changed.
+Release status and evidence: `read-me-claude/RELEASE_SAFE_PROXY_2026-09-20.md`.
+
 ## Follow-up playtest — all-in instructions and Safe GIVE, 2026-09-20
 
 Scope and release receipts: `read-me-claude/PLAYTEST_ALLIN_SAFE_2026-09-20.md`.
