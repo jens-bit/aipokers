@@ -7,8 +7,11 @@ layout checks, but its integrated run had 215 passes and one failure:
 `pocket-transfers.spec.js`, the desktop committed-hand transfer journey.
 
 The exception was `route.fulfill: Route is already handled!` in the test's
-native HTTP proxy. Deployment was skipped. Production remains on PR #9's
-`b20d21d` until a subsequent main deployment and public checks succeed.
+native HTTP proxy. Deployment was skipped, initially leaving PR #9's `b20d21d`
+live. PR #11 subsequently resolved this blocker and deployed as `554e2f5` at
+14:46 UTC on 20 September. Main workflow `35516291303` passed all stages,
+including 217 integrated cases. Public JS/CSS hashes matched the reviewed
+build; health/auth checks and fresh phone/desktop browser checks passed.
 
 The downloaded CI artifacts show the journey reached the final funding form;
 they contain screenshots and an error context, but no request trace. Do not
@@ -46,5 +49,6 @@ the same artifact directory. The full 217-case integrated gate passed in
 9.8 minutes using the exact 16-spec CI selection; its log and captures are
 under `final-proxy-integrated/`. Independent final review found no issues.
 The product source and build are unchanged from the already-passed PR #10
-gates. The follow-up still requires its normal PR and main CI runs before
-deployment; record those results and public checks in the review PR.
+gates. PR workflow `35515249080` and main workflow `35516291303` both passed.
+The final deployment/public receipts are recorded in PR #11 and locally in
+`proxy-main-final-ci.log` and `pr11-public/` under the same artifact directory.

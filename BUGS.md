@@ -1,8 +1,22 @@
 # Bug Report — Railbird
 
+## Telegram resize follow-up — 2026-09-20
+
+### BUG-287 — Safe GIVE can stay below a resized Telegram window — FIXED IN REVIEW
+A signed native journey at 384 × 844 reproduced an untappable GIVE footer
+after the browser shrank to 590 while Telegram's height event lagged. The
+old tracker listened only to the SDK when present and left `--tg-h` at 844.
+The tracker now also listens to browser/visual viewport changes, caps stale
+native height by real bounds and preserves keyboard compression during zoom.
+Failure-first unit/native cases cover reachable controls, retained input,
+listener cleanup and an exact signed transfer with committed chips untouched.
+This is a separate offscreen-footer condition, not proof of the original
+nearly collapsed Telegram screenshot. Evidence and release status:
+`read-me-claude/PLAYTEST_TELEGRAM_VIEWPORT_2026-09-20.md`.
+
 ## Release gate follow-up — 2026-09-20
 
-### BUG-286 — native browser-test proxy races during teardown — FIXED IN REVIEW
+### BUG-286 — native browser-test proxy races during teardown — FIXED, DEPLOYED
 PR #10's main deployment was blocked after 215/216 integrated checks passed:
 one delayed native response threw `route.fulfill: Route is already handled!`.
 A controlled two-response reproduction confirmed Playwright's interception
@@ -18,7 +32,7 @@ Release status and evidence: `read-me-claude/RELEASE_SAFE_PROXY_2026-09-20.md`.
 
 Scope and release receipts: `read-me-claude/PLAYTEST_ALLIN_SAFE_2026-09-20.md`.
 
-### BUG-283 — explicit every-hand all-in strategy becomes ordinary aggression — FIXED IN REVIEW
+### BUG-283 — explicit every-hand all-in strategy becomes ordinary aggression — FIXED, DEPLOYED
 BUG-223 recognised the vocabulary but tested stored dials, not actual decisions.
 The free policy ignored strategy text, model prose could dilute the owner's
 instruction, and the scripted draft replaced it with a generic answer summary.
@@ -31,7 +45,7 @@ commands; nearby "always" and "all in" words alone are not an instruction.
 Existing explicit saved strategies are recognised. Do not infer lost historical
 instructions from an agent's name or rewrite user records based on that guess.
 
-### BUG-284 — Safe GIVE funding panel collapses — DESKTOP FIXED IN REVIEW; PHONE UNCONFIRMED
+### BUG-284 — Safe GIVE funding panel collapses — DESKTOP FIX DEPLOYED; PHONE UNCONFIRMED
 The desktop Home Safe rail's absolute funding content had a zero-height host.
 Give that host the visible rail height. Native long-ledger transfers check
 visible, hittable input/Back/confirm controls and unchanged committed chips.
@@ -40,7 +54,7 @@ The supplied phone image resembles the earlier BUG-280 collapse, but fresh
 did not reproduce it. Await the founder's reload/session clarification; do not
 claim the separate phone report has a newly established cause.
 
-### BUG-285 — a short all-in incorrectly reopens an earlier player's raise — FIXED IN REVIEW
+### BUG-285 — a short all-in incorrectly reopens an earlier player's raise — FIXED, DEPLOYED
 Legal offers and submitted raises now share the same raise-rights check. Prior
 actors must face a full increment since their own last action; unacted players
 retain their option, full raises reopen, and sufficient cumulative short raises
@@ -52,18 +66,18 @@ regressions accompany the failure-first reopening cases.
 
 Current scope and exact clarifications: `read-me-claude/PLAYTEST_2026-09-20.md`.
 The recolouring proposal in PR #9 was rejected before deployment. The revised
-branch below requires the complete playtest gate before release.
+PR passed the complete gate and deployed as `b20d21d` at 11:59 UTC on 20 September.
 
-### BUG-277 — Wardrobe changes permanent birth colours — FIXED IN REVIEW
+### BUG-277 — Wardrobe changes permanent birth colours — FIXED, DEPLOYED
 Authenticated identity edits now reject before any mutation. The free starter
 rack contains a removable cap, glasses and scarf, with preview/save/remove,
 durable equipment and public portraits. Birth pigment also survives maximum heat.
 
-### BUG-278 — kitchen play hides casino Deploy — FIXED IN REVIEW
+### BUG-278 — kitchen play hides casino Deploy — FIXED, DEPLOYED
 Kitchen Watch and casino Deploy remain separate actions, with their own money
 and stakes. Native owner viewpoint and hand privacy checks remain in place.
 
-### BUG-279 — hunger recovery and visible eating fail — FIXED IN REVIEW
+### BUG-279 — hunger recovery and visible eating fail — FIXED, DEPLOYED
 Retain fractional rest recovery. Authenticated foreground Home observation
 permits one real stocked-snack trip at a time; hidden/offline rooms cannot eat.
 Empty stock opens the fridge; refusals retain recovery instructions. Atomic meal
@@ -72,7 +86,7 @@ Opaque desktop history/sign-in overlays now suspend the observation lease;
 visible side rails continue to allow care. Native failure-first proof covers
 eleven seconds behind history and visible eating after returning to the room.
 
-### BUG-280 — pocket transfer controls obscure available money — FIXED IN REVIEW
+### BUG-280 — pocket transfer controls obscure available money — FIXED, DEPLOYED
 Allow arbitrary affordable safe-to-pocket transfers and any/all pocket-to-safe
 transfers. Already bought-in chips are committed and remain outside this flow.
 Phone funding no longer collapses. Desktop controls remain legible. Successful
@@ -80,7 +94,7 @@ transfers followed by a failed balance read offer refresh, never a duplicate GIV
 Live casino net comes from the confirmed session, so buying in is not displayed
 as a pocket loss. Unknown session results remain unknown.
 
-### BUG-281 — casino bar is inert — FIXED IN REVIEW
+### BUG-281 — casino bar is inert — FIXED, DEPLOYED
 The bar serves one stocked item or explicitly buys and serves one at its existing
 price. Authenticated casino-only orders persist atomically with retry receipts.
 Live hands/chips remain untouched; seated snacks cannot credit elapsed rest.

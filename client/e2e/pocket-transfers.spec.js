@@ -70,8 +70,15 @@ async function connect(page) {
     return forwardNative(route, ready.backend);
   });
   await page.addInitScript(({ owner, credential, backend }) => {
+    const listeners = new Map();
     window.Telegram = { WebApp: { initData: credential, initDataUnsafe: { user: { id: Number(owner), first_name: 'Jens' } },
-      viewportHeight: innerHeight, ready() {}, expand() {}, disableVerticalSwipes() {}, onEvent() {}, offEvent() {} } };
+      viewportHeight: innerHeight, ready() {}, expand() {}, disableVerticalSwipes() {},
+      onEvent(type, callback) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(callback); },
+      offEvent(type, callback) { listeners.get(type)?.delete(callback); } } };
+    window.setFixtureTelegramHeight = height => {
+      window.Telegram.WebApp.viewportHeight = height;
+      for (const callback of listeners.get('viewportChanged') ?? []) callback({ isStateStable: true });
+    };
     const NativeSocket = window.WebSocket;
     window.WebSocket = class extends NativeSocket {
       constructor(url, protocols) { super(protocols === 'vite-hmr' ? url : backend.replace('http:', 'ws:'), protocols); }
@@ -79,6 +86,90 @@ async function connect(page) {
   }, ready);
   return { requests, errors };
 }
+
+test('BUG-287: Safe keeps typed money and reachable controls when the browser shrinks before Telegram updates', async ({ page }, testInfo) => {
+  const initial = await rpc('seedHistory');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { requests, errors } = await connect(page);
+  await page.goto('/');
+  await expect(page.getByTestId('home-safe')).toBeVisible();
+  const skip = page.getByRole('button', { name: 'Skip', exact: true });
+  if (await skip.isVisible()) await skip.click();
+  await page.getByRole('button', { name: 'Your agents', exact: true }).click();
+  await page.getByTestId('roster-wallet').click();
+  const safe = page.getByTestId('safe-sheet');
+  await safe.getByRole('button', { name: /^GIVE/ }).click();
+  const openFund = () => safe.locator(`.wal-row[data-agent="${ready.agentId}"]`)
+    .getByRole('button', { name: 'Give him chips', exact: true }).click();
+  await openFund();
+  const sheet = safe.getByRole('dialog', { name: 'Fund The Clock' });
+  const amount = sheet.getByLabel('Amount to give');
+  const back = sheet.getByRole('button', { name: 'Back', exact: true });
+  const confirm = sheet.getByRole('button', { name: 'Give him chips', exact: true });
+  await amount.fill('137');
+
+  const reachable = async (height, name) => {
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`${name}.png`) });
+    const geometry = await sheet.evaluate(node => ({
+      sheet: node.getBoundingClientRect().toJSON(),
+      footer: node.querySelector('.wal-sheet__foot').getBoundingClientRect().toJSON(),
+      browserHeight: innerHeight, telegramHeight: Telegram.WebApp.viewportHeight,
+      layoutHeight: document.documentElement.style.getPropertyValue('--tg-h'),
+    }));
+    await testInfo.attach(name, { contentType: 'application/json', body: JSON.stringify(geometry, null, 2) });
+    expect(geometry.sheet.y).toBeGreaterThanOrEqual(0);
+    expect(geometry.footer.bottom, 'the money controls stay above the visible bottom edge').toBeLessThanOrEqual(height);
+    for (const control of [back, confirm]) {
+      await expect(control).toBeInViewport({ ratio: 1 });
+      expect(await control.evaluate(node => {
+        const box = node.getBoundingClientRect();
+        return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+      }), 'the visible money control receives the tap').toBe(true);
+    }
+    await expect(amount).toHaveValue('137');
+  };
+
+  // Only the browser reports this resize. A stale SDK height must not leave
+  // the footer below the window; no claim about the separate collapsed image.
+  await page.setViewportSize({ width: 390, height: 590 });
+  expect(await page.evaluate(() => Telegram.WebApp.viewportHeight)).toBe(844);
+  await reachable(590, 'safe-sdk-lag-590');
+  await page.evaluate(() => setFixtureTelegramHeight(590));
+  await page.setViewportSize({ width: 390, height: 420 });
+  await page.evaluate(() => setFixtureTelegramHeight(420));
+  await amount.scrollIntoViewIfNeeded();
+  await expect(amount).toBeInViewport({ ratio: 1 });
+  await expect(amount).toHaveValue('137');
+  await amount.fill('138');
+  await expect(amount).toHaveValue('138');
+  await amount.fill('137');
+  await reachable(420, 'safe-keyboard-420');
+  await back.click();
+  await expect(sheet).toHaveCount(0);
+  await expect(safe.getByText('Who gets it', { exact: true })).toBeVisible();
+  expect(requests.filter(request => request.path.endsWith('/fund'))).toHaveLength(0);
+
+  await page.setViewportSize({ width: 390, height: 590 });
+  await page.evaluate(() => setFixtureTelegramHeight(590));
+  await openFund();
+  await amount.fill('137');
+  await reachable(590, 'safe-restored-590');
+  await confirm.click();
+  await expect(sheet).toHaveCount(0);
+  await expect(safe.locator('.safe__amount')).toHaveText('$9,863');
+  const final = await rpc('state');
+  expect(final.pocket.balance).toBe(initial.pocket.balance + 137);
+  expect(final.safe).toBe(initial.safe - 137);
+  expect(final.safe + final.pocket.balance).toBe(initial.safe + initial.pocket.balance);
+  expect(final.saved.balance).toBe(final.pocket.balance);
+  expect(final.game).toEqual(initial.game);
+  expect(final.pocket.openBuyIns).toEqual(initial.pocket.openBuyIns);
+  expect(final.activeTableId).toBe(initial.tableId);
+  expect(final.pending).toBe(false);
+  expect(requests.filter(request => request.path.endsWith('/fund'))).toHaveLength(1);
+  expect(requests.some(request => request.path.endsWith('/finish') || request.body.verb === 'callin')).toBe(false);
+  expect(errors).toEqual([]);
+});
 
 test('BUG-286: unregistering the native proxy preserves both concurrent backend responses', async ({ page }) => {
   let markBothHeld;

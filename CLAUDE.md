@@ -6,14 +6,19 @@ Read this first in every session. It is the map; the deeper docs are the territo
 Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claude-powered) via chat and deploy them to play. **Identity: a GAME first** — "a Tamagotchi that plays poker": agents are companions with personalities, moods, and their own poker skill. Play money. Real money is a maybe-later, not the foundation.
 
 ## Read next, in order
+Telegram resize follow-up (20 September):
+`read-me-claude/PLAYTEST_TELEGRAM_VIEWPORT_2026-09-20.md`.
+BUG-287 is a separately reproduced offscreen Safe footer when browser height
+shrinks before the SDK height event. Work uses `codex/telegram-viewport-recovery`.
+
 Release gate follow-up (20 September): `read-me-claude/RELEASE_SAFE_PROXY_2026-09-20.md`.
-PR #10 merged, but its main deployment was stopped by a native browser-proxy
-teardown failure. The fixture repair uses `codex/safe-proxy-lifecycle`; keep the
-all-in/Safe release pending until a main deployment and public checks succeed.
+PR #11 repaired the native browser-proxy teardown failure. Main `554e2f5`
+deployed on 20 September at 14:46 UTC after the full gate; public asset hashes,
+health/auth and fresh phone/desktop checks passed. PR #10's fixes are live.
 
 Latest follow-up (20 September): `read-me-claude/PLAYTEST_ALLIN_SAFE_2026-09-20.md`.
-PR #9 is deployed. The follow-up uses `codex/all-in-safe-repair` for literal
-every-hand all-in execution and the confirmed desktop Safe funding collapse;
+PR #10 supplies literal every-hand all-in execution and the confirmed desktop
+Safe funding collapse (deployed through PR #11);
 the supplied phone collapse remains unconfirmed on a freshly loaded build.
 
 Latest founder corrections (20 September): `read-me-claude/PLAYTEST_2026-09-20.md`.
