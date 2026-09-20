@@ -765,7 +765,12 @@ this is the deadline state.actionTimer reports).
 ## Agent identity
 
 Agents have a persistent profile stored server-side:
-- strategy: natural-language poker personality (injected into the decision prompt)
+- strategy: natural-language poker personality (injected into the decision prompt).
+  An explicit unconditional "go all in every hand" instruction also compiles
+  into the maximum engine-legal commitment in automatic and fallback play.
+  If raising is closed, call the legal amount or check. General aggression,
+  names, questions, negation and conditional examples do not activate this rule.
+  Saved strategy changes apply on the next seating, as for other strategy edits.
 - stats: handsPlayed, handsWon, winRate, aggressiveDecisions, passiveDecisions, foldDecisions
 - memory: computed casino memory refreshes each hand; eligible narrative refresh
   is attempted every 20 hands, with no such model call in Home practice

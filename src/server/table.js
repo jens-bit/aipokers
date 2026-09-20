@@ -5442,6 +5442,7 @@ export class Table {
       holeCards: me.holeCards,
       position,
       attrs,
+      strategy: this.aiStrategy[aiSeat] ?? this.agentStrategy ?? '',
     });
 
     // Mood-derived bounded effects: nudge the deviation die probability and
@@ -5590,7 +5591,7 @@ export class Table {
 
     const gameState = this._buildAiGameState(aiSeat);
     this.pendingNeedle[aiSeat] = null;  // TLK-1: consumed into gameState
-    const strategy = this.agentStrategy || this.aiStrategy[aiSeat];
+    const strategy = this.aiStrategy[aiSeat] ?? this.agentStrategy;
 
     // SERVER-3: the clock was armed by _broadcastState before the snapshot
     // announcing this turn went out, so the delay we sleep here is the SAME

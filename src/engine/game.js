@@ -159,7 +159,7 @@ export class Game {
       if (this.currentBet === 0 && player.stack > 0) {
         const min = Math.min(this.bigBlind, player.stack);
         out.push({ type: Actions.BET, min, max: player.stack });
-      } else if (this.currentBet > 0 && player.stack > 0) {
+      } else if (this.currentBet > 0 && player.stack > 0 && this._canRaise(seat)) {
         const minRaiseTotal = this.currentBet + Math.max(this.lastRaiseSize, this.bigBlind);
         const maxRaiseTotal = player.contribThisStreet + player.stack;
         out.push({
@@ -170,7 +170,7 @@ export class Game {
       }
     } else {
       out.push({ type: Actions.CALL, amount: Math.min(owed, player.stack) });
-      if (player.stack > owed) {
+      if (player.stack > owed && this._canRaise(seat)) {
         const minRaiseTotal = this.currentBet + Math.max(this.lastRaiseSize, this.bigBlind);
         const maxRaiseTotal = player.contribThisStreet + player.stack;
         out.push({
@@ -269,13 +269,14 @@ export class Game {
     this.currentBet = player.contribThisStreet;
     this.lastRaiseSize = totalAmount;
     if (player.stack === 0) player.allIn = true;
-    this._reopenAction(seat);
+    if (totalAmount >= this.bigBlind) this._reopenAction(seat);
     player.actedThisStreet = true;
   }
 
   _raise(seat, totalAmount) {
     const player = this.seats[seat];
     if (this.currentBet === 0) throw new Error('no bet to raise — bet instead');
+    if (!this._canRaise(seat)) throw new Error('betting has not reopened — call or fold');
     if (!Number.isInteger(totalAmount)) throw new Error('raise amount must be an integer');
     if (totalAmount <= this.currentBet) throw new Error('raise must exceed current bet');
     const owed = totalAmount - player.contribThisStreet;
@@ -297,6 +298,16 @@ export class Game {
     if (player.stack === 0) player.allIn = true;
     if (raiseSize >= minRaise) this._reopenAction(seat);
     player.actedThisStreet = true;
+  }
+
+  // A short all-in changes the price, not everybody's right to raise. An
+  // unacted player retains that right; a previous actor needs to face a full
+  // increment since his own last action. Comparing his contribution also
+  // handles cumulative short jams without changing the minimum raise size.
+  _canRaise(seat) {
+    const player = this.seats[seat];
+    return !player.actedThisStreet
+      || this.currentBet - player.contribThisStreet >= Math.max(this.lastRaiseSize, this.bigBlind);
   }
 
   _reopenAction(raiserSeat) {

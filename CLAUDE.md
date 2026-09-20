@@ -6,9 +6,14 @@ Read this first in every session. It is the map; the deeper docs are the territo
 Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claude-powered) via chat and deploy them to play. **Identity: a GAME first** — "a Tamagotchi that plays poker": agents are companions with personalities, moods, and their own poker skill. Play money. Real money is a maybe-later, not the foundation.
 
 ## Read next, in order
+Latest follow-up (20 September): `read-me-claude/PLAYTEST_ALLIN_SAFE_2026-09-20.md`.
+PR #9 is deployed. The follow-up uses `codex/all-in-safe-repair` for literal
+every-hand all-in execution and the confirmed desktop Safe funding collapse;
+the supplied phone collapse remains unconfirmed on a freshly loaded build.
+
 Latest founder corrections (20 September): `read-me-claude/PLAYTEST_2026-09-20.md`.
-PR #9 was held as draft for these corrections and now has a complete local gate;
-check its new-head GitHub checks and main deployment for publication status.
+PR #9 passed its local and GitHub gates, merged as `b20d21d`, and deployed on
+20 September. Public health and fresh browser checks confirmed the release.
 Birth colours are permanent; Wardrobe is removable starter items. Pocket
 collection never retrieves bought-in chips. Food is eaten visibly while Home
 is watched, with no offline stock drain.

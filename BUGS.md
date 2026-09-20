@@ -1,5 +1,39 @@
 # Bug Report — Railbird
 
+## Follow-up playtest — all-in instructions and Safe GIVE, 2026-09-20
+
+Scope and release receipts: `read-me-claude/PLAYTEST_ALLIN_SAFE_2026-09-20.md`.
+
+### BUG-283 — explicit every-hand all-in strategy becomes ordinary aggression — FIXED IN REVIEW
+BUG-223 recognised the vocabulary but tested stored dials, not actual decisions.
+The free policy ignored strategy text, model prose could dilute the owner's
+instruction, and the scripted draft replaced it with a generic answer summary.
+Keep the original play turns, preserve an explicit unconditional instruction,
+and use the same legal maximum commitment in Home, casino and model fallback.
+Names and ordinary aggression do not activate it. Negative, conditional and
+quoted examples do not force all-in; later explicit corrections can revoke it.
+The supported grammar also excludes advisory wording and timing/card-qualified
+commands; nearby "always" and "all in" words alone are not an instruction.
+Existing explicit saved strategies are recognised. Do not infer lost historical
+instructions from an agent's name or rewrite user records based on that guess.
+
+### BUG-284 — Safe GIVE funding panel collapses — DESKTOP FIXED IN REVIEW; PHONE UNCONFIRMED
+The desktop Home Safe rail's absolute funding content had a zero-height host.
+Give that host the visible rail height. Native long-ledger transfers check
+visible, hittable input/Back/confirm controls and unchanged committed chips.
+The supplied phone image resembles the earlier BUG-280 collapse, but fresh
+390×590 and 390×844 runs against both current source and the shipped PR-9 bundle
+did not reproduce it. Await the founder's reload/session clarification; do not
+claim the separate phone report has a newly established cause.
+
+### BUG-285 — a short all-in incorrectly reopens an earlier player's raise — FIXED IN REVIEW
+Legal offers and submitted raises now share the same raise-rights check. Prior
+actors must face a full increment since their own last action; unacted players
+retain their option, full raises reopen, and sufficient cumulative short raises
+reopen without changing the minimum raise size. The explicit all-in strategy
+calls or checks when a legal raise is unavailable. Conservation and side-pot
+regressions accompany the failure-first reopening cases.
+
 ## Founder playtest — 2026-09-20
 
 Current scope and exact clarifications: `read-me-claude/PLAYTEST_2026-09-20.md`.

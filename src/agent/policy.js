@@ -10,6 +10,7 @@
 // Profile shape: { tightness, aggression, bluffFreq, discipline } each 0-100.
 
 import { disciplineDeviationMultiplier, attrsActive } from './attributes.js';
+import { ALL_IN_EVERY_HAND, explicitAllInIntent } from './strategyIntent.js';
 
 const RANKS = '23456789TJQKA';
 const TOTAL_COMBOS = 1326;
@@ -240,10 +241,11 @@ export function sizingDirectives(profile) {
 // Bundles profile normalization + range verdict + dice roll + sizing text
 // into a single object handed to the briefing builder.
 
-export function compilePolicy(profile, { holeCards = null, position = null, rand = Math.random, attrs = null } = {}) {
+export function compilePolicy(profile, { holeCards = null, position = null, rand = Math.random, attrs = null, strategy = '' } = {}) {
   const p = normalizeProfile(profile);
   const dice = rollDice(p, rand, { discipline: attrs?.DISCIPLINE ?? null });
   const sizing = sizingDirectives(p);
   const range = (holeCards && position) ? rangeVerdict(holeCards, position, p) : null;
-  return { profile: p, dice, sizing, range };
+  return { profile: p, dice, sizing, range,
+    ...(explicitAllInIntent(strategy) ? { intent: ALL_IN_EVERY_HAND } : {}) };
 }

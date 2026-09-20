@@ -50,6 +50,7 @@ import { voiceLine, capWords, isSolverSpeak, VOICE_MAX_WORDS } from './voice.js'
 import { moodBriefingHint } from './mood.js';
 import { estimateTokens } from './tokenEstimate.js';
 import { chooseFromPolicy } from './policyPlay.js';
+import { ALL_IN_EVERY_HAND, explicitAllInIntent, allInStrategyAction } from './strategyIntent.js';
 
 // claude-haiku-4-5 for low-latency game decisions; override via AI_MODEL env var.
 const MODEL = process.env.AI_MODEL || 'claude-haiku-4-5';
@@ -378,6 +379,15 @@ export function estimateCallTokens(gameState, strategy, memoryContext = '') {
 // by getAgentMemoryContext(). It is concatenated onto the strategy.
 // Returns { action: { type, amount? }, reasoning: string }.
 export async function getAgentAction(gameState, strategy, memoryContext = '', opts = {}) {
+  // A saved unconditional owner rule has already decided the action. Honor
+  // it on direct/model-off callers too, without paying a model to restate it.
+  // The text argument is authoritative when supplied; memory never compiles.
+  const intent = typeof strategy === 'string' && strategy.trim()
+    ? (explicitAllInIntent(strategy) ? ALL_IN_EVERY_HAND : null)
+    : gameState?.policy?.intent;
+  const directed = { ...gameState, policy: { ...gameState?.policy, intent } };
+  if (allInStrategyAction(directed)) return chooseFromPolicy(directed);
+  gameState = directed;
   // MODEL-1: the model and provider are per call now, defaulting to the env
   // exactly as before. table.js passes neither and behaves identically; the
   // arena passes a model per seat so a mirror can pit two of them.

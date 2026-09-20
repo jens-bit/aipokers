@@ -66,6 +66,7 @@
 
 import { marginOf, rateActions, countOptions } from '../agent/policyPlay.js';
 import { heatThresholdBb, potInBb } from './pace.js';
+import { allInStrategyAction } from '../agent/strategyIntent.js';
 
 export const Route = Object.freeze({
   POLICY: 'policy',
@@ -80,6 +81,7 @@ export const Reason = Object.freeze({
   HOME: 'home',            // the kitchen table never calls a model, ever
   GUEST: 'guest',          // nobody has claimed him yet — see guest.js
   UNWATCHED: 'unwatched',  // COST-2: nobody has watched this table for a while
+  STRATEGY: 'strategy',    // the owner's explicit fixed action needs no model
   // → model
   OFF: 'off',              // the router is switched off; everything is a call
   BLIND: 'blind',          // no equity estimate — nothing here can judge it
@@ -173,6 +175,10 @@ export function routeFor(gs, { home = false, guest = false, nemesis = false, unw
   // The one thing a guest owner may spend on is the draft, and that is an
   // exception by omission: the draft does not come through here.
   if (guest) return answer(Route.POLICY, Reason.GUEST, margin, options);
+
+  // A legal fixed instruction is not a close poker judgement. It remains
+  // literal even when ordinary heuristic routing is disabled.
+  if (allInStrategyAction(gs)) return answer(Route.POLICY, Reason.STRATEGY, margin, options);
 
   // The switch is read AFTER the home check on purpose: the kitchen table
   // spending nothing is not a routing optimisation, it is HOME-STATE-1's rule
