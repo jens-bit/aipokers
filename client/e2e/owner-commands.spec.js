@@ -41,7 +41,14 @@ test.beforeEach(async () => {
     profile: { tightness: 60, aggression: 45, bluffFreq: 15, discipline: 80 },
   } });
 });
-test.afterEach(async () => { pageForChanges = null; await rpc('reset'); });
+test.afterEach(async ({ page }) => {
+  pageForChanges = null;
+  // A background private read can outlive the final UI assertion. Drain its
+  // real fetch + fulfill before resetting server state or allowing the page's
+  // request context to dispose the fetched response. Handler errors still fail.
+  await page.unrouteAll({ behavior: 'wait' });
+  await rpc('reset');
+});
 test.afterAll(async () => {
   const exited = new Promise(resolve => child.once('exit', resolve));
   await rpc('stop'); await exited;

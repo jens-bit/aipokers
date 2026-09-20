@@ -106,10 +106,20 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     await expect(page.getByText(/out of snacks/i).first()).toBeVisible();
     await page.getByRole('button', { name: 'Open the fridge', exact: true }).click();
     await expect(page.getByTestId('home-fridge-sheet')).toBeVisible();
-    await page.getByRole('button', { name: 'Buy 1 snack' }).click();
-    await page.getByRole('button', { name: 'Buy 1 snack' }).click();
+    // A click completes before its asynchronous POST. Confirm each real
+    // purchase and the rendered shelf before reading the fixture's database.
+    for (const count of [1, 2]) {
+      const purchase = page.waitForResponse(response => new URL(response.url()).pathname === '/api/fridge/stock'
+        && response.request().method() === 'POST');
+      await page.getByRole('button', { name: 'Buy 1 snack' }).click();
+      const response = await purchase;
+      expect(response.status()).toBe(200);
+      expect((await response.json()).fridge.snack).toBe(count);
+      await expect(page.getByTestId('fridge-shelf-snack')).toContainText(`× ${count}`);
+      await expect(page.getByRole('button', { name: 'Buy 1 snack' })).toBeEnabled();
+    }
     const bought = await rpc('state'); expect(bought.snacks).toBe(2); expect(bought.left).toBeLessThan(21);
-    expect(bought.safe).toBeLessThan(10000);
+    expect(bought.safe).toBe(9800);
     if (viewport.width < 1100) await page.getByTestId('home-fridge-sheet').getByRole('button', { name: 'Close', exact: true }).last().click();
     await expect(page.getByTestId('home-safe')).toContainText(`$${bought.safe.toLocaleString('en-US')}`);
     const body = page.locator(`.home-one[data-agent="${ready.agentId}"]`);
