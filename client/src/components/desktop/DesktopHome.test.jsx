@@ -5,14 +5,14 @@
 // DSK2-2 made — a half-typed message survives switching agents, because the
 // panel remounts and the map does not.
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopHome } from './DesktopHome.jsx';
 import { agentsResponse, playingAgent, restingAgent } from '../../test/fixtures/agents.js';
 import { midHandGame } from '../../test/fixtures/game.js';
-import { fetchMock, telegram } from '../../test/harness.js';
+import { fetchMock, socketMock, telegram } from '../../test/harness.js';
 
 function renderHome(props = {}) {
   return render(
@@ -79,6 +79,47 @@ describe('DesktopHome roster', () => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
     fetchMock.route('/hands', { recentHands: [] });
+  });
+
+  it('BUG-279: the full-stage flagged sheet stops Home observation until it closes', async () => {
+    const agent = { ...restingAgent, flaggedCount: 1, location: { where: 'home' }, homeItem: null };
+    fetchMock.route('/api/agents', { agents: [agent] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    renderHome({ wsUrl: 'ws://localhost:8765' });
+    const socket = socketMock.last();
+    await act(async () => { socket.open(); socket.emit({ type: 'home_state', userId: '4242', agents: [agent], game: null }); });
+    const observations = () => socket.sent.filter(frame => frame.type === 'home_observe');
+    expect(observations().at(-1)?.visible).toBe(true);
+    await userEvent.click(within(document.querySelector('.dsk-top')).getByRole('button', { name: /Standup/ }));
+    await userEvent.click(await within(document.querySelector('.dsk-flagged')).findByRole('button', { name: /VIEW ALL/ }));
+    expect(document.querySelector('.dsk-sheet')).toBeInTheDocument();
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
+    await userEvent.keyboard('{Escape}');
+    expect(document.querySelector('.dsk-sheet')).not.toBeInTheDocument();
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: true });
+  });
+
+  it('BUG-279: a full-stage draft and an outer claim wall stop care, but a draft beside Home does not', async () => {
+    const agent = { ...restingAgent, location: { where: 'home' }, homeItem: null };
+    fetchMock.route('/api/agents', { agents: [agent] });
+    fetchMock.route('/api/wallet', { balance: 9000, ledger: [] });
+    const props = { wsUrl: 'ws://localhost:8765', draft: <div data-testid="draft-fixture">Draft</div> };
+    const view = renderHome(props);
+    const socket = socketMock.last();
+    await act(async () => { socket.open(); socket.emit({ type: 'home_state', userId: '4242', agents: [agent], game: null }); });
+    const observations = () => socket.sent.filter(frame => frame.type === 'home_observe');
+    expect(document.querySelector('.dsk-sheet')).not.toBeInTheDocument();
+    expect(observations().at(-1)?.visible).toBe(true);
+    await userEvent.click(within(document.querySelector('.dsk-top')).getByRole('button', { name: /Wallet for/ }));
+    expect(screen.getByTestId('draft-fixture').closest('.dsk-sheet')).not.toBeNull();
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
+    await userEvent.keyboard('{Escape}');
+    expect(document.querySelector('.dsk-sheet')).not.toBeInTheDocument();
+    expect(observations().at(-1)?.visible).toBe(true);
+    view.rerender(<DesktopHome {...props} observing={false} />);
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
+    view.rerender(<DesktopHome {...props} observing />);
+    expect(observations().at(-1)?.visible).toBe(true);
   });
 
   it('FIRST-CHAT-1: a refused live table whisper restores its draft and shows an application alert outside the conversation', async () => {

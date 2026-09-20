@@ -46,6 +46,43 @@ async function connect(page) {
     };
   }, ready);
 }
+
+test('BUG-279: desktop flagged-hands overlay stops Home eating until the room is visible again', async ({ page }, testInfo) => {
+  await rpc('seed', { snacks: 3, flagged: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await connect(page); await page.goto('/');
+  const body = page.locator(`.home-one[data-agent="${ready.agentId}"]`);
+  await expect(body).toHaveAttribute('data-home-item-phase', 'back', { timeout: 10000 });
+  await expect(body.getByTestId('home-item-snack')).toBeVisible();
+  await page.getByRole('button', { name: /Standup/ }).click();
+  await page.getByRole('button', { name: /VIEW ALL/ }).click();
+  const sheet = page.locator('.dsk-sheet');
+  await expect(sheet.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+  await expect(sheet.getByRole('button', { name: /^BAD BEAT 88% equity favorite/ })).toBeVisible();
+  const covered = await rpc('state');
+  expect(covered.snacks).toBe(2);
+  expect(covered.refusal).not.toBeNull();
+  await page.screenshot({ path: testInfo.outputPath('home-covered-flagged-1440.png') });
+  // More than both the six-second meal interval and two five-second
+  // heartbeats: a still-mounted, covered room must not spend its stock.
+  await page.waitForTimeout(11000);
+  const stillCovered = await rpc('state');
+  expect(stillCovered.snacks).toBe(covered.snacks);
+  expect(stillCovered.homeItem).toEqual(covered.homeItem);
+  expect(stillCovered.safe).toBe(covered.safe);
+  await sheet.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(body).toHaveAttribute('data-home-item-phase', 'back', { timeout: 10000 });
+  await expect(body.getByTestId('home-item-snack')).toBeVisible();
+  const resumed = await rpc('state');
+  expect(resumed.snacks).toBe(1);
+  expect(resumed.homeItem.at).toBeGreaterThan(covered.homeItem.at);
+  expect(resumed.refusal).toBeNull();
+  expect(resumed.safe).toBe(covered.safe);
+  expect(resumed.tableId).toBeNull();
+  await page.screenshot({ path: testInfo.outputPath('home-uncovered-eating-1440.png') });
+});
+
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
   test(`BUG-279: visible Home fetches two real snacks; hidden Home stops at ${viewport.width}`, async ({ page }, testInfo) => {
     await rpc('seed', { snacks: 3 }); await page.setViewportSize(viewport); await connect(page); await page.goto('/');

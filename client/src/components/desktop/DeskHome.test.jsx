@@ -16,7 +16,7 @@
 //   5. NOTHING INSERTS A ROW. The composer POSTs to /api/home/say and reloads.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { DeskHome } from './DeskHome.jsx';
@@ -97,6 +97,21 @@ async function boot({ agents = [BALANCE, GRANITE], game = null, props = {}, ...r
 beforeEach(() => {
   telegram.install();
   telegram.signIn();
+});
+
+it('BUG-279: a covering shell suppresses Home observation while visible side rails keep it active', async () => {
+  serve();
+  const view = render(<DeskHome wsUrl={WS} observing={false} panel="fridge" />);
+  const socket = socketMock.last();
+  await act(async () => { socket.open(); socket.emit({ type: 'home_state', userId: '4242', agents: [BALANCE, GRANITE], game: null }); });
+  const observations = () => socket.sent.filter(frame => frame.type === 'home_observe');
+  expect(observations()).toEqual([]);
+  for (const panel of ['fridge', 'safe', 'table', 'agent']) {
+    view.rerender(<DeskHome wsUrl={WS} observing panel={panel} focusId="a1" />);
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: true });
+  }
+  view.rerender(<DeskHome wsUrl={WS} observing={false} />);
+  expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
 });
 
 it('BUG-251: a private command refreshes both the room safe and the desktop owner projections immediately', async () => {

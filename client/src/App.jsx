@@ -649,6 +649,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     return (
       <Suspense fallback={null}>
       <DesktopHome
+        observing={!guest.wall}
         birthHandledId={newlyBornAgent?.id ?? null}
         tableConfig={config}
         sessionEnd={findSessionEnd(history)}

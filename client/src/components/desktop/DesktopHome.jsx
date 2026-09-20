@@ -59,6 +59,9 @@ export function DesktopHome({
   // a look at the table — which on the desk is a rail panel this component owns
   // rather than a sheet the shell could raise on its own.
   openHomeTable = false,
+  // An outer modal (for example the guest claim wall) can cover this shell
+  // while it stays mounted. Care is permitted only while Home can be seen.
+  observing = true,
 }) {
   const { theme } = useHomeAppearance();
   const [agents, setAgents] = useState([]);
@@ -493,6 +496,7 @@ export function DesktopHome({
             // (the room's thread, or a fixture, or one man), so the HOME stage
             // spans the body and the panels below are not drawn beside it.
             <DeskHome
+              observing={observing && !flaggedAgent && !(draft && !railHostsDraft)}
               onCasino={() => setStage('casino')}
               onWatchTable={tableId=>{setHomeTableSession({tableId,seated:false});onSpectate?.(tableId);}}
               onSitAtTable={tableId=>{setHomeTableSession({tableId,seated:true});onSitAtTable?.(tableId);}}

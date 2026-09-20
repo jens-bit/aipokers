@@ -84,6 +84,7 @@ export function DeskHome({
   onCasino,
   onCreateAgent,
   guideEnabled = true,
+  observing = true,
   onFocusTable,
   onWatchTable,
   onSitAtTable,
@@ -118,6 +119,7 @@ export function DeskHome({
   return (
     <HomeScreen
       desktop
+      observing={observing}
       walletRevision={wallet?.balance}
       onReplay={onOpenFlagged}
       wsUrl={wsUrl}

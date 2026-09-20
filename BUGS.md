@@ -20,6 +20,9 @@ Retain fractional rest recovery. Authenticated foreground Home observation
 permits one real stocked-snack trip at a time; hidden/offline rooms cannot eat.
 Empty stock opens the fridge; refusals retain recovery instructions. Atomic meal
 storage, No/Later, multiple tabs, visible shelf counts and safe refresh are tested.
+Opaque desktop history/sign-in overlays now suspend the observation lease;
+visible side rails continue to allow care. Native failure-first proof covers
+eleven seconds behind history and visible eating after returning to the room.
 
 ### BUG-280 — pocket transfer controls obscure available money — FIXED IN REVIEW
 Allow arbitrary affordable safe-to-pocket transfers and any/all pocket-to-safe
