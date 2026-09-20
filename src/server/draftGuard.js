@@ -30,6 +30,7 @@
 // no clock, no store.
 
 import { natureForProfile, natureHintFor } from '../agent/attributes.js';
+import { explicitAllInIntent, ALL_IN_EVERY_HAND_STRATEGY } from '../agent/strategyIntent.js';
 
 // One or two sentences. Sixty words is generous for that and still short
 // enough that a wall of text can never arrive.
@@ -180,12 +181,7 @@ const VAGUE_BRIEFS = [
     profile: { tightness: 10, aggression: 98, bluffFreq: 70, discipline: 35 },
     line: 'All in, every time - he moves his whole stack in and lets the other man decide.',
     name: 'All In',
-    strategy: 'You move all in. That is the whole strategy and you do not deviate from it: '
-      + 'whenever it is your turn and you have chips, you put every one of them in the middle, '
-      + 'preflop or otherwise, with any two cards. You never call and you never make a small '
-      + 'raise. If the only legal move is to check, you check, and then you shove on the next '
-      + 'street. You are not bluffing and you are not value betting - you are making every pot '
-      + 'a decision for your opponent and nothing else.',
+    strategy: ALL_IN_EVERY_HAND_STRATEGY,
   },
   {
     key: 'scary',
@@ -231,6 +227,9 @@ export function slidersFromBrief(text) {
   let hit = null;
   let at = -1;
   for (const v of VAGUE_BRIEFS) {
+    // A conditional shove or a negated example must not become a promise to
+    // shove every hand through the keyless fallback character.
+    if (v.key === 'allin' && !explicitAllInIntent(body)) continue;
     const m = body.match(v.re);
     if (m && m.index >= at) { hit = v; at = m.index; }
   }

@@ -42,6 +42,7 @@ import {
 } from './guest.js';
 import { rateLimiter } from './rateLimit.js';
 import { normalizeProfile, inferProfileFromStyleRisk } from '../agent/policy.js';
+import { explicitAllInIntent, ALL_IN_EVERY_HAND_STRATEGY } from '../agent/strategyIntent.js';
 import {
   initialMood,
   ensureMood,
@@ -4604,6 +4605,11 @@ async function buildFromDraft(profile, brief, ownerId = null, chosenName = undef
     Object.assign(agent, vague.profile);
   }
 
+  // BUG-283: the owner's literal instruction is a play rule, not a request
+  // for high aggression. Keep it even if model prose describes ordinary bets.
+  const allInEveryHand = explicitAllInIntent(brief);
+  if (allInEveryHand) agent.strategy = ALL_IN_EVERY_HAND_STRATEGY;
+
   // BUGS-B/4: the owner named him, so that is his name. It goes through
   // coinName like everything else — tidied, cased, clamped to a seat plate —
   // which is the whole of "turned into a name in his voice". Only when he
@@ -4615,7 +4621,9 @@ async function buildFromDraft(profile, brief, ownerId = null, chosenName = undef
   agent.name = chosen
     ?? coinName(agent.name, { fallback: coinName(vague?.name ?? inferFallback(brief).name) });
   const name = agent.name;
-  const line = vague
+  const line = allInEveryHand
+    ? `${name} it is — all in every hand, whenever the rules allow it.`
+    : vague
     ? `${name} it is — ${vague.line.replace(/^[^—]*—\s*/, '')}`
     : `${name} is ready — ${String(agent.style || 'balanced').toLowerCase()}, ${String(agent.risk || 'medium').toLowerCase()} risk.`;
   return { agent, line };
@@ -7225,7 +7233,10 @@ export function installAgentProfileRoutes(app) {
     if (scripted) {
       const heard = readAnswer(content, { stage: scriptStage });
       Object.assign(active.answers ??= {}, heard);
-      active.brief = briefFromAnswers(active.answers);
+      // Three slider answers cannot encode an unconditional action rule.
+      // Preserve the actual play turns as well; name replies never enter here.
+      active.playBrief = [active.playBrief, content].filter(Boolean).join('\n').slice(-12_000);
+      active.brief = `${briefFromAnswers(active.answers)}\n${active.playBrief}`.trim().slice(-12_000);
 
       // ONE rule for what the recruiter says, and one guard on saying it.
       //
@@ -7246,7 +7257,9 @@ export function installAgentProfileRoutes(app) {
       return res.json(draftProjection(profile).body);
     }
 
-    active.brief = `${active.brief} ${content}`.trim().slice(-12_000);
+    // Preserve owner-turn boundaries so a later explicit correction can
+    // replace an earlier rule without becoming part of the same clause.
+    active.brief = `${active.brief}\n${content}`.trim().slice(-12_000);
     saveStore(userId);
     const state = draftProfile(active.brief);
     // With no recognizable play instruction there is nothing to build yet.

@@ -41,6 +41,11 @@ test.afterAll(async () => {
   fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
+test.afterEach(async ({ page }) => {
+  // Finish native proxy responses before their request context is disposed.
+  await page.unrouteAll({ behavior: 'wait' });
+});
+
 async function connect(page) {
   const requests = [], errors = [];
   let refuseFirstTake = true;
@@ -72,6 +77,80 @@ async function connect(page) {
     };
   }, ready);
   return { requests, errors };
+}
+
+for (const viewport of [{ width: 390, height: 590 }, { width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+  test(`BUG-284: Safe GIVE controls stay inside the mini-app at ${viewport.width}x${viewport.height}`, async ({ page }, testInfo) => {
+    const initial = await rpc('seedHistory');
+    await page.setViewportSize(viewport);
+    const { requests, errors } = await connect(page);
+    await page.goto('/');
+    await expect(page.getByTestId('home-safe')).toBeVisible();
+    const skip = page.getByRole('button', { name: 'Skip', exact: true });
+    if (await skip.isVisible()) await skip.click();
+
+    // The reported phone path is the owner's You statement, not the Home
+    // overlay covered by BUG-280. Desktop opens its actual room-safe rail.
+    if (viewport.width < 1000) {
+      await page.getByRole('button', { name: 'Your agents', exact: true }).click();
+      await page.getByTestId('roster-ledger').click();
+      await page.getByRole('button', { name: 'Money', exact: true }).click();
+    } else await page.getByTestId('home-safe').click();
+
+    const safe = page.getByTestId('safe-sheet');
+    await safe.getByRole('button', { name: /^GIVE/ }).click();
+    await safe.locator(`.wal-row[data-agent="${ready.agentId}"]`).getByRole('button', { name: 'Give him chips', exact: true }).click();
+    const sheet = safe.getByRole('dialog', { name: 'Fund The Clock' });
+    await expect(sheet).toBeAttached();
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`safe-give-${viewport.width}x${viewport.height}.png`) });
+    const geometry = await sheet.evaluate(node => ({
+      sheet: node.getBoundingClientRect().toJSON(),
+      panel: node.closest('.safe__panel').getBoundingClientRect().toJSON(),
+      host: node.closest('.you-shell, .dsk-home__rail')?.getBoundingClientRect().toJSON(),
+      viewport: { width: innerWidth, height: innerHeight },
+    }));
+    await testInfo.attach('safe-give-geometry', { contentType: 'application/json', body: JSON.stringify(geometry, null, 2) });
+    await expect(sheet).toBeVisible();
+    expect(geometry.sheet.y, 'the sheet starts inside the mini-app').toBeGreaterThanOrEqual(0);
+    expect(geometry.sheet.bottom, 'the sheet ends inside the mini-app').toBeLessThanOrEqual(viewport.height);
+
+    const hitTarget = async locator => {
+      await expect(locator).toBeInViewport({ ratio: 1 });
+      expect(await locator.evaluate(node => {
+        const box = node.getBoundingClientRect();
+        return node.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+      }), 'the visible control receives the tap, not a backdrop').toBe(true);
+    };
+    const back = sheet.getByRole('button', { name: 'Back', exact: true });
+    const confirm = sheet.getByRole('button', { name: 'Give him chips', exact: true });
+    await hitTarget(back);
+    await hitTarget(confirm);
+    const amount = sheet.getByLabel('Amount to give');
+    await amount.scrollIntoViewIfNeeded();
+    await hitTarget(amount);
+    await amount.fill('137');
+    // Internal scrolling must not carry the sheet's escape or commit buttons
+    // outside the visible mini-app, even on Telegram's shorter viewport.
+    await hitTarget(back);
+    await hitTarget(confirm);
+    await confirm.click();
+    await expect(sheet).toHaveCount(0);
+    await expect(safe.locator('.safe__amount')).toHaveText('$9,863');
+    const state = await rpc('state');
+    expect(state.pocket.balance).toBe(initial.pocket.balance + 137);
+    expect(state.safe).toBe(initial.safe - 137);
+    expect(state.game).toEqual(initial.game);
+    expect(state.pocket.openBuyIns).toEqual(initial.pocket.openBuyIns);
+    expect(requests.filter(request => request.path.endsWith('/fund'))).toHaveLength(1);
+
+    await safe.getByRole('button', { name: /^GIVE/ }).click();
+    await safe.locator(`.wal-row[data-agent="${ready.agentId}"]`).getByRole('button', { name: 'Give him chips', exact: true }).click();
+    await hitTarget(back);
+    await back.click();
+    await expect(sheet).toHaveCount(0);
+    await expect(safe.getByText('Who gets it', { exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
 }
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {

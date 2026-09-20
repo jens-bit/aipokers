@@ -43,6 +43,7 @@
 import { normalizeProfile } from './policy.js';
 import { fallbackLine } from './voice.js';
 import { perceivedMath } from './perceivedMath.js';
+import { allInStrategyAction } from './strategyIntent.js';
 
 // Two actions inside this band of each other are, as far as the compiled
 // policy is concerned, the same action. See rule 3.
@@ -132,6 +133,8 @@ function pushScore(gs, profile, equity) {
  */
 export function rateActions(gs) {
   if (!gs) return [];
+  const fixed = allInStrategyAction(gs);
+  if (fixed) return [{ ...fixed, score: 100 }];
   const profile = normalizeProfile(gs.policy?.profile ?? DEFAULT_PROFILE);
   const { equity } = perceivedMath(gs);
   const push = pushScore(gs, profile, equity);
@@ -359,7 +362,10 @@ export function chooseFromPolicy(gs, speech = {}) {
     // his ghost on the felt, and since COST-1 the policy answers a large share
     // of decisions — so without the nature two agents at one table folded with
     // the same sentence, all night, every night.
-    reasoning: fallbackLine({ holeCards: gs?.holeCards, action, nature: gs?.nature }),
+    reasoning: allInStrategyAction(gs)
+      ? (action.type === 'bet' || action.type === 'raise' ? 'All of it. That is how I play.'
+        : action.type === 'call' ? 'I cannot raise here. I will call.' : 'Nothing to put in. I will check.')
+      : fallbackLine({ holeCards: gs?.holeCards, action, nature: gs?.nature }),
     say: instantLine(gs, action, speech),
     rated,
     options: countOptions(rated),

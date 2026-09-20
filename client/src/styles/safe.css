@@ -372,6 +372,12 @@ fieldset.safe__pages { min-width: 0; margin: 0; padding: 0; border: 0; }
   z-index: auto;
 }
 
+/* BUG-284: the rail body is a scroll container, not a flex parent. The
+   absolute transfer page contributes no intrinsic height, so flex: 1 alone
+   collapses this host to zero when GIVE opens. Fill the rail's visible body;
+   FundSheet keeps its own scrolling body and reachable header/footer. */
+.safe--rail[data-page='fund'] { height: 100%; }
+
 .safe--rail .safe__panel {
   max-height: none;
   /* One scroll, and it is the rail body's. A scrolling page inside a scrolling

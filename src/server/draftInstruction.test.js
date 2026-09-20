@@ -303,3 +303,89 @@ test('BUG-223: with a model behind it, the brief is what reaches the prompt', as
     delete process.env.ANTHROPIC_API_KEY;
   }
 });
+
+test('BUG-283: an explicit every-hand instruction survives a model that writes ordinary aggression', async () => {
+  const opened = await post('/api/agents/draft', { userId });
+  const draftId = opened.body.draftId;
+  await post('/api/agents/chat', { userId, draftId, content: 'make him go all in each hand' });
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input?.url ?? input));
+    if (url.hostname !== 'api.anthropic.com') return localFetch(input, init);
+    return new Response(JSON.stringify({
+      id: 'fixture', type: 'message', role: 'assistant',
+      content: [{ type: 'text', text: JSON.stringify({
+        name: 'Pressure', style: 'Aggressive', risk: 'High',
+        strategy: 'You are aggressive. Raise three blinds with strong hands and fold weak holdings.',
+        tightness: 8, aggression: 99, bluffFreq: 75, discipline: 30,
+      }) }], usage: { input_tokens: 0, output_tokens: 0 },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  process.env.ANTHROPIC_API_KEY = 'fixture-key-never-sent';
+  try {
+    const built = await post('/api/agents/build', { userId, draftId, attemptId: `literal-${userId}` });
+    assert.equal(built.status, 200);
+    const saved = store.loadProfile(userId).agents[0];
+    assert.match(saved.strategy, /all in (?:on )?every hand/i, 'the stored contract must retain the literal instruction');
+    assert.doesNotMatch(saved.strategy, /fold weak|three blinds/i, 'model prose cannot replace the mandatory action');
+    assert.equal(saved.profile.aggression, 99, 'the generated personality remains separate from the action rule');
+    profiles.reloadOwners(userId);
+    assert.equal(profiles.presentedRoster(userId, { owner: true }).find(agent => agent.id === saved.id)?.strategy,
+      saved.strategy, 'the real Home seat receives the same durable strategy');
+  } finally {
+    globalThis.fetch = localFetch;
+    delete process.env.ANTHROPIC_API_KEY;
+  }
+});
+
+test('BUG-283: an all-in name does not replace a balanced play instruction', async () => {
+  const opened = await post('/api/agents/draft', { userId });
+  const draftId = opened.body.draftId;
+  await post('/api/agents/chat', { userId, draftId, content: 'a balanced and patient poker player' });
+  await post('/api/agents/chat', { userId, draftId, draftIntent: 'name', content: 'Goes All In' });
+  const built = await post('/api/agents/build', { userId, draftId, attemptId: `named-${userId}` });
+  assert.equal(built.status, 200);
+  const saved = store.loadProfile(userId).agents[0];
+  assert.equal(saved.name, 'Goes All In');
+  assert.doesNotMatch(saved.strategy, /all in (?:on )?every hand/i);
+});
+
+test('BUG-283: a conditional or refused all-in brief does not create an every-hand shover', async () => {
+  const { slidersFromBrief } = await import('./draftGuard.js');
+  for (const brief of [
+    'Be tight and passive. Never go all in every hand.',
+    'Be tight and go all in only with aces.',
+    'Play balanced. The opponent goes all in every hand.',
+  ]) {
+    assert.notEqual(slidersFromBrief(brief)?.key, 'allin', brief);
+  }
+});
+
+test('BUG-283: replacing the saved strategy removes the rule for subsequent seats', async () => {
+  const created = await draft('make him go all in each hand');
+  const agent = created.agents[0];
+  assert.ok(agent);
+  const { explicitAllInIntent } = await import('../agent/strategyIntent.js');
+  assert.equal(explicitAllInIntent(agent.strategy), true);
+  const strategy = 'Play a balanced range. Only go all in with premium hands.';
+  const response = await localFetch(`${base}/api/agents/${agent.id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, strategy }),
+  });
+  assert.equal(response.status, 200);
+  profiles.reloadOwners(userId);
+  const changed = profiles.presentedRoster(userId, { owner: true }).find(row => row.id === agent.id);
+  assert.equal(changed.strategy, strategy);
+  assert.equal(explicitAllInIntent(changed.strategy), false);
+});
+
+test('BUG-283: separate draft turns can revoke and explicitly re-enable all-in play', async () => {
+  const opened = await post('/api/agents/draft', { userId });
+  const draftId = opened.body.draftId;
+  for (const content of ['go all in every hand', 'never go all in every hand', 'actually go all in every hand']) {
+    const response = await post('/api/agents/chat', { userId, draftId, draftIntent: 'brief', content });
+    assert.equal(response.status, 200);
+  }
+  const built = await post('/api/agents/build', { userId, draftId, attemptId: `re-enabled-${userId}` });
+  assert.equal(built.status, 200);
+  const saved = store.loadProfile(userId).agents[0];
+  assert.match(saved.strategy, /all in (?:on )?every hand/i, 'the latest explicit owner decision wins');
+});

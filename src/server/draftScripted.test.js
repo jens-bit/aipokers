@@ -78,6 +78,43 @@ after(() => {
 
 const reset = () => post('/api/agents/chat/reset', { userId: GUEST_ID }, cookie());
 
+test('BUG-283: a scripted draft retains the explicit every-hand instruction across follow-up answers', async () => {
+  const made = await post('/api/guest', {});
+  const userId = made.body.ownerId;
+  const auth = `${guest.GUEST_COOKIE}=${made.body.token}`;
+  const answer = content => post('/api/agents/chat', { userId, content }, auth);
+  for (const content of ['make him go all in each hand', 'Loose', 'Often']) {
+    const response = await answer(content);
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+  }
+  await post('/api/agents/chat', { userId, draftIntent: 'name', content: 'Shove' }, auth);
+  const born = await answer('lets go');
+  assert.equal(born.status, 200, JSON.stringify(born.body));
+  assert.ok(born.body.agentId, 'the actual scripted route finishes the draft');
+  const saved = store.loadProfile(userId).agents.find(agent => agent.id === born.body.agentId);
+  assert.match(saved.strategy, /all in (?:on )?every hand/i, 'ordinary answer summaries must not erase the mandatory action');
+  profiles.reloadOwners(userId);
+  assert.equal(profiles.presentedRoster(userId, { owner: true }).find(agent => agent.id === saved.id)?.strategy, saved.strategy);
+});
+
+test('BUG-283: a later explicit refusal revokes the scripted all-in instruction', async () => {
+  const made = await post('/api/guest', {});
+  const userId = made.body.ownerId;
+  const auth = `${guest.GUEST_COOKIE}=${made.body.token}`;
+  const answer = content => post('/api/agents/chat', { userId, content }, auth);
+  for (const content of ['make him go all in each hand', 'No, never go all in every hand. Be balanced instead.', 'Often']) {
+    const response = await answer(content);
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+  }
+  await post('/api/agents/chat', { userId, draftIntent: 'name', content: 'Steady' }, auth);
+  const born = await answer('lets go');
+  assert.equal(born.status, 200, JSON.stringify(born.body));
+  assert.ok(born.body.agentId);
+  const saved = store.loadProfile(userId).agents.find(agent => agent.id === born.body.agentId);
+  const { explicitAllInIntent } = await import('../agent/strategyIntent.js');
+  assert.equal(explicitAllInIntent(saved.strategy), false, 'the old instruction must not survive its revocation');
+});
+
 test('BUG-198: "loose" is an answer, and the recruiter says so', async () => {
   await reset();
   const r = await say('loose');
