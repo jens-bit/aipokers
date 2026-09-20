@@ -151,5 +151,5 @@ export function useAgentThread(suppliedAgent, { onCommand } = {}) {
     agentId, chat, setChat, mkMsg, acceptAgent: acceptCommand, onRefresh: onCommand,
   });
 
-  return { agent, chat, hasHands, sending, accepting, send, acceptProposal, error: proposalError || error, moodOverride: mood, causeOverride: cause };
+  return { agent, acceptAgent: acceptCommand, chat, hasHands, sending, accepting, send, acceptProposal, error: proposalError || error, moodOverride: mood, causeOverride: cause };
 }

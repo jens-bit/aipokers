@@ -14,6 +14,7 @@ export const ClientMsg = Object.freeze({
   // also drives this owner's FLOOR_STATE / FLOOR_GAME pushes.
   FLOOR_SUB: 'floor_sub',
   FLOOR_UNSUB: 'floor_unsub',
+  HOME_OBSERVE: 'home_observe',
 });
 
 export const ServerMsg = Object.freeze({

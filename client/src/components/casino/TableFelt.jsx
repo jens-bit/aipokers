@@ -152,6 +152,7 @@ export function TableFelt({
               heat={heatOfSeat(seat)}
               accent={look?.glow.c ?? seat.accentColor ?? '#888888'}
               hood={look?.hood} glow={look?.glow.c}
+              equipment={seat.equipment}
               size={toAct ? ghost + px(4) : ghost}
               ring={false}
             />
@@ -225,6 +226,7 @@ export function TableFelt({
               heat={heatOfSeat(hero)}
               accent={accent}
               hood={heroLook?.hood} glow={heroLook?.glow.c}
+              equipment={hero.equipment}
               size={heroGhost}
               hands="hold"
             />

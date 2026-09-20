@@ -5,14 +5,14 @@
 // DSK2-2 made — a half-typed message survives switching agents, because the
 // panel remounts and the map does not.
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DesktopHome } from './DesktopHome.jsx';
 import { agentsResponse, playingAgent, restingAgent } from '../../test/fixtures/agents.js';
 import { midHandGame } from '../../test/fixtures/game.js';
-import { fetchMock, telegram } from '../../test/harness.js';
+import { fetchMock, socketMock, telegram } from '../../test/harness.js';
 
 function renderHome(props = {}) {
   return render(
@@ -79,6 +79,47 @@ describe('DesktopHome roster', () => {
     telegram.signIn();
     fetchMock.route('/api/agents', agentsResponse);
     fetchMock.route('/hands', { recentHands: [] });
+  });
+
+  it('BUG-279: the full-stage flagged sheet stops Home observation until it closes', async () => {
+    const agent = { ...restingAgent, flaggedCount: 1, location: { where: 'home' }, homeItem: null };
+    fetchMock.route('/api/agents', { agents: [agent] });
+    fetchMock.route('/flagged', { flaggedHands: [] });
+    renderHome({ wsUrl: 'ws://localhost:8765' });
+    const socket = socketMock.last();
+    await act(async () => { socket.open(); socket.emit({ type: 'home_state', userId: '4242', agents: [agent], game: null }); });
+    const observations = () => socket.sent.filter(frame => frame.type === 'home_observe');
+    expect(observations().at(-1)?.visible).toBe(true);
+    await userEvent.click(within(document.querySelector('.dsk-top')).getByRole('button', { name: /Standup/ }));
+    await userEvent.click(await within(document.querySelector('.dsk-flagged')).findByRole('button', { name: /VIEW ALL/ }));
+    expect(document.querySelector('.dsk-sheet')).toBeInTheDocument();
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
+    await userEvent.keyboard('{Escape}');
+    expect(document.querySelector('.dsk-sheet')).not.toBeInTheDocument();
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: true });
+  });
+
+  it('BUG-279: a full-stage draft and an outer claim wall stop care, but a draft beside Home does not', async () => {
+    const agent = { ...restingAgent, location: { where: 'home' }, homeItem: null };
+    fetchMock.route('/api/agents', { agents: [agent] });
+    fetchMock.route('/api/wallet', { balance: 9000, ledger: [] });
+    const props = { wsUrl: 'ws://localhost:8765', draft: <div data-testid="draft-fixture">Draft</div> };
+    const view = renderHome(props);
+    const socket = socketMock.last();
+    await act(async () => { socket.open(); socket.emit({ type: 'home_state', userId: '4242', agents: [agent], game: null }); });
+    const observations = () => socket.sent.filter(frame => frame.type === 'home_observe');
+    expect(document.querySelector('.dsk-sheet')).not.toBeInTheDocument();
+    expect(observations().at(-1)?.visible).toBe(true);
+    await userEvent.click(within(document.querySelector('.dsk-top')).getByRole('button', { name: /Wallet for/ }));
+    expect(screen.getByTestId('draft-fixture').closest('.dsk-sheet')).not.toBeNull();
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
+    await userEvent.keyboard('{Escape}');
+    expect(document.querySelector('.dsk-sheet')).not.toBeInTheDocument();
+    expect(observations().at(-1)?.visible).toBe(true);
+    view.rerender(<DesktopHome {...props} observing={false} />);
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
+    view.rerender(<DesktopHome {...props} observing />);
+    expect(observations().at(-1)?.visible).toBe(true);
   });
 
   it('FIRST-CHAT-1: a refused live table whisper restores its draft and shows an application alert outside the conversation', async () => {
@@ -244,7 +285,7 @@ describe('DesktopHome roster', () => {
     renderHome();
     await waitFor(() => expect(screen.getByTestId('home-screen')).toBeInTheDocument());
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
-    expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('home-rail')).queryByRole('tab', { name: 'Stats', exact: true })).not.toBeInTheDocument();
 
     await openStandup();
     expect(panelHead('Standup')).toBe(true);
@@ -269,9 +310,16 @@ describe('DesktopHome panel', () => {
     renderHome();
     await openAgent(restingAgent.name);
 
-    await waitFor(() => {
-      expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
-    });
+    const rail = within(screen.getByTestId('home-rail'));
+    const stats = await rail.findByRole('tab', { name: 'Stats', exact: true });
+    expect(rail.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    // The character menu replaces the removed Profile shortcut. Stats stays
+    // in this agent's rail and Chat is still one tab away.
+    await userEvent.click(stats);
+    expect(stats).toHaveAttribute('aria-selected', 'true');
+    expect(rail.getByRole('tabpanel', { name: 'Stats', exact: true })).toBeVisible();
+    await userEvent.click(rail.getByRole('tab', { name: 'Chat', exact: true }));
+    expect(rail.getByRole('textbox')).toBeVisible();
   });
 
   it('keeps a half-typed draft when the open agent changes', async () => {
@@ -299,11 +347,13 @@ describe('DesktopHome panel', () => {
   it('closes the panel on Escape', async () => {
     renderHome();
     await openAgent(restingAgent.name);
-    await waitFor(() => expect(within(screen.getByTestId('home-rail')).getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument());
+    const stats = await within(screen.getByTestId('home-rail')).findByRole('tab', { name: 'Stats', exact: true });
+    await userEvent.click(stats);
+    expect(stats).toHaveAttribute('aria-selected', 'true');
 
     await userEvent.keyboard('{Escape}');
     await waitFor(() => {
-      expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+      expect(within(screen.getByTestId('home-rail')).queryByRole('tab', { name: 'Stats', exact: true })).not.toBeInTheDocument();
     });
     // ...and back to the resting panel, which on the HOME stage is the room.
     expect(screen.getByTestId('room-thread')).toBeInTheDocument();
@@ -331,7 +381,7 @@ it('BUG-107: a newly arrived agent opens his birth card and can be dealt in', as
   await userEvent.click(deal);
   expect(onDeployAgent).toHaveBeenCalledOnce();
   expect(onDeployAgent).toHaveBeenCalledWith(expect.objectContaining({ id: newborn.id }));
-  expect(within(screen.getByTestId('home-rail')).queryByRole('button', { name: 'Profile', exact: true })).not.toBeInTheDocument();
+  expect(within(screen.getByTestId('home-rail')).queryByRole('tab', { name: 'Stats', exact: true })).not.toBeInTheDocument();
 });
 
 it.each([true, false])('a birth handled by the draft never opens a second birth card (draft still open: %s)', async (stillDrafting) => {

@@ -172,6 +172,18 @@ test('LIFE-1: banking rest rewrites the record without spending anything', () =>
   assert.equal(agent.stamina.at, NOW + HOUR);
 });
 
+for (const cadence of [1000, 10_000]) test(`rest recovery does not depend on projection frequency (${cadence}ms)`, () => {
+  const watched = { stamina: { left: 10, at: NOW, stage: 'worn' } };
+  const unseen = structuredClone(watched);
+  const end = NOW + 3 * HOUR;
+  for (let now = NOW + cadence; now <= end; now += cadence) restStamina(watched, { now });
+  restStamina(unseen, { now: end });
+  assert.ok(Math.abs(watched.stamina.left - unseen.stamina.left) < 1e-8,
+    `reading every ${cadence}ms changed three hours of recovery: ${watched.stamina.left} vs ${unseen.stamina.left}`);
+  assert.equal(watched.stamina.stage, 'fresh', 'watching him at home must not prevent him from recovering');
+  assert.equal(staminaPercent(watched, { now: end }), staminaPercent(unseen, { now: end }));
+});
+
 test('LIFE-1: the worse of two stages, so neither can hide the other', () => {
   assert.equal(worseStage('fresh', 'worn'), 'worn');
   assert.equal(worseStage('worn', 'fresh'), 'worn');

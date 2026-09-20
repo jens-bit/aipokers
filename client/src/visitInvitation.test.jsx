@@ -28,8 +28,9 @@ it('BUG-160: a visiting agent profile watches its actual kitchen and keeps the o
   fetchMock.route('/memory', { memoryContext: '' });
   telegram.startWith(`agent_${visitor.id}`);
   render(<App />);
-  await user.click(await screen.findByRole('button', { name: 'Profile', exact: true }));
-  await user.click(await screen.findByRole('button', { name: 'Watch live game' }));
+  await user.click(await screen.findByRole('tab', { name: 'Stats', exact: true }));
+  expect(screen.getByRole('tabpanel', { name: 'Stats', exact: true })).toBeVisible();
+  await user.click(await screen.findByRole('button', { name: 'Watch home game' }));
   await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
   act(() => { for (const socket of socketMock.instances) if (socket.readyState === 0) socket.open(); });
   expect(socketMock.instances.flatMap(socket => socket.sent).find(message => message.type === 'watch')).toMatchObject({ tableId: 'home-9402', agentId: visitor.id, userId: '4242' });
@@ -135,7 +136,8 @@ it('BUG-150: a new invitation while reading a profile opens the Home door instea
   fetchMock.route('/api/agents/friend1/visit', { status:200,body:{visitId:'v1',status:'knocking'} }, { method:'POST' });
   render(<App />);
   await user.click(await screen.findByRole('button',{name:/^Away Day —/}));
-  await user.click(screen.getByRole('button',{name:'Profile',exact:true}));
+  await user.click(screen.getByRole('button',{name:'More actions',exact:true}));
+  await user.click(screen.getByRole('button',{name:'His sheet',exact:true}));
   expect(await screen.findByRole('button',{name:'More actions'})).toBeInTheDocument();
   await act(async()=>{telegram.startWith(`visit_${token}`);telegram.emit('activated');});
   expect(await screen.findByTestId('home-screen')).toBeInTheDocument();

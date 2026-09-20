@@ -110,6 +110,86 @@ function renderSafe(props = {}) {
 
 const openVerb = async (user, name) => user.click(screen.getByRole('button', { name: new RegExp(name, 'i') }));
 
+describe('BUG-280 — safe transfers include principal but exclude the felt', () => {
+  beforeEach(() => { telegram.signIn(); });
+  const principal = { ...balancedAgent, presence: 'resting', activeTableId: null,
+    pocket: { ...balancedAgent.pocket, balance: 2137, collectable: 0, pnl: 0 } };
+
+  it('offers the whole resting pocket even with no winnings', async () => {
+    fetchMock.route('/collect', { moved: 2137 }, { method: 'POST' });
+    const onRefresh = vi.fn();
+    renderSafe({ agents: [principal], onRefresh });
+    await openVerb(userEvent, 'TAKE');
+    await userEvent.click(screen.getByRole('button', { name: 'Take all — $2,137' }));
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledOnce());
+    expect(fetchMock.requestsMatching('/collect')[0].body).toMatchObject({ all: true, amount: null });
+    expect(fetchMock.requestsMatching('/fund')).toHaveLength(0);
+  });
+
+  it('keeps a seated empty pocket visible with its committed stack and disables taking it', async () => {
+    renderSafe({ agents: [{ ...balancedAgent, liveGame: { heroStack: 17763 }, pocket: { ...balancedAgent.pocket, balance: 0 } }] });
+    await openVerb(userEvent, 'TAKE');
+    expect(screen.getByText(balancedAgent.name)).toBeInTheDocument();
+    expect(screen.getByText(/At table:.*17,763/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take all — $0' })).toBeDisabled();
+    expect(fetchMock.posts).toHaveLength(0);
+  });
+
+  it('takes a seated pocket without asking the agent to leave or recalling chips in play', async () => {
+    fetchMock.route('/collect', { moved: 6400 }, { method: 'POST' });
+    renderSafe({ agents: [balancedAgent] });
+    await openVerb(userEvent, 'TAKE');
+    await userEvent.click(screen.getByRole('button', { name: 'Take all — $6,400' }));
+    await waitFor(() => expect(fetchMock.posts).toHaveLength(1));
+    expect(fetchMock.posts[0].url).toContain('/collect');
+    expect(fetchMock.posts[0].body).toMatchObject({ all: true, amount: null });
+    expect(screen.queryByRole('button', { name: 'Call him in' })).toBeNull();
+  });
+
+  it('opens a free take amount from TAKE and retains it on failure', async () => {
+    fetchMock.route('/collect', () => ({ status: 500, body: {} }), { method: 'POST' });
+    const onRefresh = vi.fn();
+    renderSafe({ agents: [principal], onRefresh });
+    await openVerb(userEvent, 'TAKE');
+    await userEvent.click(screen.getByRole('button', { name: 'Choose amount' }));
+    const field = screen.getByLabelText('Amount to take');
+    await userEvent.clear(field);
+    await userEvent.type(field, '137');
+    await userEvent.click(screen.getByRole('button', { name: 'Take $137' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not move the chips');
+    expect(field).toHaveValue(137);
+    expect(onRefresh).not.toHaveBeenCalled();
+  });
+
+  it('does not offer to repeat a completed GIVE when only the refresh failed', async () => {
+    fetchMock.route('/fund', { moved: 137 }, { method: 'POST' });
+    const onRefresh = vi.fn().mockRejectedValueOnce(new Error('read failed')).mockResolvedValueOnce(undefined);
+    renderSafe({ agents: [principal], onRefresh });
+    await openVerb(userEvent, 'GIVE');
+    await userEvent.click(screen.getByRole('button', { name: 'Give him chips' }));
+    await userEvent.clear(screen.getByLabelText('Amount to give'));
+    await userEvent.type(screen.getByLabelText('Amount to give'), '137');
+    await userEvent.click(screen.getByRole('button', { name: 'Give him chips' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: `Fund ${principal.name}` })).toBeNull());
+    expect(screen.getByRole('status')).toHaveTextContent('Chips moved');
+    expect(screen.getByRole('button', { name: /^GIVE/ })).toBeDisabled();
+    expect(screen.queryByText(/Could not move the chips/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.getByRole('button', { name: /^GIVE/ })).toBeEnabled();
+    expect(fetchMock.requestsMatching('/fund')).toHaveLength(1);
+  });
+
+  it('does not describe a successful take as failed when its follow-up read fails', async () => {
+    fetchMock.route('/collect', { moved: 2137 }, { method: 'POST' });
+    renderSafe({ agents: [principal], onRefresh: vi.fn().mockRejectedValue(new Error('read failed')) });
+    await openVerb(userEvent, 'TAKE');
+    await userEvent.click(screen.getByRole('button', { name: 'Take all — $2,137' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Chips moved');
+    expect(screen.getByRole('button', { name: 'Take all — $2,137' })).toBeDisabled();
+    expect(screen.queryByText(/Could not move the chips/)).toBeNull();
+  });
+});
+
 describe('SAFE-2 — one number, three verbs', () => {
   beforeEach(() => { telegram.signIn(); });
 
@@ -127,7 +207,7 @@ describe('SAFE-2 — one number, three verbs', () => {
     const verbs = [...container.querySelectorAll('.safe__verb')];
     expect(verbs.map((v) => v.dataset.verb)).toEqual(['give', 'take', 'rules']);
     expect(verbs.map((v) => v.querySelector('.safe__verb-note').textContent))
-      .toEqual(['to a pocket', 'winnings out', 'per agent']);
+      .toEqual(['to a pocket', 'from a pocket', 'per agent']);
   });
 
   it('needs nothing but a wallet and a roster — the host owns the data', () => {
@@ -218,16 +298,17 @@ describe('SAFE-2 — a verb is a page of this sheet', () => {
     const { container } = renderSafe();
     await openVerb(user, 'TAKE');
 
-    // Balanced (+340) and Bluff (+236) are up; Aggressive is down and Value Bot
-    // is called in and empty.
+    // BUG-280: pocket principal is transferable too. The empty, resting Value
+    // Bot has no chips to transfer; the other three all have a real pocket.
     const names = [...container.querySelectorAll('.wal-row__name')].map((el) => el.textContent);
     expect(names).toEqual(['Balanced v2.1', 'Aggressive v1.3', 'Bluff Master']);
-    expect(within(screen.getByText('Bluff Master').closest('.wal-row')).getByRole('button', { name: 'Collect' }))
+    expect(within(screen.getByText('Bluff Master').closest('.wal-row')).getByRole('button', { name: 'Take all — $3,000' }))
       .toBeInTheDocument();
-    // Aggressive is only there because he is SEATED with a roll to call in.
+    // No winnings are required, and taking the pocket must not call him in.
     const down = screen.getByText('Aggressive v1.3').closest('.wal-row');
     expect(within(down).queryByRole('button', { name: 'Collect' })).toBeNull();
-    expect(within(down).getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
+    expect(within(down).getByRole('button', { name: 'Take all — $2,100' })).toBeInTheDocument();
+    expect(within(down).queryByRole('button', { name: 'Call him in' })).toBeNull();
   });
 
   it('tells the host when money has moved, so what is behind it is not stale', async () => {
@@ -238,7 +319,7 @@ describe('SAFE-2 — a verb is a page of this sheet', () => {
     await openVerb(user, 'TAKE');
 
     const row = screen.getByText(balancedAgent.name).closest('.wal-row');
-    await user.click(within(row).getByRole('button', { name: 'Collect' }));
+    await user.click(within(row).getByRole('button', { name: 'Take all — $6,400' }));
 
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
@@ -251,7 +332,7 @@ describe('SAFE-2 — a verb is a page of this sheet', () => {
     await openVerb(user, 'TAKE');
 
     const row = screen.getByText(balancedAgent.name).closest('.wal-row');
-    await user.click(within(row).getByRole('button', { name: 'Collect' }));
+    await user.click(within(row).getByRole('button', { name: 'Take all — $6,400' }));
 
     await waitFor(() => expect(fetchMock.posts.length).toBe(1));
     expect(onRefresh).not.toHaveBeenCalled();

@@ -112,6 +112,12 @@
   height: 28px;
   padding: 0 10px;
 }
+.wal-row--transfers .wal-row__actions .wal-btn {
+  height: auto;
+  min-height: 40px;
+  white-space: normal;
+  line-height: 1.35;
+}
 
 /* Cut off is drawn quieter, never redder: the rung his money would buy is
    greyed because he is not going to sit at it. */
@@ -298,6 +304,7 @@
 
 .wal-presets {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
 }
 
@@ -313,6 +320,7 @@
   font-weight: 700;
   cursor: pointer;
 }
+.wal-preset.wal-preset--all { flex-basis: 100%; }
 .wal-preset[aria-pressed='true'] {
   border-color: var(--wal-teal);
   color: var(--wal-text);

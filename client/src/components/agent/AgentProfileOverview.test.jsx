@@ -6,6 +6,19 @@ import { fetchMock, telegram } from '../../test/harness.js';
 
 const agent = { id:'c4', name:'Balanced v2.1', mood:{state:'confident',heat:22}, fatigue:'worn', nature:{name:'Rock'}, pocket:{balance:1200}, attrs:{READS:62}, bornAt:Date.UTC(2026,7,4), sessionLog:[] };
 beforeEach(() => { telegram.signIn(); });
+it('CHARACTER-MENU: embedded Stats keeps real readings without replacing the character or adding a second chat', () => {
+  const { container } = render(<AgentProfileOverview embedded agent={{...agent, attrs:{READS:62, STAMINA:0, COMPOSURE:35}}} attrLog={[]}
+    actions={<button>Old profile action</button>} career={<span>42 career hands</span>}/>);
+  expect(screen.getByRole('region', {name: `${agent.name}'s stats`})).toBeInTheDocument();
+  expect(screen.getByRole('region', {name:'Skills'})).toHaveTextContent('62');
+  expect(screen.getByRole('region', {name:'Career'})).toHaveTextContent('42 career hands');
+  expect(container.querySelector('.profile-overview__resource')).toHaveTextContent('STAMINA0');
+  expect(container.querySelector('.profile-overview__composure')).toHaveTextContent('35');
+  expect(container.querySelector('.profile-overview__identity svg')).toBeNull();
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name:'Back'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', {name:'Old profile action'})).not.toBeInTheDocument();
+});
 it('BUG-162: Home practice results do not replace real casino history on Profile', () => {
   const home = {...agent,homeTableId:'kitchen',liveGame:{tableId:'kitchen',net:75,heroSessionHands:80}};
   expect(profileSession(home)).toBeNull();

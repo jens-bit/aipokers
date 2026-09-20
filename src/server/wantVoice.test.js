@@ -168,13 +168,14 @@ test('LIFE-2 job 1: he asks for what he wants, in his own voice', async (t) => {
         assert.equal(_agentRecordForTests('legacy', 'u1').want.text, "Sit one out. I'm cooked.");
       });
 
-      await t.test('the room carries the bubble, in three fields', async () => {
+      await t.test('the room carries the bubble and its actionable label without private stock fields', async () => {
         const snap = homeSnapshot('u1', { owner: true });
         const rock = snap.agents.find((a) => a.id === 'rock');
         assert.deepEqual(rock.want, {
           kind: 'rest',
           text: NATURE_WANT_LINES.Rock.rest,
           action: 'rest',
+          actionLabel: 'Sit him out',
         });
         // The same sentence in both places — the room and the card cannot put
         // different words in the same mouth.

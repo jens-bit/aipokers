@@ -84,6 +84,7 @@ export function DeskHome({
   onCasino,
   onCreateAgent,
   guideEnabled = true,
+  observing = true,
   onFocusTable,
   onWatchTable,
   onSitAtTable,
@@ -118,6 +119,8 @@ export function DeskHome({
   return (
     <HomeScreen
       desktop
+      observing={observing}
+      walletRevision={wallet?.balance}
       onReplay={onOpenFlagged}
       wsUrl={wsUrl}
       onOwnerLine={receiveOwnerLine}
@@ -153,7 +156,7 @@ export function DeskHome({
                 walletStatus={walletStatus}
                 onRetry={onRefreshWallet}
                 agents={agents}
-                onRefresh={async () => { await onRefreshWallet?.(); refresh(); }}
+                onRefresh={async () => { await onRefreshWallet?.(); refreshRoomWallet(); refresh(); }}
                 onClose={backToRoom}
                 onOpenProfile={onProfile}
               />
@@ -166,8 +169,9 @@ export function DeskHome({
             <RailPanel title="The fridge" onClose={backToRoom}>
               <FridgeSheet
                 variant="rail"
+                refreshKey={agents.map(agent => `${agent.id}:${agent.homeItem?.at ?? ''}`).join('|')}
                 onClose={backToRoom}
-                onStocked={() => { onRefreshWallet?.(); refresh(); }}
+                onStocked={() => { onRefreshWallet?.(); refreshRoomWallet(); refresh(); }}
               />
             </RailPanel>
           );

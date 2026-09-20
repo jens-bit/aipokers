@@ -1,5 +1,52 @@
 # Bug Report — Railbird
 
+## Founder playtest — 2026-09-20
+
+Current scope and exact clarifications: `read-me-claude/PLAYTEST_2026-09-20.md`.
+The recolouring proposal in PR #9 was rejected before deployment. The revised
+branch below requires the complete playtest gate before release.
+
+### BUG-277 — Wardrobe changes permanent birth colours — FIXED IN REVIEW
+Authenticated identity edits now reject before any mutation. The free starter
+rack contains a removable cap, glasses and scarf, with preview/save/remove,
+durable equipment and public portraits. Birth pigment also survives maximum heat.
+
+### BUG-278 — kitchen play hides casino Deploy — FIXED IN REVIEW
+Kitchen Watch and casino Deploy remain separate actions, with their own money
+and stakes. Native owner viewpoint and hand privacy checks remain in place.
+
+### BUG-279 — hunger recovery and visible eating fail — FIXED IN REVIEW
+Retain fractional rest recovery. Authenticated foreground Home observation
+permits one real stocked-snack trip at a time; hidden/offline rooms cannot eat.
+Empty stock opens the fridge; refusals retain recovery instructions. Atomic meal
+storage, No/Later, multiple tabs, visible shelf counts and safe refresh are tested.
+Opaque desktop history/sign-in overlays now suspend the observation lease;
+visible side rails continue to allow care. Native failure-first proof covers
+eleven seconds behind history and visible eating after returning to the room.
+
+### BUG-280 — pocket transfer controls obscure available money — FIXED IN REVIEW
+Allow arbitrary affordable safe-to-pocket transfers and any/all pocket-to-safe
+transfers. Already bought-in chips are committed and remain outside this flow.
+Phone funding no longer collapses. Desktop controls remain legible. Successful
+transfers followed by a failed balance read offer refresh, never a duplicate GIVE.
+Live casino net comes from the confirmed session, so buying in is not displayed
+as a pocket loss. Unknown session results remain unknown.
+
+### BUG-281 — casino bar is inert — FIXED IN REVIEW
+The bar serves one stocked item or explicitly buys and serves one at its existing
+price. Authenticated casino-only orders persist atomically with retry receipts.
+Live hands/chips remain untouched; seated snacks cannot credit elapsed rest.
+
+### BUG-282 — miniature/stack report — NOT REPRODUCED, HISTORY UNVERIFIED
+Screenshots show an empty 50/100 miniature despite a populated table and live
+stacks above the initial buy-in. Trace authoritative frames and chip receipts;
+profit or retained session stacks are not themselves evidence of chip creation.
+Native phone/short-phone/desktop proof seats two owned agents plus House at
+50/100: all three bodies and the real public board render. A 30,000 pocket still
+buys in for exactly 10,000 at 50/100. The supplied empty frame says 0 seated while
+the owner roster says 2; its historical cause is not established. Do not invent
+occupants or alter balances to make that screenshot appear repaired.
+
 ## Further document-led recovery — 2026-09-19
 
 Current report: `read-me-claude/RAILBIRD_DOCUMENT_RECOVERY.md` on the review branch.

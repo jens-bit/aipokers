@@ -42,6 +42,7 @@ const M_TEAL = 'var(--accent)';
 const M_GOLD = 'var(--gold-reward)';
 const M_RED = 'var(--error)';
 import { pillName } from '../../lib/names.js';
+import { GhostClothes } from '../system/GhostClothes.jsx';
 
 const MONO = '"JetBrains Mono",ui-monospace,monospace';
 const OSWALD = '"Oswald","Helvetica Neue",sans-serif';
@@ -93,7 +94,7 @@ export function floorPlan(n) {
  * Saved seat identities take precedence. Anonymous scenery keeps the reference
  * index palette; the teal ownership rim remains independent of eye colour.
  */
-export function TinyGhost({ i = 0, mine = false, hot = false, size = 14, identity = null }) {
+export function TinyGhost({ i = 0, mine = false, hot = false, size = 14, identity = null, equipment = {} }) {
   const look = storedIdentity({ identity });
   const hood = look?.hood ?? HOODS[((i * 5 + 1) % 6 + 6) % 6];
   const glow = look?.glow ?? GLOWS[((i * 3) % 6 + 6) % 6];
@@ -114,6 +115,7 @@ export function TinyGhost({ i = 0, mine = false, hot = false, size = 14, identit
           body has room for */}
       <ellipse cx="29" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? AGENT_TEAL : glow.c)} />
       <ellipse cx="51" cy="40" rx="6" ry={hot ? 4 : 7} fill={look?.glow.c ?? (mine ? AGENT_TEAL : glow.c)} />
+      <GhostClothes equipment={equipment} cy={40}/>
     </svg>
   );
 }
@@ -191,7 +193,7 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
             className="csn-felt58__seat"
             style={{ left: `${50 + Math.cos(th) * 52}%`, top: `${50 + Math.sin(th) * 56}%` }}
           >
-            <TinyGhost i={i + place.x} mine={i === mineSeat} hot={hot} identity={seats[i]?.identity} />
+            <TinyGhost i={i + place.x} mine={i === mineSeat} hot={hot} identity={seats[i]?.identity} equipment={seats[i]?.equipment}/>
             {seats[i]?.inHand && <span key={felt.handNumber} className="csn-felt58__backs" aria-hidden="true"><i /><i /></span>}
           </span>
         );
@@ -256,15 +258,16 @@ function Felt({ felt, place, index, mineSeat = -1, mineName = null, onWatch }) {
  * this room contains who is not at one of its felts is a man looking for a
  * seat, which is exactly what standing at the bar means.
  */
-function FloorBar({ standing = [] }) {
+function FloorBar({ standing = [], onOpen = null }) {
+  const Tag = onOpen ? 'button' : 'div';
   return (
-    <div className="csn-floor58__bar">
+    <Tag className="csn-floor58__bar" {...(onOpen ? {type:'button', onClick:onOpen, 'aria-label':'Open casino bar'} : {})}>
       <span className="csn-floor58__counter" style={{ boxShadow: `0 -3px 14px color-mix(in srgb, ${M_GOLD} 7.84%, transparent)` }} />
       {standing.length > 0 && (
         <div className="csn-floor58__standing">
           {standing.map((agent, i) => (
             <span key={agent.id} title={pillName(agent.name)}>
-              <TinyGhost i={i * 7 + 3} mine />
+              <TinyGhost i={i * 7 + 3} mine identity={agent.identity} equipment={agent.equipment}/>
             </span>
           ))}
         </div>
@@ -272,7 +275,7 @@ function FloorBar({ standing = [] }) {
       <span className="csn-floor58__barlabel" style={{
         fontFamily: OSWALD, fontSize: 7.5, fontWeight: 600, letterSpacing: '0.16em', color: `color-mix(in srgb, ${M_GOLD} 70.2%, transparent)`,
       }}>THE BAR</span>
-    </div>
+    </Tag>
   );
 }
 
@@ -327,7 +330,7 @@ function FloorStairs({ onHome = null }) {
  * @param width    the room's drawn width; the plan is scaled to it
  */
 export function TheFloor({
-  felts = [], mineAt = {}, standing = [], onWatch = null, onHome = null, width = FLOOR_W, height = FLOOR_H, zoom = null, onZoom = null,
+  felts = [], mineAt = {}, standing = [], onWatch = null, onHome = null, onOpenBar = null, width = FLOOR_W, height = FLOOR_H, zoom = null, onZoom = null,
 }) {
   const k = width / FLOOR_W;
   const shown = felts.slice(0, FLOOR_CAP);
@@ -407,7 +410,7 @@ export function TheFloor({
           );
         })}
 
-        <FloorBar standing={standing} />
+        <FloorBar standing={standing} onOpen={onOpenBar} />
       </div>
       {focused && <>
         <div className="csn-floor58__vignette" aria-hidden="true" />

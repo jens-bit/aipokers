@@ -74,14 +74,14 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     const draft = chat.getByPlaceholder('Whisper to him…', { exact: true });
     await draft.fill('Keep this while I look at your profile.');
     await page.screenshot({ path: info.outputPath('private-chat.png'), animations: 'disabled' });
-    await chat.getByRole('button', { name: 'Profile', exact: true }).click();
+    await chat.getByRole('tab', { name: 'Stats', exact: true }).click();
     const profile = page.locator('.profile-overview');
     await expect(profile).toBeVisible();
-    await expect(profile.locator('.agent-view__name')).toHaveText('The Clock');
-    await ink(profile.locator('.agent-view__name'));
+    await expect(chat.locator('.agent-view__name')).toHaveText('The Clock');
+    await ink(chat.locator('.agent-view__name'));
     await palette(page, mode);
     await page.screenshot({ path: info.outputPath('profile.png'), animations: 'disabled' });
-    await profile.getByRole('button', { name: 'Back to chat', exact: true }).click();
+    await chat.getByRole('tab', { name: 'Chat', exact: true }).click();
     await expect(draft).toHaveValue('Keep this while I look at your profile.');
     await chat.getByRole('button', { name: desktop ? 'Close panel' : 'Back', exact: true }).click();
     await expect(home).toBeVisible();

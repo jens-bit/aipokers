@@ -6,6 +6,18 @@ Read this first in every session. It is the map; the deeper docs are the territo
 Telegram Mini App for No-Limit Texas Hold'em where users create AI agents (Claude-powered) via chat and deploy them to play. **Identity: a GAME first** — "a Tamagotchi that plays poker": agents are companions with personalities, moods, and their own poker skill. Play money. Real money is a maybe-later, not the foundation.
 
 ## Read next, in order
+Latest founder corrections (20 September): `read-me-claude/PLAYTEST_2026-09-20.md`.
+PR #9 was held as draft for these corrections and now has a complete local gate;
+check its new-head GitHub checks and main deployment for publication status.
+Birth colours are permanent; Wardrobe is removable starter items. Pocket
+collection never retrieves bought-in chips. Food is eaten visibly while Home
+is watched, with no offline stock drain.
+
+Current character-menu entry point (20 September):
+`read-me-claude/CHARACTER_MENU_RELEASE.md`. Jens asked to implement the preview
+and push pending work; PR8's recovery was already live. Character-menu work uses
+`codex/character-menu` and the normal PR, full-gate and deployment workflow.
+
 Current recovery entry point (19 September):
 `read-me-claude/RAILBIRD_DOCUMENT_RECOVERY.md`, then its linked recovery reports.
 For this recovery Jens explicitly chose design ownership and a review branch;

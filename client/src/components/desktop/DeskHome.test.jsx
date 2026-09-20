@@ -16,7 +16,7 @@
 //   5. NOTHING INSERTS A ROW. The composer POSTs to /api/home/say and reloads.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { DeskHome } from './DeskHome.jsx';
@@ -99,6 +99,21 @@ beforeEach(() => {
   telegram.signIn();
 });
 
+it('BUG-279: a covering shell suppresses Home observation while visible side rails keep it active', async () => {
+  serve();
+  const view = render(<DeskHome wsUrl={WS} observing={false} panel="fridge" />);
+  const socket = socketMock.last();
+  await act(async () => { socket.open(); socket.emit({ type: 'home_state', userId: '4242', agents: [BALANCE, GRANITE], game: null }); });
+  const observations = () => socket.sent.filter(frame => frame.type === 'home_observe');
+  expect(observations()).toEqual([]);
+  for (const panel of ['fridge', 'safe', 'table', 'agent']) {
+    view.rerender(<DeskHome wsUrl={WS} observing panel={panel} focusId="a1" />);
+    expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: true });
+  }
+  view.rerender(<DeskHome wsUrl={WS} observing={false} />);
+  expect(observations().at(-1)).toEqual({ type: 'home_observe', visible: false });
+});
+
 it('BUG-251: a private command refreshes both the room safe and the desktop owner projections immediately', async () => {
   let balance = 54000;
   const onRefreshWallet = vi.fn();
@@ -115,6 +130,23 @@ it('BUG-251: a private command refreshes both the room safe and the desktop owne
   await waitFor(() => expect(onRefreshWallet).toHaveBeenCalledTimes(1));
   expect(fetchMock.requestsMatching('/api/agents?').length).toBeGreaterThan(reads);
   await waitFor(() => expect(screen.getByTestId('home-safe')).toHaveTextContent('$53,500'));
+});
+
+it('BUG-279: stocking the desktop fridge refreshes the actual room safe immediately', async () => {
+  let balance = 54000;
+  const onRefreshWallet = vi.fn();
+  await boot({ props: { onRefreshWallet, panel: 'fridge' } });
+  fetchMock.route('/api/wallet', () => ({ balance, ledger: [] }));
+  fetchMock.route('/api/fridge?', { items: [{ id: 'snack', count: 0, price: 100 }, { id: 'beer', count: 0, price: 200 }] });
+  fetchMock.route('/api/fridge/stock', () => {
+    balance = 53900;
+    return { qty: 1, fridge: { snack: 1, beer: 0 } };
+  }, { method: 'POST' });
+  // Remount the fixture with its real shelf read now registered.
+  await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Buy 1 snack' }));
+  expect(onRefreshWallet).toHaveBeenCalledOnce();
+  await waitFor(() => expect(screen.getByTestId('home-safe')).toHaveTextContent('$53,900'));
 });
 
 describe('C9 · the shared room with desktop coordinates', () => {
@@ -279,9 +311,12 @@ describe('DESK-2 · the man in the room', () => {
     });
     await userEvent.click(body);
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Profile', exact: true })).toBeInTheDocument();
-    });
+    const rail = within(screen.getByTestId('home-rail'));
+    const stats = await rail.findByRole('tab', { name: 'Stats', exact: true });
+    expect(rail.getByRole('tab', { name: 'Chat', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await userEvent.click(stats);
+    expect(stats).toHaveAttribute('aria-selected', 'true');
+    expect(rail.getByRole('tabpanel', { name: 'Stats', exact: true })).toBeVisible();
     expect(screen.queryByTestId('room-thread')).not.toBeInTheDocument();
     expect(document.querySelectorAll('.home-flat')).toHaveLength(1);
   });

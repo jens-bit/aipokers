@@ -39,7 +39,7 @@ export function ghostBrow({ brow, eye, cy }) {
   return null;
 }
 
-export function ghostFace({ mood, heat = 45, size = 40, event, eye, cy }) {
+export function ghostFace({ mood, heat = 45, size = 40, event, eye, cy, fixedEye = false }) {
   const d = faceDetail(size);
   const t = faceTier(heat);
   const L = 33.5, R = 46.5;   // eye centres
@@ -172,10 +172,10 @@ export function ghostFace({ mood, heat = 45, size = 40, event, eye, cy }) {
   }
 
   if (mood === 'tilted') {
-    // steaming → red-eyed. The eye COLOUR shifts at the top tier, the only place
-    // in the whole system where a mood overrides its own token.
+    // Generic mood demonstrations can turn red. A companion's birth pigment
+    // stays permanent; heat still sharpens his expression and adds steam.
     const hot = t === 'high';
-    const ec = hot ? '#FF6B6D' : eye;
+    const ec = hot && !fixedEye ? '#FF6B6D' : eye;
     const a = t === 'low' ? 16 : t === 'mid' ? 24 : 30;
     return (
       <g data-face="tilted" data-tier={t}>

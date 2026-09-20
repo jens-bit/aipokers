@@ -1,7 +1,9 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { useRef, useState } from 'react';
 import { AgentThread } from '../../screens/ChatsScreen.jsx';
+import { AgentView } from './AgentView.jsx';
 import { fetchMock, telegram } from '../../test/harness.js';
 
 const agent = { id: 'a1', name: 'Loose Cannon', mood: { state: 'frustrated', heat: 58 }, fatigue: 'fresh', location: { where: 'home' }, pocket: { balance: 2000 }, opener: 'Put me in.' };
@@ -11,6 +13,99 @@ beforeEach(() => {
   fetchMock.route('/api/wallet', { balance: 12000 });
 });
 const show = (props = {}) => render(<AgentThread agent={agent} companion onBack={() => {}} onDeploy={() => {}} onCarry={() => {}} onOpenProfile={() => {}} {...props} />);
+
+function MenuFixture(props) {
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef(null), feedRef = useRef(null);
+  return <AgentView agent={agent} mood="neutral" heat={30} chat={[]} draft={draft} setDraft={setDraft}
+    inputRef={inputRef} feedRef={feedRef} send={() => {}} onDeploy={() => {}}
+    statsContent={<div>Recorded skills</div>} wardrobeContent={<div>Appearance controls</div>} {...props}/>;
+}
+
+it('CHARACTER-1: the stage keeps truthful condition markers without repeating a clipped character name', () => {
+  render(<MenuFixture/>);
+  expect(document.querySelector('.agent-view__header .agent-view__name')).toHaveTextContent(agent.name);
+  expect(screen.getByTestId('agent-stage').querySelector('.home-pill__name')).not.toBeVisible();
+  expect(screen.getByRole('button',{name:/^Stamina:/})).toBeVisible();
+  expect(screen.getByRole('button',{name:/^Heat:/})).toBeVisible();
+});
+
+it('CHARACTER-1: tabs preserve the actual character, owned cards, Chat input and unsent draft', async () => {
+  render(<MenuFixture agent={{...agent,liveGame:{heroHole:['As','Kh']}}}/>);
+  const stage=screen.getByTestId('agent-stage'), cards=screen.getByTestId('agent-view-hole');
+  const input=screen.getByPlaceholderText('Whisper to him…');
+  await userEvent.type(input,'Wait for the right cards.');
+  for(const name of ['Stats','Wardrobe']) {
+    await userEvent.click(screen.getByRole('tab',{name,exact:true}));
+    expect(screen.getByRole('tabpanel',{name})).toBeVisible();
+    expect(screen.getByTestId('agent-stage')).toBe(stage);
+    expect(screen.getByTestId('agent-view-hole')).toBe(cards);
+    expect(input).not.toBeVisible();
+    expect(screen.queryByRole('button',{name:'Send',exact:true})).toBeNull();
+  }
+  await userEvent.click(screen.getByRole('tab',{name:'Chat',exact:true}));
+  expect(screen.getByPlaceholderText('Whisper to him…')).toBe(input);
+  expect(input).toBeVisible();
+  expect(input).toHaveValue('Wait for the right cards.');
+});
+
+it('CHARACTER-1: direct Stats entry and keyboard tabs select the matching panel without navigation', async () => {
+  const {rerender}=render(<MenuFixture initialTab="stats"/>);
+  expect(screen.getByRole('tab',{name:'Stats'})).toHaveAttribute('aria-selected','true');
+  screen.getByRole('tab',{name:'Stats'}).focus();
+  await userEvent.keyboard('{ArrowRight}');
+  expect(screen.getByRole('tab',{name:'Wardrobe'})).toHaveFocus();
+  expect(screen.getByRole('tabpanel',{name:'Wardrobe'})).toBeVisible();
+  await userEvent.keyboard('{Home}');
+  expect(screen.getByRole('tab',{name:'Chat'})).toHaveFocus();
+  await userEvent.keyboard('{End}');
+  expect(screen.getByRole('tab',{name:'Wardrobe'})).toHaveFocus();
+  rerender(<MenuFixture agent={{...agent,id:'another'}}/>);
+  expect(screen.getByRole('tab',{name:'Chat'})).toHaveAttribute('aria-selected','true');
+});
+
+it('CHARACTER-1: reports explicit pane changes without reporting initial selection as navigation', async () => {
+  const onTabChange=vi.fn();
+  const view=render(<MenuFixture initialTab="stats" onTabChange={onTabChange}/>);
+  expect(onTabChange).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('tab',{name:'Wardrobe'}));
+  expect(onTabChange).toHaveBeenLastCalledWith('wardrobe');
+  await userEvent.keyboard('{Home}');
+  expect(onTabChange).toHaveBeenLastCalledWith('chat');
+  expect(onTabChange).toHaveBeenCalledTimes(2);
+  view.rerender(<MenuFixture initialTab="wardrobe" onTabChange={onTabChange}/>);
+  expect(screen.getByRole('tab',{name:'Wardrobe'})).toHaveAttribute('aria-selected','true');
+  expect(onTabChange).toHaveBeenCalledTimes(2);
+});
+
+it('BUG-277: clothes preview changes only the stage; saved items persist without repainting birth colours', async () => {
+  const saved=vi.fn();let callbacks;
+  const base={...agent,identity:{hood:'slate',glow:'lime'}};
+  const equipment={head:'rail-cap',face:'round-glasses',neck:null};
+  const wardrobeContent=api=>{callbacks=api;return <button onClick={()=>api.onPreview(equipment)}>Try cap</button>;};
+  const view=render(<MenuFixture agent={base} chat={[{role:'assistant',content:'Same voice.',_id:1}]} wardrobeContent={wardrobeContent} onAppearanceSaved={saved}/>);
+  const hood=()=>screen.getByTestId('agent-stage').querySelector('.mood-ghost').dataset.hood;
+  const clothes=()=>screen.getByTestId('agent-stage').querySelectorAll('[data-item]');
+  await userEvent.click(screen.getByRole('tab',{name:'Wardrobe'}));
+  await userEvent.click(screen.getByRole('button',{name:'Try cap'}));
+  expect(hood()).toBe('slate');
+  expect(clothes()).toHaveLength(2);
+  expect(document.querySelector('.agent-view__head [data-item]')).toBeNull();
+  expect(document.querySelector('.agent-view__head .mood-ghost').dataset.hood).toBe('slate');
+  await userEvent.click(screen.getByRole('tab',{name:'Chat'}));
+  expect(hood()).toBe('slate');
+  expect(clothes()).toHaveLength(0);
+  await act(async()=>{callbacks.onSaved({...base,equipment});callbacks.onPreview(null);});
+  expect(hood()).toBe('slate');
+  expect(clothes()).toHaveLength(2);
+  expect(saved).toHaveBeenCalledWith(expect.objectContaining({id:agent.id,identity:base.identity,equipment}));
+  const stale=callbacks;
+  view.rerender(<MenuFixture agent={{...base,id:'next'}} wardrobeContent={wardrobeContent} onAppearanceSaved={saved}/>);
+  await act(async()=>{stale.onSaved({...base,equipment});stale.onPreview(equipment);});
+  expect(hood()).toBe('slate');
+  expect(clothes()).toHaveLength(0);
+  expect(saved).toHaveBeenCalledTimes(1);
+});
 
 it('BUG-251: command receipt refreshes the actual seat and clears the fulfilled idle want', async () => {
   const seated = { ...agent, activeTableId: 'live', location: { where: 'table', tableId: 'live' }, want: null,
@@ -79,7 +174,7 @@ it('FIRST-CHAT-1: mobile treats empty success as retryable and ignores a reply a
   expect(screen.getByPlaceholderText('Whisper to him…')).toHaveValue('');
 });
 
-it('AGENT-1: opens board 42 with the large character, four real actions and a quiet composer', async () => {
+it('CHARACTER-1: keeps real funding/deploy actions and moves Carry and His sheet into More', async () => {
   const onDeploy = vi.fn(), onCarry = vi.fn(), onOpenProfile = vi.fn();
   show({ onDeploy, onCarry, onOpenProfile });
   expect(await screen.findByTestId('agent-stage')).toBeInTheDocument();
@@ -87,9 +182,11 @@ it('AGENT-1: opens board 42 with the large character, four real actions and a qu
   expect(screen.getByPlaceholderText('Whisper to him…')).not.toHaveFocus();
   await userEvent.click(screen.getByRole('button', { name: /deploy/i }));
   expect(onDeploy).toHaveBeenCalledWith(agent);
+  await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
   await userEvent.click(screen.getByRole('button', { name: 'Carry' }));
   expect(onCarry).toHaveBeenCalledWith(agent);
-  await userEvent.click(screen.getByRole('button', { name: 'Profile' }));
+  await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
+  await userEvent.click(screen.getByRole('button', { name: 'His sheet' }));
   expect(onOpenProfile).toHaveBeenCalledWith(agent);
   await userEvent.click(screen.getByRole('button', { name: 'Give chips' }));
   expect(await screen.findByRole('dialog', { name: 'Fund Loose Cannon' })).toBeInTheDocument();
@@ -117,7 +214,31 @@ it('AGENT-1: an away agent can be watched but cannot be carried from the casino'
   show({ agent: away, onWatch });
   await userEvent.click(screen.getByRole('button', { name: 'Watch live game' }));
   expect(onWatch).toHaveBeenCalledWith(away);
+  await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
   expect(screen.getByRole('button', { name: 'Carry' })).toBeDisabled();
+});
+
+it.each([false, true])('BUG-278: a live kitchen hand keeps casino Deploy reachable alongside Home Watch (desktop=%s)', async desktop => {
+  const kitchen = { ...agent, homeTableId: 'home-4242', location: { where: 'home', tableId: 'home-4242' },
+    pocket: { balance: 2000, pnl: 340 }, liveGame: { tableId: 'home-4242', home: true, smallBlind: 1, bigBlind: 2,
+      heroHole: ['As', 'Kh'], net: -900 } };
+  const onDeploy = vi.fn(), onWatch = vi.fn();
+  render(<MenuFixture agent={kitchen} desktop={desktop} onDeploy={onDeploy} onWatch={onWatch}/>);
+  const deploy = screen.getByRole('button', { name: /^DEPLOY/ });
+  expect(deploy).toBeEnabled();
+  expect(deploy).toHaveTextContent('10/20');
+  expect(deploy).toHaveTextContent('$2,000');
+  expect(deploy).toHaveTextContent('+$340');
+  expect(deploy).not.toHaveTextContent('1/2');
+  expect(deploy).not.toHaveTextContent('$900');
+  expect(screen.getByTestId('agent-view-hole').querySelectorAll('svg')).toHaveLength(2);
+  await userEvent.click(deploy);
+  expect(onDeploy).toHaveBeenCalledTimes(1);
+  expect(onDeploy).toHaveBeenCalledWith(kitchen);
+  expect(onWatch).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Watch home game' }));
+  expect(onWatch).toHaveBeenCalledTimes(1);
+  expect(onWatch).toHaveBeenCalledWith(kitchen);
 });
 
 it('TABLE-1 job F: opening his room mid-hand shows his own two cards, not just his figure', async () => {
@@ -259,11 +380,12 @@ it('BUG-197: the pocket line is 10px mono in the shared secondary ink', async ()
   expect(number.color).toBe('var(--text-secondary)');
 });
 
-it('BUG-197: the three labels are Oswald 600 at 7.5px in muted ink, and the icons are not', async () => {
+it('BUG-197: the funding label retains the authored type and distinct icon ink beside the menu tabs', async () => {
   show();
   await screen.findByTestId('agent-stage');
   const { row, label, css } = rowStyles();
-  expect(label.map((s) => s.textContent)).toEqual(['GIVE CHIPS', 'CARRY', 'PROFILE']);
+  expect(label.map((s) => s.textContent)).toEqual(['GIVE CHIPS']);
+  expect(screen.getAllByRole('tab').map(tab=>tab.textContent)).toEqual(['Chat','Stats','Wardrobe']);
   for (const span of label) {
     const s = css(span);
     expect(s.fontFamily).toMatch(/Oswald/);

@@ -176,7 +176,8 @@ test('BUG-136: draft, retire and redraft through the real phone conserve househo
     // person does instead of waiting for an infinite animation to become stable.
     const bounds = await body.boundingBox();
     await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-    await page.getByRole('button', { name: 'Profile', exact: true }).click();
+    await page.getByRole('button', { name: 'More actions', exact: true }).click();
+    await page.getByRole('button', { name: 'His sheet', exact: true }).click();
     await page.getByRole('button', { name: 'More actions', exact: true }).click();
     await page.getByRole('button', { name: 'Retire', exact: true }).click();
     await page.getByRole('button', { name: 'Retire him', exact: true }).click();
@@ -493,6 +494,7 @@ test('desktop casino deploy and felt Watch open the actual owned game',async({pa
   await page.addInitScript(id=>localStorage.setItem('agentic_uid',id),uid);
   await page.goto(BASE);await expect(page.getByTestId('home-screen')).toBeVisible();
   await page.locator('.dsk-roster-row').filter({hasText:agent.name}).click();
+  await page.getByRole('button', { name: 'More actions', exact: true }).click();
   await page.getByRole('button',{name:'Carry',exact:true}).click();await page.getByTestId('home-door').click();
   const queued=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/agents/'+agent.id+'/queue'&&r.request().method()==='POST');
   // SPEC-1: rooms are stakes now. UI-3 job A deleted the three doorways —

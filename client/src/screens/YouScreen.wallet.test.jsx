@@ -174,6 +174,11 @@ describe('WUI-1 — pocket rows, behind GIVE', () => {
   });
 
   it('states the pocket, the stakes it buys and the P&L', async () => {
+    // A seated result must come from the confirmed casino session, not the
+    // pocket debit while its buy-in is still committed.
+    withAgents(walletAgentsResponse.agents.map((agent) => agent.activeTableId
+      ? { ...agent, liveGame: { tableId: agent.activeTableId, net: agent.pocket?.pnl } }
+      : agent));
     await openMoney();
     await screen.findByText('Balanced v2.1');
 
@@ -233,32 +238,27 @@ describe('WUI-1 — pocket rows, behind GIVE', () => {
   // belong to. Value Bot is not on that page at all — he is called in and
   // empty, so there is nothing of his to take — which is the same "no Collect"
   // this always asserted, said one level up.
-  it('offers Collect only for the ones who are up', async () => {
+  it('BUG-280: offers the entire uncommitted pocket whether winning or losing', async () => {
     await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
-    for (const [name, collect] of [
-      ['Balanced v2.1', true],    // up $340
-      ['Aggressive v1.3', false], // down $90, however much he still holds
-      ['Bluff Master', true],     // up $236
+    for (const [name, amount] of [
+      ['Balanced v2.1', '$6,400'],
+      ['Aggressive v1.3', '$2,100'],
+      ['Bluff Master', '$3,000'],
     ]) {
-      const q = within(row(name)).queryByRole('button', { name: 'Collect' });
-      expect(Boolean(q), name).toBe(collect);
+      expect(within(row(name)).getByRole('button', { name: `Take all — ${amount}` })).toBeEnabled();
     }
     expect(screen.queryByText('Value Bot')).toBeNull();
   });
 
-  it('offers Call him in on the rows that are at a table', async () => {
+  it('BUG-280: keeps calling an agent in separate from taking pocket chips', async () => {
     await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
-    for (const [name, callIn] of [
-      ['Balanced v2.1', true],    // playing
-      ['Aggressive v1.3', true],  // playing
-      ['Bluff Master', false],    // resting — nothing to call him in from
-    ]) {
+    for (const name of ['Balanced v2.1', 'Aggressive v1.3', 'Bluff Master']) {
       const q = within(row(name)).queryByRole('button', { name: 'Call him in' });
-      expect(Boolean(q), name).toBe(callIn);
+      expect(q, name).toBeNull();
     }
     expect(screen.queryByText('Value Bot')).toBeNull();
   });
@@ -285,20 +285,20 @@ describe('WUI-1 — the row actions, under the verb that owns them', () => {
     withWallet();
   });
 
-  it('Collect takes the winnings and re-reads the money', async () => {
+  it('BUG-280: Take all takes the uncommitted pocket and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/collect', { collected: 340 }, { method: 'POST' });
     await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
-    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
+    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Take all — $6,400' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/collect')).toHaveLength(1));
     const [req] = fetchMock.requestsMatching('/collect');
     expect(req.method).toBe('POST');
     expect(req.url).toContain('agent_balanced');
-    // WALLET-7: the winnings, not the roll. `all` is the called-in path.
-    expect(req.body).toMatchObject({ all: false });
+    // BUG-280: principal is included; chips already bought in cannot be taken.
+    expect(req.body).toMatchObject({ all: true, amount: null });
 
     // The wallet figure is re-read rather than guessed at locally.
     await waitFor(() => expect(fetchMock.requestsMatching('/api/wallet').length).toBeGreaterThan(1));
@@ -310,11 +310,12 @@ describe('WUI-1 — the row actions, under the verb that owns them', () => {
     await openMoney({}, 'TAKE');
     await screen.findByText('Balanced v2.1');
 
-    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
+    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Take all — $6,400' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/collect')).toHaveLength(1));
     expect(within(row('Balanced v2.1')).getByText('$6,400')).toBeInTheDocument();
-    expect(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' })).toBeInTheDocument();
+    expect(within(row('Balanced v2.1')).getByRole('button', { name: 'Take all — $6,400' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not move the chips');
   });
 
   // WALLET-7 — the second verb, from the row. One press: he finishes the hand,
@@ -323,10 +324,11 @@ describe('WUI-1 — the row actions, under the verb that owns them', () => {
   it('Call him in POSTs the verb and re-reads the money', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', { collected: 6400 }, { method: 'POST' });
-    await openMoney({}, 'TAKE');
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
-    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
+    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Give him chips' }));
+    await user.click(screen.getByRole('button', { name: 'Call him in' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
     const [req] = fetchMock.requestsMatching('/fund');
@@ -335,16 +337,18 @@ describe('WUI-1 — the row actions, under the verb that owns them', () => {
     await waitFor(() => expect(fetchMock.requestsMatching('/api/wallet').length).toBeGreaterThan(1));
   });
 
-  it('a refused call-in leaves the row exactly as it was', async () => {
+  it('a refused call-in leaves the pocket unchanged and the choice open', async () => {
     const user = userEvent.setup();
     fetchMock.route('/fund', () => ({ status: 500, body: {} }), { method: 'POST' });
-    await openMoney({}, 'TAKE');
+    await openMoney();
     await screen.findByText('Balanced v2.1');
 
-    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Call him in' }));
+    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Give him chips' }));
+    await user.click(screen.getByRole('button', { name: 'Call him in' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
-    expect(within(row('Balanced v2.1')).getByText('$6,400')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog', { name: 'Fund Balanced v2.1' })).getByText('$6,400')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not move the chips');
   });
 
   it('giving him chips raises the intent for the sheet, and POSTs nothing on its own', async () => {
@@ -461,15 +465,16 @@ describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
     expect(r.queryByRole('button', { name: 'Collect' })).not.toBeInTheDocument();
   });
 
-  it('and calling him in is the way that pocket comes home', async () => {
+  it('still offers the separate choice to call him in from his funding sheet', async () => {
     const user = userEvent.setup();
     // The same pocket, at a table: one press ends the session and empties it.
     withAgents([{ ...toppedUpAgent, presence: 'playing', activeTableId: 'tbl-1' }]);
     fetchMock.route('/fund', { collected: 4000 }, { method: 'POST' });
-    await openMoney({}, 'TAKE');
+    await openMoney();
     await screen.findByText('Topped Up');
 
-    await user.click(within(row('Topped Up')).getByRole('button', { name: 'Call him in' }));
+    await user.click(within(row('Topped Up')).getByRole('button', { name: 'Give him chips' }));
+    await user.click(screen.getByRole('button', { name: 'Call him in' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/fund')).toHaveLength(1));
     expect(fetchMock.requestsMatching('/fund')[0].body).toMatchObject({ verb: 'callin' });
@@ -491,8 +496,12 @@ describe('WALLET-5/7 — a pocket funded once has nothing to collect', () => {
     await user.click(screen.getByRole('button', { name: /^TAKE/ }));
 
     const r = within(row('Up And Seated'));
-    expect(r.getByRole('button', { name: 'Collect' })).toBeInTheDocument();
-    expect(r.getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
+    expect(r.getByRole('button', { name: /Take all/ })).toBeInTheDocument();
+    expect(r.getByRole('button', { name: 'Choose amount' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(screen.getByRole('button', { name: /^GIVE/ }));
+    await user.click(within(row('Up And Seated')).getByRole('button', { name: 'Give him chips' }));
+    expect(screen.getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
   });
 });
 
@@ -542,7 +551,7 @@ describe('WALLET-5 — being called in is visible on the row', () => {
     await openMoney({}, 'TAKE');
     await screen.findByText('Loose Cannon');
 
-    await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Collect' }));
+    await user.click(within(row('Loose Cannon')).getByRole('button', { name: 'Take all — $4,000' }));
 
     await waitFor(() => expect(fetchMock.requestsMatching('/collect')).toHaveLength(1));
     // WALLET-7: `all` replaced `leaveFloat: false`. Same chips, and the flag

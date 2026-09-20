@@ -1,4 +1,10 @@
 /* Board 42 C4. Scroll only the record; the whisper stays at the bottom. */
+.profile-overview--embedded{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.profile-overview--embedded .profile-overview__scroll{padding:14px 18px 18px}
+.profile-overview--embedded .profile-overview__identity{padding-bottom:6px}
+.profile-overview--embedded .profile-overview__resource>i{flex:1;max-width:220px}
+.profile-overview--embedded .profile-overview__nature span{color:var(--text-muted)}
+.profile-overview--embedded .profile-overview__recent-row>time{color:var(--text-muted)}
 .profile-overview__scroll{flex:1;min-height:0;overflow:auto;padding:14px 14px 0}
 .profile-overview__identity{display:flex;align-items:center;gap:13px;padding-bottom:13px}
 .profile-overview__identity>svg{flex-shrink:0}

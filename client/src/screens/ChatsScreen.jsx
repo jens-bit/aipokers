@@ -1,3 +1,5 @@
+import { identityOf } from '../lib/identity.js';
+import { equipmentOf } from '../../../src/shared/wardrobe.js';
 // NAV-1b — full port of mood-screens-a.jsx (roster) + mood-screens-b.jsx (thread).
 // Roster = HomeScreenM. Thread = ThreadScreen. Both in this file.
 
@@ -21,6 +23,8 @@ import { NotYet } from '../components/ftu/NotYet.jsx';
 // is not on the felt yet, so there is nothing to hold a spinner over.
 const ReplayTheatre = lazy(() => import('../components/replay/ReplayTheatre.jsx').then((m) => ({ default: m.ReplayTheatre })));
 import { AgentView } from '../components/agent/AgentView.jsx';
+import { AgentWardrobe } from '../components/agent/AgentWardrobe.jsx';
+const AgentProfileScreen = lazy(() => import('./AgentProfileScreen.jsx').then(m => ({ default: m.AgentProfileScreen })));
 import { useCommandAgent } from '../lib/useCommandAgent.js';
 import { useProposalAcceptance } from '../lib/useProposalAcceptance.js';
 import { savedChatMessage } from '../lib/conversationReports.js';
@@ -87,7 +91,7 @@ function LiveDot() {
   return <span style={{ width: 5, height: 5, borderRadius: '50%', background: M_TEAL, boxShadow: `0 0 6px ${M_TEAL}`, display: 'inline-block', flexShrink: 0 }} />;
 }
 
-function AgentRow({ name, accent, mood, heat = 45, state, msg, pnl, time, unread, proposal, grew, onClick }) {
+function AgentRow({ agent, name, accent, mood, heat = 45, state, msg, pnl, time, unread, proposal, grew, onClick }) {
   const moodColor = MOODS[mood]?.color ?? M_MUTED;
   return (
     <button
@@ -105,7 +109,7 @@ function AgentRow({ name, accent, mood, heat = 45, state, msg, pnl, time, unread
         background: '#0A0F17', border: `1px solid ${accent}44`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden',
       }}>
-        <MoodGhost mood={mood} heat={heat} accent={accent} size={36} ring={false} />
+        <MoodGhost hood={agent ? identityOf(agent).hood : null} glow={agent ? identityOf(agent).glow.c : null} equipment={equipmentOf(agent)} mood={mood} heat={heat} accent={accent} size={36} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
@@ -196,11 +200,11 @@ function ProposalCard({ proposal, agentProfile, accent, accepting, onAccept, onD
   );
 }
 
-function AgentCardMsg({ mood, accent, heat = 45, children }) {
+function AgentCardMsg({ agent, mood, accent, heat = 45, children }) {
   return (
     <div style={{ display: 'flex', gap: 9, padding: '0 14px', marginBottom: 9, alignItems: 'flex-end' }}>
       <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#0A0F17', border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-        <MoodGhost mood={mood} heat={heat} accent={accent} size={27} ring={false} />
+        <MoodGhost hood={agent ? identityOf(agent).hood : null} glow={agent ? identityOf(agent).glow.c : null} equipment={equipmentOf(agent)} mood={mood} heat={heat} accent={accent} size={27} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         {children}
@@ -334,7 +338,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
             const mood   = moodOf(agent);
             const heat   = heatOf(agent);
             return (
-              <AgentRow
+              <AgentRow agent={agent}
                 key={agent.id}
                 name={agent.name}
                 accent={accent}
@@ -375,7 +379,7 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
             const heat   = heatOf(agent);
             const state  = stateOf(agent);
             return (
-              <AgentRow
+              <AgentRow agent={agent}
                 key={agent.id}
                 name={agent.name}
                 accent={accent}
@@ -415,12 +419,12 @@ function ChatsRoster({ agents, loading, onSelectAgent, onCreateAgent }) {
 
 // ── Thread atoms (mood-screens-b.jsx port) ────────────────────────────────
 
-function AgentBubble({ mood, accent, heat = 45, training, children }) {
+function AgentBubble({ agent, mood, accent, heat = 45, training, children }) {
   const moodColor = MOODS[mood]?.color ?? M_MUTED;
   return (
     <div style={{ display: 'flex', gap: 9, padding: `0 14px`, marginBottom: 9, alignItems: 'flex-end' }}>
       <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: '#0A0F17', border: `1px solid ${accent}44`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden' }}>
-        <MoodGhost mood={mood} heat={heat} accent={accent} size={27} ring={false} />
+        <MoodGhost hood={agent ? identityOf(agent).hood : null} glow={agent ? identityOf(agent).glow.c : null} equipment={equipmentOf(agent)} mood={mood} heat={heat} accent={accent} size={27} ring={false} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
@@ -558,7 +562,7 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
           cursor: open ? 'pointer' : 'default',
         }}
       >
-        <MoodGhost mood={mood} heat={heat} accent={accent} size={38} ring={false} />
+        <MoodGhost hood={agent ? identityOf(agent).hood : null} glow={agent ? identityOf(agent).glow.c : null} equipment={equipmentOf(agent)} mood={mood} heat={heat} accent={accent} size={38} ring={false} />
       </button>
 
       <button
@@ -593,7 +597,7 @@ function ThreadHeader({ agent, accent, mood, heat = 45, onBack, onOpenProfile })
 // top-right avatar (job 9). ChatsScreen below is still the composition of the
 // two and is still what the roster sheet's route resolves to; nothing on the
 // tab bar reaches its list half any more.
-export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange }) {
+export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, companion = false, onDeploy, onWatch, onCarry, draftValue, onDraftChange, initialTab = 'chat', onTabChange }) {
   const [agent, acceptCommand] = useCommandAgent(suppliedAgent);
   const privateRead = usePrivateAgentRefresh(suppliedAgent?.id, acceptCommand);
   const userId   = getUserId();
@@ -779,7 +783,12 @@ export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, compa
     );
   }
 
-  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} externalError={proposalError || sendError} />;
+  if (companion) return <AgentView key={agent.id} agent={agent} mood={localMood} heat={localHeat} chat={chat} loading={loading} draft={draft} setDraft={setDraft} send={send} inputRef={inputRef} feedRef={feedRef} onBack={onBack} onOpenProfile={onOpenProfile} onDeploy={onDeploy} onWatch={onWatch} onCarry={onCarry} onReplay={setReplayHand} onAccept={handleAccept} accepting={proposalAccepting} externalError={proposalError || sendError}
+    initialTab={initialTab}
+    onTabChange={onTabChange}
+    statsContent={<Suspense fallback={<p role="status">Loading stats…</p>}><AgentProfileScreen embedded agent={agent}/></Suspense>}
+    wardrobeContent={({onPreview, onSaved}) => <AgentWardrobe agent={agent} onPreview={onPreview} onSaved={onSaved}/>}
+    onAppearanceSaved={updated => acceptCommand({profileRefresh:true, agent:updated})}/>;
 
   return (
     <div className="dr-app" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}>
@@ -816,7 +825,7 @@ export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, compa
         {chat.map((msg) => {
           if (msg.role === 'proposal') {
             return (
-              <AgentCardMsg key={msg._id} mood={localMood} heat={localHeat} accent={accent}>
+              <AgentCardMsg agent={agent} key={msg._id} mood={localMood} heat={localHeat} accent={accent}>
                 <ProposalCard
                   proposal={msg.proposal}
                   agentProfile={agent.profile}
@@ -865,7 +874,7 @@ export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, compa
           }
           if (msg.role === 'assistant') {
             return (
-              <AgentBubble key={msg._id} mood={localMood} heat={localHeat} accent={accent} training={msg.training}>
+              <AgentBubble agent={agent} key={msg._id} mood={localMood} heat={localHeat} accent={accent} training={msg.training}>
                 {msg.content}
               </AgentBubble>
             );
@@ -873,7 +882,7 @@ export function AgentThread({ agent: suppliedAgent, onBack, onOpenProfile, compa
           return <OwnerBubble key={msg._id}>{msg.content}</OwnerBubble>;
         })}
         {loading && (
-          <AgentBubble mood={localMood} heat={localHeat} accent={accent}>
+          <AgentBubble agent={agent} mood={localMood} heat={localHeat} accent={accent}>
             <span className="dr-typing"><i /><i /><i /></span>
           </AgentBubble>
         )}

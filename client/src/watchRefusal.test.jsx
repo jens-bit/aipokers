@@ -8,6 +8,18 @@ import {restingAgent} from './test/fixtures/agents.js';
 import {midHandGame,spectatorConfig} from './test/fixtures/game.js';
 
 afterEach(()=>vi.restoreAllMocks());
+it('BUG-279: a hungry deployment keeps its recovery remedy through the wire and returns Home without retrying', async () => {
+  const socket = await refusedLink();
+  act(() => socket.emit({ type: 'error', message: 'Two snacks should do it.', refusal: {
+    error: 'agentSpent', kind: 'food', needs: 'stock', action: 'feed', snacksNeeded: 2, stock: 0,
+  } }));
+  expect(await screen.findByText('Time to recover')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('Buy snacks from the fridge at Home. He will eat while you watch the room.');
+  const count = socket.sent.filter(frame => frame.type === 'watch').length;
+  await userEvent.click(screen.getByRole('button', { name: 'Back home', exact: true }));
+  expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
+  expect(socket.sent.filter(frame => frame.type === 'watch')).toHaveLength(count);
+});
 async function refusedLink(desktop=false){
   if(desktop)vi.spyOn(window,'matchMedia').mockImplementation(query=>({matches:query.includes('1100'),media:query,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}}));
   telegram.signIn();telegram.startWith('table_home-someone-else');

@@ -253,10 +253,10 @@ export function spendStamina(agent, hands, {
  * sleeping agent can genuinely wake him — but only by getting him all the way
  * back to rested, which at SNACK-sized amounts takes more than one.
  */
-export function feedStamina(agent, amount, { now = Date.now() } = {}) {
+export function feedStamina(agent, amount, { now = Date.now(), resting = true } = {}) {
   if (!agent) return STAMINA_MAX;
   const gain = Math.max(0, num(amount) ?? 0);
-  const before = staminaNow(agent, { now, resting: true });
+  const before = staminaNow(agent, { now, resting });
   const was = staminaStage(before, storedStage(agent));
   const left = clamp(before + gain);
   agent.stamina = {
@@ -279,7 +279,10 @@ export function restStamina(agent, { now = Date.now() } = {}) {
   if (!agent) return STAMINA_MAX;
   const left = staminaNow(agent, { now, resting: true });
   agent.stamina = {
-    left: Math.round(left * 10) / 10,
+    // Keep fractional recovery when banking the clock. Rounding each read
+    // discarded rest on frequent Home pushes and amplified it on slower
+    // polls. Presentation rounds in staminaPercent; storage retains time.
+    left,
     at: now,
     stage: staminaStage(left, storedStage(agent)),
   };

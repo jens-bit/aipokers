@@ -37,6 +37,29 @@ function renderSheet(props = {}) {
   );
 }
 
+describe('BUG-280 — funding never calls an open buy-in a loss', () => {
+  const boughtIn = { ...aggressiveAgent, pocket: { ...aggressiveAgent.pocket, pnl: -2000 } };
+
+  it.each([[0, '$0'], [450, '+$450'], [-90, '−$90']])('shows confirmed casino session net %s', (net, text) => {
+    renderSheet({ agent: { ...boughtIn, liveGame: { tableId: 'tbl-1', net } } });
+    expect(screen.getByText('session net').parentElement).toHaveTextContent(text);
+    expect(screen.queryByText('−$2,000')).not.toBeInTheDocument();
+  });
+
+  it('omits the result while casino net is unknown', () => {
+    renderSheet({ agent: boughtIn });
+    expect(screen.queryByText('his net')).not.toBeInTheDocument();
+    expect(screen.queryByText('session net')).not.toBeInTheDocument();
+    expect(screen.queryByText('−$2,000')).not.toBeInTheDocument();
+  });
+
+  it('does not let Home practice replace settled pocket money', () => {
+    renderSheet({ agent: { ...boughtIn, liveGame: { tableId: 'home-42', net: 9999 } } });
+    expect(screen.getByText('his net').parentElement).toHaveTextContent('−$2,000');
+    expect(screen.queryByText('+$9,999')).not.toBeInTheDocument();
+  });
+});
+
 it('BUG-146: an unconfirmed wallet disables funding controls while Cancel and Back remain available', async () => {
   const onCancel = vi.fn(), onConfirm = vi.fn();
   renderSheet({ disabled: true, onCancel, onConfirm });
@@ -62,6 +85,72 @@ const amountField = () => screen.getByLabelText('Amount to give');
 const takeAmountField = () => screen.getByLabelText('Amount to take');
 const giveButton = () => within(document.querySelector('.wal-sheet__foot'))
   .getByRole('button', { name: 'Give him chips' });
+
+describe('BUG-280 — transfer uncommitted chips', () => {
+  beforeEach(() => { telegram.signIn(); });
+
+  it('accepts a single chip and makes the resulting pocket explicit', async () => {
+    const onConfirm = vi.fn();
+    renderSheet({ onConfirm });
+    await userEvent.clear(amountField());
+    await userEvent.type(amountField(), '1');
+    expect(amountField()).toHaveAttribute('step', '1');
+    expect(screen.getByText(/Pocket after giving/)).toHaveTextContent('$2,101');
+    await userEvent.click(giveButton());
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'give', amount: 1, cap: 1, refill: false });
+  });
+
+  it('can choose the whole safe and rejects fractional transfers instead of rounding them silently', async () => {
+    renderSheet({ wallet: { ...wallet, balance: 2341 } });
+    await userEvent.click(screen.getByRole('button', { name: 'All from safe' }));
+    expect(amountField()).toHaveValue(2341);
+    expect(giveButton()).toBeEnabled();
+    await userEvent.clear(amountField());
+    await userEvent.type(amountField(), '1.5');
+    expect(giveButton()).toBeDisabled();
+    await userEvent.clear(takeAmountField());
+    await userEvent.type(takeAmountField(), '1.5');
+    expect(screen.getByRole('button', { name: 'Take $1.50' })).toBeDisabled();
+  });
+
+  it('keeps empty seated pockets visible without offering the committed stack for transfer', () => {
+    renderSheet({ agent: { ...aggressiveAgent, liveGame: { heroStack: 19326 }, pocket: { ...aggressiveAgent.pocket, balance: 0 } } });
+    expect(screen.getByText(/At table:.*19,326/)).toBeInTheDocument();
+    expect(screen.getByText(/Chips and bets at the table stay committed/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take his chips' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Call him in' })).toBeEnabled();
+  });
+
+  it('reports a failed transfer and retains the edited amount for retry', async () => {
+    const onConfirm = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({});
+    renderSheet({ onConfirm });
+    await userEvent.clear(amountField());
+    await userEvent.type(amountField(), '137');
+    await userEvent.click(giveButton());
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not move the chips');
+    expect(amountField()).toHaveValue(137);
+    await userEvent.click(giveButton());
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+  });
+
+  it('takes the current whole pocket instead of sending a stale displayed ceiling', async () => {
+    const onConfirm = vi.fn();
+    renderSheet({ onConfirm });
+    await userEvent.click(screen.getByRole('button', { name: 'Take all of it — $2,100' }));
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'take', amount: null });
+  });
+
+  it('labels the existing refill bounds honestly for small and large arbitrary transfers', async () => {
+    renderSheet({ wallet: { ...wallet, balance: 50000 } });
+    await userEvent.clear(amountField());
+    await userEvent.type(amountField(), '137');
+    expect(screen.getByRole('checkbox')).toHaveAccessibleName('Refill from the wallet when he busts (cap $2,000)');
+    await userEvent.clear(amountField());
+    await userEvent.type(amountField(), '12345');
+    expect(screen.getByRole('checkbox')).toHaveAccessibleName('Refill from the wallet when he busts (cap $10,000)');
+    expect(giveButton()).toBeEnabled();
+  });
+});
 
 describe('WUI-2 — where he stands', () => {
   beforeEach(() => { telegram.signIn(); });
@@ -146,14 +235,15 @@ describe('WALLET-7 — two verbs, not four modes', () => {
     expect(amountField()).toHaveValue(3500);
   });
 
-  it('states what the amount buys — bigger pocket, bigger stakes', async () => {
+  it('states the resulting pocket without promising an automatic change of stakes', async () => {
     const user = userEvent.setup();
     renderSheet();
-    // He is on a 5,000 roll, which is the $25/$50 rung.
-    expect(screen.getByText(/seats him at/)).toHaveTextContent('$25/$50');
+    // BUG-280: this is an added transfer, not a replacement pocket or a buy-in.
+    expect(screen.getByText(/Pocket after giving/)).toHaveTextContent('$7,100');
 
     await user.click(body().getByRole('button', { name: '$2,000' }));
-    expect(screen.getByText(/seats him at/)).toHaveTextContent('$10/$20');
+    expect(screen.getByText(/Pocket after giving/)).toHaveTextContent('$4,100');
+    expect(screen.getByText(/Choose stakes when sending him to play/)).toBeInTheDocument();
   });
 
   it('will not give him an empty or zero amount', async () => {
@@ -324,7 +414,7 @@ describe('UI-3 job C — taking his chips, a genuine third verb', () => {
     const onConfirm = vi.fn();
     renderSheet({ onConfirm });
     await user.click(body().getByRole('button', { name: /Take all of it/ }));
-    expect(onConfirm).toHaveBeenCalledWith({ verb: 'take', amount: 2100 });
+    expect(onConfirm).toHaveBeenCalledWith({ verb: 'take', amount: null });
   });
 });
 

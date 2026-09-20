@@ -45,12 +45,14 @@ import {
 } from '../components/casino/CasinoBuilding.jsx';
 import { CasinoTicker } from '../components/casino/CasinoTicker.jsx';
 import { YourTables } from '../components/casino/YourTables.jsx';
+import { CasinoBarSheet } from '../components/casino/CasinoBarSheet.jsx';
 import { FloorView, tableIdOf, casinoTableIdOf } from '../components/casino/FloorView.jsx';
 import { FundSheet } from '../components/wallet/FundSheet.jsx';
 import { useCasinoRooms, roomForBlinds, agentsByRoom, totalSeated } from '../hooks/useCasinoRooms.js';
 import { useCasinoEvents } from '../lib/events.js';
 import { fetchWallet, fundAgent, money, pocketOf } from '../lib/wallet.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
+import { recoveryHint } from '../lib/recovery.js';
 import { HomeThread } from '../components/home/HomeThread.jsx';
 // BUG-156: the building's own sheet, and the desk shell's, travel with the
 // chunk that draws them instead of with every phone entry.
@@ -137,9 +139,11 @@ export function CasinoScreen({
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [playRoomId, setPlayRoomId] = useState(null);
   const [fundTarget, setFundTarget] = useState(null);
+  const [fundRefreshFailed, setFundRefreshFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [playAgentId, setPlayAgentId] = useState(null);
   const [playError, setPlayError] = useState('');
+  const [playRefusal, setPlayRefusal] = useState(null);
   const [pendingTable, setPendingTable] = useState(null);
   const [placedAgentId, setPlacedAgentId] = useState(null);
   const [zoom, setZoom] = useState(null);
@@ -158,6 +162,7 @@ export function CasinoScreen({
     setPendingTable(null);
   }, []);
   const [conversationId, setConversationId] = useState(null);
+  const [barOpen, setBarOpen] = useState(false);
   const [threadOpen, setThreadOpen] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -195,8 +200,11 @@ export function CasinoScreen({
   }, [agents, placedAgentId]);
 
   const refreshWallet = useCallback(async () => {
-    setWallet(await fetchWallet());
+    const freshWallet = await fetchWallet();
+    setWallet(freshWallet);
     await loadAgents();
+    if (freshWallet) setFundRefreshFailed(false);
+    return freshWallet;
   }, [loadAgents]);
 
   useEffect(() => { refreshWallet(); }, [refreshWallet]);
@@ -279,11 +287,14 @@ export function CasinoScreen({
 
   async function handleFund(decision) {
     if (!fundTarget) return;
-    try {
-      await fundAgent(fundTarget.id, decision);
-      await refreshWallet();
-      setFundTarget(null);
-    } catch { /* the sheet stays open, the choice is not lost */ }
+    // BUG-280: the shared sheet retains the amount and reports a refusal.
+    const receipt = await fundAgent(fundTarget.id, decision);
+    setFundTarget(null);
+    // A confirmed receipt cannot become a failed transfer merely because
+    // the follow-up balance request failed. Close it and retry only the read.
+    try { setFundRefreshFailed(!(await refreshWallet())); }
+    catch { setFundRefreshFailed(true); }
+    return receipt;
   }
 
   // "Deal him in" — the existing queue path, with the chosen stake attached.
@@ -295,6 +306,7 @@ export function CasinoScreen({
     const entry = playEntry.current;
     const stillHere = () => mounted.current && playEntry.current === entry;
     setPlayError('');
+    setPlayRefusal(null);
     setBusy(true);
     try {
       const res = await fetch(`/api/agents/${encodeURIComponent(trayAgent.id)}/queue`, {
@@ -309,6 +321,7 @@ export function CasinoScreen({
       const payload = await res.json();
       if (!stillHere()) return;
       if (!res.ok) {
+        setPlayRefusal(payload?.error === 'agentSpent' ? payload : null);
         const message = typeof payload?.message === 'string' ? payload.message
           : typeof payload?.error === 'string' && /\s/.test(payload.error) ? payload.error : null;
         setPlayError(message || (payload?.error === 'cantAfford'
@@ -337,6 +350,7 @@ export function CasinoScreen({
   async function playOnFloor(agent, room) {
     if (!agent || !room || playInFlight.current || pendingTable) return;
     setPlayError('');
+    setPlayRefusal(null);
     if (!canAfford(pocketOf(agent), room) || pocketOf(agent)?.mode === 'cut') {
       setFundTarget(agent);
       return;
@@ -356,6 +370,7 @@ export function CasinoScreen({
       // only retires this entry's right to navigate or open a funding sheet.
       if (!stillHere()) return;
       if (!res.ok) {
+        setPlayRefusal(payload?.error === 'agentSpent' ? payload : null);
         if (res.status === 402 || payload?.error === 'cantAfford') {
           setFundTarget(payload?.pocket ? { ...agent, pocket: payload.pocket } : agent);
         }
@@ -405,6 +420,7 @@ export function CasinoScreen({
     <FundSheet
       agent={fundTarget}
       wallet={wallet}
+      disabled={!wallet || fundRefreshFailed}
       index={agents.findIndex((a) => a.id === fundTarget.id)}
       onCancel={() => setFundTarget(null)}
       onConfirm={handleFund}
@@ -456,7 +472,10 @@ export function CasinoScreen({
         selectedId={selectedRoomId}
         onSelect={selectStake}
       />
-      {playError && <p className="csn-deploy__error" role="alert">{playError}</p>}
+      {playError && <div className="csn-deploy__error" role="alert"><p>{playError}</p>
+        {recoveryHint(playRefusal) && <><p>{recoveryHint(playRefusal)}</p>
+          {onBack && <button type="button" onClick={onBack}>Recover at Home</button>}</>}
+      </div>}
     </div>
   ) : (!zoom && onDeployed && (pendingTable || playAgent)) ? (
     <div className="csn-floor-play" data-testid="casino-play">
@@ -489,7 +508,10 @@ export function CasinoScreen({
             ? `Send ${playAgent.name} to play` : `Fund ${playAgent.name} to play`}
         </button>
       </>}
-      {playError && <p role="alert">{playError}</p>}
+      {playError && <div role="alert"><p>{playError}</p>
+        {recoveryHint(playRefusal) && <><p>{recoveryHint(playRefusal)}</p>
+          {onBack && <button type="button" onClick={onBack}>Recover at Home</button>}</>}
+      </div>}
     </div>
   ) : null;
 
@@ -545,6 +567,7 @@ export function CasinoScreen({
       onWatch={onSpectate ? watchTable : null}
       onHome={onBack}
       onOpenRoster={desktop ? null : onOpenRoster}
+      onOpenBar={() => setBarOpen(true)}
       desktop={desktop}
       headerOwned={!!headerPortal}
       ticker={desktop ? null : ticker}
@@ -559,11 +582,16 @@ export function CasinoScreen({
       style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: M_BG }}
     >
       {headerPortal}
+      {fundRefreshFailed && <div className="safe__read-state" role="status">
+        <p>Chips moved. Refresh the safe before making another transfer.</p>
+        <button type="button" className="safe__retry" onClick={() => refreshWallet().catch(() => {})}>Refresh safe</button>
+      </div>}
       {desktop && ticker}
       {desktop && yourTables}
       {floor}
       {tray}
       {conversation}
+      {barOpen && <CasinoBarSheet agents={agents} onClose={() => setBarOpen(false)} onChanged={refreshWallet}/>}
     </div>
   );
 }

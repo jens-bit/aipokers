@@ -44,6 +44,7 @@
 import { useId } from 'react';
 import { ghostFace, ghostBrow } from './GhostFace.jsx';
 import { ghostHands } from './GhostHands.jsx';
+import { GhostClothes } from './GhostClothes.jsx';
 
 /** What this atom drew before wave 56, and still draws for every caller that asks for no hood. */
 const HOOD_DEFAULT = { top: '#141A22', bot: '#0A0F17' };
@@ -61,7 +62,7 @@ export function MoodGhost({
   tone, heat = 45, event, hands, bet, won, brow,
   // HOME-2 job 3 — who he is. `hood` is one of lib/identity.js's six; `glow` is
   // the colour string off one of its six glows.
-  hood = null, glow: glowCol = null,
+  hood = null, glow: glowCol = null, equipment,
 }) {
   const uid = useId().replace(/:/g, '');
   const m = MOODS[mood] || MOODS.neutral;
@@ -99,8 +100,9 @@ export function MoodGhost({
         : <path d="M40 12 C26 12 18 24 18 42 L18 80 L62 80 L62 42 C62 24 54 12 40 12 Z"
             fill={`url(#mh${uid})`} stroke={ring ? `${rim}66` : 'transparent'} strokeWidth="1.4" />}
       <ellipse cx="40" cy={cy} rx="13.5" ry="16.5" fill="#04070C" />
-      {ghostFace({ mood, heat, size, event, eye, cy })}
+      {ghostFace({ mood, heat, size, event, eye, cy, fixedEye: !!glowCol })}
       {brow && ghostBrow({ brow, eye, cy })}
+      {equipment && <GhostClothes equipment={equipment} cy={cy}/>}
       {hands && ghostHands({ pose: hands, size, bet, won })}
     </svg>
   );

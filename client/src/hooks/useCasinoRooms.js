@@ -41,6 +41,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { storedIdentity } from '../lib/identity.js';
+import { equipmentOf } from '../../../src/shared/wardrobe.js';
 import { ClientMsg, ServerMsg } from '../lib/protocol.js';
 import { getTelegramInitData, getUserId } from '../lib/telegram.js';
 
@@ -196,6 +197,7 @@ export function normalizeFelts(raw) {
         stack: Math.max(0, num(s?.stack)),
         accentColor: typeof s?.accentColor === 'string' ? s.accentColor : null,
         identity: seatIdentity(s),
+        equipment: equipmentOf(s),
         mood: s?.mood ?? null,
         fatigue: s?.fatigue ?? null,
         drinking: !!s?.drinking,

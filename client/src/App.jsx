@@ -98,7 +98,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   const table = useTable({ wsUrl: WS_URL });
   const {
     game, mySeat, legalActions, history,
-    error, dismissError, status,
+    error, errorDetails, dismissError, status,
     reconnectAttempt, maxReconnectAttempts,
     config, act, deal, rename,
     chatMessages, sendChat,
@@ -148,6 +148,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   const activeAgentIdRef = useRef(null); // stable ref avoids stale-closure in handleLeave
   const [editingAgent, setEditingAgent] = useState(null); // full agent object for CHAT editing
   const [agentChatTarget, setAgentChatTarget] = useState(null);
+  const [agentChatTab, setAgentChatTab] = useState('chat');
   // A Profile or Watch visit unmounts the thread. Its unsent words belong to
   // this owner and this agent, and stay in memory until sent or the app closes.
   const [agentDrafts, setAgentDrafts] = useState(() => new Map());
@@ -301,10 +302,11 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   // that must never see a stale copy.
   const chatOriginRef = useRef(null);
 
-  function openAgentChat(agent, origin = null) {
+  function openAgentChat(agent, origin = null, tab = 'chat') {
     cancelWatch();
     chatOriginRef.current = origin ?? { tab: activeTab, profileAgent: null };
     setAgentChatTarget(agent);
+    setAgentChatTab(tab);
     setActiveTab('chats');
   }
 
@@ -321,7 +323,13 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
   }
 
   function openAgentProfile(agent) {
+    const origin = activeTab === 'chats' && agentChatTarget?.id === agent.id ? chatOriginRef.current : null;
+    openAgentChat(agent, origin, 'stats');
+  }
+
+  function openAgentSheet(agent) {
     cancelWatch();
+    if (agentChatTarget?.id === agent.id) setAgentChatTarget(agent);
     setAgentProfileTarget(agent);
   }
 
@@ -641,11 +649,13 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     return (
       <Suspense fallback={null}>
       <DesktopHome
+        observing={!guest.wall}
         birthHandledId={newlyBornAgent?.id ?? null}
         tableConfig={config}
         sessionEnd={findSessionEnd(history)}
         onRebuy={() => { const nextGame = { ...config }; disconnect(); connect(nextGame); }}
         tableError={error}
+        tableErrorDetails={errorDetails}
         chatMessages={chatMessages}
         mySeat={mySeat}
         legalActions={legalActions}
@@ -748,6 +758,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
           <Suspense fallback={null}>
           <AgentProfileScreen
             companion
+            initialDetails
             agent={agentProfileTarget}
             onBack={() => { cancelWatch(); setAgentProfileTarget(null); }}
             onFund={() => { setAgentProfileTarget(null); navigateToMoney(); }}
@@ -833,6 +844,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
               still draws it — it just is not a mobile tab any more. */}
           {activeTab === 'home' && (
             <HomeScreen
+              observing={!rosterOpen && !guest.wall}
               guideEnabled={!rosterOpen && !guest.wall}
               onReplay={(agent, hand) => replayEvent({agentIds:[agent.id],handNumber:hand.handNumber,origin:'home'})}
               wsUrl={WS_URL}
@@ -954,10 +966,12 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
               key={agentDraftKey}
               companion
               agent={agentChatTarget}
+              initialTab={agentChatTab}
+              onTabChange={setAgentChatTab}
               draftValue={agentDrafts.get(agentDraftKey) ?? ''}
               onDraftChange={saveAgentDraft}
               onBack={closeAgentChat}
-              onOpenProfile={openAgentProfile}
+              onOpenProfile={openAgentSheet}
               onDeploy={placeInCasino}
               onWatch={watchCompanion}
               onCarry={(agent) => { setCarryAgentId(agent.id); setAgentChatTarget(null); setActiveTab('home'); }}
@@ -999,6 +1013,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
       <WatchScreen
         seated
         error={error}
+        errorDetails={errorDetails}
         game={game}
         mySeat={mySeat}
         legalActions={legalActions}
@@ -1028,6 +1043,7 @@ function AppShell({ guest, guestBoot, onVisitNotice, initialVisitHandled, onBirt
     return (
       <WatchScreen
         error={error}
+        errorDetails={errorDetails}
         // W5-1: the paced bundle, not the live one. `paced.game` is null only
         // before the first snapshot, which is the same moment `game` is.
         game={paced.game}

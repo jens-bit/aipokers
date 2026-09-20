@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 // The 92px live felt in mood-home2.jsx:TableSheet. Reads the room's existing
 // spectator snapshot; opens no socket and never draws private hole cards.
 import { PlayingCard } from '../system/PlayingCard.jsx';
@@ -24,7 +25,7 @@ export function HomeTablePreview({ game = null, liveTable = null, agents = [] })
         const left = seats.length === 1 ? 50 : seats.length === 2 ? (index ? 68.7 : 31.3) : (index + 0.5) * 100 / seats.length;
         return <span key={seat.agentId || `seat-${seat.seat ?? index}`} className="table-sheet__portrait"
           style={{ left: `${left}%` }} role="img" aria-label={name}>
-          {agent ? <span aria-hidden="true"><MoodGhost size={22} mood={agent.mood?.state ?? 'neutral'} heat={agent.mood?.heat}
+          {agent ? <span aria-hidden="true"><MoodGhost equipment={equipmentOf(agent)} size={22} mood={agent.mood?.state ?? 'neutral'} heat={agent.mood?.heat}
             hood={identity?.hood} glow={identity?.glow?.c} /></span>
             : <span className="table-sheet__seat-name">{name}</span>}
         </span>;

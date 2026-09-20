@@ -31,6 +31,52 @@ function renderPanel(props = {}) {
 
 const row = (name) => screen.getByText(name).closest('.wal-row');
 
+describe('BUG-280 — desktop pocket transfers', () => {
+  beforeEach(() => { telegram.signIn(); });
+  it('takes all uncommitted principal without calling the agent in', async () => {
+    const onFund = vi.fn(), onCallIn = vi.fn();
+    const principal = { ...balancedAgent, pocket: { ...balancedAgent.pocket, collectable: 0, pnl: 0 } };
+    renderPanel({ agents: [principal], onFund, onCallIn });
+    await userEvent.click(screen.getByRole('button', { name: 'Take all — $6,400' }));
+    expect(onFund).toHaveBeenCalledWith(principal, { verb: 'take', amount: null });
+    expect(onCallIn).not.toHaveBeenCalled();
+  });
+
+  it('exposes a free take amount and preserves the draft when the host rejects it', async () => {
+    const onFund = vi.fn().mockRejectedValue(new Error('offline'));
+    renderPanel({ agents: [balancedAgent], onFund });
+    await userEvent.click(screen.getByRole('button', { name: 'Choose amount' }));
+    await userEvent.clear(screen.getByLabelText('Amount to take'));
+    await userEvent.type(screen.getByLabelText('Amount to take'), '137');
+    await userEvent.click(screen.getByRole('button', { name: 'Take $137' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not move the chips');
+    expect(screen.getByLabelText('Amount to take')).toHaveValue(137);
+    expect(onFund).toHaveBeenCalledWith(balancedAgent, { verb: 'take', amount: 137 });
+  });
+
+  it('shows an empty seated pocket without exposing its table stack as transferable', () => {
+    renderPanel({ agents: [{ ...balancedAgent, liveGame: { heroStack: 19326 }, pocket: { ...balancedAgent.pocket, balance: 0 } }] });
+    expect(screen.getByText(/At table:.*19,326/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take all — $0' })).toBeDisabled();
+  });
+
+  it('closes a confirmed transfer and blocks stale money controls until a failed refresh is retried', async () => {
+    const onFund = vi.fn().mockResolvedValue({ moved: 137, refreshFailed: true });
+    const onRetry = vi.fn().mockResolvedValue({ balance: 137 });
+    renderPanel({ agents: [balancedAgent], onFund, onRetry });
+    await userEvent.click(screen.getByRole('button', { name: 'Choose amount' }));
+    await userEvent.clear(screen.getByLabelText('Amount to take'));
+    await userEvent.type(screen.getByLabelText('Amount to take'), '137');
+    await userEvent.click(screen.getByRole('button', { name: 'Take $137' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('Chips moved');
+    expect(screen.getByRole('button', { name: /Take all/ })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.getByRole('button', { name: /Take all/ })).toBeEnabled();
+    expect(onFund).toHaveBeenCalledOnce();
+  });
+});
+
 describe('DP-2 — the wallet in the rail', () => {
   beforeEach(() => { telegram.signIn(); });
 
@@ -43,9 +89,9 @@ describe('DP-2 — the wallet in the rail', () => {
   // The line comes from PocketList, once. The desktop ref writes it four words
   // longer; a second copy on the panel to gain them would be a duplicate of
   // the sentence, which is the thing this port exists to avoid.
-  it('carries the ref line once: the pocket is the bet', () => {
+  it('labels the transferable pocket separately from a committed buy-in', () => {
     expect(renderPanel().container.querySelectorAll('.wal-pockets')).toHaveLength(1);
-    expect(screen.getAllByText(/pocket size sets his stakes/)).toHaveLength(1);
+    expect(screen.getAllByText(/uncommitted chips only/)).toHaveLength(1);
   });
 
   it('draws one pocket row per agent that has one', () => {
@@ -177,13 +223,13 @@ describe('DP-2 — funding from the rail', () => {
     expect(screen.getByText('Balanced v2.1')).toBeInTheDocument();
   });
 
-  it('collecting raises the agent, and the panel does not guess at the money', async () => {
+  it('taking raises the agent and whole-pocket decision, and the panel does not guess at the money', async () => {
     const user = userEvent.setup();
-    const onCollect = vi.fn();
-    renderPanel({ onCollect });
+    const onFund = vi.fn();
+    renderPanel({ onFund });
 
-    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Collect' }));
-    expect(onCollect).toHaveBeenCalledWith(balancedAgent);
+    await user.click(within(row('Balanced v2.1')).getByRole('button', { name: 'Take all — $6,400' }));
+    expect(onFund).toHaveBeenCalledWith(balancedAgent, { verb: 'take', amount: null });
     // The figure on screen is still the one the server last gave us.
     expect(screen.getByText('$2,340.50')).toBeInTheDocument();
   });

@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 // client/src/components/desktop/DeskRoster.jsx — DESK-3
 //
 // The left column, permanently. Board 31 wave 58 addendum
@@ -23,7 +24,7 @@ function DeskRosterRow({agent,active,onClick}) {
   const {where,detail}=rosterWhereabouts(agent);
   const line=agent.want?.text || detail;
   return <button type="button" className={`dsk-roster-row dsk-roster-row--home${active?' is-active':''}`} onClick={onClick}>
-    <span className="dsk-roster-face"><MoodGhost size={38} ring={false} mood={moodOf(agent)} heat={heat} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>{hasUnread(agent)&&<i/>}</span>
+    <span className="dsk-roster-face"><MoodGhost equipment={equipmentOf(agent)} size={38} ring={false} mood={moodOf(agent)} heat={heat} hood={identity.hood} glow={identity.glow.c} accent={identity.glow.c}/>{hasUnread(agent)&&<i/>}</span>
     <span className="dsk-roster-row__text">
       <span className="dsk-roster-row__name-line"><span className="dsk-roster-row__name">{agent.name}</span><span className={`dsk-roster-place${live?' is-live':''}`}>{where}</span></span>
       <span className="dsk-roster-row__line">{line}{result.value!==null&&<span title={result.label}>{line ? ' · ' : ''}{signedMoney(result.value)}</span>}</span>

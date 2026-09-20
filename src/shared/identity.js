@@ -1,9 +1,9 @@
 // Shared reference identity — HOME-2 palette, persisted by the server at birth.
 //
-// WHO HE IS, ROLLED AT BIRTH AND FIXED FOR LIFE.
+// His colours are rolled at birth and permanent. Wardrobe adds removable items.
 //
-// Six hoods by six glows, thirty-six creatures. The roll happens once, from his
-// id, and nothing afterwards moves it: MOOD MOVES THE FACE, NEVER THE COLOUR.
+// Six hoods by six glows, thirty-six creatures. The initial roll uses his id.
+// Mood moves the face, never colour.
 // That is the whole point of drawing identity in colour and expression in
 // geometry — you can tell four agents apart while all four of them are tilted,
 // which is exactly the moment an owner most needs to.
@@ -11,8 +11,8 @@
 // Ported from design-refs/mood-atoms.jsx (`HOODS`, `GLOWS`, `h32`, `idFor`,
 // `rollRoster`), verbatim in its numbers. What this file adds is the seam to
 // the server: `identityOf` reads `agent.identity` when it is there and rolls
-// when it is not, so the day the server starts storing the roll, the client
-// stops guessing and nothing else changes.
+// when it is not. Persisted birth rolls therefore
+// render consistently in the room, character view and on the felt.
 //
 // ── Why the hoods are these six colours ────────────────────────────────────
 //
@@ -31,7 +31,7 @@
 // THE OWNER'S ROOM rather than about the hash. So the roll is a PREFERENCE and
 // the roster is the authority: a hood already worn in your room is taken, and
 // the next free one along is worn instead. Deterministic in birth order, which
-// is the right semantics — a hood is claimed at birth and never changes hands.
+// keeps new arrivals distinct. Existing birth rolls are always preserved.
 
 export const HOODS = [
   { id: 'ash',     name: 'ASH',     top: '#5A5F63', bot: '#383C40' },
@@ -104,7 +104,8 @@ export function storedIdentity(agent) {
  *
  * Use this where there IS no roster — a single agent on a felt full of other
  * people's, a notification, a card reached by deep link. In the owner's own
- * room, use `identitiesFor` instead: only the roster can promise four hoods.
+ * room, use `identitiesFor` instead: the roster assigns distinct initial hoods
+ * while preserving any explicit owner choices.
  */
 export function identityOf(agent) {
   return storedIdentity(agent) ?? { ...idFor(agent?.id ?? agent?.name), stored: false };

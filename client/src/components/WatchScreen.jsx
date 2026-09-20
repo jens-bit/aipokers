@@ -34,6 +34,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getUserId, getTelegramInitData } from '../lib/telegram.js';
 import { storedIdentity } from '../lib/identity.js';
+import { recoveryHint } from '../lib/recovery.js';
 import { MoodChip, StateTag } from './floor/atoms.jsx';
 import { ChipStack, BetSpot, PotChip, potBand, stackBand, SEAT_PILE_CHIPS } from './system/Chips.jsx';
 import { Bottle, isDrinking } from './system/FeltBodyBars.jsx';
@@ -474,7 +475,7 @@ function useFlyTo(rootRef, targets, deps) {
 //
 // It does not time out. A session ending is worth a tap.
 export function SessionCeremony({
-  won, busted, agentName, net, stack, hands, reason, mood, heat, accent,
+  won, busted, agentName, net, stack, hands, reason, mood, heat, accent, identity, equipment,
   onFund, onFloor, onTalk, talkLabel, human = false, onRebuy,
   // AGENT-5 job H · THE REASON, READ.
   //
@@ -580,6 +581,7 @@ export function SessionCeremony({
         {!human && <div className="watch-ceremony__ghost">
           <span className="watch-ceremony__aura" aria-hidden />
           <MoodGhost mood={mood || (won ? 'confident' : 'frustrated')}
+            hood={storedIdentity({identity})?.hood} glow={storedIdentity({identity})?.glow.c} equipment={equipment}
             accent={accent || '#00D4AA'} size={76} heat={Number.isFinite(heat) ? heat : 45}
             event={worn ? null : (won ? 'smug' : 'stunned')} ring={false} />
           {/* AGENT-5 job H: hands over the face is the pose for a beat that
@@ -833,6 +835,7 @@ export function WatchFelt({
     opponentSeats.push({
       seat: si,
       identity: s.identity ?? null,
+      equipment: s.equipment,
       accent: s.accentColor || '#00D4AA',
       mood: moodStateOf(s),
       heat: moodHeatOf(s),
@@ -1010,6 +1013,7 @@ export function WatchFelt({
             <SeatGhost
               name={o.name}
               identity={o.identity}
+              equipment={o.equipment}
               stack={geom ? potMoney(o.stack) : null}
               accent={o.accent}
               mood={o.mood}
@@ -1279,6 +1283,7 @@ export function WatchFelt({
           says={heroSays}
           mood={agentMood || moodStateOf(heroData)}
           hood={heroIdentity?.hood}
+          equipment={heroData?.equipment}
           glow={heroIdentity?.glow.c}
           accent={heroIdentity?.glow.c || agentAccent || '#00D4AA'}
           heat={Number.isFinite(agentHeat) ? agentHeat : moodHeatOf(heroData)}
@@ -1422,6 +1427,7 @@ export function seatSummary(game, seat) {
     // grouped by lib/wallet either way, never by the device's locale.
     stack: s.stack != null ? groupChips(s.stack) : null,
     identity: s.identity ?? null,
+    equipment: s.equipment,
     accent: s.accentColor || '#00D4AA',
     mood: moodStateOf(s),
     heat: moodHeatOf(s),
@@ -1487,9 +1493,10 @@ function useStackTick(target, delta, key) {
 // BUG-161: an explicit refusal before the first snapshot is not a live table.
 // Reuse the shell's error treatment and ordinary way home; valid games keep
 // their authored felt unchanged, including during a transient reconnect.
-export function WatchAccessNotice({ message, onBack }) {
+export function WatchAccessNotice({ message, onBack, refusal }) {
   return <div className="error-banner" role="alert" style={{ margin: 14, cursor: 'default' }}>
     <p style={{ margin: '0 0 12px' }}>{message}</p>
+    {recoveryHint(refusal) && <p>{recoveryHint(refusal)}</p>}
     <button type="button" className="watch-screen__chat" style={{ minHeight: 44 }} onClick={onBack}>Back home</button>
   </div>;
 }
@@ -1502,6 +1509,7 @@ export function WatchScreen({
   // the table has been writing while he was gone.
   connection = null,
   error = null,
+  errorDetails = null,
   // WATCH-9 · the lines the server has PUSHED since this socket opened
   // (THREAD_LINE). The fetch above is a snapshot taken when the sheet opens;
   // this is what keeps an open sheet current without it polling.
@@ -2135,6 +2143,8 @@ export function WatchScreen({
         won={busted ? false : Number.isFinite(sessionNet) ? sessionNet >= 0 : null}
         busted={busted}
         agentName={agentName}
+        identity={heroSeatRow?.identity}
+        equipment={heroSeatRow?.equipment}
         net={sessionNet}
         stack={finalStack}
         hands={handsPlayed}
@@ -2205,9 +2215,9 @@ export function WatchScreen({
     return <div className="watch-screen">
       <div className="watch-screen__header">
         <button type="button" className="watch-screen__back" onClick={onLeave} aria-label={seated ? 'Leave table' : 'Stop watching'}>‹</button>
-        <span className="watch-screen__title">Table unavailable</span>
+        <span className="watch-screen__title">{recoveryHint(errorDetails) ? 'Time to recover' : 'Table unavailable'}</span>
       </div>
-      <WatchAccessNotice message={error} onBack={onBackToFloor || onLeave}/>
+      <WatchAccessNotice message={error} refusal={errorDetails} onBack={onBackToFloor || onLeave}/>
     </div>;
   }
 

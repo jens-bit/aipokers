@@ -76,6 +76,7 @@ function AwayPage({ agent, index, onSend }) {
         accent={identity.glow.c}
         hood={identity.hood}
         glow={identity.glow.c}
+        equipment={agent.equipment}
         size={46}
         ring={false}
       />

@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 // WATCH v4 — ReadSheet.
 // Port of design-refs/mood-watch4.jsx ReadSheet4.
 //
@@ -101,7 +102,7 @@ export function ReadSheet({ entry, seat, onClose }) {
 
       <div className="read-sheet__head">
         <div className="read-sheet__well">
-          <MoodGhost mood={seat?.mood || 'neutral'} heat={Number.isFinite(seat?.heat) ? seat.heat : 45}
+          <MoodGhost equipment={equipmentOf(seat)} mood={seat?.mood || 'neutral'} heat={Number.isFinite(seat?.heat) ? seat.heat : 45}
             hood={identity?.hood} glow={identity?.glow.c}
             accent={seat?.accent || '#00D4AA'} size={38} ring={false} />
         </div>

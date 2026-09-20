@@ -46,6 +46,7 @@
 // purpose.
 
 import { storedIdentity } from '../shared/identity.js';
+import { equipmentOf } from '../shared/wardrobe.js';
 import { bodyLevels } from '../shared/levels.js';   // LIFE-1 job 2
 // LIFE-1: the one tilt threshold, owned by dips.js.
 import { TILT_HEAT } from '../agent/dips.js';
@@ -551,6 +552,7 @@ function homeAgentProjection(agent, { now = Date.now() } = {}) {
     // Visitors have no row in the host's REST roster to supply their look.
     // Carry only recognized public palette IDs, never arbitrary stored data.
     ...(identity ? { identity: { hood: identity.hood.id, glow: identity.glow.id } } : {}),
+    equipment: equipmentOf(agent),
     nature: agent.nature?.name ?? null,
     mood: agent.mood ?? null,
     location: agent.location ?? null,
@@ -569,12 +571,13 @@ function homeAgentProjection(agent, { now = Date.now() } = {}) {
     // reading of his want; a second derivation here would be a second chance for
     // the room and the agent card to put different words in the same mouth.
     //
-    // Three fields and no more. The card needs the price, the stock, the
+    // The card needs the price, the stock, the
     // snooze and whether the shelf is empty; a bubble over a body needs the
-    // sentence, the verb behind it, and the kind to draw the right icon with.
+    // sentence, the verb behind it, its actionable label and the kind to draw
+    // the right icon with. Home's toast consumes this same compact projection.
     // A visitor's projection carries no want at all — he is not yours to feed.
     want: agent.want && !agent.guest
-      ? { kind: agent.want.kind, text: agent.want.text, action: agent.want.action ?? null }
+      ? { kind: agent.want.kind, text: agent.want.text, action: agent.want.action ?? null, actionLabel: agent.want.actionLabel ?? null }
       : null,
     study: agent.study ?? null,
     // BUG-168: a live TV picture can ride Home's existing pushes. This is

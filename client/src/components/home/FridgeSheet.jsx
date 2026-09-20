@@ -44,7 +44,7 @@ function EffectArrow({ attr, dir }) {
 
 const headers = () => ({ 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getTelegramInitData() });
 
-export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
+export function FridgeSheet({ onClose, onStocked, variant = 'sheet', refreshKey = '' }) {
   const inRail = variant === 'rail';
   const [items, setItems] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,20 +56,22 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
   // "and this one too".
   const [expanded, setExpanded] = useState(null);
   const alive = useRef(false);
+  const reading = useRef(0);
   const drag = useSheetDrag(onClose);
 
   const load = useCallback(async () => {
+    const request = ++reading.current;
     setLoading(true); setError('');
     try {
       const res = await fetch(`/api/fridge?userId=${encodeURIComponent(getUserId())}`, { headers: headers() });
       if (!res.ok) throw new Error('read failed');
       const data = await res.json();
       if (!Array.isArray(data.items) || !STOCK.every(s => data.items.some(i => i.id === s.id && Number.isFinite(i.count) && Number.isFinite(i.price)))) throw new Error('incomplete stock');
-      if (alive.current) setItems(data.items);
-    } catch { if (alive.current) setError('Could not read the fridge. Please try again.'); }
-    finally { if (alive.current) setLoading(false); }
+      if (alive.current && reading.current === request) setItems(data.items);
+    } catch { if (alive.current && reading.current === request) setError('Could not read the fridge. Please try again.'); }
+    finally { if (alive.current && reading.current === request) setLoading(false); }
   }, []);
-  useEffect(() => { alive.current = true; load(); return () => { alive.current = false; }; }, [load]);
+  useEffect(() => { alive.current = true; load(); return () => { alive.current = false; reading.current++; }; }, [load, refreshKey]);
 
   async function buy(item) {
     if (busy || loading || !items) return;
@@ -79,6 +81,8 @@ export function FridgeSheet({ onClose, onStocked, variant = 'sheet' }) {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Could not stock the fridge. Please try again.');
       if (!alive.current) return;
+      reading.current++; // A confirmed purchase is newer than any pending shelf read.
+      setLoading(false);
       // /stock returns flat counts; prices remain the last confirmed GET.
       if (body.fridge && STOCK.every(s => Number.isFinite(body.fridge[s.id]))) {
         setItems(prev => prev.map(i => ({ ...i, count: body.fridge[i.id] })));

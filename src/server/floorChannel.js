@@ -43,7 +43,8 @@
 // through an injected provider so nothing here imports table.js.
 
 import { ServerMsg } from './protocol.js';
-import { floorSnapshot, homeSnapshot } from './agentProfiles.js';
+import { floorSnapshot, homeSnapshot, careForHome } from './agentProfiles.js';
+import { HOME_OBSERVE_LEASE_MS } from '../shared/homeCare.js';
 import { bus as eventBus, EventType, HOT_RECENT_MS } from './events.js';
 import { currentRooms } from './rooms.js';
 import { currentRoomTables, tableRoomMap } from './roomTables.js';
@@ -143,6 +144,26 @@ export function unsubscribe(ws) {
   }
   subs.delete(ws);
   return true;
+}
+
+// FLOOR_SUB is also used by casino screens. Only this additive, short-lived
+// foreground Home signal permits care, and it inherits the proved owner.
+export function observeHome(ws, visible) {
+  const entry = subs.get(ws);
+  if (!entry || !entry.owner || ws.readyState !== ws.OPEN) return false;
+  entry.homeVisibleUntil = visible === true ? Date.now() + HOME_OBSERVE_LEASE_MS : 0;
+  if (visible === true) careForObservedHome(entry.userId);
+  return true;
+}
+
+const caring = new Set();
+export function careForObservedHome(userId) {
+  const id = String(userId);
+  if (caring.has(id) || ![...subs].some(([ws, entry]) => entry.owner && entry.userId === id
+    && ws.readyState === ws.OPEN && entry.homeVisibleUntil > Date.now())) return null;
+  caring.add(id);
+  try { return careForHome(id); }
+  finally { caring.delete(id); }
 }
 
 // ── Outbound ────────────────────────────────────────────────────────────────

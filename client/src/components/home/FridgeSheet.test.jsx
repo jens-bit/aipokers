@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { FridgeSheet, STOCK } from './FridgeSheet.jsx';
@@ -6,6 +6,22 @@ import { fetchMock, telegram } from '../../test/harness.js';
 const fridge = { items: [{ id: 'beer', label: 'Beer', count: 0, price: 12 }, { id: 'snack', label: 'Snack', count: 2, price: 8 }] };
 const sentenceFor = (id) => STOCK.find(s => s.id === id).sentence;
 beforeEach(() => { telegram.signIn(); fetchMock.route('/api/fridge', fridge); });
+
+it('BUG-279: a visible meal refreshes the open shelf, and a slower prior meal read cannot restore stock', async () => {
+  const view = render(<FridgeSheet variant="rail" refreshKey="before"/>);
+  const shelf = screen.getByTestId('fridge-shelf-snack');
+  await waitFor(() => expect(shelf).toHaveTextContent('× 2'));
+  let finishOld;
+  fetchMock.route('/api/fridge', () => new Promise(resolve => { finishOld = resolve; }));
+  view.rerender(<FridgeSheet variant="rail" refreshKey="first-meal"/>);
+  await waitFor(() => expect(finishOld).toBeTypeOf('function'));
+  fetchMock.route('/api/fridge', { items: fridge.items.map(i => ({ ...i, count: 0 })) });
+  view.rerender(<FridgeSheet variant="rail" refreshKey="second-meal"/>);
+  await waitFor(() => expect(shelf).toHaveTextContent('out'));
+  await act(async () => finishOld({ items: fridge.items.map(i => ({ ...i, count: 1 })) }));
+  expect(shelf).toHaveTextContent('out');
+  expect(fetchMock.requestsMatching('/api/fridge/stock')).toHaveLength(0);
+});
 
 it('BUG-242: names each effect visibly and buys a single item at the quoted price', async () => {
   fetchMock.route('/api/fridge/stock', { stocked: 'beer', qty: 1, spent: 12, fridge: { beer: 1, snack: 2 } });

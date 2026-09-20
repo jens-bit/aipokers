@@ -191,8 +191,12 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
   }
 
-  function sendError(ws, message) {
-    send(ws, { type: ServerMsg.ERROR, message });
+  function sendError(ws, error) {
+    // Only the known owner admission refusal carries structured recovery.
+    // Generic/private errors retain their existing string-only contract.
+    const refusal = error?.refusal?.error === 'agentSpent' ? error.refusal : null;
+    send(ws, { type: ServerMsg.ERROR, message: typeof error === 'string' ? error : error.message,
+      ...(refusal ? { refusal } : {}) });
   }
 
   wss.on('connection', (ws, request) => {
@@ -289,7 +293,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
                   agentProfile,
                 });
               } catch (err) {
-                sendError(ws, err.message);
+                sendError(ws, err);
                 table.scheduleHouseFallback();
               }
             } else {
@@ -445,6 +449,11 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             return;
           }
 
+          case ClientMsg.HOME_OBSERVE: {
+            floor.observeHome(ws, msg.visible === true);
+            return;
+          }
+
           case ClientMsg.FLOOR_UNSUB: {
             floor.unsubscribe(ws);
             ws.floorUserId = null;
@@ -462,7 +471,7 @@ export function createServer({ port, host = '0.0.0.0', server, defaultBlinds = {
             throw new Error(`unknown message type: ${msg.type}`);
         }
       } catch (err) {
-        sendError(ws, err.message);
+        sendError(ws, err);
       }
     });
 

@@ -57,6 +57,32 @@ import { brokeAgent, wallet } from './test/fixtures/wallet.js';
 import { roomsResponse } from './test/fixtures/rooms.js';
 import { badBeatHand } from './test/fixtures/flagged.js';
 
+// CHARACTER-MENU keeps Stats beside Chat; the longer record remains in More.
+// Role queries stay semantic, but their container is the control's actual
+// header/menu. Scanning all mounted (including hidden) Stats and Wardrobe
+// controls makes these navigation checks CPU-bound under the parallel gate.
+const region = selector => {
+  const element = document.querySelector(selector);
+  expect(element).not.toBeNull();
+  return within(element);
+};
+const characterHeader = () => region('.agent-view__header');
+const characterTabs = () => region('.agent-view__tabs');
+async function openCharacterSheet(user) {
+  await user.click(characterHeader().getByRole('button', {name:'More actions'}));
+  await user.click(region('.agent-view__menu').getByRole('button', {name:'His sheet'}));
+  // Wait for the lazy sheet to replace the character before taking references.
+  // Its action row is a direct child; embedded Stats must not satisfy this.
+  const sheet = await waitFor(() => {
+    const actions = document.querySelector('.dr-app > .profile-actions');
+    expect(actions).not.toBeNull();
+    return actions.parentElement;
+  });
+  const header = within(sheet.firstElementChild);
+  expect(header.getByRole('button', {name:'Back to chat'})).toBeVisible();
+  return { header, actions: within(sheet.querySelector('.profile-actions')), root: within(sheet) };
+}
+
 it('C7: the home TV opens its saved hand with credentials and returns to Home',async()=>{
   telegram.signIn();
   const user=userEvent.setup();
@@ -86,7 +112,10 @@ const bootedOnHome = () => screen.findByTestId('home-screen');
 
 // An agent's body in the room. Tapping it opens his thread — the room's own
 // version of the floor zoom's Chat button.
-const bodyOf = (name) => screen.findByRole('button', { name: new RegExp(`^${name} — `) });
+const bodyOf = async name => {
+  await bootedOnHome();
+  return region('.home-flat').findByRole('button', { name: new RegExp(`^${name} — `) });
+};
 
 describe('App shell', () => {
   beforeEach(() => {
@@ -290,13 +319,14 @@ describe('BUGS-A job 4 · back out of a thread goes to the door you came in by',
 
     // Somebody resting: his card's primary action is Chat rather than Watch.
     await user.click(await bodyOf('Loose Cannon'));
-    await user.click(await screen.findByRole('button', { name: "Profile" }));
-    // C4 keeps the full conversation in More; the bottom composer whispers inline.
-    await user.click(await screen.findByRole('button', { name: 'More actions' }));
-    await user.click(await screen.findByRole('button', { name: 'Chat' }));
+    await user.type(screen.getByPlaceholderText('Whisper to him…'), 'Keep this thought.');
+    await user.click(characterTabs().getByRole('tab', {name:'Stats'}));
+    const sheet = await openCharacterSheet(user);
+    await user.click(sheet.header.getByRole('button', {name:'Back to chat'}));
     expect(await screen.findByPlaceholderText('Whisper to him…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Whisper to him…')).toHaveValue('Keep this thought.');
 
-    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await user.click(characterHeader().getByRole('button', { name: 'Back' }));
     // HOME-3: this profile was opened from this very thread. Chat resumes it;
     // backing out keeps the original Home destination instead of adding a loop.
     expect(await screen.findByTestId('home-screen')).toBeInTheDocument();
@@ -338,10 +368,11 @@ describe('BUGS-A job 3 · retiring him lands on HOME', () => {
     // Room -> his thread -> his profile, which is how an owner actually gets
     // to Retire.
     await user.click(await bodyOf('Loose Cannon'));
-    await user.click(await screen.findByRole('button', { name: "Profile" }));
-    await user.click(await screen.findByRole('button', { name: 'More actions' }));
-    await user.click(screen.getByRole('button', { name: 'Retire' }));
-    await user.click(screen.getByRole('button', { name: 'Retire him' }));
+    const sheet = await openCharacterSheet(user);
+    await user.click(sheet.actions.getByRole('button', { name: 'More actions' }));
+    await user.click(sheet.actions.getByRole('button', { name: 'Retire' }));
+    const confirmation = await sheet.root.findByRole('dialog', { name: 'Retire Loose Cannon' });
+    await user.click(within(confirmation).getByRole('button', { name: 'Retire him' }));
 
     // The room, with the household he still has — not the thread of the man
     // who has just gone.
@@ -404,7 +435,7 @@ describe('the profile card can reach the funding sheet', () => {
     fetchMock.route('/flagged', { flaggedHands: [] });
   });
 
-  it('renders C4 give-him-chips in the compact action row and lands on the YOU screen', async () => {
+  it('keeps the detailed sheet pocket funding action connected to the YOU screen', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -412,15 +443,8 @@ describe('the profile card can reach the funding sheet', () => {
     // header to his profile — the two hops CASINO-1 left in place of the zoom.
     await user.click(await screen.findByRole('button', { name: /^Value Bot — / }));
     await screen.findByPlaceholderText('Whisper to him…');
-    await user.click(screen.getByRole('button', { name: 'Profile' }));
-
-    const pocketLine = await waitFor(() => {
-      const el = document.querySelector('.profile-actions');
-      expect(el).toBeTruthy();
-      return el;
-    });
-
-    const fund = within(pocketLine).getByRole('button', { name: 'Give him chips' });
+    await openCharacterSheet(user);
+    const fund = await screen.findByRole('button', { name: 'Give him chips' });
     await user.click(fund);
 
     // Two truths from two branches: SAFE-2 renamed the surface the YOU screen
@@ -482,6 +506,7 @@ describe('WIRE-1 the app shell wiring', () => {
   // just born", so that is what is asserted now — through the app, not through
   // its source.
   it('BUG-32 WIRE-1: and tells the room which agent was just born', async () => {
+    const { DOOR_BEAT_MS } = await import('./screens/HomeScreen.jsx');
     const newborn = {
       id: 'agent_newborn', name: 'Fresh Meat',
       nature: { name: 'Rock' }, mood: { state: 'neutral', heat: 40 },
@@ -492,21 +517,36 @@ describe('WIRE-1 the app shell wiring', () => {
     // Served over REST as well as pushed: the room's REST backfill is the base
     // the push is re-laid over (useHomeState rule 2), so a roster that has him
     // on one and not the other is a race, not a test.
-    fetchMock.route('/api/agents', { agents: [newborn] });
+    let servedAgents = agentsResponse.agents;
+    fetchMock.route('/api/agents', () => ({ agents: servedAgents }));
 
-    render(<App />);
+    const view = render(<App />);
     await bootedOnHome();
     const sock = await waitFor(() => {
       const s = socketMock.last();
       expect(s).toBeTruthy();
       return s;
     });
-    sock.open();
-    sock.emit({ type: 'home_state', userId: '4242', agents: [newborn], game: null });
-
-    // Through the door, like anyone arriving — not materialised in a chair.
-    const him = await screen.findByRole('button', { name: /^Fresh Meat — / });
-    expect(him).toHaveAttribute('data-spot', 'door:born');
+    await act(async () => sock.open());
+    // The doorway lasts only 260ms. Establish the room/socket before adding
+    // him, then control the animation clock: CPU contention must not consume
+    // the whole arrival while a role query is inspecting the room.
+    vi.useFakeTimers();
+    try {
+      servedAgents = [newborn];
+      await act(async () => sock.emit({ type: 'home_state', userId: '4242', agents: [newborn], game: null }));
+      // Through the door, like anyone arriving — not materialised in a chair.
+      const him = region('.home-flat').getByRole('button', { name: /^Fresh Meat — / });
+      expect(him).toHaveAttribute('data-spot', 'door:born');
+      act(() => vi.advanceTimersByTime(DOOR_BEAT_MS));
+      expect(him).not.toHaveAttribute('data-spot', 'door:born');
+    } finally {
+      // Unmount while the fake clock still owns these timers, so neither the
+      // animation nor its pending timeout escapes into the following test.
+      view.unmount();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -570,22 +610,26 @@ describe('CLEAN-1 Chat on the watch screen goes to his thread', () => {
   });
 
   const watchTheGrinder = async (user) => {
-    // HOME-1: the room hands him over through his thread and his profile, which
-    // is where CASINO-1 put every action on an agent.
-    await user.click(await screen.findByRole('button', { name: /^The Grinder — / }));
+    // CHARACTER-MENU keeps Watch beside the selected Stats pane.
+    await user.click(await bodyOf('The Grinder'));
     await screen.findByPlaceholderText('Whisper to him…');
-    await user.click(screen.getByRole('button', { name: 'Profile' }));
-    const row = await waitFor(() => {
-      const el = document.querySelector('.profile-actions');
-      expect(el).toBeTruthy();
-      return el;
-    });
-    // A live agent's row reads "Call him in"; watching him is the profile's own
-    // header action, which is where CASINO-1 put it.
-    expect(within(row).getByRole('button', { name: 'Call him in' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Watch live game' }));
+    await user.click(characterTabs().getByRole('tab', {name:'Stats'}));
+    expect(characterTabs().getByRole('tab',{name:'Stats'})).toHaveAttribute('aria-selected','true');
+    await user.click(characterHeader().getByRole('button', { name: 'Watch live game' }));
     await waitFor(() => expect(document.querySelector('.watch-screen')).toBeTruthy());
   };
+
+  it('CHARACTER-MENU: his sheet still exposes Call him in and Back restores Stats', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await bodyOf('The Grinder'));
+    await user.click(characterTabs().getByRole('tab',{name:'Stats'}));
+    const sheet = await openCharacterSheet(user);
+    expect(sheet.actions.getByRole('button',{name:'Call him in'})).toBeInTheDocument();
+    await user.click(sheet.header.getByRole('button',{name:'Back',exact:true}));
+    expect(characterTabs().getByRole('tab',{name:'Stats'})).toHaveAttribute('aria-selected','true');
+    expect(screen.getByTestId('agent-stage')).toBeInTheDocument();
+  });
 
   it('BUG-49: watching from a profile authenticates its private memory request', async () => {
     render(<App />);
@@ -710,7 +754,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     });
   }
 
-  // thread -> profile -> Deploy -> casino -> Deal him in -> watch -> back
+  // thread -> Deploy -> casino -> Deal him in -> watch -> back
   //
   // CASINO-1 put the casino in the middle of this journey, which is the real
   // test of CHAT-2's rule: the origin is captured where the DECISION was made
@@ -718,14 +762,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
   async function deployFromThread(user) {
     await openThread(user);
 
-    // Board 42: Profile still opens the control centre; this tests its return origin.
-    await user.click(screen.getByRole('button', { name: 'Profile' }));
-    const row = await waitFor(() => {
-      const el = document.querySelector('.profile-actions');
-      expect(el).toBeTruthy();
-      return el;
-    });
-    await user.click(within(row).getByRole('button', { name: 'Deploy' }));
+    await user.click(screen.getByRole('button', { name: /^DEPLOY/i }));
     return dealHimIn(user);
   }
 
@@ -758,13 +795,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     // route, which is the one the origin has to survive.
     await user.click(await screen.findByRole('button', { name: /^Loose Cannon — / }));
     await screen.findByPlaceholderText('Whisper to him…');
-    await user.click(screen.getByRole('button', { name: 'Profile' }));
-    const row = await waitFor(() => {
-      const el = document.querySelector('.profile-actions');
-      expect(el).toBeTruthy();
-      return el;
-    });
-    await user.click(within(row).getByRole('button', { name: 'Deploy' }));
+    await user.click(screen.getByRole('button', { name: /^DEPLOY/i }));
     await dealHimIn(user);
 
     await user.click(screen.getByRole('button', { name: 'Stop watching' }));
@@ -802,13 +833,7 @@ describe('CHAT-2 the watch screen returns to where you came from', () => {
     await screen.findByPlaceholderText('Whisper to him…');
 
     // Straight back out and in again, from the thread we just landed in.
-    await user.click(screen.getByRole('button', { name: 'Profile' }));
-    const row = await waitFor(() => {
-      const el = document.querySelector('.profile-actions');
-      expect(el).toBeTruthy();
-      return el;
-    });
-    await user.click(within(row).getByRole('button', { name: 'Deploy' }));
+    await user.click(screen.getByRole('button', { name: /^DEPLOY/i }));
     await dealHimIn(user);
 
     await user.click(screen.getByRole('button', { name: 'Stop watching' }));

@@ -1,3 +1,4 @@
+import { equipmentOf } from '../../../../src/shared/wardrobe.js';
 // ATTR-2e-1 — the player card, in the desktop panel.
 // Ported from design-refs/char-profile.jsx PlayerCardRail (screen
 // D3ThreadCardScreenM) and char-birth.jsx BirthCardRail (DeskBirthCardScreenM).
@@ -23,7 +24,7 @@ function Identity({ agent, accent, mood, heat = 45, nature, size = 56, nameSize 
   return (
     <div className="dsk-pcard__id" style={{ alignItems: centred ? 'center' : 'flex-start' }}>
       <div className="dsk-pcard__ghost" style={{ width: size, height: size, borderColor: `${accent}44` }}>
-        <MoodGhost mood={mood} heat={heat} accent={identity.glow.c} hood={identity.hood} glow={identity.glow.c} size={size - 2} ring={false} />
+        <MoodGhost equipment={equipmentOf(agent)} mood={mood} heat={heat} accent={identity.glow.c} hood={identity.hood} glow={identity.glow.c} size={size - 2} ring={false} />
       </div>
       <div className="dsk-pcard__id-text">
         <div className="dsk-pcard__name" style={{ fontSize: nameSize }}>{agent.name}</div>

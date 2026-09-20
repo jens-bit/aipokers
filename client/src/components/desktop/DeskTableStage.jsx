@@ -1,3 +1,4 @@
+import { storedIdentity } from '../../lib/identity.js';
 // The table as the main stage, ported from design-refs/mood-desktop.jsx
 // DeskTableStage (screens D3WatchScreenM / D3WatchBetweenScreenM), brought up
 // to watch v3 from D3Watch3ScreenM in design-refs/mood-watch3.jsx.
@@ -225,7 +226,7 @@ export function DeskTableStage({ game, agentName, mySeat = null, lastDecision, o
         <div className="dtb__hero-body">
           <span className="dtb__hero-aura" aria-hidden
             style={{ background: `radial-gradient(circle, ${heroAccent}1F, transparent 68%)` }} />
-          <MoodGhost mood={heroMood} accent={heroAccent} size={132} heat={heroHeat ?? 45}
+          <MoodGhost hood={storedIdentity(hero)?.hood} glow={storedIdentity(hero)?.glow.c} equipment={hero?.equipment} mood={heroMood} accent={heroAccent} size={132} heat={heroHeat ?? 45}
             hands={heroPose({ between, action: heroDecision?.action ?? null, pace, heat: heroHeat ?? 45 })}
             bet={betBand(heroDecision?.action?.amount ?? null, game?.pot ?? 0)} ring={false} />
           {/* Fish-tank law: your own agent plays face up, in front of him. */}

@@ -53,6 +53,19 @@ function renderCasino(props = {}) {
 }
 
 describe('floor recovery', () => {
+  it('BUG-279: a hungry queue refusal offers a stocked Home recovery without retrying deployment', async () => {
+    routeFloor({ agents: [fundedCannon] });
+    fetchMock.route('/queue', { status: 409, body: { error: 'agentSpent', kind: 'food', needs: 'stock',
+      action: 'feed', message: 'Two snacks should do it.', snacksNeeded: 2, stock: 0 } }, { method: 'POST' });
+    const onBack = vi.fn(); const deployed = vi.fn();
+    renderCasino({ deployAgent: fundedCannon, onBack, onDeployed: deployed });
+    await userEvent.click(await screen.findByRole('button', { name: 'Deal him in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Buy snacks from the fridge at Home. He will eat while you watch the room.');
+    await userEvent.click(screen.getByRole('button', { name: 'Recover at Home' }));
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(deployed).not.toHaveBeenCalled();
+    expect(fetchMock.posts.filter(request => request.url.endsWith('/queue'))).toHaveLength(1);
+  });
   it.each([
     { liveGame: { tableId: 'kitchen', home: true }, homeTableId: 'kitchen' },
     { activeTableId: 'home-4242' },

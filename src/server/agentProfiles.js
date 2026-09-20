@@ -31,6 +31,7 @@ import { staminaStageNow, worseStage, staminaPercent, restStamina, spendStamina,
 // AGENT-5 jobs A + B — the floor a casino seat costs at the door, the
 // arithmetic behind it and the sentence that names the remedy.
 import { restRefusal, restPlan, DEPLOY_FLOOR } from './restFloor.js';
+import { HOME_CARE_INTERVAL_MS } from '../shared/homeCare.js';
 import { telegramAuthMiddleware, isOwner } from './auth.js';
 // GUEST-1: the limits an unclaimed owner plays under. Decided in guest.js and
 // only enforced here — see the note at the top of that file for why the two
@@ -129,6 +130,7 @@ import { loadAgentStore, loadProfile as loadProfileRow, saveProfile, loadWallet,
 import { bumpTick } from './store.js';   // ADMIN-1 job 2
 import { ensureRosterIdentities } from './identity.js';
 import { identityOf } from '../shared/identity.js';
+import { equipmentOf, wardrobeOf, validEquipment } from '../shared/wardrobe.js';
 import { emitSessionEnd } from './sessions.js';
 import {
   readThread, latestSessionFor, appendLine as appendThreadLine,
@@ -2092,6 +2094,11 @@ export function getAgentIdentity(agentId, userId) {
   return { hood: look.hood.id, glow: look.glow.id };
 }
 
+export function getAgentEquipment(agentId, userId) {
+  const agent = getOrCreate(userId ?? 'anon').agents.find(a => a.id === agentId);
+  return agent ? equipmentOf(agent) : null;
+}
+
 // SERVER-3: the agent's pocket, backfilled. table.js reads it for one
 // question only — when a seat busts, was there anything behind him? — which
 // is what separates a SESSION_END reason of 'bust' from one of 'allowance'.
@@ -2322,6 +2329,55 @@ export function restPlanFor(agentId, userId, { now = Date.now() } = {}) {
     left: staminaPercent(agent, { now, resting: !seatedAnywhere(agent) }),
     snacks: fridgeCountOf(wallet, 'snack'),
   });
+}
+
+// BUG-279: called only by an authenticated, foreground Home observation.
+// Buying and eating remain separate. This never spends chips or runs offline.
+export function careForHome(userId, { now = Date.now() } = {}) {
+  const profile = getOrCreate(userId);
+  const residents = activeAgents(profile);
+  const latestItem = Math.max(0, ...residents.map(a => Number(a.homeItem?.at) || 0));
+  if (now - latestItem < HOME_CARE_INTERVAL_MS) return null;
+  const wallet = walletFor(userId);
+  for (const agent of residents) {
+    if (agent.visiting || agent.study || seatedAnywhere(agent) || liveTables?.tableOfAgent?.(agent.id)) continue;
+    if (getAgentHome(agent.id, userId)?.location?.where !== Where.HOME) continue;
+    const plan = restPlanFor(agent.id, userId, { now });
+    if (plan.ok) continue;
+    // An explicit No or Later still means what it said. Merely opening the
+    // app is not permission to override that answer.
+    if ((Number.isFinite(agent.snackRefusedAt) && now - agent.snackRefusedAt < ASK_REASK_MS
+      && (agent.lastSnackAt ?? 0) <= agent.snackRefusedAt)
+      || (agent.want?.kind === 'food' && ((agent.want.snoozedUntil ?? 0) > now
+      || (agent.want.answered === 'no' && onReAskCooldown(agent, 'food', now))))) continue;
+    if (fridgeCountOf(wallet, 'snack') < 1) {
+      if (!agent.homeFoodAskedAt) {
+        agent.homeFoodAskedAt = now;
+        computeWant(agent, { now, wallet });
+        saveStore(userId);
+        emitAgentChange(userId);
+      }
+      continue;
+    }
+    const beforeAgent = structuredClone(agent), beforeWallet = structuredClone(wallet);
+    try {
+      const given = giveItemTo(agent, userId, 'snack', { persistWallet: false });
+      if (!given.ok) continue;
+      computeWant(agent, { now });
+      // saveProfile commits the owner, agent and wallet in one transaction.
+      saveStore(userId);
+    } catch (error) {
+      for (const [target, before] of [[agent, beforeAgent], [wallet, beforeWallet]]) {
+        for (const key of Object.keys(target)) delete target[key];
+        Object.assign(target, before);
+      }
+      console.error('[home] meal could not be saved:', error.message);
+      return null;
+    }
+    emitAgentChange(userId);
+    return { agentId: agent.id, item: 'snack', at: agent.homeItem.at };
+  }
+  return null;
 }
 
 // Set the agent's mood record wholesale (used by table.js after applying
@@ -2633,6 +2689,7 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
   delete record.homeItem;
   delete record.lastProposalAcceptance;
   delete record.ownerReportIds;
+  delete record.barOrders;
   // BUG-259: reopening Watch must retain a requested return. Read the live
   // departure queues, never persist a second copy of the seat lifecycle.
   const returnTable = owner ? (liveTables?.tableOfAgent?.(agent.id)
@@ -2649,6 +2706,8 @@ export function presentAgent(agent, { owner = false, walletBalance = null, walle
     pocket: pocketProjection(agent.pocket),
     // Public identity is just the two palette IDs, never arbitrary stored data.
     identity: agent.identity ? { hood: identityOf(agent).hood.id, glow: identityOf(agent).glow.id } : null,
+    equipment: equipmentOf(agent),
+    ...(owner ? { wardrobe: wardrobeOf(agent) } : {}),
     // MOOD-2: heat rides with the state. The floor draws posture intensity from
     // it, the thread reads it for tone, and it is the only way two tilted
     // agents can look like different players.
@@ -2728,6 +2787,8 @@ export function floorSnapshot(userId, { owner = false } = {}) {
     return {
       id: p.id,
       name: p.name,
+      identity: p.identity,
+      equipment: p.equipment,
       style: p.style,
       risk: p.risk,
       presence: p.presence,
@@ -3383,8 +3444,11 @@ export function computeWant(agent, {
   // half for the food ask — read off the stamp giveItemTo writes, so a snack
   // handed over through POST /give or the flat's fridge fixture closes the ask
   // without the owner ever pressing yes on it.
+  const needsHomeFood = !!agent.homeFoodAskedAt && !seatedAnywhere(agent)
+    && staminaPercent(agent, { now, resting: true }) < DEPLOY_FLOOR;
   const fed = Number.isFinite(agent.lastSnackAt)
-    && Number.isFinite(current?.at) && agent.lastSnackAt >= current.at;
+    && Number.isFinite(current?.at) && agent.lastSnackAt >= current.at
+    && !(current?.homeCare && needsHomeFood);
 
   if (current && !isAnswered(current) && askSatisfied(current, { fatigue: worn, atTable: seated, broke: skint, heat, fed })) {
     current.answered = 'fulfilled';
@@ -3394,7 +3458,7 @@ export function computeWant(agent, {
   const lastSession = (Array.isArray(agent.sessionLog) ? agent.sessionLog : []).at(-1) ?? null;
   const sighting = seated ? null : nemesisSightingFor(agent);
 
-  const candidate = askFor({
+  const candidate = needsHomeFood ? { kind: 'food', item: 'snack', homeCare: true } : askFor({
     fatigue: worn,
     atTable: seated,
     idleMs: Number.isFinite(agent.restedAt) ? now - agent.restedAt : (agent.stats?.handsPlayed > 0 ? Infinity : 0),
@@ -3408,7 +3472,8 @@ export function computeWant(agent, {
     snackInFridge,
   });
 
-  if (candidate && !onReAskCooldown(agent, candidate.kind, now) && replaces(candidate, agent.want)) {
+  if (candidate && !onReAskCooldown(agent, candidate.kind, now)
+    && (replaces(candidate, agent.want) || (candidate.homeCare && agent.want?.kind === 'rest'))) {
     const built = buildAsk(candidate, {
       // The seed is his hand count, so the alternate he picks is stable for as
       // long as the want is — the same reason formatOpener seeds on the session.
@@ -3418,7 +3483,7 @@ export function computeWant(agent, {
       roomPhrase: sighting?.roomPhrase ?? null,
       now,
     });
-    if (built) agent.want = built;
+    if (built) agent.want = candidate.homeCare ? { ...built, homeCare: true } : built;
   }
 
   return agent.want ?? null;
@@ -3629,7 +3694,7 @@ export function refreshWantsFor(userId, { now = Date.now() } = {}) {
  *
  * Returns { ok, status?, body } — the caller decides how to dress it.
  */
-export function giveItemTo(agent, userId, item) {
+export function giveItemTo(agent, userId, item, { persistWallet = true, resting = true } = {}) {
   if (!isFridgeItem(item)) {
     return { ok: false, status: 400, body: { error: `item must be one of ${FRIDGE_ITEM_IDS.join(', ')}` } };
   }
@@ -3647,14 +3712,13 @@ export function giveItemTo(agent, userId, item) {
   // fridge appeared to do nothing. It also refused a snack to a spent but calm
   // agent, which is the exact case a snack now exists for.
   //
-  // The reserve is read RESTED here on purpose: an agent being handed food is
-  // by definition not in a seat, and asking whether the snack would help has
-  // to use the number he actually has, not the one he had an hour ago.
+  // Home food includes the rest earned since the last write. Casino bar food
+  // passes resting:false: time spent in an unfinished hand is never rest.
   // AGENT-4 job C: the reserve AND the word the owner can see. Asking only the
   // first is the threshold that refused food at one dot — see itemHelp.
   const help = itemHelp(item, {
     mood: agent.mood,
-    staminaLeft: staminaPercent(agent, { resting: true }),
+    staminaLeft: staminaPercent(agent, { resting }),
     stage: visibleFatigue(agent),
   });
   if (!help.any) {
@@ -3697,7 +3761,7 @@ export function giveItemTo(agent, userId, item) {
   // clamps to a full reserve and runs the stage through the same hysteresis a
   // charge does — so a snack can genuinely help a sleeping agent up, but only
   // by getting him all the way back to rested.
-  const fed = help.feeds ? feedStamina(agent, staminaEffectOf(item)) : null;
+  const fed = help.feeds ? feedStamina(agent, staminaEffectOf(item), { resting }) : null;
   // ── AGENT-4 job C · EATING IS A BREAK, SO IT MOVES THE DOT ────────────────
   //
   // The reserve was only ever HALF of what the owner is looking at. The card
@@ -3750,7 +3814,7 @@ export function giveItemTo(agent, userId, item) {
   // Only this successful common path records a fetch; refusals leave the last
   // event untouched. The callers retain responsibility for saving the agent.
   agent.homeItem = { item, at: agent.lastMoment.at };
-  saveWalletFor(userId);
+  if (persistWallet) saveWalletFor(userId);
   return {
     ok: true,
     body: {
@@ -4982,6 +5046,73 @@ export function giveItemFrom(agent, userId, item) {
   emitAgentChange(userId);
   emitWantChange(userId, agent.id, null);
   return { status: 200, body: given.body };
+}
+
+// BUG-281: the bar serves one existing item. Safe purchase, stock consumption,
+// effect and receipt commit together; opening the bar never calls this verb.
+export function barOrderFrom(agent, userId, { item, buyIfEmpty, orderId } = {}) {
+  if (!agent) return { status: 404, body: { error: 'Agent not found' } };
+  if (!isFridgeItem(item) || typeof buyIfEmpty !== 'boolean'
+    || typeof orderId !== 'string' || !/^[A-Za-z0-9_-]{8,100}$/.test(orderId)) {
+    return { status: 400, body: { error: 'Choose an item and a valid bar order.' } };
+  }
+  const wallet = walletFor(userId);
+  const respond = (receipt, replayed = false) => ({ status: 200, body: {
+    ...receipt, replayed, fridge: fridgeProjection(wallet),
+    agent: presentAgent(agent, { owner: true, wallet }),
+    wallet: walletProjection(wallet, getOrCreate(userId).agents),
+  } });
+  const prior = (agent.barOrders ?? []).find(receipt => receipt.orderId === orderId);
+  if (prior) return prior.item === item && prior.buyIfEmpty === buyIfEmpty
+    ? respond(prior, true)
+    : { status: 409, body: { error: 'This order was already used for a different choice.' } };
+  const table = liveTables?.tableOfAgent?.(agent.id)
+    ?? (agent.activeTableId ? liveTables?.getTable?.(agent.activeTableId) : null);
+  if (agent.archived || agent.visiting || !table || table.home || table.closed || table.seatOfAgent?.(agent.id) == null) {
+    return { status: 409, body: { error: 'He is not at the casino. Find him at Home.' } };
+  }
+  const beforeAgent = structuredClone(agent), beforeWallet = structuredClone(wallet);
+  let committed = false;
+  const restore = () => {
+    for (const [target, before] of [[agent, beforeAgent], [wallet, beforeWallet]]) {
+      for (const key of Object.keys(target)) delete target[key];
+      Object.assign(target, before);
+    }
+  };
+  try {
+    let spent = 0;
+    let given = giveItemTo(agent, userId, item, { persistWallet: false, resting: false });
+    // giveItemTo checks whether the item helps before reporting empty stock.
+    // A refused drink can therefore never turn into an unwanted purchase.
+    if (!given.ok && given.body?.outOfStock && buyIfEmpty) {
+      const stocked = stockFridge(wallet, { item, qty: 1 });
+      if (!stocked.ok) {
+        restore();
+        return { status: 400, body: { error: 'Your safe does not cover one of those.', price: priceOf(item) } };
+      }
+      spent = stocked.spent;
+      wallet.ledger = appendWalletEntry(wallet.ledger, { type: 'item', amount: -spent, agentId: agent.id, item, qty: 1 });
+      given = giveItemTo(agent, userId, item, { persistWallet: false, resting: false });
+    }
+    if (!given.ok) { restore(); return { status: given.status, body: given.body }; }
+    const matchingWant = agent.want && !isAnswered(agent.want)
+      && (agent.want.item === item || agent.want.kind === (item === 'beer' ? 'beer' : 'food'));
+    if (matchingWant) { agent.want.answered = 'given'; agent.want.answeredAt = Date.now(); }
+    agent.ownerCommandRevision = Math.max(0, Number(agent.ownerCommandRevision) || 0) + 1;
+    const receipt = { orderId, item, buyIfEmpty, given: item, spent,
+      drinking: given.body.drinking, moment: given.body.moment, ...(given.body.stamina ? { stamina: given.body.stamina } : {}) };
+    agent.barOrders = [...(agent.barOrders ?? []), receipt].slice(-20);
+    saveStore(userId);
+    committed = true;
+    if (matchingWant) noteReAskCooldown(agent, agent.want.kind ?? 'beer');
+    emitAgentChange(userId);
+    if (matchingWant) emitWantChange(userId, agent.id, null);
+    return respond(receipt);
+  } catch (error) {
+    if (!committed) restore();
+    console.error('[bar] order failed:', error.message);
+    return { status: 503, body: { error: 'Could not serve that order. Please try again.' } };
+  }
 }
 
 // ── AGENT-4 job B · YES PERFORMS THE VERB ───────────────────────────────────
@@ -6216,6 +6347,14 @@ export function installAgentProfileRoutes(app) {
     res.status(out.status).json(out.body);
   });
 
+  app.post('/api/agents/:agentId/bar-order', telegramAuthMiddleware, (req, res) => {
+    const userId = String(req.body?.userId || 'anon');
+    const agent = getOrCreate(userId).agents.find(a => a.id === req.params.agentId);
+    const out = barOrderFrom(agent, userId, req.body);
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(out.status).json(out.body);
+  });
+
 
   // ── WANTS-1 — POST /api/agents/:agentId/want?userId=...  { answer } ───────
   //
@@ -6400,13 +6539,44 @@ export function installAgentProfileRoutes(app) {
     res.json({ success: true });
   });
 
-  // PATCH /api/agents/:agentId — update name and/or strategy
+  // PATCH /api/agents/:agentId — name, strategy or removable clothes.
   app.patch('/api/agents/:agentId', telegramAuthMiddleware, (req, res) => {
     const userId = String(req.body?.userId || 'anon');
     const { agentId } = req.params;
     const profile = getOrCreate(userId);
     const agent = profile.agents.find((a) => a.id === agentId);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (Object.hasOwn(req.body, 'identity')) {
+      return res.status(400).json({ error: 'immutableIdentity', message: 'Birth colours are permanent. Choose removable wardrobe items instead.' });
+    }
+    if (Object.hasOwn(req.body, 'equipment')) {
+      const look = req.body.equipment;
+      if (!validEquipment(look)) {
+        return res.status(400).json({ error: 'invalidEquipment', message: 'Choose an item from your rack for each slot, or remove it.' });
+      }
+      const updates = {
+        wardrobe: { ...wardrobeOf(agent), equipped: { ...look } },
+        ownerCommandRevision: Math.max(0, Number(agent.ownerCommandRevision) || 0) + 1,
+        ...(req.body.name !== undefined ? { name: String(req.body.name) } : {}),
+        ...(req.body.strategy !== undefined ? { strategy: String(req.body.strategy) } : {}),
+      };
+      const previous = Object.keys(updates).map(key => ({ key, present: Object.hasOwn(agent, key), value: agent[key] }));
+      Object.assign(agent, updates);
+      try { saveStore(userId); }
+      catch (err) {
+        // SQLite rolls back disk. Restore the cache too, so a failed save
+        // cannot appear successful on the next read or ride a later write.
+        for (const old of previous) {
+          if (old.present) agent[old.key] = old.value;
+          else delete agent[old.key];
+        }
+        console.error('[agents] appearance save failed:', err.message);
+        return res.status(503).json({ error: 'appearanceSaveFailed', message: 'Could not save this look. Please try again.' });
+      }
+      emitAgentChange(userId);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.json(presentAgent(agent, { owner: true, wallet: walletFor(userId) }));
+    }
     if (req.body.name !== undefined) agent.name = String(req.body.name);
     if (req.body.strategy !== undefined) agent.strategy = String(req.body.strategy);
     saveStore(userId);
