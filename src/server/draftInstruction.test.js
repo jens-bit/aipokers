@@ -377,6 +377,24 @@ test('BUG-283: replacing the saved strategy removes the rule for subsequent seat
   assert.equal(explicitAllInIntent(changed.strategy), false);
 });
 
+for (const advice of [
+  'Always consider the table dynamics before going all in.',
+  'Always be patient, and consider a shove.',
+  'Always look for good spots to go all in.',
+  'Go all in every hand after the flop.',
+  'Always shove once the pot is large.',
+  'Go all in every hand until the first loss.',
+  'Always shove small pairs.',
+  'Go all in every hand with a flush draw.',
+]) {
+  test(`BUG-283: qualified or advisory wording does not create a forced shover: ${advice}`, async () => {
+    const built = await draft(`Play balanced poker. ${advice}`);
+    assert.ok(built.agents[0]);
+    const saved = store.loadProfile(userId).agents[0];
+    assert.doesNotMatch(saved.strategy, /all in (?:on )?every hand/i);
+  });
+}
+
 test('BUG-283: separate draft turns can revoke and explicitly re-enable all-in play', async () => {
   const opened = await post('/api/agents/draft', { userId });
   const draftId = opened.body.draftId;

@@ -27,7 +27,23 @@ export function explicitAllInIntent(strategy) {
   const action = new RegExp(`\\b${move}\\b`);
   const negative = /\b(?:not|never|no|cannot|avoid|stop|refuse|without|don'?t|doesn'?t|didn'?t|won'?t|wouldn'?t|shouldn'?t|couldn'?t|can'?t|isn'?t|aren'?t|wasn'?t|weren'?t)\b/;
   const qualified = new RegExp(`\\b(?:sometimes|occasionally|rarely|usually|nearly|almost|often|frequently|might|may)\\s+(?:(?:go|goes|move|moves|always|ever|just|be|going|to)\\s+){0,4}${move}\\b`);
-  const frequency = /\b(?:(?:each|every)\s+(?:single\s+|legal\s+)?(?:hand|deal|time|opportunity|chance)|all the time|always|constantly|(?:any\s*two(?:\s+cards)?)[,\s]+(?:at\s+)?any\s*time|whenever\s+(?:it is\s+)?(?:your|his|my)\s+turn|regardless\s+(?:of\s+)?(?:(?:the|your|his|my)\s+)?cards)\b/;
+  const frequency = '(?:(?:each|every)\\s+(?:single\\s+|legal\\s+)?(?:hand|deal|time|opportunity|chance)|all the time|always|constantly|(?:any\\s*two(?:\\s+cards)?)[,\\s]+(?:at\\s+)?any\\s*time|whenever\\s+(?:it is\\s+)?(?:your|his|my)\\s+turn|regardless\\s+(?:of\\s+)?(?:(?:the|your|his|my)\\s+)?cards)';
+  const subject = '(?:you|he|she|they|we|i|it|this agent|my agent|the agent)';
+  const target = '(?:you|him|her|them|it|this agent|my agent|the agent)';
+  const preface = `(?:(?:please|actually|just)\\s+)*(?:(?:all i want ${target} to play is|i want ${target} to|make ${target}|${subject}(?:\\s+(?:must|should|will|shall))?)\\s+)?`;
+  const directMove = `(?:(?:go|goes|move|moves|play|plays|push|pushes)\\s+)?${move}`;
+  // Frequency must modify the actual commitment, with a bounded command
+  // preface. "Always consider ... all in" and "consider shoving every hand"
+  // are advice, not permission to put every chip in on every turn.
+  const frequencySuffix = `\\s*(?:,\\s*)?(?:(?:on|at|with)\\s+)?${frequency}\\b`;
+  const commandHead = `(?:${preface}${directMove}${frequencySuffix}|${preface}(?:(?:on|at)\\s+)?${frequency}[,\\s]+${preface}${directMove}\\b(?:${frequencySuffix})?)`;
+  const startsCommand = new RegExp(`^\\s*${commandHead}`);
+  // Accept only the complete supported instruction. An unknown suffix can
+  // restrict timing, stopping, or cards: it cannot authorize an unrestricted
+  // first-opportunity shove. Retain the original any-two explanation and the
+  // old scripted brief's literal appended slider labels.
+  const benignTail = '(?:[,\\s]+(?:with\\s+)?any\\s*two(?:\\s+cards)?)?(?:\\s+loose\\s+often)?';
+  const completeCommand = new RegExp(`^\\s*${commandHead}${benignTail}\\s*$`);
   let intent = false;
   // Evaluate only clauses about all-in play. A later explicit restriction
   // revokes an earlier mandate; an unrelated slider answer ('Often') does
@@ -47,7 +63,9 @@ export function explicitAllInIntent(strategy) {
       || /\b(?:unless|except|if|when|only|provided|assuming|depending)\b/.test(line)
       || /\b(?:nearly|almost|most)\s+(?:every|each|all|hands)\b/.test(line)
       || /\bwith\s+(?:aces|kings|queens|premiums|nuts|strong|good)\b/.test(line)) { intent = false; continue; }
-    if (frequency.test(line)) intent = true;
+    // A later direct but qualified command replaces an older unrestricted
+    // one. Non-command advice does not silently change the owner's mandate.
+    if (startsCommand.test(line)) intent = completeCommand.test(line);
   }
   return intent;
 }

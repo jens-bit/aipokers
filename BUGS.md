@@ -12,6 +12,8 @@ Keep the original play turns, preserve an explicit unconditional instruction,
 and use the same legal maximum commitment in Home, casino and model fallback.
 Names and ordinary aggression do not activate it. Negative, conditional and
 quoted examples do not force all-in; later explicit corrections can revoke it.
+The supported grammar also excludes advisory wording and timing/card-qualified
+commands; nearby "always" and "all in" words alone are not an instruction.
 Existing explicit saved strategies are recognised. Do not infer lost historical
 instructions from an agent's name or rewrite user records based on that guess.
 

@@ -18,6 +18,9 @@ on `codex/all-in-safe-repair`, through the normal review and production gates.
 - Interpret only explicit unconditional instructions. A name such as "Goes All
   In", high aggression, questions, opponent descriptions, quoted examples and
   conditional/negative instructions do not make a character shove every hand.
+  Supported command grammar must connect the repetition to the commitment;
+  advisory text such as "always consider the table before going all in" and
+  timing/card restrictions must not turn into an unconditional mandate.
   Later explicit restrictions revoke earlier instructions; later affirmative
   instructions can re-enable them. Strategy replacement applies at the next
   seating, following the existing snapshot contract. Existing explicit saved
@@ -62,3 +65,15 @@ The production build emits `index-GKlXy-od.js` and `index-BFJj5vbS.css`.
 Receipts are `artifacts/all-in-safe-repair/{server-final,client-final,e2e-final}.log`
 and `artifacts/all-in-safe-repair/built-final/gate-results.json`; integrated
 results and reviewed captures are under `artifacts/all-in-safe-repair/final-integrated/`.
+
+Before merge, a further review found advisory and qualified wording could pass
+the initial same-clause detector. Failure-first parser and native draft/build
+cases reproduce this in `advisory-red.log`, `draft-advisory-red.log` and
+`draft-qualified-red.log` under the same artifact directory. The PR was held as
+draft while tightening the supported command grammar. The final correction
+passed 21 native draft tests, 11 focused suites and 67 independent grammar
+checks. Complete server (213 passed / 2 intentional exclusions) and end-to-end
+(8 passed) reruns also passed before publishing the corrected revision:
+`server-qualified-final.log` and `e2e-qualified-final.log`. Client source and
+the reviewed production bundle are unchanged by this parser-only correction;
+GitHub runs every release gate again on the corrected head before merging.

@@ -38,6 +38,46 @@ test('BUG-283: names, loose personalities, negation, conditions, quotes and oppo
   }
 });
 
+test('BUG-283: frequency applies to committing chips, not nearby strategic advice', () => {
+  for (const text of [
+    'Always consider the table dynamics before going all in.',
+    'Always be patient, and consider a shove.',
+    'Always look for good spots to go all in.',
+    'Consider going all in every hand.',
+    'Every hand, consider a shove.',
+    'Always stay calm and look for opportunities to shove.',
+    'You should always think before going all in.',
+    'Study whether always shoving is profitable.',
+    'Every hand deserves attention before you go all in.',
+    'Always play patiently, go all in with a strong hand.',
+  ]) assert.equal(explicitAllInIntent(text), false, text);
+  for (const text of [
+    'I want him to go all in constantly.',
+    'You should always go all in.',
+    'Please shove every hand.',
+    'Always consider the table dynamics. Go all in every hand.',
+    'Go all in every hand. Always consider the table dynamics.',
+    'Always look for good spots to go all in. Always shove.',
+  ]) assert.equal(explicitAllInIntent(text), true, text);
+});
+
+for (const text of [
+  'Go all in every hand after the flop.',
+  'Always shove once the pot is large.',
+  'Go all in every hand until the first loss.',
+  'Always shove before the flop.',
+  'Always shove small pairs.',
+  'Go all in every hand with a flush draw.',
+]) {
+  test(`BUG-283: timing or stopping conditions do not compile unrestricted play: ${text}`, () => {
+    assert.equal(explicitAllInIntent(text), false);
+    assert.equal(explicitAllInIntent(`Always shove.\n${text}`), false,
+      'a later qualified command must not leave an older unrestricted command active');
+    assert.equal(explicitAllInIntent(ALL_IN_EVERY_HAND_STRATEGY), true,
+      'the canonical legal-action exception still preserves its unconditional strategy');
+  });
+}
+
 test('BUG-283: the original saved BUG223 fallback compiles without enforcing its obsolete never-call wording', () => {
   const old = 'You move all in. That is the whole strategy and you do not deviate from it: '
     + 'whenever it is your turn and you have chips, you put every one of them in the middle, '
